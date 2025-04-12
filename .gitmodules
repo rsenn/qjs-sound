@@ -7,6 +7,3 @@
 [submodule "sndobj"]
 	path = sndobj
 	url = git@github.com:rsenn/sndobj.git
-[submodule "libsndfile"]
-	path = libsndfile
-	url = git@github.com:rsenn/libsndfile.git
