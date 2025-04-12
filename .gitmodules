@@ -4,9 +4,6 @@
 [submodule "stk"]
 	path = stk
 	url = git@github.com:rsenn/stk.git
-[submodule "libsndfile"]
-	path = libsndfile
-	url = git@github.com:libsndfile/libsndfile.git
 [submodule "sndobj"]
 	path = sndobj
 	url = git@github.com:rsenn/sndobj.git
