@@ -78,7 +78,9 @@ set(labsound_LIBRARIES
     #A ${LABSOUND_BINARY_DIR}/bin/libLabSoundRtAudio${DEBUG_SUFFIX}.a
     libLabSound libLabSoundRtAudio ${LABSOUND_BINARY_DIR}/third_party/libnyquist/lib/liblibnyquist.a
     #LabSound_d libnyquist_d
-    pulse-simple samplerate)
+    pulse pulse-simple 
+    samplerate
+    pthread)
 
 link_directories(${labsound_LINK_DIRECTORIES})
 
@@ -97,3 +99,7 @@ include_directories(stk/include stk/src/include/)
 set(labsound_NAME sound)
 make_module(labsound cpp)
 #make_module(stk cpp)
+
+add_executable(test-labsound test-labsound.cpp)
+
+target_link_libraries(test-labsound PRIVATE ${labsound_LIBRARIES})

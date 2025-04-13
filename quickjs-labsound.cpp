@@ -8,10 +8,16 @@ extern int js_stk_init(JSContext* ctx, JSModuleDef* m);
 
 extern "C" void js_init_module_stk(JSContext* ctx, JSModuleDef*);
 
-/*VISIBLE*/ JSClassID js_audiocontext_class_id = 0, js_audiodestinationnode_class_id = 0, js_audiolistener_class_id = 0, js_audiodevice_class_id = 0;
-/*VISIBLE*/ JSValue audiocontext_proto = {{0}, JS_TAG_UNDEFINED}, audiocontext_ctor = {{0}, JS_TAG_UNDEFINED}, audiodestinationnode_proto = {{0}, JS_TAG_UNDEFINED},
-                    audiodestinationnode_ctor = {{0}, JS_TAG_UNDEFINED}, audiolistener_proto = {{0}, JS_TAG_UNDEFINED}, audiolistener_ctor = {{0}, JS_TAG_UNDEFINED},
-                    audiodevice_proto = {{0}, JS_TAG_UNDEFINED}, audiodevice_ctor = {{0}, JS_TAG_UNDEFINED};
+/*VISIBLE*/ JSClassID js_audiocontext_class_id = 0, js_audiodestinationnode_class_id = 0,
+                      js_audiolistener_class_id = 0, js_audiodevice_class_id = 0;
+/*VISIBLE*/ JSValue audiocontext_proto = {{0}, JS_TAG_UNDEFINED},
+                    audiocontext_ctor = {{0}, JS_TAG_UNDEFINED},
+                    audiodestinationnode_proto = {{0}, JS_TAG_UNDEFINED},
+                    audiodestinationnode_ctor = {{0}, JS_TAG_UNDEFINED},
+                    audiolistener_proto = {{0}, JS_TAG_UNDEFINED},
+                    audiolistener_ctor = {{0}, JS_TAG_UNDEFINED},
+                    audiodevice_proto = {{0}, JS_TAG_UNDEFINED},
+                    audiodevice_ctor = {{0}, JS_TAG_UNDEFINED};
 
 typedef std::shared_ptr<lab::AudioContext> AudioContextPtr;
 typedef std::shared_ptr<lab::AudioDestinationNode> AudioDestinationNodePtr;
@@ -19,7 +25,10 @@ typedef std::shared_ptr<lab::AudioListener> AudioListenerPtr;
 typedef std::shared_ptr<lab::AudioDevice> AudioDevicePtr;
 
 static JSValue
-js_audiocontext_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+js_audiocontext_constructor(JSContext* ctx,
+                            JSValueConst new_target,
+                            int argc,
+                            JSValueConst argv[]) {
   JSValue proto, obj = JS_UNDEFINED;
   bool isOffline = false, autoDispatchEvents = true;
 
@@ -28,7 +37,8 @@ js_audiocontext_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
   if(argc > 1)
     autoDispatchEvents = JS_ToBool(ctx, argv[1]);
 
-  AudioContextPtr* sac = static_cast<AudioContextPtr*>(js_mallocz(ctx, sizeof(AudioContextPtr)));
+  AudioContextPtr* sac =
+      static_cast<AudioContextPtr*>(js_mallocz(ctx, sizeof(AudioContextPtr)));
 
   new(sac) AudioContextPtr(std::make_shared<lab::AudioContext>(isOffline, autoDispatchEvents));
 
@@ -69,7 +79,8 @@ js_audiocontext_get(JSContext* ctx, JSValueConst this_val, int magic) {
   AudioContextPtr* sac;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(sac = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id))))
+  if(!(sac = static_cast<AudioContextPtr*>(
+           JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id))))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -81,9 +92,12 @@ js_audiocontext_get(JSContext* ctx, JSValueConst this_val, int magic) {
     case PROP_DESTINATION_NODE: {
       AudioDestinationNodePtr sadn = (*sac)->destinationNode();
 
-      ret = JS_NewObjectProtoClass(ctx, audiodestinationnode_proto, js_audiodestinationnode_class_id);
+      ret = JS_NewObjectProtoClass(ctx,
+                                   audiodestinationnode_proto,
+                                   js_audiodestinationnode_class_id);
 
-      AudioDestinationNodePtr* ptr = static_cast<AudioDestinationNodePtr*>(js_mallocz(ctx, sizeof(AudioDestinationNodePtr)));
+      AudioDestinationNodePtr* ptr = static_cast<AudioDestinationNodePtr*>(
+          js_mallocz(ctx, sizeof(AudioDestinationNodePtr)));
 
       new(ptr) AudioDestinationNodePtr(sadn);
 
@@ -96,7 +110,8 @@ js_audiocontext_get(JSContext* ctx, JSValueConst this_val, int magic) {
 
       ret = JS_NewObjectProtoClass(ctx, audiolistener_proto, js_audiolistener_class_id);
 
-      AudioListenerPtr* ptr = static_cast<AudioListenerPtr*>(js_mallocz(ctx, sizeof(AudioListenerPtr)));
+      AudioListenerPtr* ptr =
+          static_cast<AudioListenerPtr*>(js_mallocz(ctx, sizeof(AudioListenerPtr)));
 
       new(ptr) AudioListenerPtr(sal);
 
@@ -127,14 +142,16 @@ js_audiocontext_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, i
   AudioContextPtr* sac;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(sac = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id))))
+  if(!(sac = static_cast<AudioContextPtr*>(
+           JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id))))
     return JS_EXCEPTION;
 
   switch(magic) {
     case PROP_DESTINATION_NODE: {
       AudioDestinationNodePtr* sadn;
 
-      if(!(sadn = static_cast<AudioDestinationNodePtr*>(JS_GetOpaque2(ctx, value, js_audiodestinationnode_class_id))))
+      if(!(sadn = static_cast<AudioDestinationNodePtr*>(
+               JS_GetOpaque2(ctx, value, js_audiodestinationnode_class_id))))
         return JS_ThrowInternalError(ctx, "value must be AudioDestinationNode");
 
       (*sac)->setDestinationNode(*sadn);
@@ -163,16 +180,21 @@ static JSClassDef js_audiocontext_class = {
 
 static const JSCFunctionListEntry js_audiocontext_funcs[] = {
     JS_CGETSET_MAGIC_DEF("sampleRate", js_audiocontext_get, 0, PROP_SAMPLERATE),
-    JS_CGETSET_MAGIC_DEF("destinationNode", js_audiocontext_get, js_audiocontext_set, PROP_DESTINATION_NODE),
+    JS_CGETSET_MAGIC_DEF(
+        "destinationNode", js_audiocontext_get, js_audiocontext_set, PROP_DESTINATION_NODE),
     JS_CGETSET_MAGIC_DEF("listener", js_audiocontext_get, 0, PROP_LISTENER),
     JS_CGETSET_MAGIC_DEF("currentTime", js_audiocontext_get, 0, PROP_CURRENTTIME),
     JS_CGETSET_MAGIC_DEF("currentSampleFrame", js_audiocontext_get, 0, PROP_CURRENTSAMPLEFRAME),
-    JS_CGETSET_MAGIC_DEF("predictedCurrentTime", js_audiocontext_get, 0, PROP_PREDICTED_CURRENTTIME),
+    JS_CGETSET_MAGIC_DEF(
+        "predictedCurrentTime", js_audiocontext_get, 0, PROP_PREDICTED_CURRENTTIME),
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioContext", JS_PROP_CONFIGURABLE),
 };
 
 static JSValue
-js_audiodestinationnode_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+js_audiodestinationnode_constructor(JSContext* ctx,
+                                    JSValueConst new_target,
+                                    int argc,
+                                    JSValueConst argv[]) {
   JSValue proto, obj = JS_UNDEFINED;
   lab::AudioContext* ac = nullptr;
   std::shared_ptr<lab::AudioDevice> device;
@@ -180,7 +202,8 @@ js_audiodestinationnode_constructor(JSContext* ctx, JSValueConst new_target, int
   if(argc > 0) {
     AudioContextPtr* acptr;
 
-    if(!(acptr = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, argv[0], js_audiocontext_class_id))))
+    if(!(acptr = static_cast<AudioContextPtr*>(
+             JS_GetOpaque2(ctx, argv[0], js_audiocontext_class_id))))
       return JS_EXCEPTION;
 
     ac = acptr->get();
@@ -193,7 +216,8 @@ js_audiodestinationnode_constructor(JSContext* ctx, JSValueConst new_target, int
   if(argc > 1) {
     AudioDevicePtr* adptr;
 
-    if(!(adptr = static_cast<AudioDevicePtr*>(JS_GetOpaque2(ctx, argv[1], js_audiodevice_class_id))))
+    if(!(adptr = static_cast<AudioDevicePtr*>(
+             JS_GetOpaque2(ctx, argv[1], js_audiodevice_class_id))))
       return JS_EXCEPTION;
 
     device = *adptr;
@@ -203,7 +227,8 @@ js_audiodestinationnode_constructor(JSContext* ctx, JSValueConst new_target, int
     return JS_ThrowInternalError(ctx, "argument 2 must be AudioDevice");
   }
 
-  AudioDestinationNodePtr* sadn = static_cast<AudioDestinationNodePtr*>(js_mallocz(ctx, sizeof(AudioDestinationNodePtr)));
+  AudioDestinationNodePtr* sadn =
+      static_cast<AudioDestinationNodePtr*>(js_mallocz(ctx, sizeof(AudioDestinationNodePtr)));
 
   new(sadn) AudioDestinationNodePtr(std::make_shared<lab::AudioDestinationNode>(*ac, device));
 
@@ -240,7 +265,8 @@ js_audiodestinationnode_get(JSContext* ctx, JSValueConst this_val, int magic) {
   AudioDestinationNodePtr* sadn;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(sadn = static_cast<AudioDestinationNodePtr*>(JS_GetOpaque2(ctx, this_val, js_audiodestinationnode_class_id))))
+  if(!(sadn = static_cast<AudioDestinationNodePtr*>(
+           JS_GetOpaque2(ctx, this_val, js_audiodestinationnode_class_id))))
     return JS_EXCEPTION;
 
   if(sadn->get() == nullptr)
@@ -257,7 +283,8 @@ js_audiodestinationnode_get(JSContext* ctx, JSValueConst this_val, int magic) {
 
          ret = JS_NewObjectProtoClass(ctx, audiodevice_proto, js_audiodevice_class_id);
 
-         AudioDevicePtr* ptr = static_cast<AudioDevicePtr*>(js_mallocz(ctx, sizeof(AudioDevicePtr)));
+         AudioDevicePtr* ptr = static_cast<AudioDevicePtr*>(js_mallocz(ctx,
+       sizeof(AudioDevicePtr)));
 
          new(ptr) AudioDevicePtr(*ad);
 
@@ -274,11 +301,13 @@ enum {
 };
 
 static JSValue
-js_audiodestinationnode_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+js_audiodestinationnode_method(
+    JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
   AudioDestinationNodePtr* sadn;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(sadn = static_cast<AudioDestinationNodePtr*>(JS_GetOpaque2(ctx, this_val, js_audiodestinationnode_class_id))))
+  if(!(sadn = static_cast<AudioDestinationNodePtr*>(
+           JS_GetOpaque2(ctx, this_val, js_audiodestinationnode_class_id))))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -295,7 +324,8 @@ static void
 js_audiodestinationnode_finalizer(JSRuntime* rt, JSValue val) {
   AudioDestinationNodePtr* sadn;
 
-  if((sadn = static_cast<AudioDestinationNodePtr*>(JS_GetOpaque(val, js_audiodestinationnode_class_id)))) {
+  if((sadn = static_cast<AudioDestinationNodePtr*>(
+          JS_GetOpaque(val, js_audiodestinationnode_class_id)))) {
     sadn->~AudioDestinationNodePtr();
     js_free_rt(rt, sadn);
   }
@@ -314,10 +344,14 @@ static const JSCFunctionListEntry js_audiodestinationnode_funcs[] = {
 };
 
 static JSValue
-js_audiolistener_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+js_audiolistener_constructor(JSContext* ctx,
+                             JSValueConst new_target,
+                             int argc,
+                             JSValueConst argv[]) {
   JSValue proto, obj = JS_UNDEFINED;
 
-  AudioListenerPtr* sal = static_cast<AudioListenerPtr*>(js_mallocz(ctx, sizeof(AudioListenerPtr)));
+  AudioListenerPtr* sal =
+      static_cast<AudioListenerPtr*>(js_mallocz(ctx, sizeof(AudioListenerPtr)));
 
   new(sal) AudioListenerPtr(std::make_shared<lab::AudioListener>());
 
@@ -355,7 +389,8 @@ js_audiolistener_get(JSContext* ctx, JSValueConst this_val, int magic) {
   AudioListenerPtr* sal;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(sal = static_cast<AudioListenerPtr*>(JS_GetOpaque2(ctx, this_val, js_audiolistener_class_id))))
+  if(!(sal = static_cast<AudioListenerPtr*>(
+           JS_GetOpaque2(ctx, this_val, js_audiolistener_class_id))))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -398,7 +433,10 @@ static const JSCFunctionListEntry js_audiolistener_funcs[] = {
 };
 
 static JSValue
-js_audiodevice_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+js_audiodevice_constructor(JSContext* ctx,
+                           JSValueConst new_target,
+                           int argc,
+                           JSValueConst argv[]) {
   JSValue proto, obj = JS_UNDEFINED;
 
   lab::AudioStreamConfig in_config, out_config;
@@ -444,7 +482,8 @@ js_audiodevice_get(JSContext* ctx, JSValueConst this_val, int magic) {
   AudioDevicePtr* sad;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(sad = static_cast<AudioDevicePtr*>(JS_GetOpaque2(ctx, this_val, js_audiodevice_class_id))))
+  if(!(sad =
+           static_cast<AudioDevicePtr*>(JS_GetOpaque2(ctx, this_val, js_audiodevice_class_id))))
     return JS_EXCEPTION;
 
   switch(magic) {}
@@ -457,14 +496,16 @@ js_audiodevice_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, in
   AudioDevicePtr* sad;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(sad = static_cast<AudioDevicePtr*>(JS_GetOpaque2(ctx, this_val, js_audiodevice_class_id))))
+  if(!(sad =
+           static_cast<AudioDevicePtr*>(JS_GetOpaque2(ctx, this_val, js_audiodevice_class_id))))
     return JS_EXCEPTION;
 
   switch(magic) {
     case DEVICE_DESTINATION_NODE: {
       AudioDestinationNodePtr* sadn;
 
-      if(!(sadn = static_cast<AudioDestinationNodePtr*>(JS_GetOpaque2(ctx, value, js_audiodestinationnode_class_id))))
+      if(!(sadn = static_cast<AudioDestinationNodePtr*>(
+               JS_GetOpaque2(ctx, value, js_audiodestinationnode_class_id))))
         return JS_ThrowInternalError(ctx, "value must be AudioDestinationNode");
 
       (*sad)->setDestinationNode(*sadn);
@@ -501,40 +542,62 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   JS_NewClassID(&js_audiocontext_class_id);
   JS_NewClass(JS_GetRuntime(ctx), js_audiocontext_class_id, &js_audiocontext_class);
 
-  audiocontext_ctor = JS_NewCFunction2(ctx, js_audiocontext_constructor, "AudioContext", 1, JS_CFUNC_constructor, 0);
+  audiocontext_ctor = JS_NewCFunction2(
+      ctx, js_audiocontext_constructor, "AudioContext", 1, JS_CFUNC_constructor, 0);
   audiocontext_proto = JS_NewObject(ctx);
 
-  JS_SetPropertyFunctionList(ctx, audiocontext_proto, js_audiocontext_funcs, countof(js_audiocontext_funcs));
+  JS_SetPropertyFunctionList(ctx,
+                             audiocontext_proto,
+                             js_audiocontext_funcs,
+                             countof(js_audiocontext_funcs));
 
   JS_SetClassProto(ctx, js_audiocontext_class_id, audiocontext_proto);
 
   JS_NewClassID(&js_audiodestinationnode_class_id);
-  JS_NewClass(JS_GetRuntime(ctx), js_audiodestinationnode_class_id, &js_audiodestinationnode_class);
+  JS_NewClass(JS_GetRuntime(ctx),
+              js_audiodestinationnode_class_id,
+              &js_audiodestinationnode_class);
 
-  audiodestinationnode_ctor = JS_NewCFunction2(ctx, js_audiodestinationnode_constructor, "AudioDestinationNode", 1, JS_CFUNC_constructor, 0);
+  audiodestinationnode_ctor = JS_NewCFunction2(ctx,
+                                               js_audiodestinationnode_constructor,
+                                               "AudioDestinationNode",
+                                               1,
+                                               JS_CFUNC_constructor,
+                                               0);
   audiodestinationnode_proto = JS_NewObject(ctx);
 
-  JS_SetPropertyFunctionList(ctx, audiodestinationnode_proto, js_audiodestinationnode_funcs, countof(js_audiodestinationnode_funcs));
+  JS_SetPropertyFunctionList(ctx,
+                             audiodestinationnode_proto,
+                             js_audiodestinationnode_funcs,
+                             countof(js_audiodestinationnode_funcs));
 
   JS_SetClassProto(ctx, js_audiodestinationnode_class_id, audiodestinationnode_proto);
 
   JS_NewClassID(&js_audiolistener_class_id);
   JS_NewClass(JS_GetRuntime(ctx), js_audiolistener_class_id, &js_audiolistener_class);
 
-  audiolistener_ctor = JS_NewCFunction2(ctx, js_audiolistener_constructor, "AudioListener", 1, JS_CFUNC_constructor, 0);
+  audiolistener_ctor = JS_NewCFunction2(
+      ctx, js_audiolistener_constructor, "AudioListener", 1, JS_CFUNC_constructor, 0);
   audiolistener_proto = JS_NewObject(ctx);
 
-  JS_SetPropertyFunctionList(ctx, audiolistener_proto, js_audiolistener_funcs, countof(js_audiolistener_funcs));
+  JS_SetPropertyFunctionList(ctx,
+                             audiolistener_proto,
+                             js_audiolistener_funcs,
+                             countof(js_audiolistener_funcs));
 
   JS_SetClassProto(ctx, js_audiolistener_class_id, audiolistener_proto);
 
   JS_NewClassID(&js_audiodevice_class_id);
   JS_NewClass(JS_GetRuntime(ctx), js_audiodevice_class_id, &js_audiodevice_class);
 
-  audiodevice_ctor = JS_NewCFunction2(ctx, js_audiodevice_constructor, "AudioDevice", 1, JS_CFUNC_constructor, 0);
+  audiodevice_ctor = JS_NewCFunction2(
+      ctx, js_audiodevice_constructor, "AudioDevice", 1, JS_CFUNC_constructor, 0);
   audiodevice_proto = JS_NewObject(ctx);
 
-  JS_SetPropertyFunctionList(ctx, audiodevice_proto, js_audiodevice_funcs, countof(js_audiodevice_funcs));
+  JS_SetPropertyFunctionList(ctx,
+                             audiodevice_proto,
+                             js_audiodevice_funcs,
+                             countof(js_audiodevice_funcs));
 
   JS_SetClassProto(ctx, js_audiodevice_class_id, audiodevice_proto);
 
