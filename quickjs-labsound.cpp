@@ -8,13 +8,9 @@ extern int js_stk_init(JSContext* ctx, JSModuleDef* m);
 
 extern "C" void js_init_module_stk(JSContext* ctx, JSModuleDef*);
 
-/*VISIBLE*/ JSClassID js_audiocontext_class_id = 0, js_audiodestinationnode_class_id = 0, js_audiolistener_class_id = 0,
-                      js_audiodevice_class_id = 0;
-/*VISIBLE*/ JSValue audiocontext_proto = {{0}, JS_TAG_UNDEFINED}, audiocontext_ctor = {{0}, JS_TAG_UNDEFINED},
-                    audiodestinationnode_proto = {{0}, JS_TAG_UNDEFINED},
-                    audiodestinationnode_ctor = {{0}, JS_TAG_UNDEFINED}, audiolistener_proto = {{0}, JS_TAG_UNDEFINED},
-                    audiolistener_ctor = {{0}, JS_TAG_UNDEFINED}, audiodevice_proto = {{0}, JS_TAG_UNDEFINED},
-                    audiodevice_ctor = {{0}, JS_TAG_UNDEFINED};
+static JSClassID js_audiocontext_class_id, js_audiodestinationnode_class_id, js_audiolistener_class_id,
+                      js_audiodevice_class_id;
+static JSValue audiocontext_proto, audiocontext_ctor, audiodestinationnode_proto, audiodestinationnode_ctor, audiolistener_proto, audiolistener_ctor, audiodevice_proto, audiodevice_ctor;
 
 typedef std::shared_ptr<lab::AudioContext> AudioContextPtr;
 typedef std::shared_ptr<lab::AudioDestinationNode> AudioDestinationNodePtr;
