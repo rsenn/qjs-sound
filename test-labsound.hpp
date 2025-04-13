@@ -21,8 +21,7 @@ using namespace lab;
 // Returns input, output
 inline std::pair<AudioStreamConfig, AudioStreamConfig>
 GetDefaultAudioDeviceConfiguration(const bool with_input = true) {
-  const std::vector<AudioDeviceInfo> audioDevices =
-      lab::AudioDevice_RtAudio::MakeAudioDeviceList();
+  const std::vector<AudioDeviceInfo> audioDevices = lab::AudioDevice_RtAudio::MakeAudioDeviceList();
   AudioDeviceInfo defaultOutputInfo, defaultInputInfo;
   for(auto& info : audioDevices) {
     if(info.is_default_output)
@@ -34,8 +33,7 @@ GetDefaultAudioDeviceConfiguration(const bool with_input = true) {
   AudioStreamConfig outputConfig;
   if(defaultOutputInfo.index != -1) {
     outputConfig.device_index = defaultOutputInfo.index;
-    outputConfig.desired_channels =
-        std::min(uint32_t(2), defaultOutputInfo.num_output_channels);
+    outputConfig.desired_channels = std::min(uint32_t(2), defaultOutputInfo.num_output_channels);
     outputConfig.desired_samplerate = defaultOutputInfo.nominal_samplerate;
   }
 
@@ -46,8 +44,7 @@ GetDefaultAudioDeviceConfiguration(const bool with_input = true) {
       inputConfig.desired_channels = std::min(uint32_t(1), defaultInputInfo.num_input_channels);
       inputConfig.desired_samplerate = defaultInputInfo.nominal_samplerate;
     } else {
-      throw std::invalid_argument(
-          "the default audio input device was requested but none were found");
+      throw std::invalid_argument("the default audio input device was requested but none were found");
     }
   }
 
@@ -55,15 +52,14 @@ GetDefaultAudioDeviceConfiguration(const bool with_input = true) {
   // this may be a pecularity of RtAudio, but for now, force an RtAudio
   // compatible configuration
   if(defaultOutputInfo.nominal_samplerate != defaultInputInfo.nominal_samplerate) {
-    float min_rate =
-        std::min(defaultOutputInfo.nominal_samplerate, defaultInputInfo.nominal_samplerate);
+    float min_rate = std::min(defaultOutputInfo.nominal_samplerate, defaultInputInfo.nominal_samplerate);
 
     inputConfig.desired_samplerate = min_rate;
     outputConfig.desired_samplerate = min_rate;
-  
+
     std::cout << "Warning ~ input and output sample rates don't match, attempting to set minimum" << std::endl;
   }
-  
+
   return {inputConfig, outputConfig};
 }
 

@@ -12,14 +12,14 @@ using lab::OscillatorType;
 int
 main(int argc, char* argv[]) {
   auto config = GetDefaultAudioDeviceConfiguration(true);
- AudioStreamConfig _inputConfig = config.first,  _outputConfig = config.second;
+  AudioStreamConfig _inputConfig = config.first, _outputConfig = config.second;
 
   std::shared_ptr<lab::AudioDevice_RtAudio> device(new lab::AudioDevice_RtAudio(_inputConfig, _outputConfig));
 
   auto context = std::make_shared<lab::AudioContext>(false, true);
-  
+
   auto destinationNode = std::make_shared<lab::AudioDestinationNode>(*context.get(), device);
-  
+
   device->setDestinationNode(destinationNode);
   context->setDestinationNode(destinationNode);
 
@@ -35,8 +35,8 @@ main(int argc, char* argv[]) {
   oscillator->frequency()->setValue(440.f);
   oscillator->setType(OscillatorType::SINE);
   oscillator->start(0.0f);
-  
+
   std::this_thread::sleep_for(std::chrono::seconds(1));
-  
+
   return 0;
 }
