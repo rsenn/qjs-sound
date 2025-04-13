@@ -16,7 +16,7 @@
 #include <stdexcept>
 #include <vector>
 
-//using namespace lab;
+// using namespace lab;
 
 // Returns input, output
 inline std::pair<lab::AudioStreamConfig, lab::AudioStreamConfig>
@@ -34,7 +34,7 @@ GetDefaultAudioDeviceConfiguration(const bool with_input = true) {
   }
 
   lab::AudioStreamConfig outputConfig;
-  
+
   if(defaultOutputInfo.index != -1) {
     outputConfig.device_index = defaultOutputInfo.index;
     outputConfig.desired_channels = std::min(uint32_t(2), defaultOutputInfo.num_output_channels);
@@ -62,7 +62,9 @@ GetDefaultAudioDeviceConfiguration(const bool with_input = true) {
     inputConfig.desired_samplerate = min_rate;
     outputConfig.desired_samplerate = min_rate;
 
-    std::cout << "Warning ~ input and output sample rates don't match, attempting to set minimum" << std::endl;
+    std::cout << "Warning ~ input and output sample rates don't match, "
+                 "attempting to set minimum"
+              << std::endl;
   }
 
   return {inputConfig, outputConfig};

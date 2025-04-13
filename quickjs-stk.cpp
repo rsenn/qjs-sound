@@ -91,9 +91,11 @@
 
 using stk::Stk;
 
-static JSClassID js_stkframes_class_id, js_stk_class_id, js_stkfilter_class_id, js_stkgenerator_class_id, js_stkeffect_class_id, js_stkfm_class_id, js_stkinstrmnt_class_id;
-static JSValue stkframes_proto, stkframes_ctor, stk_proto, stk_ctor, stkfilter_proto, stkfilter_ctor, stkgenerator_proto, stkgenerator_ctor, stkeffect_proto, stkeffect_ctor, stkfm_proto, stkfm_ctor,
-    stkinstrmnt_proto, stkinstrmnt_ctor;
+static JSClassID js_stkframes_class_id, js_stk_class_id, js_stkfilter_class_id, js_stkgenerator_class_id,
+    js_stkeffect_class_id, js_stkfm_class_id, js_stkinstrmnt_class_id;
+static JSValue stkframes_proto, stkframes_ctor, stk_proto, stk_ctor, stkfilter_proto, stkfilter_ctor,
+    stkgenerator_proto, stkgenerator_ctor, stkeffect_proto, stkeffect_ctor, stkfm_proto, stkfm_ctor, stkinstrmnt_proto,
+    stkinstrmnt_ctor;
 
 typedef std::shared_ptr<stk::Stk> StkPtr;
 typedef std::shared_ptr<stk::StkFrames> StkFramesPtr;
@@ -166,7 +168,8 @@ array_to_vector(JSContext* ctx, JSValueConst arr, std::vector<unsigned long>& ve
 
 static JSValue
 js_stk_wrap(JSContext* ctx, Stk* s) {
-  /* using new_target to get the prototype is necessary when the class is extended. */
+  /* using new_target to get the prototype is necessary when the class is
+   * extended. */
   JSValue obj = JS_NewObjectProtoClass(ctx, stk_proto, js_stk_class_id);
 
   if(JS_IsException(obj))
@@ -266,7 +269,8 @@ js_stkframes_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
   else
     new(f) StkFramesPtr(std::make_shared<stk::StkFrames>(nframes, nchannels));
 
-  /* using new_target to get the prototype is necessary when the class is extended. */
+  /* using new_target to get the prototype is necessary when the class is
+   * extended. */
   proto = JS_GetPropertyStr(ctx, new_target, "prototype");
   if(JS_IsException(proto))
     goto fail;
@@ -274,7 +278,8 @@ js_stkframes_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
   if(!JS_IsObject(proto))
     proto = stkframes_proto;
 
-  /* using new_target to get the prototype is necessary when the class is extended. */
+  /* using new_target to get the prototype is necessary when the class is
+   * extended. */
   obj = JS_NewObjectProtoClass(ctx, proto, js_stkframes_class_id);
   JS_FreeValue(ctx, proto);
 
@@ -419,7 +424,8 @@ js_stkframes_get(JSContext* ctx, JSValueConst this_val, int magic) {
 
       new(opaque) StkFramesPtr(*f);
 
-      ret = JS_NewArrayBuffer(ctx, reinterpret_cast<uint8_t*>(ptr), sizeof(stk::StkFloat) * len, js_stkframes_free_buf, opaque, FALSE);
+      ret = JS_NewArrayBuffer(
+          ctx, reinterpret_cast<uint8_t*>(ptr), sizeof(stk::StkFloat) * len, js_stkframes_free_buf, opaque, FALSE);
       break;
     }
   }
@@ -562,7 +568,8 @@ js_stkgenerator_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
     }
   }
 
-  /* using new_target to get the prototype is necessary when the class is extended. */
+  /* using new_target to get the prototype is necessary when the class is
+   * extended. */
   JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
   if(JS_IsException(proto))
     goto fail;
@@ -570,7 +577,8 @@ js_stkgenerator_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
   if(!JS_IsObject(proto))
     proto = stkgenerator_proto;
 
-  /* using new_target to get the prototype is necessary when the class is extended. */
+  /* using new_target to get the prototype is necessary when the class is
+   * extended. */
   obj = JS_NewObjectProtoClass(ctx, proto, js_stkgenerator_class_id);
   JS_FreeValue(ctx, proto);
 
@@ -823,7 +831,8 @@ js_stkfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
     }
   }
 
-  /* using new_target to get the prototype is necessary when the class is extended. */
+  /* using new_target to get the prototype is necessary when the class is
+   * extended. */
   JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
   if(JS_IsException(proto))
     goto fail;
@@ -831,7 +840,8 @@ js_stkfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
   if(!JS_IsObject(proto))
     proto = stkfilter_proto;
 
-  /* using new_target to get the prototype is necessary when the class is extended. */
+  /* using new_target to get the prototype is necessary when the class is
+   * extended. */
   obj = JS_NewObjectProtoClass(ctx, proto, js_stkfilter_class_id);
   JS_FreeValue(ctx, proto);
 
@@ -940,7 +950,8 @@ js_stkeffect_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
     }
   }
 
-  /* using new_target to get the prototype is necessary when the class is extended. */
+  /* using new_target to get the prototype is necessary when the class is
+   * extended. */
   JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
   if(JS_IsException(proto))
     goto fail;
@@ -948,7 +959,8 @@ js_stkeffect_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
   if(!JS_IsObject(proto))
     proto = stkeffect_proto;
 
-  /* using new_target to get the prototype is necessary when the class is extended. */
+  /* using new_target to get the prototype is necessary when the class is
+   * extended. */
   obj = JS_NewObjectProtoClass(ctx, proto, js_stkeffect_class_id);
   JS_FreeValue(ctx, proto);
 
@@ -1015,7 +1027,8 @@ js_stkfm_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueC
 
   switch(magic) {}
 
-  /* using new_target to get the prototype is necessary when the class is extended. */
+  /* using new_target to get the prototype is necessary when the class is
+   * extended. */
   JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
   if(JS_IsException(proto))
     goto fail;
@@ -1023,7 +1036,8 @@ js_stkfm_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueC
   if(!JS_IsObject(proto))
     proto = stkfm_proto;
 
-  /* using new_target to get the prototype is necessary when the class is extended. */
+  /* using new_target to get the prototype is necessary when the class is
+   * extended. */
   obj = JS_NewObjectProtoClass(ctx, proto, js_stkfm_class_id);
   JS_FreeValue(ctx, proto);
 
@@ -1131,7 +1145,8 @@ js_stkinstrmnt_constructor(JSContext* ctx, JSValueConst new_target, int argc, JS
       *i = std::make_shared<stk::Mesh2D>(nx, ny);
       break;
     }
-    // case INSTANCE_MODAL: { *i = std::make_shared<stk::Modal>(argc > 0 ? arg : 4); break; }
+    // case INSTANCE_MODAL: { *i = std::make_shared<stk::Modal>(argc > 0 ? arg :
+    // 4); break; }
     case INSTANCE_PLUCKED: {
       *i = std::make_shared<stk::Plucked>(argc > 0 ? arg : 10.0);
       break;
@@ -1175,7 +1190,8 @@ js_stkinstrmnt_constructor(JSContext* ctx, JSValueConst new_target, int argc, JS
     }
   }
 
-  /* using new_target to get the prototype is necessary when the class is extended. */
+  /* using new_target to get the prototype is necessary when the class is
+   * extended. */
   JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
   if(JS_IsException(proto))
     goto fail;
@@ -1183,7 +1199,8 @@ js_stkinstrmnt_constructor(JSContext* ctx, JSValueConst new_target, int argc, JS
   if(!JS_IsObject(proto))
     proto = stkinstrmnt_proto;
 
-  /* using new_target to get the prototype is necessary when the class is extended. */
+  /* using new_target to get the prototype is necessary when the class is
+   * extended. */
   obj = JS_NewObjectProtoClass(ctx, proto, js_stkinstrmnt_class_id);
   JS_FreeValue(ctx, proto);
 
@@ -1222,7 +1239,8 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
   JS_NewClassID(&js_stk_class_id);
   JS_NewClass(JS_GetRuntime(ctx), js_stk_class_id, &js_stk_class);
 
-  stk_ctor = JS_NewObject(ctx); // JS_NewCFunction2(ctx, js_stk_constructor, "Stk", 1, JS_CFUNC_constructor, 0);
+  stk_ctor = JS_NewObject(ctx); // JS_NewCFunction2(ctx, js_stk_constructor,
+                                // "Stk", 1, JS_CFUNC_constructor, 0);
   stk_proto = JS_NewObject(ctx);
 
   JS_SetPropertyFunctionList(ctx, stk_proto, js_stk_funcs, countof(js_stk_funcs));
@@ -1253,31 +1271,44 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
   JSValue ctor;
 
   if(m) {
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "BiQuad", 0, JS_CFUNC_constructor_magic, INSTANCE_BIQUAD);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkfilter_constructor, "BiQuad", 0, JS_CFUNC_constructor_magic, INSTANCE_BIQUAD);
     JS_SetModuleExport(ctx, m, "StkBiQuad", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "DelayA", 0, JS_CFUNC_constructor_magic, INSTANCE_DELAY_A);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkfilter_constructor, "DelayA", 0, JS_CFUNC_constructor_magic, INSTANCE_DELAY_A);
     JS_SetModuleExport(ctx, m, "StkDelayA", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "DelayL", 0, JS_CFUNC_constructor_magic, INSTANCE_DELAY_L);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkfilter_constructor, "DelayL", 0, JS_CFUNC_constructor_magic, INSTANCE_DELAY_L);
     JS_SetModuleExport(ctx, m, "StkDelayL", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "Delay", 0, JS_CFUNC_constructor_magic, INSTANCE_DELAY);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkfilter_constructor, "Delay", 0, JS_CFUNC_constructor_magic, INSTANCE_DELAY);
     JS_SetModuleExport(ctx, m, "StkDelay", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "Fir", 1, JS_CFUNC_constructor_magic, INSTANCE_FIR);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkfilter_constructor, "Fir", 1, JS_CFUNC_constructor_magic, INSTANCE_FIR);
     JS_SetModuleExport(ctx, m, "StkFir", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "FormSwep", 0, JS_CFUNC_constructor_magic, INSTANCE_FORM_SWEP);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkfilter_constructor, "FormSwep", 0, JS_CFUNC_constructor_magic, INSTANCE_FORM_SWEP);
     JS_SetModuleExport(ctx, m, "StkFormSwep", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "Iir", 0, JS_CFUNC_constructor_magic, INSTANCE_IIR);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkfilter_constructor, "Iir", 0, JS_CFUNC_constructor_magic, INSTANCE_IIR);
     JS_SetModuleExport(ctx, m, "StkIir", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "OnePole", 0, JS_CFUNC_constructor_magic, INSTANCE_ONE_POLE);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkfilter_constructor, "OnePole", 0, JS_CFUNC_constructor_magic, INSTANCE_ONE_POLE);
     JS_SetModuleExport(ctx, m, "StkOnePole", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "OneZero", 0, JS_CFUNC_constructor_magic, INSTANCE_ONE_ZERO);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkfilter_constructor, "OneZero", 0, JS_CFUNC_constructor_magic, INSTANCE_ONE_ZERO);
     JS_SetModuleExport(ctx, m, "StkOneZero", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "PoleZero", 0, JS_CFUNC_constructor_magic, INSTANCE_POLE_ZERO);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkfilter_constructor, "PoleZero", 0, JS_CFUNC_constructor_magic, INSTANCE_POLE_ZERO);
     JS_SetModuleExport(ctx, m, "StkPoleZero", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "TapDelay", 0, JS_CFUNC_constructor_magic, INSTANCE_TAP_DELAY);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkfilter_constructor, "TapDelay", 0, JS_CFUNC_constructor_magic, INSTANCE_TAP_DELAY);
     JS_SetModuleExport(ctx, m, "StkTapDelay", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "TwoPole", 0, JS_CFUNC_constructor_magic, INSTANCE_TWO_POLE);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkfilter_constructor, "TwoPole", 0, JS_CFUNC_constructor_magic, INSTANCE_TWO_POLE);
     JS_SetModuleExport(ctx, m, "StkTwoPole", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "TwoZero", 0, JS_CFUNC_constructor_magic, INSTANCE_TWO_ZERO);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkfilter_constructor, "TwoZero", 0, JS_CFUNC_constructor_magic, INSTANCE_TWO_ZERO);
     JS_SetModuleExport(ctx, m, "StkTwoZero", ctor);
   }
   JS_NewClassID(&js_stkgenerator_class_id);
@@ -1292,27 +1323,42 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
   JS_SetClassProto(ctx, js_stkgenerator_class_id, stkgenerator_proto);
 
   if(m) {
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "ADSR", 0, JS_CFUNC_constructor_magic, INSTANCE_ADSR);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkgenerator_constructor, "ADSR", 0, JS_CFUNC_constructor_magic, INSTANCE_ADSR);
     JS_SetModuleExport(ctx, m, "StkADSR", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "Asymp", 0, JS_CFUNC_constructor_magic, INSTANCE_ASYMP);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkgenerator_constructor, "Asymp", 0, JS_CFUNC_constructor_magic, INSTANCE_ASYMP);
     JS_SetModuleExport(ctx, m, "StkAsymp", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "BlitSaw", 0, JS_CFUNC_constructor_magic, INSTANCE_BLIT_SAW);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkgenerator_constructor, "BlitSaw", 0, JS_CFUNC_constructor_magic, INSTANCE_BLIT_SAW);
     JS_SetModuleExport(ctx, m, "StkBlitSaw", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "BlitSquare", 0, JS_CFUNC_constructor_magic, INSTANCE_BLIT_SQUARE);
+    ctor = JS_NewCFunction2(ctx,
+                            (JSCFunction*)js_stkgenerator_constructor,
+                            "BlitSquare",
+                            0,
+                            JS_CFUNC_constructor_magic,
+                            INSTANCE_BLIT_SQUARE);
     JS_SetModuleExport(ctx, m, "StkBlitSquare", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "Blit", 0, JS_CFUNC_constructor_magic, INSTANCE_BLIT);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkgenerator_constructor, "Blit", 0, JS_CFUNC_constructor_magic, INSTANCE_BLIT);
     JS_SetModuleExport(ctx, m, "StkBlit", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "Envelope", 0, JS_CFUNC_constructor_magic, INSTANCE_ENVELOPE);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkgenerator_constructor, "Envelope", 0, JS_CFUNC_constructor_magic, INSTANCE_ENVELOPE);
     JS_SetModuleExport(ctx, m, "StkEnvelope", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "Granulate", 0, JS_CFUNC_constructor_magic, INSTANCE_GRANULATE);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkgenerator_constructor, "Granulate", 0, JS_CFUNC_constructor_magic, INSTANCE_GRANULATE);
     JS_SetModuleExport(ctx, m, "StkGranulate", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "Modulate", 0, JS_CFUNC_constructor_magic, INSTANCE_MODULATE);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkgenerator_constructor, "Modulate", 0, JS_CFUNC_constructor_magic, INSTANCE_MODULATE);
     JS_SetModuleExport(ctx, m, "StkModulate", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "Noise", 0, JS_CFUNC_constructor_magic, INSTANCE_NOISE);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkgenerator_constructor, "Noise", 0, JS_CFUNC_constructor_magic, INSTANCE_NOISE);
     JS_SetModuleExport(ctx, m, "StkNoise", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "SineWave", 0, JS_CFUNC_constructor_magic, INSTANCE_SINE_WAVE);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkgenerator_constructor, "SineWave", 0, JS_CFUNC_constructor_magic, INSTANCE_SINE_WAVE);
     JS_SetModuleExport(ctx, m, "StkSineWave", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "SingWave", 0, JS_CFUNC_constructor_magic, INSTANCE_SING_WAVE);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkgenerator_constructor, "SingWave", 0, JS_CFUNC_constructor_magic, INSTANCE_SING_WAVE);
     JS_SetModuleExport(ctx, m, "StkStkSingWave", ctor);
   }
 
@@ -1336,45 +1382,65 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
   JS_SetClassProto(ctx, js_stkinstrmnt_class_id, stkinstrmnt_proto);
 
   if(m) {
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "BandedWG", 0, JS_CFUNC_constructor_magic, INSTANCE_BANDEDWG);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkinstrmnt_constructor, "BandedWG", 0, JS_CFUNC_constructor_magic, INSTANCE_BANDEDWG);
     JS_SetModuleExport(ctx, m, "StkBandedWG", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "BlowBotl", 0, JS_CFUNC_constructor_magic, INSTANCE_BLOWBOTL);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkinstrmnt_constructor, "BlowBotl", 0, JS_CFUNC_constructor_magic, INSTANCE_BLOWBOTL);
     JS_SetModuleExport(ctx, m, "StkBlowBotl", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "BlowHole", 0, JS_CFUNC_constructor_magic, INSTANCE_BLOWHOLE);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkinstrmnt_constructor, "BlowHole", 0, JS_CFUNC_constructor_magic, INSTANCE_BLOWHOLE);
     JS_SetModuleExport(ctx, m, "StkBlowHole", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Bowed", 0, JS_CFUNC_constructor_magic, INSTANCE_BOWED);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Bowed", 0, JS_CFUNC_constructor_magic, INSTANCE_BOWED);
     JS_SetModuleExport(ctx, m, "StkBowed", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Brass", 0, JS_CFUNC_constructor_magic, INSTANCE_BRASS);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Brass", 0, JS_CFUNC_constructor_magic, INSTANCE_BRASS);
     JS_SetModuleExport(ctx, m, "StkBrass", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Clarinet", 0, JS_CFUNC_constructor_magic, INSTANCE_CLARINET);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Clarinet", 0, JS_CFUNC_constructor_magic, INSTANCE_CLARINET);
     JS_SetModuleExport(ctx, m, "StkClarinet", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Drummer", 0, JS_CFUNC_constructor_magic, INSTANCE_DRUMMER);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Drummer", 0, JS_CFUNC_constructor_magic, INSTANCE_DRUMMER);
     JS_SetModuleExport(ctx, m, "StkDrummer", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Flute", 0, JS_CFUNC_constructor_magic, INSTANCE_FLUTE);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Flute", 0, JS_CFUNC_constructor_magic, INSTANCE_FLUTE);
     JS_SetModuleExport(ctx, m, "StkFlute", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Mandolin", 0, JS_CFUNC_constructor_magic, INSTANCE_MANDOLIN);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Mandolin", 0, JS_CFUNC_constructor_magic, INSTANCE_MANDOLIN);
     JS_SetModuleExport(ctx, m, "StkMandolin", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Mesh2D", 0, JS_CFUNC_constructor_magic, INSTANCE_MESH2D);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Mesh2D", 0, JS_CFUNC_constructor_magic, INSTANCE_MESH2D);
     JS_SetModuleExport(ctx, m, "StkMesh2D", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Plucked", 0, JS_CFUNC_constructor_magic, INSTANCE_PLUCKED);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Plucked", 0, JS_CFUNC_constructor_magic, INSTANCE_PLUCKED);
     JS_SetModuleExport(ctx, m, "StkPlucked", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Recorder", 0, JS_CFUNC_constructor_magic, INSTANCE_RECORDER);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Recorder", 0, JS_CFUNC_constructor_magic, INSTANCE_RECORDER);
     JS_SetModuleExport(ctx, m, "StkRecorder", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Resonate", 0, JS_CFUNC_constructor_magic, INSTANCE_RESONATE);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Resonate", 0, JS_CFUNC_constructor_magic, INSTANCE_RESONATE);
     JS_SetModuleExport(ctx, m, "StkResonate", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Saxofony", 0, JS_CFUNC_constructor_magic, INSTANCE_SAXOFONY);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Saxofony", 0, JS_CFUNC_constructor_magic, INSTANCE_SAXOFONY);
     JS_SetModuleExport(ctx, m, "StkSaxofony", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Shakers", 0, JS_CFUNC_constructor_magic, INSTANCE_SHAKERS);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Shakers", 0, JS_CFUNC_constructor_magic, INSTANCE_SHAKERS);
     JS_SetModuleExport(ctx, m, "StkShakers", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Simple", 0, JS_CFUNC_constructor_magic, INSTANCE_SIMPLE);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Simple", 0, JS_CFUNC_constructor_magic, INSTANCE_SIMPLE);
     JS_SetModuleExport(ctx, m, "StkSimple", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Sitar", 0, JS_CFUNC_constructor_magic, INSTANCE_SITAR);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Sitar", 0, JS_CFUNC_constructor_magic, INSTANCE_SITAR);
     JS_SetModuleExport(ctx, m, "StkSitar", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "StifKarp", 0, JS_CFUNC_constructor_magic, INSTANCE_STIFKARP);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkinstrmnt_constructor, "StifKarp", 0, JS_CFUNC_constructor_magic, INSTANCE_STIFKARP);
     JS_SetModuleExport(ctx, m, "StkStifKarp", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "VoicForm", 0, JS_CFUNC_constructor_magic, INSTANCE_VOICFORM);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkinstrmnt_constructor, "VoicForm", 0, JS_CFUNC_constructor_magic, INSTANCE_VOICFORM);
     JS_SetModuleExport(ctx, m, "StkVoicForm", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Whistle", 0, JS_CFUNC_constructor_magic, INSTANCE_WHISTLE);
+    ctor = JS_NewCFunction2(
+        ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Whistle", 0, JS_CFUNC_constructor_magic, INSTANCE_WHISTLE);
     JS_SetModuleExport(ctx, m, "StkWhistle", ctor);
 
     JS_SetModuleExport(ctx, m, "Stk", stk_ctor);

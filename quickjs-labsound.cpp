@@ -8,10 +8,13 @@ extern int js_stk_init(JSContext* ctx, JSModuleDef* m);
 
 extern "C" void js_init_module_stk(JSContext* ctx, JSModuleDef*);
 
-/*VISIBLE*/ JSClassID js_audiocontext_class_id = 0, js_audiodestinationnode_class_id = 0, js_audiolistener_class_id = 0, js_audiodevice_class_id = 0;
-/*VISIBLE*/ JSValue audiocontext_proto = {{0}, JS_TAG_UNDEFINED}, audiocontext_ctor = {{0}, JS_TAG_UNDEFINED}, audiodestinationnode_proto = {{0}, JS_TAG_UNDEFINED},
-                    audiodestinationnode_ctor = {{0}, JS_TAG_UNDEFINED}, audiolistener_proto = {{0}, JS_TAG_UNDEFINED}, audiolistener_ctor = {{0}, JS_TAG_UNDEFINED},
-                    audiodevice_proto = {{0}, JS_TAG_UNDEFINED}, audiodevice_ctor = {{0}, JS_TAG_UNDEFINED};
+/*VISIBLE*/ JSClassID js_audiocontext_class_id = 0, js_audiodestinationnode_class_id = 0, js_audiolistener_class_id = 0,
+                      js_audiodevice_class_id = 0;
+/*VISIBLE*/ JSValue audiocontext_proto = {{0}, JS_TAG_UNDEFINED}, audiocontext_ctor = {{0}, JS_TAG_UNDEFINED},
+                    audiodestinationnode_proto = {{0}, JS_TAG_UNDEFINED},
+                    audiodestinationnode_ctor = {{0}, JS_TAG_UNDEFINED}, audiolistener_proto = {{0}, JS_TAG_UNDEFINED},
+                    audiolistener_ctor = {{0}, JS_TAG_UNDEFINED}, audiodevice_proto = {{0}, JS_TAG_UNDEFINED},
+                    audiodevice_ctor = {{0}, JS_TAG_UNDEFINED};
 
 typedef std::shared_ptr<lab::AudioContext> AudioContextPtr;
 typedef std::shared_ptr<lab::AudioDestinationNode> AudioDestinationNodePtr;
@@ -32,7 +35,8 @@ js_audiocontext_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
 
   new(sac) AudioContextPtr(std::make_shared<lab::AudioContext>(isOffline, autoDispatchEvents));
 
-  /* using new_target to get the prototype is necessary when the class is extended. */
+  /* using new_target to get the prototype is necessary when the class is
+   * extended. */
   proto = JS_GetPropertyStr(ctx, new_target, "prototype");
   if(JS_IsException(proto))
     goto fail;
@@ -40,7 +44,8 @@ js_audiocontext_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
   if(!JS_IsObject(proto))
     proto = audiocontext_proto;
 
-  /* using new_target to get the prototype is necessary when the class is extended. */
+  /* using new_target to get the prototype is necessary when the class is
+   * extended. */
   obj = JS_NewObjectProtoClass(ctx, proto, js_audiocontext_class_id);
   JS_FreeValue(ctx, proto);
 
@@ -83,7 +88,8 @@ js_audiocontext_get(JSContext* ctx, JSValueConst this_val, int magic) {
 
       ret = JS_NewObjectProtoClass(ctx, audiodestinationnode_proto, js_audiodestinationnode_class_id);
 
-      AudioDestinationNodePtr* ptr = static_cast<AudioDestinationNodePtr*>(js_mallocz(ctx, sizeof(AudioDestinationNodePtr)));
+      AudioDestinationNodePtr* ptr =
+          static_cast<AudioDestinationNodePtr*>(js_mallocz(ctx, sizeof(AudioDestinationNodePtr)));
 
       new(ptr) AudioDestinationNodePtr(sadn);
 
@@ -203,11 +209,13 @@ js_audiodestinationnode_constructor(JSContext* ctx, JSValueConst new_target, int
     return JS_ThrowInternalError(ctx, "argument 2 must be AudioDevice");
   }
 
-  AudioDestinationNodePtr* sadn = static_cast<AudioDestinationNodePtr*>(js_mallocz(ctx, sizeof(AudioDestinationNodePtr)));
+  AudioDestinationNodePtr* sadn =
+      static_cast<AudioDestinationNodePtr*>(js_mallocz(ctx, sizeof(AudioDestinationNodePtr)));
 
   new(sadn) AudioDestinationNodePtr(std::make_shared<lab::AudioDestinationNode>(*ac, device));
 
-  /* using new_target to get the prototype is necessary when the class is extended. */
+  /* using new_target to get the prototype is necessary when the class is
+   * extended. */
   proto = JS_GetPropertyStr(ctx, new_target, "prototype");
   if(JS_IsException(proto))
     goto fail;
@@ -215,7 +223,8 @@ js_audiodestinationnode_constructor(JSContext* ctx, JSValueConst new_target, int
   if(!JS_IsObject(proto))
     proto = audiodestinationnode_proto;
 
-  /* using new_target to get the prototype is necessary when the class is extended. */
+  /* using new_target to get the prototype is necessary when the class is
+   * extended. */
   obj = JS_NewObjectProtoClass(ctx, proto, js_audiodestinationnode_class_id);
   JS_FreeValue(ctx, proto);
 
@@ -255,7 +264,8 @@ js_audiodestinationnode_get(JSContext* ctx, JSValueConst this_val, int magic) {
       /* case PROP_DEVICE: {
           lab::AudioDevice* ad = (*sadn)->device();
 
-         ret = JS_NewObjectProtoClass(ctx, audiodevice_proto, js_audiodevice_class_id);
+         ret = JS_NewObjectProtoClass(ctx, audiodevice_proto,
+       js_audiodevice_class_id);
 
          AudioDevicePtr* ptr = static_cast<AudioDevicePtr*>(js_mallocz(ctx,
        sizeof(AudioDevicePtr)));
@@ -310,7 +320,8 @@ static JSClassDef js_audiodestinationnode_class = {
 static const JSCFunctionListEntry js_audiodestinationnode_funcs[] = {
     JS_CGETSET_MAGIC_DEF("name", js_audiodestinationnode_get, 0, PROP_NAME),
     JS_CFUNC_MAGIC_DEF("reset", 0, js_audiodestinationnode_method, AUDIODESTINATION_RESET),
-    // JS_CGETSET_MAGIC_DEF("device", js_audiodestinationnode_get, 0, PROP_DEVICE),
+    // JS_CGETSET_MAGIC_DEF("device", js_audiodestinationnode_get, 0,
+    // PROP_DEVICE),
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioDestinationNode", JS_PROP_CONFIGURABLE),
 };
 
@@ -322,7 +333,8 @@ js_audiolistener_constructor(JSContext* ctx, JSValueConst new_target, int argc, 
 
   new(sal) AudioListenerPtr(std::make_shared<lab::AudioListener>());
 
-  /* using new_target to get the prototype is necessary when the class is extended. */
+  /* using new_target to get the prototype is necessary when the class is
+   * extended. */
   proto = JS_GetPropertyStr(ctx, new_target, "prototype");
   if(JS_IsException(proto))
     goto fail;
@@ -330,7 +342,8 @@ js_audiolistener_constructor(JSContext* ctx, JSValueConst new_target, int argc, 
   if(!JS_IsObject(proto))
     proto = audiolistener_proto;
 
-  /* using new_target to get the prototype is necessary when the class is extended. */
+  /* using new_target to get the prototype is necessary when the class is
+   * extended. */
   obj = JS_NewObjectProtoClass(ctx, proto, js_audiolistener_class_id);
   JS_FreeValue(ctx, proto);
 
@@ -415,7 +428,8 @@ js_audiodevice_constructor(JSContext* ctx, JSValueConst new_target, int argc, JS
 
   new(sad) AudioDevicePtr(std::make_shared<lab::AudioDevice_RtAudio>(in_config, out_config));
 
-  /* using new_target to get the prototype is necessary when the class is extended. */
+  /* using new_target to get the prototype is necessary when the class is
+   * extended. */
   proto = JS_GetPropertyStr(ctx, new_target, "prototype");
   if(JS_IsException(proto))
     goto fail;
@@ -423,7 +437,8 @@ js_audiodevice_constructor(JSContext* ctx, JSValueConst new_target, int argc, JS
   if(!JS_IsObject(proto))
     proto = audiodevice_proto;
 
-  /* using new_target to get the prototype is necessary when the class is extended. */
+  /* using new_target to get the prototype is necessary when the class is
+   * extended. */
   obj = JS_NewObjectProtoClass(ctx, proto, js_audiodevice_class_id);
   JS_FreeValue(ctx, proto);
 
@@ -512,10 +527,14 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   JS_NewClassID(&js_audiodestinationnode_class_id);
   JS_NewClass(JS_GetRuntime(ctx), js_audiodestinationnode_class_id, &js_audiodestinationnode_class);
 
-  audiodestinationnode_ctor = JS_NewCFunction2(ctx, js_audiodestinationnode_constructor, "AudioDestinationNode", 1, JS_CFUNC_constructor, 0);
+  audiodestinationnode_ctor =
+      JS_NewCFunction2(ctx, js_audiodestinationnode_constructor, "AudioDestinationNode", 1, JS_CFUNC_constructor, 0);
   audiodestinationnode_proto = JS_NewObject(ctx);
 
-  JS_SetPropertyFunctionList(ctx, audiodestinationnode_proto, js_audiodestinationnode_funcs, countof(js_audiodestinationnode_funcs));
+  JS_SetPropertyFunctionList(ctx,
+                             audiodestinationnode_proto,
+                             js_audiodestinationnode_funcs,
+                             countof(js_audiodestinationnode_funcs));
 
   JS_SetClassProto(ctx, js_audiodestinationnode_class_id, audiodestinationnode_proto);
 
