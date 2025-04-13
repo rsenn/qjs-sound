@@ -2,7 +2,7 @@ project(qjs-sound C CXX)
 
 cmake_minimum_required(VERSION 3.19)
 
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/LabSound/include")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include")
 #add_subdirectory(stk)
 #add_subdirectory(sndobj)
 
@@ -25,8 +25,8 @@ include(ExternalProject)
 
 ExternalProject_Add(
   LabSound
-  SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/LabSound"
-  BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/LabSound"
+  SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound"
+  BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/third_party/LabSound"
   PREFIX LabSound
   CMAKE_ARGS "-DLABSOUND_NO_BUILD_EXAMPLES:BOOL=ON"
              "-DBUILD_SHARED_LIBS:BOOL=OFF"
