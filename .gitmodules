@@ -10,3 +10,6 @@
 [submodule "libsndfile"]
 	path = third_party/libsndfile
 	url = git@github.com:rsenn/libsndfile.git
+[submodule "third_party/dsp"]
+	path = third_party/dsp
+	url = https://github.com/Signalsmith-Audio/dsp.git
