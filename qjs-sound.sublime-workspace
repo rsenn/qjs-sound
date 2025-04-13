@@ -520,10 +520,10 @@
 	"buffers":
 	[
 		{
-			"contents": "  lab_audiodevice_h\n  lab\nAudioBus\nAudioContext\nAudioNodeInput\nAudioHardwareInput\nAudioSourceProvider\nAudioStreamConfig\nAudioDeviceInfo\nAudioDeviceIndex\nAudioStreamConfig\nAudioDeviceInfo\nSamplingInfo\n  pull_graph\nAudioDevice\nAudioDevice\nLOG_INFO\nAudioSourceProvider\n   ~AudioDevice\n   setDestinationNode\n   getOutputConfig\n   getInputConfig\n   sourceProvider\n   start\n   stop\n   isRunning\n   backendReinitialize\nAudioDevice_Null\nAudioDevice_Null\n   ~AudioDevice_Null\n   start\n   stop\n   isRunning\n   backendReinitialize\nAudioDestinationNode\n   tailTime\n   latencyTime\n   static_name\n   name\n   desc\nAudioDestinationNode\n   ~AudioDestinationNode\n   device\n   render\n   offlineRender\n   getSamplingInfo\n   process\n   initialize\n   uninitialize\n   reset",
+			"contents": "StkPtr\nStkFramesPtr\nStkGeneratorPtr\nStkFilterPtr\nStkEffectPtr\nStkFMPtr\nStkInstrmntPtr\n  js_symbol_tostringtag\n  js_set_tostringtag\n  array_length\n  array_to_vector\n  array_to_vector\n  js_stk_wrap\n  js_stk_get\n  js_stk_set\n  js_stk_finalizer\n~StkPtr\nJS_CGETSET_MAGIC_DEF\nJS_PROP_STRING_DEF\n  js_stkframes_constructor\n  js_stkframes_method\n  js_stkframes_free_buf\n~StkFramesPtr\n  js_stkframes_get\n  js_stkframes_set\n  js_stkframes_finalizer\n~StkFramesPtr\nJS_CFUNC_MAGIC_DEF\nJS_CFUNC_MAGIC_DEF\nJS_CFUNC_MAGIC_DEF\nJS_CFUNC_MAGIC_DEF\nJS_CGETSET_MAGIC_DEF\nJS_CGETSET_MAGIC_DEF\nJS_CGETSET_MAGIC_DEF\nJS_CGETSET_MAGIC_DEF\nJS_CGETSET_MAGIC_DEF\nJS_CGETSET_MAGIC_DEF\nJS_PROP_STRING_DEF\n  js_stkgenerator_constructor\n  js_stkgenerator_method\n  js_stkgenerator_get\n  js_stkgenerator_set\n  js_stkgenerator_finalizer\n~StkGeneratorPtr\nJS_CFUNC_MAGIC_DEF\nJS_CGETSET_MAGIC_DEF\nJS_PROP_STRING_DEF\n  js_stkfilter_constructor\n  js_stkfilter_finalizer\n~StkFilterPtr\nJS_PROP_STRING_DEF\n  js_stkeffect_constructor\n  js_stkeffect_finalizer\n~StkEffectPtr\nJS_PROP_STRING_DEF\n  js_stkfm_constructor\n  js_stkfm_finalizer\n~StkFMPtr\nJS_PROP_STRING_DEF\n  js_stkinstrmnt_constructor\n  js_stkinstrmnt_finalizer\n~StkInstrmntPtr\nJS_PROP_STRING_DEF\n  js_stk_init\n  js_init_module_stk",
 			"settings":
 			{
-				"buffer_size": 750,
+				"buffer_size": 1245,
 				"line_ending": "Unix",
 				"name": "𝌆 Outline",
 				"scratch": true
@@ -884,7 +884,7 @@
 						]
 					},
 					"AQAAAAAAAAAAAAAAAQQAAAAAAAAAAAAA",
-					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADwvw"
+					"BQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADwvwAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8"
 				],
 				[
 					2,
@@ -1045,7 +1045,7 @@
 						]
 					},
 					"AgAAAAAAAAAAAAAAAAAAAAAAAAABBAAAQXVkaW9Ob2RlX2gKICBsYWIKQXVkaW9Db250ZXh0CkF1ZGlvTm9kZUlucHV0CkF1ZGlvTm9kZU91dHB1dApBdWRpb1BhcmFtCkF1ZGlvU2V0dGluZwpDb250ZXh0R3JhcGhMb2NrCkNvbnRleHRSZW5kZXJMb2NrCkF1ZGlvTm9kZQpJbnRlcm5hbApJbnRlcm5hbApBdWRpb05vZGUKICAgfkF1ZGlvTm9kZQpBdWRpb05vZGUKICAgcHJpbnRHcmFwaAogICBncmFwaFRpbWUKICAgdG90YWxUaW1lCiAgIHNjaGVkdWxpbmdTdGF0ZQogICBuYW1lCiAgIHByb2Nlc3MKICAgcmVzZXQKICAgdGFpbFRpbWUKICAgbGF0ZW5jeVRpbWUKICAgaXNTY2hlZHVsZWROb2RlCiAgIGluaXRpYWxpemUKICAgdW5pbml0aWFsaXplCiAgIGlucHV0c0FyZVNpbGVudAogICBzaWxlbmNlT3V0cHV0cwogICB1bnNpbGVuY2VPdXRwdXRzCiAgIHByb3BhZ2F0ZXNTaWxlbmNlCiAgIHByb2Nlc3NJZk5lY2Vzc2FyeQogICBpc0luaXRpYWxpemVkCiAgIGFkZElucHV0CiAgIGFkZE91dHB1dAogICBudW1iZXJPZklucHV0cwogICBudW1iZXJPZk91dHB1dHMKICAgaW5wdXQKICAgaW5wdXQKICAgb3V0cHV0CiAgIG91dHB1dAogICBjaGVja051bWJlck9mQ2hhbm5lbHNGb3JJbnB1dAogICBjb25mb3JtQ2hhbm5lbENvdW50cwogICBjaGFubmVsQ291bnQKICAgc2V0Q2hhbm5lbENvdW50CiAgIGNoYW5uZWxDb3VudE1vZGUKICAgc2V0Q2hhbm5lbENvdW50TW9kZQogICBjaGFubmVsSW50ZXJwcmV0YXRpb24KICAgc2V0Q2hhbm5lbEludGVycHJldGF0aW9uCiAgIHBhcmFtTmFtZXMKICAgcGFyYW1TaG9ydE5hbWVzCiAgIHBhcmFtCiAgIHBhcmFtX2luZGV4CiAgIHNldHRpbmdOYW1lcwogICBzZXR0aW5nU2hvcnROYW1lcwogICBwYXJhbQogICBzZXR0aW5nCiAgIHNldHRpbmcKICAgc2V0dGluZ19pbmRleAogICBwYXJhbXMKICAgc2V0dGluZ3MKICAgYWRkSW5wdXQKICAgYWRkT3V0cHV0CiAgIHB1bGxJbnB1dHMKQXVkaW9Db250ZXh0CiAgIHNjaGVkdWxlRGlzY29ubmVjdAogICBkaXNjb25uZWN0aW9uUmVhZHkKICAgX3ByaW50R3JhcGgAAAAAAAAAAIgBAAAAAAAAAAAAAA",
-					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAAAAAA"
+					"BQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADwvwAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAAAAAA"
 				],
 				[
 					3,
@@ -1131,7 +1131,7 @@
 						]
 					},
 					"AgAAAAAAAAAAAAAAAAAAAAAAAACIAQAAQXVkaW9MaXN0ZW5lcl9oCiAgbGFiCkF1ZGlvUGFyYW0KQXVkaW9MaXN0ZW5lcgpBdWRpb0xpc3RlbmVyCiAgIH5BdWRpb0xpc3RlbmVyCiAgIHNldFBvc2l0aW9uCiAgIHNldFBvc2l0aW9uCiAgIHBvc2l0aW9uWAogICBwb3NpdGlvblkKICAgcG9zaXRpb25aCiAgIHNldE9yaWVudGF0aW9uCiAgIHNldEZvcndhcmQKICAgZm9yd2FyZFgKICAgZm9yd2FyZFkKICAgZm9yd2FyZFoKICAgc2V0VXBWZWN0b3IKICAgdXBYCiAgIHVwWQogICB1cFoKICAgc2V0VmVsb2NpdHkKICAgc2V0VmVsb2NpdHkKICAgdmVsb2NpdHlYCiAgIHZlbG9jaXR5WQogICB2ZWxvY2l0eVoKICAgc2V0RG9wcGxlckZhY3RvcgogICBkb3BwbGVyRmFjdG9yCiAgIHNldFNwZWVkT2ZTb3VuZAogICBzcGVlZE9mU291bmQAAAAAAAAAAMAAAAAAAAAAAAAAAA",
-					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAAAAAA"
+					"BQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADwvwAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAAAAAA"
 				],
 				[
 					4,
@@ -1397,7 +1397,7 @@
 						]
 					},
 					"AgAAAAAAAAAAAAAAAAAAAAAAAADAAAAAQXVkaW9Qcm9jZXNzb3JfaAogIGxhYgpBdWRpb0J1cwpDb250ZXh0UmVuZGVyTG9jawpBdWRpb1Byb2Nlc3NvcgpBdWRpb1Byb2Nlc3NvcgogICB+QXVkaW9Qcm9jZXNzb3IKICAgaW5pdGlhbGl6ZQogICB1bmluaXRpYWxpemUKICAgcHJvY2VzcwogICByZXNldAogICBpc0luaXRpYWxpemVkCiAgIHRhaWxUaW1lCiAgIGxhdGVuY3lUaW1lAAAAAAAAAADuAgAAAAAAAAAAAAA",
-					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAAAAAA"
+					"BQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADwvwAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAAAAAA"
 				],
 				[
 					5,
@@ -1763,7 +1763,7 @@
 						]
 					},
 					"AgAAAAAAAAAAAAAAAAAAAAAAAADuAgAAICBsYWJfYXVkaW9kZXZpY2VfaAogIGxhYgpBdWRpb0J1cwpBdWRpb0NvbnRleHQKQXVkaW9Ob2RlSW5wdXQKQXVkaW9IYXJkd2FyZUlucHV0CkF1ZGlvU291cmNlUHJvdmlkZXIKQXVkaW9TdHJlYW1Db25maWcKQXVkaW9EZXZpY2VJbmZvCkF1ZGlvRGV2aWNlSW5kZXgKQXVkaW9TdHJlYW1Db25maWcKQXVkaW9EZXZpY2VJbmZvClNhbXBsaW5nSW5mbwogIHB1bGxfZ3JhcGgKQXVkaW9EZXZpY2UKQXVkaW9EZXZpY2UKTE9HX0lORk8KQXVkaW9Tb3VyY2VQcm92aWRlcgogICB+QXVkaW9EZXZpY2UKICAgc2V0RGVzdGluYXRpb25Ob2RlCiAgIGdldE91dHB1dENvbmZpZwogICBnZXRJbnB1dENvbmZpZwogICBzb3VyY2VQcm92aWRlcgogICBzdGFydAogICBzdG9wCiAgIGlzUnVubmluZwogICBiYWNrZW5kUmVpbml0aWFsaXplCkF1ZGlvRGV2aWNlX051bGwKQXVkaW9EZXZpY2VfTnVsbAogICB+QXVkaW9EZXZpY2VfTnVsbAogICBzdGFydAogICBzdG9wCiAgIGlzUnVubmluZwogICBiYWNrZW5kUmVpbml0aWFsaXplCkF1ZGlvRGVzdGluYXRpb25Ob2RlCiAgIHRhaWxUaW1lCiAgIGxhdGVuY3lUaW1lCiAgIHN0YXRpY19uYW1lCiAgIG5hbWUKICAgZGVzYwpBdWRpb0Rlc3RpbmF0aW9uTm9kZQogICB+QXVkaW9EZXN0aW5hdGlvbk5vZGUKICAgZGV2aWNlCiAgIHJlbmRlcgogICBvZmZsaW5lUmVuZGVyCiAgIGdldFNhbXBsaW5nSW5mbwogICBwcm9jZXNzCiAgIGluaXRpYWxpemUKICAgdW5pbml0aWFsaXplCiAgIHJlc2V0AAAAAAAAAADfBAAAAAAAAAAAAAA",
-					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAAAAAA"
+					"BQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADwvwAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAAAAAA"
 				],
 				[
 					6,
@@ -2104,7 +2104,7 @@
 						]
 					},
 					"AgAAAAAAAAAAAAAAAAAAAAAAAADfBAAAICBsYWJfYXVkaW9fY29udGV4dF9oCiAgbGFiCkF1ZGlvQnVzCkF1ZGlvSGFyZHdhcmVJbnB1dE5vZGUKQXVkaW9MaXN0ZW5lcgpBdWRpb05vZGUKQXVkaW9Ob2RlSW5wdXQKQXVkaW9Ob2RlT3V0cHV0CkF1ZGlvRGVzdGluYXRpb25Ob2RlCkF1ZGlvU2NoZWR1bGVkU291cmNlTm9kZQpDb250ZXh0R3JhcGhMb2NrCkNvbnRleHRSZW5kZXJMb2NrCkhSVEZEYXRhYmFzZUxvYWRlcgpBdWRpb0NvbnRleHQKQ29udGV4dEdyYXBoTG9jawpDb250ZXh0UmVuZGVyTG9jawpBdWRpb0Rlc3RpbmF0aW9uTm9kZQpBdWRpb0NvbnRleHRJbnRlcmZhY2UKQXVkaW9Db250ZXh0CkF1ZGlvQ29udGV4dEludGVyZmFjZQogICB+QXVkaW9Db250ZXh0SW50ZXJmYWNlCiAgIGNvbnRleHRJZAogICBjdXJyZW50VGltZQogICBhdWRpb0NvbnRleHRJbnRlcmZhY2UKQXVkaW9Db250ZXh0CkF1ZGlvQ29udGV4dAogICB+QXVkaW9Db250ZXh0CiAgIGxhenlJbml0aWFsaXplCiAgIGlzSW5pdGlhbGl6ZWQKICAgaXNBdXRvZGlzcGF0Y2hpbmdFdmVudHMKICAgaXNPZmZsaW5lQ29udGV4dAogICBsb2FkSHJ0ZkRhdGFiYXNlCiAgIGhydGZEYXRhYmFzZUxvYWRlcgogICBzYW1wbGVSYXRlCiAgIHNldERlc3RpbmF0aW9uTm9kZQogICBkZXN0aW5hdGlvbk5vZGUKICAgbGlzdGVuZXIKICAgZGVidWdUcmF2ZXJzZQogICBkaWFnbm9zZQogICBkaWFnbm9zZWRfc2lsZW5jZQogICBkaWFnbm9zaW5nCiAgIGN1cnJlbnRUaW1lCiAgIGN1cnJlbnRTYW1wbGVGcmFtZQogICBwcmVkaWN0ZWRDdXJyZW50VGltZQogICBzdGFydE9mZmxpbmVSZW5kZXJpbmcKICAgc3VzcGVuZAogICByZXN1bWUKICAgY2xvc2UKICAgaGFuZGxlUHJlUmVuZGVyVGFza3MKICAgaGFuZGxlUG9zdFJlbmRlclRhc2tzCiAgIGFkZEF1dG9tYXRpY1B1bGxOb2RlCiAgIHJlbW92ZUF1dG9tYXRpY1B1bGxOb2RlCiAgIHByb2Nlc3NBdXRvbWF0aWNQdWxsTm9kZXMKICAgY29ubmVjdAogICBkaXNjb25uZWN0CiAgIGlzQ29ubmVjdGVkCiAgIGRpc2Nvbm5lY3QKICAgc3luY2hyb25pemVDb25uZWN0aW9ucwogICBjb25uZWN0UGFyYW0KICAgY29ubmVjdFBhcmFtCiAgIGRpc2Nvbm5lY3RQYXJhbQogICBlbnF1ZXVlRXZlbnQKICAgZGlzcGF0Y2hFdmVudHMKICAgYXBwZW5kRGVidWdCdWZmZXIKICAgZmx1c2hEZWJ1Z0J1ZmZlcgpJbnRlcm5hbHMKTnVsbERldmljZU5vZGUKICAgdXBkYXRlCiAgIHVwZGF0ZUF1dG9tYXRpY1B1bGxOb2RlcwogICB1bmluaXRpYWxpemUAAAAAAAAAAN0EAAAAAAAAAAAAAA",
-					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAAAAAA"
+					"BQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADwvwAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAAAAAA"
 				],
 				[
 					7,
@@ -2335,7 +2335,7 @@
 						]
 					},
 					"AgAAAAAAAAAAAAAAAAAAAAAAAADdBAAAU3RrUHRyClN0a0ZyYW1lc1B0cgpTdGtHZW5lcmF0b3JQdHIKU3RrRmlsdGVyUHRyClN0a0VmZmVjdFB0cgpTdGtGTVB0cgpTdGtJbnN0cm1udFB0cgogIGpzX3N5bWJvbF90b3N0cmluZ3RhZwogIGpzX3NldF90b3N0cmluZ3RhZwogIGFycmF5X2xlbmd0aAogIGFycmF5X3RvX3ZlY3RvcgogIGFycmF5X3RvX3ZlY3RvcgogIGpzX3N0a193cmFwCiAganNfc3RrX2dldAogIGpzX3N0a19zZXQKICBqc19zdGtfZmluYWxpemVyCn5TdGtQdHIKSlNfQ0dFVFNFVF9NQUdJQ19ERUYKSlNfUFJPUF9TVFJJTkdfREVGCiAganNfc3RrZnJhbWVzX2NvbnN0cnVjdG9yCiAganNfc3RrZnJhbWVzX21ldGhvZAogIGpzX3N0a2ZyYW1lc19mcmVlX2J1Zgp+U3RrRnJhbWVzUHRyCiAganNfc3RrZnJhbWVzX2dldAogIGpzX3N0a2ZyYW1lc19zZXQKICBqc19zdGtmcmFtZXNfZmluYWxpemVyCn5TdGtGcmFtZXNQdHIKSlNfQ0ZVTkNfTUFHSUNfREVGCkpTX0NGVU5DX01BR0lDX0RFRgpKU19DRlVOQ19NQUdJQ19ERUYKSlNfQ0ZVTkNfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX1BST1BfU1RSSU5HX0RFRgogIGpzX3N0a2dlbmVyYXRvcl9jb25zdHJ1Y3RvcgogIGpzX3N0a2dlbmVyYXRvcl9tZXRob2QKICBqc19zdGtnZW5lcmF0b3JfZ2V0CiAganNfc3RrZ2VuZXJhdG9yX3NldAogIGpzX3N0a2dlbmVyYXRvcl9maW5hbGl6ZXIKflN0a0dlbmVyYXRvclB0cgpKU19DRlVOQ19NQUdJQ19ERUYKSlNfQ0dFVFNFVF9NQUdJQ19ERUYKSlNfUFJPUF9TVFJJTkdfREVGCiAganNfc3RrZmlsdGVyX2NvbnN0cnVjdG9yCiAganNfc3RrZmlsdGVyX2ZpbmFsaXplcgp+U3RrRmlsdGVyUHRyCkpTX1BST1BfU1RSSU5HX0RFRgogIGpzX3N0a2VmZmVjdF9jb25zdHJ1Y3RvcgogIGpzX3N0a2VmZmVjdF9maW5hbGl6ZXIKflN0a0VmZmVjdFB0cgpKU19QUk9QX1NUUklOR19ERUYKICBqc19zdGtmbV9jb25zdHJ1Y3RvcgogIGpzX3N0a2ZtX2ZpbmFsaXplcgp+U3RrRk1QdHIKSlNfUFJPUF9TVFJJTkdfREVGCiAganNfc3RraW5zdHJtbnRfY29uc3RydWN0b3IKICBqc19zdGtpbnN0cm1udF9maW5hbGl6ZXIKflN0a0luc3RybW50UHRyCkpTX1BST1BfU1RSSU5HX0RFRgogIGpzX3N0a19pbml0CiAganNfaW5pdF9tb2R1bGVfc3RrAAAAAAAAAADEAwAAAAAAAAAAAAA",
-					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAAAAAA"
+					"BQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADwvwAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAAAAAA"
 				],
 				[
 					8,
@@ -2351,7 +2351,7 @@
 						]
 					},
 					"AgAAAAAAAAAAAAAAAAAAAAAAAADEAwAAICBqc19zdGtfaW5pdAogIGpzX2luaXRfbW9kdWxlX3N0awpBdWRpb0NvbnRleHRQdHIKQXVkaW9EZXN0aW5hdGlvbk5vZGVQdHIKQXVkaW9MaXN0ZW5lclB0cgpBdWRpb0RldmljZVB0cgogIGpzX2F1ZGlvY29udGV4dF9jb25zdHJ1Y3RvcgogIGpzX2F1ZGlvY29udGV4dF9nZXQKICBqc19hdWRpb2NvbnRleHRfc2V0CiAganNfYXVkaW9jb250ZXh0X2ZpbmFsaXplcgp+QXVkaW9Db250ZXh0UHRyCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX1BST1BfU1RSSU5HX0RFRgogIGpzX2F1ZGlvZGVzdGluYXRpb25ub2RlX2NvbnN0cnVjdG9yCiAganNfYXVkaW9kZXN0aW5hdGlvbm5vZGVfZ2V0CiAganNfYXVkaW9kZXN0aW5hdGlvbm5vZGVfbWV0aG9kCiAganNfYXVkaW9kZXN0aW5hdGlvbm5vZGVfZmluYWxpemVyCn5BdWRpb0Rlc3RpbmF0aW9uTm9kZVB0cgpKU19DR0VUU0VUX01BR0lDX0RFRgpKU19DRlVOQ19NQUdJQ19ERUYKSlNfUFJPUF9TVFJJTkdfREVGCiAganNfYXVkaW9saXN0ZW5lcl9jb25zdHJ1Y3RvcgogIGpzX2F1ZGlvbGlzdGVuZXJfZ2V0CiAganNfYXVkaW9saXN0ZW5lcl9maW5hbGl6ZXIKfkF1ZGlvTGlzdGVuZXJQdHIKSlNfQ0dFVFNFVF9NQUdJQ19ERUYKSlNfQ0dFVFNFVF9NQUdJQ19ERUYKSlNfQ0dFVFNFVF9NQUdJQ19ERUYKSlNfUFJPUF9TVFJJTkdfREVGCiAganNfYXVkaW9kZXZpY2VfY29uc3RydWN0b3IKICBqc19hdWRpb2RldmljZV9nZXQKICBqc19hdWRpb2RldmljZV9zZXQKICBqc19hdWRpb2RldmljZV9maW5hbGl6ZXIKfkF1ZGlvRGV2aWNlUHRyCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX1BST1BfU1RSSU5HX0RFRgogIGpzX2xhYnNvdW5kX2luaXQKICBqc19pbml0X21vZHVsZQAAAAAAAAAAAAAAAAAAAAAAAAAA",
-					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAAAAAA"
+					"BQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADwvwAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAAAAAA"
 				],
 				[
 					9,
@@ -2717,7 +2717,7 @@
 						]
 					},
 					"AwAAAAAAAAAAAAAA3wQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAN8EAAAgIGxhYl9hdWRpb19jb250ZXh0X2gKICBsYWIKQXVkaW9CdXMKQXVkaW9IYXJkd2FyZUlucHV0Tm9kZQpBdWRpb0xpc3RlbmVyCkF1ZGlvTm9kZQpBdWRpb05vZGVJbnB1dApBdWRpb05vZGVPdXRwdXQKQXVkaW9EZXN0aW5hdGlvbk5vZGUKQXVkaW9TY2hlZHVsZWRTb3VyY2VOb2RlCkNvbnRleHRHcmFwaExvY2sKQ29udGV4dFJlbmRlckxvY2sKSFJURkRhdGFiYXNlTG9hZGVyCkF1ZGlvQ29udGV4dApDb250ZXh0R3JhcGhMb2NrCkNvbnRleHRSZW5kZXJMb2NrCkF1ZGlvRGVzdGluYXRpb25Ob2RlCkF1ZGlvQ29udGV4dEludGVyZmFjZQpBdWRpb0NvbnRleHQKQXVkaW9Db250ZXh0SW50ZXJmYWNlCiAgIH5BdWRpb0NvbnRleHRJbnRlcmZhY2UKICAgY29udGV4dElkCiAgIGN1cnJlbnRUaW1lCiAgIGF1ZGlvQ29udGV4dEludGVyZmFjZQpBdWRpb0NvbnRleHQKQXVkaW9Db250ZXh0CiAgIH5BdWRpb0NvbnRleHQKICAgbGF6eUluaXRpYWxpemUKICAgaXNJbml0aWFsaXplZAogICBpc0F1dG9kaXNwYXRjaGluZ0V2ZW50cwogICBpc09mZmxpbmVDb250ZXh0CiAgIGxvYWRIcnRmRGF0YWJhc2UKICAgaHJ0ZkRhdGFiYXNlTG9hZGVyCiAgIHNhbXBsZVJhdGUKICAgc2V0RGVzdGluYXRpb25Ob2RlCiAgIGRlc3RpbmF0aW9uTm9kZQogICBsaXN0ZW5lcgogICBkZWJ1Z1RyYXZlcnNlCiAgIGRpYWdub3NlCiAgIGRpYWdub3NlZF9zaWxlbmNlCiAgIGRpYWdub3NpbmcKICAgY3VycmVudFRpbWUKICAgY3VycmVudFNhbXBsZUZyYW1lCiAgIHByZWRpY3RlZEN1cnJlbnRUaW1lCiAgIHN0YXJ0T2ZmbGluZVJlbmRlcmluZwogICBzdXNwZW5kCiAgIHJlc3VtZQogICBjbG9zZQogICBoYW5kbGVQcmVSZW5kZXJUYXNrcwogICBoYW5kbGVQb3N0UmVuZGVyVGFza3MKICAgYWRkQXV0b21hdGljUHVsbE5vZGUKICAgcmVtb3ZlQXV0b21hdGljUHVsbE5vZGUKICAgcHJvY2Vzc0F1dG9tYXRpY1B1bGxOb2RlcwogICBjb25uZWN0CiAgIGRpc2Nvbm5lY3QKICAgaXNDb25uZWN0ZWQKICAgZGlzY29ubmVjdAogICBzeW5jaHJvbml6ZUNvbm5lY3Rpb25zCiAgIGNvbm5lY3RQYXJhbQogICBjb25uZWN0UGFyYW0KICAgZGlzY29ubmVjdFBhcmFtCiAgIGVucXVldWVFdmVudAogICBkaXNwYXRjaEV2ZW50cwogICBhcHBlbmREZWJ1Z0J1ZmZlcgogICBmbHVzaERlYnVnQnVmZmVyCkludGVybmFscwpOdWxsRGV2aWNlTm9kZQogICB1cGRhdGUKICAgdXBkYXRlQXV0b21hdGljUHVsbE5vZGVzCiAgIHVuaW5pdGlhbGl6ZQAAAAAAAAAA3wQAAAAAAAAAAAAA",
-					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAAAAAA"
+					"BQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADwvwAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAAAAAA"
 				],
 				[
 					1,
@@ -2733,7 +2733,7 @@
 						]
 					},
 					"AgAAAAAAAAAAAAAAAAAAAAAAAADfBAAAICBsYWJfYXVkaW9fY29udGV4dF9oCiAgbGFiCkF1ZGlvQnVzCkF1ZGlvSGFyZHdhcmVJbnB1dE5vZGUKQXVkaW9MaXN0ZW5lcgpBdWRpb05vZGUKQXVkaW9Ob2RlSW5wdXQKQXVkaW9Ob2RlT3V0cHV0CkF1ZGlvRGVzdGluYXRpb25Ob2RlCkF1ZGlvU2NoZWR1bGVkU291cmNlTm9kZQpDb250ZXh0R3JhcGhMb2NrCkNvbnRleHRSZW5kZXJMb2NrCkhSVEZEYXRhYmFzZUxvYWRlcgpBdWRpb0NvbnRleHQKQ29udGV4dEdyYXBoTG9jawpDb250ZXh0UmVuZGVyTG9jawpBdWRpb0Rlc3RpbmF0aW9uTm9kZQpBdWRpb0NvbnRleHRJbnRlcmZhY2UKQXVkaW9Db250ZXh0CkF1ZGlvQ29udGV4dEludGVyZmFjZQogICB+QXVkaW9Db250ZXh0SW50ZXJmYWNlCiAgIGNvbnRleHRJZAogICBjdXJyZW50VGltZQogICBhdWRpb0NvbnRleHRJbnRlcmZhY2UKQXVkaW9Db250ZXh0CkF1ZGlvQ29udGV4dAogICB+QXVkaW9Db250ZXh0CiAgIGxhenlJbml0aWFsaXplCiAgIGlzSW5pdGlhbGl6ZWQKICAgaXNBdXRvZGlzcGF0Y2hpbmdFdmVudHMKICAgaXNPZmZsaW5lQ29udGV4dAogICBsb2FkSHJ0ZkRhdGFiYXNlCiAgIGhydGZEYXRhYmFzZUxvYWRlcgogICBzYW1wbGVSYXRlCiAgIHNldERlc3RpbmF0aW9uTm9kZQogICBkZXN0aW5hdGlvbk5vZGUKICAgbGlzdGVuZXIKICAgZGVidWdUcmF2ZXJzZQogICBkaWFnbm9zZQogICBkaWFnbm9zZWRfc2lsZW5jZQogICBkaWFnbm9zaW5nCiAgIGN1cnJlbnRUaW1lCiAgIGN1cnJlbnRTYW1wbGVGcmFtZQogICBwcmVkaWN0ZWRDdXJyZW50VGltZQogICBzdGFydE9mZmxpbmVSZW5kZXJpbmcKICAgc3VzcGVuZAogICByZXN1bWUKICAgY2xvc2UKICAgaGFuZGxlUHJlUmVuZGVyVGFza3MKICAgaGFuZGxlUG9zdFJlbmRlclRhc2tzCiAgIGFkZEF1dG9tYXRpY1B1bGxOb2RlCiAgIHJlbW92ZUF1dG9tYXRpY1B1bGxOb2RlCiAgIHByb2Nlc3NBdXRvbWF0aWNQdWxsTm9kZXMKICAgY29ubmVjdAogICBkaXNjb25uZWN0CiAgIGlzQ29ubmVjdGVkCiAgIGRpc2Nvbm5lY3QKICAgc3luY2hyb25pemVDb25uZWN0aW9ucwogICBjb25uZWN0UGFyYW0KICAgY29ubmVjdFBhcmFtCiAgIGRpc2Nvbm5lY3RQYXJhbQogICBlbnF1ZXVlRXZlbnQKICAgZGlzcGF0Y2hFdmVudHMKICAgYXBwZW5kRGVidWdCdWZmZXIKICAgZmx1c2hEZWJ1Z0J1ZmZlcgpJbnRlcm5hbHMKTnVsbERldmljZU5vZGUKICAgdXBkYXRlCiAgIHVwZGF0ZUF1dG9tYXRpY1B1bGxOb2RlcwogICB1bmluaXRpYWxpemUAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-					"AQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/"
+					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADwvw"
 				],
 				[
 					2,
@@ -3099,7 +3099,7 @@
 						]
 					},
 					"AQAAAAAAAAAAAAAA3wQAAAAAAAAAAAAA",
-					"AQAAAAAAAAAAAAAA"
+					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAAAAAA"
 				],
 				[
 					3,
@@ -3365,7 +3365,7 @@
 						]
 					},
 					"AgAAAAAAAAAAAAAAAAAAAAAAAADfBAAAICBsYWJfYXVkaW9fY29udGV4dF9oCiAgbGFiCkF1ZGlvQnVzCkF1ZGlvSGFyZHdhcmVJbnB1dE5vZGUKQXVkaW9MaXN0ZW5lcgpBdWRpb05vZGUKQXVkaW9Ob2RlSW5wdXQKQXVkaW9Ob2RlT3V0cHV0CkF1ZGlvRGVzdGluYXRpb25Ob2RlCkF1ZGlvU2NoZWR1bGVkU291cmNlTm9kZQpDb250ZXh0R3JhcGhMb2NrCkNvbnRleHRSZW5kZXJMb2NrCkhSVEZEYXRhYmFzZUxvYWRlcgpBdWRpb0NvbnRleHQKQ29udGV4dEdyYXBoTG9jawpDb250ZXh0UmVuZGVyTG9jawpBdWRpb0Rlc3RpbmF0aW9uTm9kZQpBdWRpb0NvbnRleHRJbnRlcmZhY2UKQXVkaW9Db250ZXh0CkF1ZGlvQ29udGV4dEludGVyZmFjZQogICB+QXVkaW9Db250ZXh0SW50ZXJmYWNlCiAgIGNvbnRleHRJZAogICBjdXJyZW50VGltZQogICBhdWRpb0NvbnRleHRJbnRlcmZhY2UKQXVkaW9Db250ZXh0CkF1ZGlvQ29udGV4dAogICB+QXVkaW9Db250ZXh0CiAgIGxhenlJbml0aWFsaXplCiAgIGlzSW5pdGlhbGl6ZWQKICAgaXNBdXRvZGlzcGF0Y2hpbmdFdmVudHMKICAgaXNPZmZsaW5lQ29udGV4dAogICBsb2FkSHJ0ZkRhdGFiYXNlCiAgIGhydGZEYXRhYmFzZUxvYWRlcgogICBzYW1wbGVSYXRlCiAgIHNldERlc3RpbmF0aW9uTm9kZQogICBkZXN0aW5hdGlvbk5vZGUKICAgbGlzdGVuZXIKICAgZGVidWdUcmF2ZXJzZQogICBkaWFnbm9zZQogICBkaWFnbm9zZWRfc2lsZW5jZQogICBkaWFnbm9zaW5nCiAgIGN1cnJlbnRUaW1lCiAgIGN1cnJlbnRTYW1wbGVGcmFtZQogICBwcmVkaWN0ZWRDdXJyZW50VGltZQogICBzdGFydE9mZmxpbmVSZW5kZXJpbmcKICAgc3VzcGVuZAogICByZXN1bWUKICAgY2xvc2UKICAgaGFuZGxlUHJlUmVuZGVyVGFza3MKICAgaGFuZGxlUG9zdFJlbmRlclRhc2tzCiAgIGFkZEF1dG9tYXRpY1B1bGxOb2RlCiAgIHJlbW92ZUF1dG9tYXRpY1B1bGxOb2RlCiAgIHByb2Nlc3NBdXRvbWF0aWNQdWxsTm9kZXMKICAgY29ubmVjdAogICBkaXNjb25uZWN0CiAgIGlzQ29ubmVjdGVkCiAgIGRpc2Nvbm5lY3QKICAgc3luY2hyb25pemVDb25uZWN0aW9ucwogICBjb25uZWN0UGFyYW0KICAgY29ubmVjdFBhcmFtCiAgIGRpc2Nvbm5lY3RQYXJhbQogICBlbnF1ZXVlRXZlbnQKICAgZGlzcGF0Y2hFdmVudHMKICAgYXBwZW5kRGVidWdCdWZmZXIKICAgZmx1c2hEZWJ1Z0J1ZmZlcgpJbnRlcm5hbHMKTnVsbERldmljZU5vZGUKICAgdXBkYXRlCiAgIHVwZGF0ZUF1dG9tYXRpY1B1bGxOb2RlcwogICB1bmluaXRpYWxpemUAAAAAAAAAAO4CAAAAAAAAAAAAAA",
-					"AQAAAAAAAAAAAAAA"
+					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAAAAAA"
 				],
 				[
 					4,
@@ -3731,7 +3731,7 @@
 						]
 					},
 					"AgAAAAAAAAAAAAAAAAAAAAAAAADuAgAAICBsYWJfYXVkaW9kZXZpY2VfaAogIGxhYgpBdWRpb0J1cwpBdWRpb0NvbnRleHQKQXVkaW9Ob2RlSW5wdXQKQXVkaW9IYXJkd2FyZUlucHV0CkF1ZGlvU291cmNlUHJvdmlkZXIKQXVkaW9TdHJlYW1Db25maWcKQXVkaW9EZXZpY2VJbmZvCkF1ZGlvRGV2aWNlSW5kZXgKQXVkaW9TdHJlYW1Db25maWcKQXVkaW9EZXZpY2VJbmZvClNhbXBsaW5nSW5mbwogIHB1bGxfZ3JhcGgKQXVkaW9EZXZpY2UKQXVkaW9EZXZpY2UKTE9HX0lORk8KQXVkaW9Tb3VyY2VQcm92aWRlcgogICB+QXVkaW9EZXZpY2UKICAgc2V0RGVzdGluYXRpb25Ob2RlCiAgIGdldE91dHB1dENvbmZpZwogICBnZXRJbnB1dENvbmZpZwogICBzb3VyY2VQcm92aWRlcgogICBzdGFydAogICBzdG9wCiAgIGlzUnVubmluZwogICBiYWNrZW5kUmVpbml0aWFsaXplCkF1ZGlvRGV2aWNlX051bGwKQXVkaW9EZXZpY2VfTnVsbAogICB+QXVkaW9EZXZpY2VfTnVsbAogICBzdGFydAogICBzdG9wCiAgIGlzUnVubmluZwogICBiYWNrZW5kUmVpbml0aWFsaXplCkF1ZGlvRGVzdGluYXRpb25Ob2RlCiAgIHRhaWxUaW1lCiAgIGxhdGVuY3lUaW1lCiAgIHN0YXRpY19uYW1lCiAgIG5hbWUKICAgZGVzYwpBdWRpb0Rlc3RpbmF0aW9uTm9kZQogICB+QXVkaW9EZXN0aW5hdGlvbk5vZGUKICAgZGV2aWNlCiAgIHJlbmRlcgogICBvZmZsaW5lUmVuZGVyCiAgIGdldFNhbXBsaW5nSW5mbwogICBwcm9jZXNzCiAgIGluaXRpYWxpemUKICAgdW5pbml0aWFsaXplCiAgIHJlc2V0AAAAAAAAAADfBAAAAAAAAAAAAAA",
-					"AQAAAAAAAAAAAAAA"
+					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAAAAAA"
 				],
 				[
 					5,
@@ -3747,7 +3747,7 @@
 						]
 					},
 					"AgAAAAAAAAAAAAAAAAAAAAAAAADfBAAAICBsYWJfYXVkaW9fY29udGV4dF9oCiAgbGFiCkF1ZGlvQnVzCkF1ZGlvSGFyZHdhcmVJbnB1dE5vZGUKQXVkaW9MaXN0ZW5lcgpBdWRpb05vZGUKQXVkaW9Ob2RlSW5wdXQKQXVkaW9Ob2RlT3V0cHV0CkF1ZGlvRGVzdGluYXRpb25Ob2RlCkF1ZGlvU2NoZWR1bGVkU291cmNlTm9kZQpDb250ZXh0R3JhcGhMb2NrCkNvbnRleHRSZW5kZXJMb2NrCkhSVEZEYXRhYmFzZUxvYWRlcgpBdWRpb0NvbnRleHQKQ29udGV4dEdyYXBoTG9jawpDb250ZXh0UmVuZGVyTG9jawpBdWRpb0Rlc3RpbmF0aW9uTm9kZQpBdWRpb0NvbnRleHRJbnRlcmZhY2UKQXVkaW9Db250ZXh0CkF1ZGlvQ29udGV4dEludGVyZmFjZQogICB+QXVkaW9Db250ZXh0SW50ZXJmYWNlCiAgIGNvbnRleHRJZAogICBjdXJyZW50VGltZQogICBhdWRpb0NvbnRleHRJbnRlcmZhY2UKQXVkaW9Db250ZXh0CkF1ZGlvQ29udGV4dAogICB+QXVkaW9Db250ZXh0CiAgIGxhenlJbml0aWFsaXplCiAgIGlzSW5pdGlhbGl6ZWQKICAgaXNBdXRvZGlzcGF0Y2hpbmdFdmVudHMKICAgaXNPZmZsaW5lQ29udGV4dAogICBsb2FkSHJ0ZkRhdGFiYXNlCiAgIGhydGZEYXRhYmFzZUxvYWRlcgogICBzYW1wbGVSYXRlCiAgIHNldERlc3RpbmF0aW9uTm9kZQogICBkZXN0aW5hdGlvbk5vZGUKICAgbGlzdGVuZXIKICAgZGVidWdUcmF2ZXJzZQogICBkaWFnbm9zZQogICBkaWFnbm9zZWRfc2lsZW5jZQogICBkaWFnbm9zaW5nCiAgIGN1cnJlbnRUaW1lCiAgIGN1cnJlbnRTYW1wbGVGcmFtZQogICBwcmVkaWN0ZWRDdXJyZW50VGltZQogICBzdGFydE9mZmxpbmVSZW5kZXJpbmcKICAgc3VzcGVuZAogICByZXN1bWUKICAgY2xvc2UKICAgaGFuZGxlUHJlUmVuZGVyVGFza3MKICAgaGFuZGxlUG9zdFJlbmRlclRhc2tzCiAgIGFkZEF1dG9tYXRpY1B1bGxOb2RlCiAgIHJlbW92ZUF1dG9tYXRpY1B1bGxOb2RlCiAgIHByb2Nlc3NBdXRvbWF0aWNQdWxsTm9kZXMKICAgY29ubmVjdAogICBkaXNjb25uZWN0CiAgIGlzQ29ubmVjdGVkCiAgIGRpc2Nvbm5lY3QKICAgc3luY2hyb25pemVDb25uZWN0aW9ucwogICBjb25uZWN0UGFyYW0KICAgY29ubmVjdFBhcmFtCiAgIGRpc2Nvbm5lY3RQYXJhbQogICBlbnF1ZXVlRXZlbnQKICAgZGlzcGF0Y2hFdmVudHMKICAgYXBwZW5kRGVidWdCdWZmZXIKICAgZmx1c2hEZWJ1Z0J1ZmZlcgpJbnRlcm5hbHMKTnVsbERldmljZU5vZGUKICAgdXBkYXRlCiAgIHVwZGF0ZUF1dG9tYXRpY1B1bGxOb2RlcwogICB1bmluaXRpYWxpemUAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-					"AQAAAAAAAAAAAAAA"
+					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAAAAAA"
 				],
 				[
 					6,
@@ -3803,7 +3803,7 @@
 						]
 					},
 					"AQAAAAAAAAAAAAAAvAAAAAAAAAAAAAAA",
-					"AQAAAAAAAAAAAAAA"
+					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAAAAAA"
 				],
 				[
 					7,
@@ -3819,7 +3819,7 @@
 						]
 					},
 					"AgAAAAAAAAAAAAAAAAAAAAAAAAC8AAAAICBsYWIKICBsYWI6OnB1bGxfZ3JhcGgKICBsYWIKQXVkaW9EZXN0aW5hdGlvbk5vZGU6OmRlc2MKQXVkaW9EZXN0aW5hdGlvbk5vZGU6OkF1ZGlvRGVzdGluYXRpb25Ob2RlCkF1ZGlvRGVzdGluYXRpb25Ob2RlOjpyZW5kZXIKQXVkaW9EZXN0aW5hdGlvbk5vZGU6Om9mZmxpbmVSZW5kZXIKICBzdGF0aWNfY2FzdDx1aW50NjRfdD4AAAAAAAAAAAAAAAAAAAAAAAAAAA",
-					"AQAAAAAAAAAAAAAA"
+					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAAAAAA"
 				],
 				[
 					8,
@@ -4085,28 +4085,1789 @@
 						]
 					},
 					"AQAAAAAAAAAAAAAA7gIAAAAAAAAAAAAA",
-					"AQAAAAAAAAAAAAAA"
-				]
-			]
-		},
-		{
-			"contents": "\n",
-			"settings":
-			{
-				"buffer_size": 1,
-				"line_ending": "Unix"
-			},
-			"undo_stack":
-			[
+					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAAAAAA"
+				],
 				[
 					1,
 					1,
-					"insert",
+					"outline_refresh",
 					{
-						"characters": "\n"
+						"path": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound/src/core/AudioDevice.cpp",
+						"symkeys":
+						[
+							[
+								537,
+								540
+							],
+							[
+								550,
+								565
+							],
+							[
+								2818,
+								2821
+							],
+							[
+								2848,
+								2874
+							],
+							[
+								2953,
+								2995
+							],
+							[
+								3829,
+								3857
+							],
+							[
+								4237,
+								4272
+							],
+							[
+								5309,
+								5330
+							]
+						],
+						"symlist":
+						[
+							"lab",
+							"lab::pull_graph",
+							"lab",
+							"AudioDestinationNode::desc",
+							"AudioDestinationNode::AudioDestinationNode",
+							"AudioDestinationNode::render",
+							"AudioDestinationNode::offlineRender",
+							"static_cast<uint64_t>"
+						]
 					},
-					"AQAAAAAAAAAAAAAAAQAAAAAAAAAAAAAA",
-					"BQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADwvwAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8"
+					"AgAAAAAAAAAAAAAAAAAAAAAAAADuAgAAICBsYWJfYXVkaW9kZXZpY2VfaAogIGxhYgpBdWRpb0J1cwpBdWRpb0NvbnRleHQKQXVkaW9Ob2RlSW5wdXQKQXVkaW9IYXJkd2FyZUlucHV0CkF1ZGlvU291cmNlUHJvdmlkZXIKQXVkaW9TdHJlYW1Db25maWcKQXVkaW9EZXZpY2VJbmZvCkF1ZGlvRGV2aWNlSW5kZXgKQXVkaW9TdHJlYW1Db25maWcKQXVkaW9EZXZpY2VJbmZvClNhbXBsaW5nSW5mbwogIHB1bGxfZ3JhcGgKQXVkaW9EZXZpY2UKQXVkaW9EZXZpY2UKTE9HX0lORk8KQXVkaW9Tb3VyY2VQcm92aWRlcgogICB+QXVkaW9EZXZpY2UKICAgc2V0RGVzdGluYXRpb25Ob2RlCiAgIGdldE91dHB1dENvbmZpZwogICBnZXRJbnB1dENvbmZpZwogICBzb3VyY2VQcm92aWRlcgogICBzdGFydAogICBzdG9wCiAgIGlzUnVubmluZwogICBiYWNrZW5kUmVpbml0aWFsaXplCkF1ZGlvRGV2aWNlX051bGwKQXVkaW9EZXZpY2VfTnVsbAogICB+QXVkaW9EZXZpY2VfTnVsbAogICBzdGFydAogICBzdG9wCiAgIGlzUnVubmluZwogICBiYWNrZW5kUmVpbml0aWFsaXplCkF1ZGlvRGVzdGluYXRpb25Ob2RlCiAgIHRhaWxUaW1lCiAgIGxhdGVuY3lUaW1lCiAgIHN0YXRpY19uYW1lCiAgIG5hbWUKICAgZGVzYwpBdWRpb0Rlc3RpbmF0aW9uTm9kZQogICB+QXVkaW9EZXN0aW5hdGlvbk5vZGUKICAgZGV2aWNlCiAgIHJlbmRlcgogICBvZmZsaW5lUmVuZGVyCiAgIGdldFNhbXBsaW5nSW5mbwogICBwcm9jZXNzCiAgIGluaXRpYWxpemUKICAgdW5pbml0aWFsaXplCiAgIHJlc2V0AAAAAAAAAAC8AAAAAAAAAAAAAAA",
+					"AgAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8"
+				],
+				[
+					1,
+					1,
+					"outline_refresh",
+					{
+						"path": null,
+						"symkeys":
+						[
+						],
+						"symlist":
+						[
+						]
+					},
+					"AgAAAAAAAAAAAAAAAAAAAAAAAAC8AAAAICBsYWIKICBsYWI6OnB1bGxfZ3JhcGgKICBsYWIKQXVkaW9EZXN0aW5hdGlvbk5vZGU6OmRlc2MKQXVkaW9EZXN0aW5hdGlvbk5vZGU6OkF1ZGlvRGVzdGluYXRpb25Ob2RlCkF1ZGlvRGVzdGluYXRpb25Ob2RlOjpyZW5kZXIKQXVkaW9EZXN0aW5hdGlvbk5vZGU6Om9mZmxpbmVSZW5kZXIKICBzdGF0aWNfY2FzdDx1aW50NjRfdD4AAAAAAAAAAAAAAAAAAAAAAAAAAA",
+					"AQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/"
+				],
+				[
+					2,
+					1,
+					"outline_refresh",
+					{
+						"path": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/quickjs-labsound.cpp",
+						"symkeys":
+						[
+							[
+								156,
+								167
+							],
+							[
+								218,
+								236
+							],
+							[
+								903,
+								918
+							],
+							[
+								971,
+								994
+							],
+							[
+								1040,
+								1056
+							],
+							[
+								1100,
+								1114
+							],
+							[
+								1132,
+								1159
+							],
+							[
+								2383,
+								2402
+							],
+							[
+								3923,
+								3942
+							],
+							[
+								4583,
+								4608
+							],
+							[
+								4764,
+								4780
+							],
+							[
+								5008,
+								5028
+							],
+							[
+								5089,
+								5109
+							],
+							[
+								5199,
+								5219
+							],
+							[
+								5276,
+								5296
+							],
+							[
+								5359,
+								5379
+							],
+							[
+								5456,
+								5476
+							],
+							[
+								5558,
+								5576
+							],
+							[
+								5659,
+								5694
+							],
+							[
+								7351,
+								7378
+							],
+							[
+								8250,
+								8280
+							],
+							[
+								8699,
+								8732
+							],
+							[
+								8915,
+								8939
+							],
+							[
+								9200,
+								9220
+							],
+							[
+								9277,
+								9295
+							],
+							[
+								9453,
+								9471
+							],
+							[
+								9562,
+								9590
+							],
+							[
+								10536,
+								10556
+							],
+							[
+								10989,
+								11015
+							],
+							[
+								11174,
+								11191
+							],
+							[
+								11423,
+								11443
+							],
+							[
+								11504,
+								11524
+							],
+							[
+								11585,
+								11605
+							],
+							[
+								11666,
+								11684
+							],
+							[
+								11768,
+								11794
+							],
+							[
+								12983,
+								13001
+							],
+							[
+								13285,
+								13303
+							],
+							[
+								13942,
+								13966
+							],
+							[
+								14119,
+								14134
+							],
+							[
+								14358,
+								14378
+							],
+							[
+								14452,
+								14470
+							],
+							[
+								14541,
+								14557
+							],
+							[
+								16954,
+								16968
+							]
+						],
+						"symlist":
+						[
+							"js_stk_init",
+							"js_init_module_stk",
+							"AudioContextPtr",
+							"AudioDestinationNodePtr",
+							"AudioListenerPtr",
+							"AudioDevicePtr",
+							"js_audiocontext_constructor",
+							"js_audiocontext_get",
+							"js_audiocontext_set",
+							"js_audiocontext_finalizer",
+							"~AudioContextPtr",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_PROP_STRING_DEF",
+							"js_audiodestinationnode_constructor",
+							"js_audiodestinationnode_get",
+							"js_audiodestinationnode_method",
+							"js_audiodestinationnode_finalizer",
+							"~AudioDestinationNodePtr",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_PROP_STRING_DEF",
+							"js_audiolistener_constructor",
+							"js_audiolistener_get",
+							"js_audiolistener_finalizer",
+							"~AudioListenerPtr",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_PROP_STRING_DEF",
+							"js_audiodevice_constructor",
+							"js_audiodevice_get",
+							"js_audiodevice_set",
+							"js_audiodevice_finalizer",
+							"~AudioDevicePtr",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_PROP_STRING_DEF",
+							"js_labsound_init",
+							"js_init_module"
+						]
+					},
+					"AQAAAAAAAAAAAAAAxAMAAAAAAAAAAAAA",
+					"AQAAAAAAAAAAAAAA"
+				],
+				[
+					3,
+					1,
+					"outline_refresh",
+					{
+						"path": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/quickjs-stk.cpp",
+						"symkeys":
+						[
+							[
+								2124,
+								2130
+							],
+							[
+								2172,
+								2184
+							],
+							[
+								2226,
+								2241
+							],
+							[
+								2280,
+								2292
+							],
+							[
+								2331,
+								2343
+							],
+							[
+								2378,
+								2386
+							],
+							[
+								2427,
+								2441
+							],
+							[
+								2458,
+								2479
+							],
+							[
+								2796,
+								2814
+							],
+							[
+								3122,
+								3134
+							],
+							[
+								3370,
+								3385
+							],
+							[
+								3689,
+								3704
+							],
+							[
+								4019,
+								4030
+							],
+							[
+								4406,
+								4416
+							],
+							[
+								4774,
+								4784
+							],
+							[
+								5198,
+								5214
+							],
+							[
+								5337,
+								5344
+							],
+							[
+								5534,
+								5554
+							],
+							[
+								5615,
+								5633
+							],
+							[
+								5707,
+								5731
+							],
+							[
+								7048,
+								7067
+							],
+							[
+								9023,
+								9044
+							],
+							[
+								9148,
+								9161
+							],
+							[
+								9204,
+								9220
+							],
+							[
+								10338,
+								10354
+							],
+							[
+								10783,
+								10805
+							],
+							[
+								10946,
+								10959
+							],
+							[
+								11173,
+								11191
+							],
+							[
+								11246,
+								11264
+							],
+							[
+								11329,
+								11347
+							],
+							[
+								11410,
+								11428
+							],
+							[
+								11491,
+								11511
+							],
+							[
+								11557,
+								11577
+							],
+							[
+								11625,
+								11645
+							],
+							[
+								11699,
+								11719
+							],
+							[
+								11769,
+								11789
+							],
+							[
+								11859,
+								11879
+							],
+							[
+								11929,
+								11947
+							],
+							[
+								12265,
+								12292
+							],
+							[
+								15444,
+								15466
+							],
+							[
+								16219,
+								16238
+							],
+							[
+								16625,
+								16644
+							],
+							[
+								16944,
+								16969
+							],
+							[
+								17119,
+								17135
+							],
+							[
+								17361,
+								17379
+							],
+							[
+								17433,
+								17453
+							],
+							[
+								17533,
+								17551
+							],
+							[
+								17908,
+								17932
+							],
+							[
+								21947,
+								21969
+							],
+							[
+								22110,
+								22123
+							],
+							[
+								22337,
+								22355
+							],
+							[
+								22607,
+								22631
+							],
+							[
+								24928,
+								24950
+							],
+							[
+								25091,
+								25104
+							],
+							[
+								25318,
+								25336
+							],
+							[
+								25574,
+								25594
+							],
+							[
+								26449,
+								26467
+							],
+							[
+								26599,
+								26608
+							],
+							[
+								26807,
+								26825
+							],
+							[
+								27316,
+								27342
+							],
+							[
+								30519,
+								30543
+							],
+							[
+								30690,
+								30705
+							],
+							[
+								30927,
+								30945
+							],
+							[
+								31016,
+								31027
+							],
+							[
+								42244,
+								42262
+							]
+						],
+						"symlist":
+						[
+							"StkPtr",
+							"StkFramesPtr",
+							"StkGeneratorPtr",
+							"StkFilterPtr",
+							"StkEffectPtr",
+							"StkFMPtr",
+							"StkInstrmntPtr",
+							"js_symbol_tostringtag",
+							"js_set_tostringtag",
+							"array_length",
+							"array_to_vector",
+							"array_to_vector",
+							"js_stk_wrap",
+							"js_stk_get",
+							"js_stk_set",
+							"js_stk_finalizer",
+							"~StkPtr",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_PROP_STRING_DEF",
+							"js_stkframes_constructor",
+							"js_stkframes_method",
+							"js_stkframes_free_buf",
+							"~StkFramesPtr",
+							"js_stkframes_get",
+							"js_stkframes_set",
+							"js_stkframes_finalizer",
+							"~StkFramesPtr",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_PROP_STRING_DEF",
+							"js_stkgenerator_constructor",
+							"js_stkgenerator_method",
+							"js_stkgenerator_get",
+							"js_stkgenerator_set",
+							"js_stkgenerator_finalizer",
+							"~StkGeneratorPtr",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_PROP_STRING_DEF",
+							"js_stkfilter_constructor",
+							"js_stkfilter_finalizer",
+							"~StkFilterPtr",
+							"JS_PROP_STRING_DEF",
+							"js_stkeffect_constructor",
+							"js_stkeffect_finalizer",
+							"~StkEffectPtr",
+							"JS_PROP_STRING_DEF",
+							"js_stkfm_constructor",
+							"js_stkfm_finalizer",
+							"~StkFMPtr",
+							"JS_PROP_STRING_DEF",
+							"js_stkinstrmnt_constructor",
+							"js_stkinstrmnt_finalizer",
+							"~StkInstrmntPtr",
+							"JS_PROP_STRING_DEF",
+							"js_stk_init",
+							"js_init_module_stk"
+						]
+					},
+					"AgAAAAAAAAAAAAAAAAAAAAAAAADEAwAAICBqc19zdGtfaW5pdAogIGpzX2luaXRfbW9kdWxlX3N0awpBdWRpb0NvbnRleHRQdHIKQXVkaW9EZXN0aW5hdGlvbk5vZGVQdHIKQXVkaW9MaXN0ZW5lclB0cgpBdWRpb0RldmljZVB0cgogIGpzX2F1ZGlvY29udGV4dF9jb25zdHJ1Y3RvcgogIGpzX2F1ZGlvY29udGV4dF9nZXQKICBqc19hdWRpb2NvbnRleHRfc2V0CiAganNfYXVkaW9jb250ZXh0X2ZpbmFsaXplcgp+QXVkaW9Db250ZXh0UHRyCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX1BST1BfU1RSSU5HX0RFRgogIGpzX2F1ZGlvZGVzdGluYXRpb25ub2RlX2NvbnN0cnVjdG9yCiAganNfYXVkaW9kZXN0aW5hdGlvbm5vZGVfZ2V0CiAganNfYXVkaW9kZXN0aW5hdGlvbm5vZGVfbWV0aG9kCiAganNfYXVkaW9kZXN0aW5hdGlvbm5vZGVfZmluYWxpemVyCn5BdWRpb0Rlc3RpbmF0aW9uTm9kZVB0cgpKU19DR0VUU0VUX01BR0lDX0RFRgpKU19DRlVOQ19NQUdJQ19ERUYKSlNfUFJPUF9TVFJJTkdfREVGCiAganNfYXVkaW9saXN0ZW5lcl9jb25zdHJ1Y3RvcgogIGpzX2F1ZGlvbGlzdGVuZXJfZ2V0CiAganNfYXVkaW9saXN0ZW5lcl9maW5hbGl6ZXIKfkF1ZGlvTGlzdGVuZXJQdHIKSlNfQ0dFVFNFVF9NQUdJQ19ERUYKSlNfQ0dFVFNFVF9NQUdJQ19ERUYKSlNfQ0dFVFNFVF9NQUdJQ19ERUYKSlNfUFJPUF9TVFJJTkdfREVGCiAganNfYXVkaW9kZXZpY2VfY29uc3RydWN0b3IKICBqc19hdWRpb2RldmljZV9nZXQKICBqc19hdWRpb2RldmljZV9zZXQKICBqc19hdWRpb2RldmljZV9maW5hbGl6ZXIKfkF1ZGlvRGV2aWNlUHRyCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX1BST1BfU1RSSU5HX0RFRgogIGpzX2xhYnNvdW5kX2luaXQKICBqc19pbml0X21vZHVsZQAAAAAAAAAA3QQAAAAAAAAAAAAA",
+					"AQAAAAAAAAAAAAAA"
+				],
+				[
+					4,
+					1,
+					"outline_refresh",
+					{
+						"path": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/CMakeLists.txt.user.85477e3",
+						"symkeys":
+						[
+						],
+						"symlist":
+						[
+						]
+					},
+					"AgAAAAAAAAAAAAAAAAAAAAAAAADdBAAAU3RrUHRyClN0a0ZyYW1lc1B0cgpTdGtHZW5lcmF0b3JQdHIKU3RrRmlsdGVyUHRyClN0a0VmZmVjdFB0cgpTdGtGTVB0cgpTdGtJbnN0cm1udFB0cgogIGpzX3N5bWJvbF90b3N0cmluZ3RhZwogIGpzX3NldF90b3N0cmluZ3RhZwogIGFycmF5X2xlbmd0aAogIGFycmF5X3RvX3ZlY3RvcgogIGFycmF5X3RvX3ZlY3RvcgogIGpzX3N0a193cmFwCiAganNfc3RrX2dldAogIGpzX3N0a19zZXQKICBqc19zdGtfZmluYWxpemVyCn5TdGtQdHIKSlNfQ0dFVFNFVF9NQUdJQ19ERUYKSlNfUFJPUF9TVFJJTkdfREVGCiAganNfc3RrZnJhbWVzX2NvbnN0cnVjdG9yCiAganNfc3RrZnJhbWVzX21ldGhvZAogIGpzX3N0a2ZyYW1lc19mcmVlX2J1Zgp+U3RrRnJhbWVzUHRyCiAganNfc3RrZnJhbWVzX2dldAogIGpzX3N0a2ZyYW1lc19zZXQKICBqc19zdGtmcmFtZXNfZmluYWxpemVyCn5TdGtGcmFtZXNQdHIKSlNfQ0ZVTkNfTUFHSUNfREVGCkpTX0NGVU5DX01BR0lDX0RFRgpKU19DRlVOQ19NQUdJQ19ERUYKSlNfQ0ZVTkNfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX1BST1BfU1RSSU5HX0RFRgogIGpzX3N0a2dlbmVyYXRvcl9jb25zdHJ1Y3RvcgogIGpzX3N0a2dlbmVyYXRvcl9tZXRob2QKICBqc19zdGtnZW5lcmF0b3JfZ2V0CiAganNfc3RrZ2VuZXJhdG9yX3NldAogIGpzX3N0a2dlbmVyYXRvcl9maW5hbGl6ZXIKflN0a0dlbmVyYXRvclB0cgpKU19DRlVOQ19NQUdJQ19ERUYKSlNfQ0dFVFNFVF9NQUdJQ19ERUYKSlNfUFJPUF9TVFJJTkdfREVGCiAganNfc3RrZmlsdGVyX2NvbnN0cnVjdG9yCiAganNfc3RrZmlsdGVyX2ZpbmFsaXplcgp+U3RrRmlsdGVyUHRyCkpTX1BST1BfU1RSSU5HX0RFRgogIGpzX3N0a2VmZmVjdF9jb25zdHJ1Y3RvcgogIGpzX3N0a2VmZmVjdF9maW5hbGl6ZXIKflN0a0VmZmVjdFB0cgpKU19QUk9QX1NUUklOR19ERUYKICBqc19zdGtmbV9jb25zdHJ1Y3RvcgogIGpzX3N0a2ZtX2ZpbmFsaXplcgp+U3RrRk1QdHIKSlNfUFJPUF9TVFJJTkdfREVGCiAganNfc3RraW5zdHJtbnRfY29uc3RydWN0b3IKICBqc19zdGtpbnN0cm1udF9maW5hbGl6ZXIKflN0a0luc3RybW50UHRyCkpTX1BST1BfU1RSSU5HX0RFRgogIGpzX3N0a19pbml0CiAganNfaW5pdF9tb2R1bGVfc3RrAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+					"AQAAAAAAAAAAAAAA"
+				],
+				[
+					5,
+					1,
+					"outline_refresh",
+					{
+						"path": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/CMakeLists.txt.user",
+						"symkeys":
+						[
+						],
+						"symlist":
+						[
+						]
+					},
+					"AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+					"AQAAAAAAAAAAAAAA"
+				],
+				[
+					6,
+					1,
+					"outline_refresh",
+					{
+						"path": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/quickjs-stk.cpp",
+						"symkeys":
+						[
+							[
+								2124,
+								2130
+							],
+							[
+								2172,
+								2184
+							],
+							[
+								2226,
+								2241
+							],
+							[
+								2280,
+								2292
+							],
+							[
+								2331,
+								2343
+							],
+							[
+								2378,
+								2386
+							],
+							[
+								2427,
+								2441
+							],
+							[
+								2458,
+								2479
+							],
+							[
+								2796,
+								2814
+							],
+							[
+								3122,
+								3134
+							],
+							[
+								3370,
+								3385
+							],
+							[
+								3689,
+								3704
+							],
+							[
+								4019,
+								4030
+							],
+							[
+								4406,
+								4416
+							],
+							[
+								4774,
+								4784
+							],
+							[
+								5198,
+								5214
+							],
+							[
+								5337,
+								5344
+							],
+							[
+								5534,
+								5554
+							],
+							[
+								5615,
+								5633
+							],
+							[
+								5707,
+								5731
+							],
+							[
+								7048,
+								7067
+							],
+							[
+								9023,
+								9044
+							],
+							[
+								9148,
+								9161
+							],
+							[
+								9204,
+								9220
+							],
+							[
+								10338,
+								10354
+							],
+							[
+								10783,
+								10805
+							],
+							[
+								10946,
+								10959
+							],
+							[
+								11173,
+								11191
+							],
+							[
+								11246,
+								11264
+							],
+							[
+								11329,
+								11347
+							],
+							[
+								11410,
+								11428
+							],
+							[
+								11491,
+								11511
+							],
+							[
+								11557,
+								11577
+							],
+							[
+								11625,
+								11645
+							],
+							[
+								11699,
+								11719
+							],
+							[
+								11769,
+								11789
+							],
+							[
+								11859,
+								11879
+							],
+							[
+								11929,
+								11947
+							],
+							[
+								12265,
+								12292
+							],
+							[
+								15444,
+								15466
+							],
+							[
+								16219,
+								16238
+							],
+							[
+								16625,
+								16644
+							],
+							[
+								16944,
+								16969
+							],
+							[
+								17119,
+								17135
+							],
+							[
+								17361,
+								17379
+							],
+							[
+								17433,
+								17453
+							],
+							[
+								17533,
+								17551
+							],
+							[
+								17908,
+								17932
+							],
+							[
+								21947,
+								21969
+							],
+							[
+								22110,
+								22123
+							],
+							[
+								22337,
+								22355
+							],
+							[
+								22607,
+								22631
+							],
+							[
+								24928,
+								24950
+							],
+							[
+								25091,
+								25104
+							],
+							[
+								25318,
+								25336
+							],
+							[
+								25574,
+								25594
+							],
+							[
+								26449,
+								26467
+							],
+							[
+								26599,
+								26608
+							],
+							[
+								26807,
+								26825
+							],
+							[
+								27316,
+								27342
+							],
+							[
+								30519,
+								30543
+							],
+							[
+								30690,
+								30705
+							],
+							[
+								30927,
+								30945
+							],
+							[
+								31016,
+								31027
+							],
+							[
+								42244,
+								42262
+							]
+						],
+						"symlist":
+						[
+							"StkPtr",
+							"StkFramesPtr",
+							"StkGeneratorPtr",
+							"StkFilterPtr",
+							"StkEffectPtr",
+							"StkFMPtr",
+							"StkInstrmntPtr",
+							"js_symbol_tostringtag",
+							"js_set_tostringtag",
+							"array_length",
+							"array_to_vector",
+							"array_to_vector",
+							"js_stk_wrap",
+							"js_stk_get",
+							"js_stk_set",
+							"js_stk_finalizer",
+							"~StkPtr",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_PROP_STRING_DEF",
+							"js_stkframes_constructor",
+							"js_stkframes_method",
+							"js_stkframes_free_buf",
+							"~StkFramesPtr",
+							"js_stkframes_get",
+							"js_stkframes_set",
+							"js_stkframes_finalizer",
+							"~StkFramesPtr",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_PROP_STRING_DEF",
+							"js_stkgenerator_constructor",
+							"js_stkgenerator_method",
+							"js_stkgenerator_get",
+							"js_stkgenerator_set",
+							"js_stkgenerator_finalizer",
+							"~StkGeneratorPtr",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_PROP_STRING_DEF",
+							"js_stkfilter_constructor",
+							"js_stkfilter_finalizer",
+							"~StkFilterPtr",
+							"JS_PROP_STRING_DEF",
+							"js_stkeffect_constructor",
+							"js_stkeffect_finalizer",
+							"~StkEffectPtr",
+							"JS_PROP_STRING_DEF",
+							"js_stkfm_constructor",
+							"js_stkfm_finalizer",
+							"~StkFMPtr",
+							"JS_PROP_STRING_DEF",
+							"js_stkinstrmnt_constructor",
+							"js_stkinstrmnt_finalizer",
+							"~StkInstrmntPtr",
+							"JS_PROP_STRING_DEF",
+							"js_stk_init",
+							"js_init_module_stk"
+						]
+					},
+					"AQAAAAAAAAAAAAAA3QQAAAAAAAAAAAAA",
+					"AQAAAAAAAAAAAAAA"
+				],
+				[
+					7,
+					1,
+					"outline_refresh",
+					{
+						"path": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/defines.h",
+						"symkeys":
+						[
+							[
+								53,
+								60
+							],
+							[
+								61,
+								71
+							],
+							[
+								91,
+								97
+							],
+							[
+								112,
+								119
+							],
+							[
+								120,
+								133
+							],
+							[
+								167,
+								173
+							],
+							[
+								174,
+								187
+							]
+						],
+						"symlist":
+						[
+							"VISIBLE",
+							"__declspec",
+							"HIDDEN",
+							"VISIBLE",
+							"__attribute__",
+							"HIDDEN",
+							"__attribute__"
+						]
+					},
+					"AgAAAAAAAAAAAAAAAAAAAAAAAADdBAAAU3RrUHRyClN0a0ZyYW1lc1B0cgpTdGtHZW5lcmF0b3JQdHIKU3RrRmlsdGVyUHRyClN0a0VmZmVjdFB0cgpTdGtGTVB0cgpTdGtJbnN0cm1udFB0cgogIGpzX3N5bWJvbF90b3N0cmluZ3RhZwogIGpzX3NldF90b3N0cmluZ3RhZwogIGFycmF5X2xlbmd0aAogIGFycmF5X3RvX3ZlY3RvcgogIGFycmF5X3RvX3ZlY3RvcgogIGpzX3N0a193cmFwCiAganNfc3RrX2dldAogIGpzX3N0a19zZXQKICBqc19zdGtfZmluYWxpemVyCn5TdGtQdHIKSlNfQ0dFVFNFVF9NQUdJQ19ERUYKSlNfUFJPUF9TVFJJTkdfREVGCiAganNfc3RrZnJhbWVzX2NvbnN0cnVjdG9yCiAganNfc3RrZnJhbWVzX21ldGhvZAogIGpzX3N0a2ZyYW1lc19mcmVlX2J1Zgp+U3RrRnJhbWVzUHRyCiAganNfc3RrZnJhbWVzX2dldAogIGpzX3N0a2ZyYW1lc19zZXQKICBqc19zdGtmcmFtZXNfZmluYWxpemVyCn5TdGtGcmFtZXNQdHIKSlNfQ0ZVTkNfTUFHSUNfREVGCkpTX0NGVU5DX01BR0lDX0RFRgpKU19DRlVOQ19NQUdJQ19ERUYKSlNfQ0ZVTkNfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX1BST1BfU1RSSU5HX0RFRgogIGpzX3N0a2dlbmVyYXRvcl9jb25zdHJ1Y3RvcgogIGpzX3N0a2dlbmVyYXRvcl9tZXRob2QKICBqc19zdGtnZW5lcmF0b3JfZ2V0CiAganNfc3RrZ2VuZXJhdG9yX3NldAogIGpzX3N0a2dlbmVyYXRvcl9maW5hbGl6ZXIKflN0a0dlbmVyYXRvclB0cgpKU19DRlVOQ19NQUdJQ19ERUYKSlNfQ0dFVFNFVF9NQUdJQ19ERUYKSlNfUFJPUF9TVFJJTkdfREVGCiAganNfc3RrZmlsdGVyX2NvbnN0cnVjdG9yCiAganNfc3RrZmlsdGVyX2ZpbmFsaXplcgp+U3RrRmlsdGVyUHRyCkpTX1BST1BfU1RSSU5HX0RFRgogIGpzX3N0a2VmZmVjdF9jb25zdHJ1Y3RvcgogIGpzX3N0a2VmZmVjdF9maW5hbGl6ZXIKflN0a0VmZmVjdFB0cgpKU19QUk9QX1NUUklOR19ERUYKICBqc19zdGtmbV9jb25zdHJ1Y3RvcgogIGpzX3N0a2ZtX2ZpbmFsaXplcgp+U3RrRk1QdHIKSlNfUFJPUF9TVFJJTkdfREVGCiAganNfc3RraW5zdHJtbnRfY29uc3RydWN0b3IKICBqc19zdGtpbnN0cm1udF9maW5hbGl6ZXIKflN0a0luc3RybW50UHRyCkpTX1BST1BfU1RSSU5HX0RFRgogIGpzX3N0a19pbml0CiAganNfaW5pdF9tb2R1bGVfc3RrAAAAAAAAAABKAAAAAAAAAAAAAAA",
+					"AQAAAAAAAAAAAAAA"
+				],
+				[
+					8,
+					1,
+					"outline_refresh",
+					{
+						"path": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/CMakeLists.txt.user.85477e3",
+						"symkeys":
+						[
+						],
+						"symlist":
+						[
+						]
+					},
+					"AgAAAAAAAAAAAAAAAAAAAAAAAABKAAAAVklTSUJMRQogIF9fZGVjbHNwZWMKSElEREVOClZJU0lCTEUKICBfX2F0dHJpYnV0ZV9fCkhJRERFTgogIF9fYXR0cmlidXRlX18AAAAAAAAAAAAAAAAAAAAAAAAAAA",
+					"AQAAAAAAAAAAAAAA"
+				],
+				[
+					9,
+					1,
+					"outline_refresh",
+					{
+						"path": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/quickjs-stk.cpp",
+						"symkeys":
+						[
+							[
+								2124,
+								2130
+							],
+							[
+								2172,
+								2184
+							],
+							[
+								2226,
+								2241
+							],
+							[
+								2280,
+								2292
+							],
+							[
+								2331,
+								2343
+							],
+							[
+								2378,
+								2386
+							],
+							[
+								2427,
+								2441
+							],
+							[
+								2458,
+								2479
+							],
+							[
+								2796,
+								2814
+							],
+							[
+								3122,
+								3134
+							],
+							[
+								3370,
+								3385
+							],
+							[
+								3689,
+								3704
+							],
+							[
+								4019,
+								4030
+							],
+							[
+								4406,
+								4416
+							],
+							[
+								4774,
+								4784
+							],
+							[
+								5198,
+								5214
+							],
+							[
+								5337,
+								5344
+							],
+							[
+								5534,
+								5554
+							],
+							[
+								5615,
+								5633
+							],
+							[
+								5707,
+								5731
+							],
+							[
+								7048,
+								7067
+							],
+							[
+								9023,
+								9044
+							],
+							[
+								9148,
+								9161
+							],
+							[
+								9204,
+								9220
+							],
+							[
+								10338,
+								10354
+							],
+							[
+								10783,
+								10805
+							],
+							[
+								10946,
+								10959
+							],
+							[
+								11173,
+								11191
+							],
+							[
+								11246,
+								11264
+							],
+							[
+								11329,
+								11347
+							],
+							[
+								11410,
+								11428
+							],
+							[
+								11491,
+								11511
+							],
+							[
+								11557,
+								11577
+							],
+							[
+								11625,
+								11645
+							],
+							[
+								11699,
+								11719
+							],
+							[
+								11769,
+								11789
+							],
+							[
+								11859,
+								11879
+							],
+							[
+								11929,
+								11947
+							],
+							[
+								12265,
+								12292
+							],
+							[
+								15444,
+								15466
+							],
+							[
+								16219,
+								16238
+							],
+							[
+								16625,
+								16644
+							],
+							[
+								16944,
+								16969
+							],
+							[
+								17119,
+								17135
+							],
+							[
+								17361,
+								17379
+							],
+							[
+								17433,
+								17453
+							],
+							[
+								17533,
+								17551
+							],
+							[
+								17908,
+								17932
+							],
+							[
+								21947,
+								21969
+							],
+							[
+								22110,
+								22123
+							],
+							[
+								22337,
+								22355
+							],
+							[
+								22607,
+								22631
+							],
+							[
+								24928,
+								24950
+							],
+							[
+								25091,
+								25104
+							],
+							[
+								25318,
+								25336
+							],
+							[
+								25574,
+								25594
+							],
+							[
+								26449,
+								26467
+							],
+							[
+								26599,
+								26608
+							],
+							[
+								26807,
+								26825
+							],
+							[
+								27316,
+								27342
+							],
+							[
+								30519,
+								30543
+							],
+							[
+								30690,
+								30705
+							],
+							[
+								30927,
+								30945
+							],
+							[
+								31016,
+								31027
+							],
+							[
+								42244,
+								42262
+							]
+						],
+						"symlist":
+						[
+							"StkPtr",
+							"StkFramesPtr",
+							"StkGeneratorPtr",
+							"StkFilterPtr",
+							"StkEffectPtr",
+							"StkFMPtr",
+							"StkInstrmntPtr",
+							"js_symbol_tostringtag",
+							"js_set_tostringtag",
+							"array_length",
+							"array_to_vector",
+							"array_to_vector",
+							"js_stk_wrap",
+							"js_stk_get",
+							"js_stk_set",
+							"js_stk_finalizer",
+							"~StkPtr",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_PROP_STRING_DEF",
+							"js_stkframes_constructor",
+							"js_stkframes_method",
+							"js_stkframes_free_buf",
+							"~StkFramesPtr",
+							"js_stkframes_get",
+							"js_stkframes_set",
+							"js_stkframes_finalizer",
+							"~StkFramesPtr",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_PROP_STRING_DEF",
+							"js_stkgenerator_constructor",
+							"js_stkgenerator_method",
+							"js_stkgenerator_get",
+							"js_stkgenerator_set",
+							"js_stkgenerator_finalizer",
+							"~StkGeneratorPtr",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_PROP_STRING_DEF",
+							"js_stkfilter_constructor",
+							"js_stkfilter_finalizer",
+							"~StkFilterPtr",
+							"JS_PROP_STRING_DEF",
+							"js_stkeffect_constructor",
+							"js_stkeffect_finalizer",
+							"~StkEffectPtr",
+							"JS_PROP_STRING_DEF",
+							"js_stkfm_constructor",
+							"js_stkfm_finalizer",
+							"~StkFMPtr",
+							"JS_PROP_STRING_DEF",
+							"js_stkinstrmnt_constructor",
+							"js_stkinstrmnt_finalizer",
+							"~StkInstrmntPtr",
+							"JS_PROP_STRING_DEF",
+							"js_stk_init",
+							"js_init_module_stk"
+						]
+					},
+					"AQAAAAAAAAAAAAAA3QQAAAAAAAAAAAAA",
+					"AQAAAAAAAAAAAAAA"
+				],
+				[
+					10,
+					1,
+					"outline_refresh",
+					{
+						"path": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/x86_64-linux-debug.log",
+						"symkeys":
+						[
+						],
+						"symlist":
+						[
+						]
+					},
+					"AgAAAAAAAAAAAAAAAAAAAAAAAADdBAAAU3RrUHRyClN0a0ZyYW1lc1B0cgpTdGtHZW5lcmF0b3JQdHIKU3RrRmlsdGVyUHRyClN0a0VmZmVjdFB0cgpTdGtGTVB0cgpTdGtJbnN0cm1udFB0cgogIGpzX3N5bWJvbF90b3N0cmluZ3RhZwogIGpzX3NldF90b3N0cmluZ3RhZwogIGFycmF5X2xlbmd0aAogIGFycmF5X3RvX3ZlY3RvcgogIGFycmF5X3RvX3ZlY3RvcgogIGpzX3N0a193cmFwCiAganNfc3RrX2dldAogIGpzX3N0a19zZXQKICBqc19zdGtfZmluYWxpemVyCn5TdGtQdHIKSlNfQ0dFVFNFVF9NQUdJQ19ERUYKSlNfUFJPUF9TVFJJTkdfREVGCiAganNfc3RrZnJhbWVzX2NvbnN0cnVjdG9yCiAganNfc3RrZnJhbWVzX21ldGhvZAogIGpzX3N0a2ZyYW1lc19mcmVlX2J1Zgp+U3RrRnJhbWVzUHRyCiAganNfc3RrZnJhbWVzX2dldAogIGpzX3N0a2ZyYW1lc19zZXQKICBqc19zdGtmcmFtZXNfZmluYWxpemVyCn5TdGtGcmFtZXNQdHIKSlNfQ0ZVTkNfTUFHSUNfREVGCkpTX0NGVU5DX01BR0lDX0RFRgpKU19DRlVOQ19NQUdJQ19ERUYKSlNfQ0ZVTkNfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX1BST1BfU1RSSU5HX0RFRgogIGpzX3N0a2dlbmVyYXRvcl9jb25zdHJ1Y3RvcgogIGpzX3N0a2dlbmVyYXRvcl9tZXRob2QKICBqc19zdGtnZW5lcmF0b3JfZ2V0CiAganNfc3RrZ2VuZXJhdG9yX3NldAogIGpzX3N0a2dlbmVyYXRvcl9maW5hbGl6ZXIKflN0a0dlbmVyYXRvclB0cgpKU19DRlVOQ19NQUdJQ19ERUYKSlNfQ0dFVFNFVF9NQUdJQ19ERUYKSlNfUFJPUF9TVFJJTkdfREVGCiAganNfc3RrZmlsdGVyX2NvbnN0cnVjdG9yCiAganNfc3RrZmlsdGVyX2ZpbmFsaXplcgp+U3RrRmlsdGVyUHRyCkpTX1BST1BfU1RSSU5HX0RFRgogIGpzX3N0a2VmZmVjdF9jb25zdHJ1Y3RvcgogIGpzX3N0a2VmZmVjdF9maW5hbGl6ZXIKflN0a0VmZmVjdFB0cgpKU19QUk9QX1NUUklOR19ERUYKICBqc19zdGtmbV9jb25zdHJ1Y3RvcgogIGpzX3N0a2ZtX2ZpbmFsaXplcgp+U3RrRk1QdHIKSlNfUFJPUF9TVFJJTkdfREVGCiAganNfc3RraW5zdHJtbnRfY29uc3RydWN0b3IKICBqc19zdGtpbnN0cm1udF9maW5hbGl6ZXIKflN0a0luc3RybW50UHRyCkpTX1BST1BfU1RSSU5HX0RFRgogIGpzX3N0a19pbml0CiAganNfaW5pdF9tb2R1bGVfc3RrAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+					"AQAAAAAAAAAAAAAA"
+				],
+				[
+					11,
+					1,
+					"outline_refresh",
+					{
+						"path": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/quickjs-stk.cpp",
+						"symkeys":
+						[
+							[
+								2124,
+								2130
+							],
+							[
+								2172,
+								2184
+							],
+							[
+								2226,
+								2241
+							],
+							[
+								2280,
+								2292
+							],
+							[
+								2331,
+								2343
+							],
+							[
+								2378,
+								2386
+							],
+							[
+								2427,
+								2441
+							],
+							[
+								2458,
+								2479
+							],
+							[
+								2796,
+								2814
+							],
+							[
+								3122,
+								3134
+							],
+							[
+								3370,
+								3385
+							],
+							[
+								3689,
+								3704
+							],
+							[
+								4019,
+								4030
+							],
+							[
+								4406,
+								4416
+							],
+							[
+								4774,
+								4784
+							],
+							[
+								5198,
+								5214
+							],
+							[
+								5337,
+								5344
+							],
+							[
+								5534,
+								5554
+							],
+							[
+								5615,
+								5633
+							],
+							[
+								5707,
+								5731
+							],
+							[
+								7048,
+								7067
+							],
+							[
+								9023,
+								9044
+							],
+							[
+								9148,
+								9161
+							],
+							[
+								9204,
+								9220
+							],
+							[
+								10338,
+								10354
+							],
+							[
+								10783,
+								10805
+							],
+							[
+								10946,
+								10959
+							],
+							[
+								11173,
+								11191
+							],
+							[
+								11246,
+								11264
+							],
+							[
+								11329,
+								11347
+							],
+							[
+								11410,
+								11428
+							],
+							[
+								11491,
+								11511
+							],
+							[
+								11557,
+								11577
+							],
+							[
+								11625,
+								11645
+							],
+							[
+								11699,
+								11719
+							],
+							[
+								11769,
+								11789
+							],
+							[
+								11859,
+								11879
+							],
+							[
+								11929,
+								11947
+							],
+							[
+								12265,
+								12292
+							],
+							[
+								15444,
+								15466
+							],
+							[
+								16219,
+								16238
+							],
+							[
+								16625,
+								16644
+							],
+							[
+								16944,
+								16969
+							],
+							[
+								17119,
+								17135
+							],
+							[
+								17361,
+								17379
+							],
+							[
+								17433,
+								17453
+							],
+							[
+								17533,
+								17551
+							],
+							[
+								17908,
+								17932
+							],
+							[
+								21947,
+								21969
+							],
+							[
+								22110,
+								22123
+							],
+							[
+								22337,
+								22355
+							],
+							[
+								22607,
+								22631
+							],
+							[
+								24928,
+								24950
+							],
+							[
+								25091,
+								25104
+							],
+							[
+								25318,
+								25336
+							],
+							[
+								25574,
+								25594
+							],
+							[
+								26449,
+								26467
+							],
+							[
+								26599,
+								26608
+							],
+							[
+								26807,
+								26825
+							],
+							[
+								27316,
+								27342
+							],
+							[
+								30519,
+								30543
+							],
+							[
+								30690,
+								30705
+							],
+							[
+								30927,
+								30945
+							],
+							[
+								31016,
+								31027
+							],
+							[
+								42244,
+								42262
+							]
+						],
+						"symlist":
+						[
+							"StkPtr",
+							"StkFramesPtr",
+							"StkGeneratorPtr",
+							"StkFilterPtr",
+							"StkEffectPtr",
+							"StkFMPtr",
+							"StkInstrmntPtr",
+							"js_symbol_tostringtag",
+							"js_set_tostringtag",
+							"array_length",
+							"array_to_vector",
+							"array_to_vector",
+							"js_stk_wrap",
+							"js_stk_get",
+							"js_stk_set",
+							"js_stk_finalizer",
+							"~StkPtr",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_PROP_STRING_DEF",
+							"js_stkframes_constructor",
+							"js_stkframes_method",
+							"js_stkframes_free_buf",
+							"~StkFramesPtr",
+							"js_stkframes_get",
+							"js_stkframes_set",
+							"js_stkframes_finalizer",
+							"~StkFramesPtr",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_PROP_STRING_DEF",
+							"js_stkgenerator_constructor",
+							"js_stkgenerator_method",
+							"js_stkgenerator_get",
+							"js_stkgenerator_set",
+							"js_stkgenerator_finalizer",
+							"~StkGeneratorPtr",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_PROP_STRING_DEF",
+							"js_stkfilter_constructor",
+							"js_stkfilter_finalizer",
+							"~StkFilterPtr",
+							"JS_PROP_STRING_DEF",
+							"js_stkeffect_constructor",
+							"js_stkeffect_finalizer",
+							"~StkEffectPtr",
+							"JS_PROP_STRING_DEF",
+							"js_stkfm_constructor",
+							"js_stkfm_finalizer",
+							"~StkFMPtr",
+							"JS_PROP_STRING_DEF",
+							"js_stkinstrmnt_constructor",
+							"js_stkinstrmnt_finalizer",
+							"~StkInstrmntPtr",
+							"JS_PROP_STRING_DEF",
+							"js_stk_init",
+							"js_init_module_stk"
+						]
+					},
+					"AQAAAAAAAAAAAAAA3QQAAAAAAAAAAAAA",
+					"AQAAAAAAAAAAAAAA"
 				]
 			]
 		},
@@ -4132,24 +5893,13 @@
 			{
 				"buffer_size": 9418,
 				"line_ending": "Unix"
-			},
-			"undo_stack":
-			[
-			]
+			}
 		},
 		{
 			"file": "LabSound/src/core/AudioDevice.cpp",
 			"settings":
 			{
 				"buffer_size": 5892,
-				"line_ending": "Unix"
-			}
-		},
-		{
-			"file": "LabSound/include/LabSound/core/AudioDevice.h",
-			"settings":
-			{
-				"buffer_size": 5946,
 				"line_ending": "Unix"
 			}
 		},
@@ -4354,13 +6104,7 @@
 	},
 	"expanded_folders":
 	[
-		"/home/janos/Projects/plot-cv/quickjs/qjs-sound",
-		"/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound",
-		"/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound/include",
-		"/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound/include/LabSound",
-		"/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound/include/LabSound/core",
-		"/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound/include/LabSound/extended",
-		"/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound/qmake"
+		"/home/janos/Projects/plot-cv/quickjs/qjs-sound"
 	],
 	"file_history":
 	[
@@ -4495,7 +6239,7 @@
 	],
 	"find":
 	{
-		"height": 29.0
+		"height": 24.0
 	},
 	"find_in_files":
 	{
@@ -4509,6 +6253,7 @@
 		"case_sensitive": true,
 		"find_history":
 		[
+			"//"
 		],
 		"highlight": true,
 		"in_selection": false,
@@ -4536,7 +6281,7 @@
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 750,
+						"buffer_size": 1245,
 						"regions":
 						{
 						},
@@ -4556,267 +6301,342 @@
 									"selector": "punctuation.accessor"
 								}
 							],
-							"current_file": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound/include/LabSound/core/AudioDevice.h",
+							"current_file": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/quickjs-stk.cpp",
 							"function_name_status_row": -1,
 							"outline_rename_mode": false,
 							"symkeys":
 							[
 								[
-									141,
-									158
+									2124,
+									2130
 								],
 								[
-									479,
-									482
+									2172,
+									2184
 								],
 								[
-									491,
-									499
+									2226,
+									2241
 								],
 								[
-									507,
-									519
+									2280,
+									2292
 								],
 								[
-									527,
-									541
+									2331,
+									2343
 								],
 								[
-									549,
-									567
+									2378,
+									2386
 								],
 								[
-									575,
-									594
+									2427,
+									2441
 								],
 								[
-									603,
-									620
+									2458,
+									2479
 								],
 								[
-									629,
-									644
+									2796,
+									2814
 								],
 								[
-									716,
-									732
+									3122,
+									3134
 								],
 								[
-									803,
-									820
+									3370,
+									3385
 								],
 								[
-									1065,
-									1080
+									3689,
+									3704
 								],
 								[
-									1527,
-									1539
+									4019,
+									4030
 								],
 								[
-									2215,
-									2225
+									4406,
+									4416
 								],
 								[
-									2495,
-									2506
+									4774,
+									4784
 								],
 								[
-									2722,
-									2733
+									5198,
+									5214
 								],
 								[
-									2898,
-									2906
+									5337,
+									5344
 								],
 								[
-									3273,
-									3292
+									5534,
+									5554
 								],
 								[
-									3353,
-									3365
-								],
-								[
-									3418,
-									3436
-								],
-								[
-									3563,
-									3578
-								],
-								[
-									3648,
-									3662
-								],
-								[
-									3727,
-									3741
-								],
-								[
-									3800,
-									3805
-								],
-								[
-									3830,
-									3834
-								],
-								[
-									3859,
-									3868
-								],
-								[
-									3899,
-									3918
-								],
-								[
-									3936,
-									3952
-								],
-								[
-									4017,
-									4033
-								],
-								[
-									4199,
-									4216
-								],
-								[
-									4247,
-									4252
-								],
-								[
-									4295,
-									4299
-								],
-								[
-									4343,
-									4352
-								],
-								[
-									4401,
-									4420
-								],
-								[
-									4445,
-									4465
-								],
-								[
-									4608,
-									4616
-								],
-								[
-									4688,
-									4699
-								],
-								[
-									4884,
-									4895
-								],
-								[
-									4953,
-									4957
-								],
-								[
-									5034,
-									5038
-								],
-								[
-									5056,
-									5076
-								],
-								[
-									5167,
-									5188
-								],
-								[
-									5249,
-									5255
-								],
-								[
-									5313,
-									5319
-								],
-								[
-									5490,
-									5503
-								],
-								[
-									5568,
-									5583
+									5615,
+									5633
 								],
 								[
 									5707,
-									5714
+									5731
 								],
 								[
-									5782,
-									5792
+									7048,
+									7067
 								],
 								[
-									5822,
-									5834
+									9023,
+									9044
 								],
 								[
-									5864,
-									5869
+									9148,
+									9161
+								],
+								[
+									9204,
+									9220
+								],
+								[
+									10338,
+									10354
+								],
+								[
+									10783,
+									10805
+								],
+								[
+									10946,
+									10959
+								],
+								[
+									11173,
+									11191
+								],
+								[
+									11246,
+									11264
+								],
+								[
+									11329,
+									11347
+								],
+								[
+									11410,
+									11428
+								],
+								[
+									11491,
+									11511
+								],
+								[
+									11557,
+									11577
+								],
+								[
+									11625,
+									11645
+								],
+								[
+									11699,
+									11719
+								],
+								[
+									11769,
+									11789
+								],
+								[
+									11859,
+									11879
+								],
+								[
+									11929,
+									11947
+								],
+								[
+									12265,
+									12292
+								],
+								[
+									15444,
+									15466
+								],
+								[
+									16219,
+									16238
+								],
+								[
+									16625,
+									16644
+								],
+								[
+									16944,
+									16969
+								],
+								[
+									17119,
+									17135
+								],
+								[
+									17361,
+									17379
+								],
+								[
+									17433,
+									17453
+								],
+								[
+									17533,
+									17551
+								],
+								[
+									17908,
+									17932
+								],
+								[
+									21947,
+									21969
+								],
+								[
+									22110,
+									22123
+								],
+								[
+									22337,
+									22355
+								],
+								[
+									22607,
+									22631
+								],
+								[
+									24928,
+									24950
+								],
+								[
+									25091,
+									25104
+								],
+								[
+									25318,
+									25336
+								],
+								[
+									25574,
+									25594
+								],
+								[
+									26449,
+									26467
+								],
+								[
+									26599,
+									26608
+								],
+								[
+									26807,
+									26825
+								],
+								[
+									27316,
+									27342
+								],
+								[
+									30519,
+									30543
+								],
+								[
+									30690,
+									30705
+								],
+								[
+									30927,
+									30945
+								],
+								[
+									31016,
+									31027
+								],
+								[
+									42244,
+									42262
 								]
 							],
 							"symlist":
 							[
-								"  lab_audiodevice_h",
-								"  lab",
-								"AudioBus",
-								"AudioContext",
-								"AudioNodeInput",
-								"AudioHardwareInput",
-								"AudioSourceProvider",
-								"AudioStreamConfig",
-								"AudioDeviceInfo",
-								"AudioDeviceIndex",
-								"AudioStreamConfig",
-								"AudioDeviceInfo",
-								"SamplingInfo",
-								"  pull_graph",
-								"AudioDevice",
-								"AudioDevice",
-								"LOG_INFO",
-								"AudioSourceProvider",
-								"\t~AudioDevice",
-								"\tsetDestinationNode",
-								"\tgetOutputConfig",
-								"\tgetInputConfig",
-								"\tsourceProvider",
-								"\tstart",
-								"\tstop",
-								"\tisRunning",
-								"\tbackendReinitialize",
-								"AudioDevice_Null",
-								"AudioDevice_Null",
-								"\t~AudioDevice_Null",
-								"\tstart",
-								"\tstop",
-								"\tisRunning",
-								"\tbackendReinitialize",
-								"AudioDestinationNode",
-								"\ttailTime",
-								"\tlatencyTime",
-								"\tstatic_name",
-								"\tname",
-								"\tdesc",
-								"AudioDestinationNode",
-								"\t~AudioDestinationNode",
-								"\tdevice",
-								"\trender",
-								"\tofflineRender",
-								"\tgetSamplingInfo",
-								"\tprocess",
-								"\tinitialize",
-								"\tuninitialize",
-								"\treset"
+								"StkPtr",
+								"StkFramesPtr",
+								"StkGeneratorPtr",
+								"StkFilterPtr",
+								"StkEffectPtr",
+								"StkFMPtr",
+								"StkInstrmntPtr",
+								"  js_symbol_tostringtag",
+								"  js_set_tostringtag",
+								"  array_length",
+								"  array_to_vector",
+								"  array_to_vector",
+								"  js_stk_wrap",
+								"  js_stk_get",
+								"  js_stk_set",
+								"  js_stk_finalizer",
+								"~StkPtr",
+								"JS_CGETSET_MAGIC_DEF",
+								"JS_PROP_STRING_DEF",
+								"  js_stkframes_constructor",
+								"  js_stkframes_method",
+								"  js_stkframes_free_buf",
+								"~StkFramesPtr",
+								"  js_stkframes_get",
+								"  js_stkframes_set",
+								"  js_stkframes_finalizer",
+								"~StkFramesPtr",
+								"JS_CFUNC_MAGIC_DEF",
+								"JS_CFUNC_MAGIC_DEF",
+								"JS_CFUNC_MAGIC_DEF",
+								"JS_CFUNC_MAGIC_DEF",
+								"JS_CGETSET_MAGIC_DEF",
+								"JS_CGETSET_MAGIC_DEF",
+								"JS_CGETSET_MAGIC_DEF",
+								"JS_CGETSET_MAGIC_DEF",
+								"JS_CGETSET_MAGIC_DEF",
+								"JS_CGETSET_MAGIC_DEF",
+								"JS_PROP_STRING_DEF",
+								"  js_stkgenerator_constructor",
+								"  js_stkgenerator_method",
+								"  js_stkgenerator_get",
+								"  js_stkgenerator_set",
+								"  js_stkgenerator_finalizer",
+								"~StkGeneratorPtr",
+								"JS_CFUNC_MAGIC_DEF",
+								"JS_CGETSET_MAGIC_DEF",
+								"JS_PROP_STRING_DEF",
+								"  js_stkfilter_constructor",
+								"  js_stkfilter_finalizer",
+								"~StkFilterPtr",
+								"JS_PROP_STRING_DEF",
+								"  js_stkeffect_constructor",
+								"  js_stkeffect_finalizer",
+								"~StkEffectPtr",
+								"JS_PROP_STRING_DEF",
+								"  js_stkfm_constructor",
+								"  js_stkfm_finalizer",
+								"~StkFMPtr",
+								"JS_PROP_STRING_DEF",
+								"  js_stkinstrmnt_constructor",
+								"  js_stkinstrmnt_finalizer",
+								"~StkInstrmntPtr",
+								"JS_PROP_STRING_DEF",
+								"  js_stk_init",
+								"  js_init_module_stk"
 							],
 							"syntax": "Packages/Outline/outline.hidden-tmLanguage",
-							"tab_size": 3,
+							"tab_size": 2,
 							"tabs_extra_last_activated": 1744488158.23,
 							"tabs_extra_last_activated_sheet_index": 0,
 							"translate_tabs_to_spaces": true
@@ -4836,56 +6656,6 @@
 			[
 				{
 					"buffer": 1,
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 1,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								1,
-								1
-							]
-						],
-						"settings":
-						{
-							"auto_complete_triggers":
-							[
-								{
-									"characters": "./",
-									"selector": "text.html, text.xml"
-								},
-								{
-									"rhs_empty": true,
-									"selector": "punctuation.accessor"
-								}
-							],
-							"auto_name": "",
-							"function_name_status_row": 1,
-							"rulers":
-							[
-							],
-							"syntax": "Packages/Text/Plain text.tmLanguage",
-							"tab_size": 2,
-							"tabs_extra_last_activated": 1744488158.38,
-							"tabs_extra_last_activated_sheet_index": 0,
-							"translate_tabs_to_spaces": false,
-							"word_wrap": false,
-							"wrap_width": 0
-						},
-						"translation.x": 0.0,
-						"translation.y": 0.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 3,
-					"stack_multiselect": false,
-					"type": "text"
-				},
-				{
-					"buffer": 2,
 					"file": "quickjs-labsound.cpp",
 					"semi_transient": false,
 					"settings":
@@ -4917,7 +6687,7 @@
 							"function_name_status_row": 0,
 							"syntax": "Packages/C++11/C++11.tmLanguage",
 							"tab_size": 2,
-							"tabs_extra_last_activated": 1744488158.36,
+							"tabs_extra_last_activated": 1744508314.43,
 							"tabs_extra_last_activated_sheet_index": 0,
 							"translate_tabs_to_spaces": true
 						},
@@ -4925,13 +6695,14 @@
 						"translation.y": 0.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 4,
+					"stack_index": 1,
 					"stack_multiselect": false,
 					"type": "text"
 				},
 				{
-					"buffer": 3,
+					"buffer": 2,
 					"file": "quickjs-stk.cpp",
+					"selected": true,
 					"semi_transient": false,
 					"settings":
 					{
@@ -4962,20 +6733,20 @@
 							"function_name_status_row": 0,
 							"syntax": "Packages/C++11/C++11.tmLanguage",
 							"tab_size": 2,
-							"tabs_extra_last_activated": 1744488158.34,
-							"tabs_extra_last_activated_sheet_index": 0,
+							"tabs_extra_last_activated": 1744508408.25,
+							"tabs_extra_last_activated_sheet_index": 1,
 							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
-						"translation.y": 0.0,
+						"translation.y": 20224.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 5,
+					"stack_index": 0,
 					"stack_multiselect": false,
 					"type": "text"
 				},
 				{
-					"buffer": 4,
+					"buffer": 3,
 					"file": "LabSound/include/LabSound/core/AudioContext.h",
 					"semi_transient": false,
 					"settings":
@@ -5015,12 +6786,12 @@
 						"translation.y": 2215.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 2,
+					"stack_index": 3,
 					"stack_multiselect": false,
 					"type": "text"
 				},
 				{
-					"buffer": 5,
+					"buffer": 4,
 					"file": "LabSound/src/core/AudioDevice.cpp",
 					"semi_transient": false,
 					"settings":
@@ -5060,58 +6831,12 @@
 						"translation.y": 0.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 1,
+					"stack_index": 2,
 					"stack_multiselect": false,
 					"type": "text"
 				},
 				{
-					"buffer": 6,
-					"file": "LabSound/include/LabSound/core/AudioDevice.h",
-					"selected": true,
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 5946,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								0,
-								0
-							]
-						],
-						"settings":
-						{
-							"auto_complete_triggers":
-							[
-								{
-									"characters": "./",
-									"selector": "text.html, text.xml"
-								},
-								{
-									"rhs_empty": true,
-									"selector": "punctuation.accessor"
-								}
-							],
-							"function_name_status_row": 0,
-							"syntax": "Packages/C++11/C++11.tmLanguage",
-							"tab_size": 4,
-							"tabs_extra_last_activated": 1744506603.59,
-							"tabs_extra_last_activated_sheet_index": 5,
-							"translate_tabs_to_spaces": true
-						},
-						"translation.x": 0.0,
-						"translation.y": 0.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 0,
-					"stack_multiselect": false,
-					"type": "text"
-				},
-				{
-					"buffer": 7,
+					"buffer": 5,
 					"file": "LabSound/include/LabSound/core/AudioProcessor.h",
 					"semi_transient": false,
 					"settings":
@@ -5151,12 +6876,12 @@
 						"translation.y": 495.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 6,
+					"stack_index": 4,
 					"stack_multiselect": false,
 					"type": "text"
 				},
 				{
-					"buffer": 8,
+					"buffer": 6,
 					"file": "LabSound/include/LabSound/core/AudioListener.h",
 					"semi_transient": false,
 					"settings":
@@ -5196,12 +6921,12 @@
 						"translation.y": 0.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 7,
+					"stack_index": 5,
 					"stack_multiselect": false,
 					"type": "text"
 				},
 				{
-					"buffer": 9,
+					"buffer": 7,
 					"file": "LabSound/include/LabSound/core/AudioNode.h",
 					"semi_transient": false,
 					"settings":
@@ -5241,7 +6966,7 @@
 						"translation.y": 0.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 8,
+					"stack_index": 6,
 					"stack_multiselect": false,
 					"type": "text"
 				}
@@ -5250,7 +6975,7 @@
 	],
 	"incremental_find":
 	{
-		"height": 29.0
+		"height": 24.0
 	},
 	"input":
 	{
@@ -5308,7 +7033,7 @@
 	"project": "qjs-sound.sublime-project",
 	"replace":
 	{
-		"height": 54.0
+		"height": 44.0
 	},
 	"save_all_on_build": false,
 	"select_file":
