@@ -22,10 +22,13 @@ using namespace lab;
 inline std::pair<AudioStreamConfig, AudioStreamConfig>
 GetDefaultAudioDeviceConfiguration(const bool with_input = true) {
   const std::vector<AudioDeviceInfo> audioDevices = lab::AudioDevice_RtAudio::MakeAudioDeviceList();
+  
   AudioDeviceInfo defaultOutputInfo, defaultInputInfo;
+  
   for(auto& info : audioDevices) {
     if(info.is_default_output)
       defaultOutputInfo = info;
+  
     if(info.is_default_input)
       defaultInputInfo = info;
   }
