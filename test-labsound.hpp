@@ -23,10 +23,13 @@ inline std::pair<AudioStreamConfig, AudioStreamConfig>
 GetDefaultAudioDeviceConfiguration(const bool with_input = true) {
   const std::vector<AudioDeviceInfo> audioDevices =
       lab::AudioDevice_RtAudio::MakeAudioDeviceList();
+
   AudioDeviceInfo defaultOutputInfo, defaultInputInfo;
+  
   for(auto& info : audioDevices) {
     if(info.is_default_output)
       defaultOutputInfo = info;
+  
     if(info.is_default_input)
       defaultInputInfo = info;
   }
@@ -34,8 +37,7 @@ GetDefaultAudioDeviceConfiguration(const bool with_input = true) {
   AudioStreamConfig outputConfig;
   if(defaultOutputInfo.index != -1) {
     outputConfig.device_index = defaultOutputInfo.index;
-    outputConfig.desired_channels =
-        std::min(uint32_t(2), defaultOutputInfo.num_output_channels);
+    outputConfig.desired_channels = std::min(uint32_t(2), defaultOutputInfo.num_output_channels);
     outputConfig.desired_samplerate = defaultOutputInfo.nominal_samplerate;
   }
 
