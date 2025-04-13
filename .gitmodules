@@ -1,5 +1,5 @@
 [submodule "LabSound"]
-	path = LabSound
+	path = third_party/LabSound
 	url = git@github.com:rsenn/LabSound.git
 [submodule "stk"]
 	path = third_party/stk
