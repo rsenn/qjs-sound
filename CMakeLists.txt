@@ -43,8 +43,6 @@ ExternalProject_Get_Property(LabSound BINARY_DIR)
 set(LABSOUND_BINARY_DIR "${BINARY_DIR}")
 message("Binary dir of LabSound = ${LABSOUND_BINARY_DIR}")
 
-#add_subdirectory(libLabSound)
-
 include(CheckCCompilerFlag)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindQuickJS.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/QuickJSModule.cmake)
