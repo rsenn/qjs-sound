@@ -608,7 +608,9 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
     JS_SetModuleExport(ctx, m, "AudioDevice", audiodevice_ctor);
   }
 
+#ifdef USE_STK
   js_stk_init(ctx, m);
+#endif
 
   return 0;
 }
@@ -622,7 +624,10 @@ js_init_module(JSContext* ctx, const char* module_name) {
     JS_AddModuleExport(ctx, m, "AudioDestinationNode");
     JS_AddModuleExport(ctx, m, "AudioListener");
     JS_AddModuleExport(ctx, m, "AudioDevice");
+
+#ifdef USE_STK
     js_init_module_stk(ctx, m);
+#endif
   }
 
   return m;

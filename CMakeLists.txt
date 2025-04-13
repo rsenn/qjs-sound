@@ -2,6 +2,8 @@ project(qjs-sound C CXX)
 
 cmake_minimum_required(VERSION 3.19)
 
+option(USE_STK "Use Stk library" OFF)
+
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include")
 #add_subdirectory(stk)
 #add_subdirectory(sndobj)
@@ -82,15 +84,22 @@ find_quickjs()
 configure_quickjs()
 add_definitions(-fvisibility=hidden)
 
-if(LINUX OR ANDROID)
-  add_definitions(-D__LINUX_PULSE__)
-endif()
-file(GLOB COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/stk/src/*.cpp)
-list(FILTER COMMON_SOURCES EXCLUDE REGEX "(Inet|Rt|Tcp|Udp|Messager|Thread|Mutex|Socket)")
-list(APPEND COMMON_SOURCES quickjs-stk.cpp)
+if(USE_STK)
+  if(LINUX OR ANDROID)
+    add_definitions(-D__LINUX_PULSE__)
+  endif()
+
+  file(GLOB COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/stk/src/*.cpp)
+  list(FILTER COMMON_SOURCES EXCLUDE REGEX "(Inet|Rt|Tcp|Udp|Messager|Thread|Mutex|Socket)")
+  list(APPEND COMMON_SOURCES quickjs-stk.cpp)
+
+  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/include ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/src/include/)
+
+  add_definitions(-DUSE_STK)
+endif(USE_STK)
+
 dump(COMMON_SOURCES)
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/include ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/src/include/)
 set(labsound_NAME sound)
 make_module(labsound cpp)
 #make_module(stk cpp)
