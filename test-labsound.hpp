@@ -10,19 +10,11 @@
 #include "LabSound/backends/AudioDevice_RtAudio.h"
 #include "LabSound/extended/Util.h"
 
-/*#include <algorithm>
-#include <array>
-#include <chrono>
-#include <condition_variable>
-#include <cstdint>
-#include <functional>
 #include <iostream>
-#include <map>
-#include <mutex>
-#include <random>
-#include <string>
-#include <thread>
-#include <vector>*/
+#include <utility>
+#include <algorithm>
+#include <stdexcept>
+#include <vector>
 
 using namespace lab;
 
@@ -65,10 +57,13 @@ GetDefaultAudioDeviceConfiguration(const bool with_input = true) {
   if(defaultOutputInfo.nominal_samplerate != defaultInputInfo.nominal_samplerate) {
     float min_rate =
         std::min(defaultOutputInfo.nominal_samplerate, defaultInputInfo.nominal_samplerate);
+
     inputConfig.desired_samplerate = min_rate;
     outputConfig.desired_samplerate = min_rate;
-    printf("Warning ~ input and output sample rates don't match, attempting to set minimum\n");
+  
+    std::cout << "Warning ~ input and output sample rates don't match, attempting to set minimum" << std::endl;
   }
+  
   return {inputConfig, outputConfig};
 }
 
