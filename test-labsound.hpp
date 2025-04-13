@@ -10,7 +10,7 @@
 #include "LabSound/backends/AudioDevice_RtAudio.h"
 #include "LabSound/extended/Util.h"
 
-#include <algorithm>
+/*#include <algorithm>
 #include <array>
 #include <chrono>
 #include <condition_variable>
@@ -22,7 +22,7 @@
 #include <random>
 #include <string>
 #include <thread>
-#include <vector>
+#include <vector>*/
 
 using namespace lab;
 
