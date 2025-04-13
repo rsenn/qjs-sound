@@ -520,10 +520,10 @@
 	"buffers":
 	[
 		{
-			"contents": "Ⓣ  AudioContextPtr ; — typedef\nⓉ  AudioDestinationNodePtr ; — typedef\nⓉ  AudioListenerPtr ; — typedef\nⓉ  AudioDevicePtr ; — typedef\n—Ⓕ– js_audiocontext_constructor ( ) { … } — function\n—Ⓕ– js_audiocontext_get ( ) { … } — function\n—Ⓕ– js_audiocontext_set ( ) { … } — function\n—Ⓕ– js_audiocontext_finalizer ( ) { … } — function\n—Ⓕ– js_audiodestinationnode_constructor ( ) { … } — function\n—Ⓕ– js_audiodestinationnode_get ( ) { … } — function\n—Ⓕ– js_audiodestinationnode_method ( ) { … } — function\n—Ⓕ– js_audiodestinationnode_finalizer ( ) { … } — function\n—Ⓕ– js_audiolistener_constructor ( ) { … } — function\n—Ⓕ– js_audiolistener_get ( ) { … } — function\n—Ⓕ– js_audiolistener_finalizer ( ) { … } — function\n—Ⓕ– js_audiodevice_constructor ( ) { … } — function\n—Ⓕ– js_audiodevice_get ( ) { … } — function\n—Ⓕ– js_audiodevice_set ( ) { … } — function\n—Ⓕ– js_audiodevice_finalizer ( ) { … } — function\n—Ⓕ– js_labsound_init ( ) { … } — function\n—Ⓕ– js_init_module ( ) { … } — function",
+			"contents": "  lab_audiodevice_h\n  lab\nAudioBus\nAudioContext\nAudioNodeInput\nAudioHardwareInput\nAudioSourceProvider\nAudioStreamConfig\nAudioDeviceInfo\nAudioDeviceIndex\nAudioStreamConfig\nAudioDeviceInfo\nSamplingInfo\n  pull_graph\nAudioDevice\nAudioDevice\nLOG_INFO\nAudioSourceProvider\n   ~AudioDevice\n   setDestinationNode\n   getOutputConfig\n   getInputConfig\n   sourceProvider\n   start\n   stop\n   isRunning\n   backendReinitialize\nAudioDevice_Null\nAudioDevice_Null\n   ~AudioDevice_Null\n   start\n   stop\n   isRunning\n   backendReinitialize\nAudioDestinationNode\n   tailTime\n   latencyTime\n   static_name\n   name\n   desc\nAudioDestinationNode\n   ~AudioDestinationNode\n   device\n   render\n   offlineRender\n   getSamplingInfo\n   process\n   initialize\n   uninitialize\n   reset",
 			"settings":
 			{
-				"buffer_size": 978,
+				"buffer_size": 750,
 				"line_ending": "Unix",
 				"name": "𝌆 Outline",
 				"scratch": true
@@ -535,124 +535,1810 @@
 					1,
 					"outline_refresh",
 					{
-						"path": "/home/roman/Projects/plot-cv/quickjs/qjs-sound/quickjs-labsound.cpp",
+						"path": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound/include/LabSound/core/AudioNode.h",
 						"symkeys":
 						[
 							[
-								779,
-								794
+								150,
+								161
 							],
 							[
-								847,
-								870
+								512,
+								515
 							],
 							[
-								916,
-								932
+								1167,
+								1179
 							],
 							[
-								976,
-								990
+								1187,
+								1201
 							],
 							[
-								1008,
-								1035
+								1209,
+								1224
 							],
 							[
-								2259,
-								2278
+								1232,
+								1242
 							],
 							[
-								3799,
-								3818
+								1250,
+								1262
 							],
 							[
-								4459,
-								4484
+								1270,
+								1286
 							],
 							[
-								5535,
-								5570
+								1294,
+								1311
 							],
 							[
-								7227,
-								7254
+								1489,
+								1498
 							],
 							[
-								8126,
-								8156
+								1792,
+								1800
 							],
 							[
-								8575,
-								8608
+								1820,
+								1828
 							],
 							[
-								9438,
-								9466
+								2715,
+								2724
 							],
 							[
-								10412,
-								10432
+								2749,
+								2759
 							],
 							[
-								10865,
-								10891
+								2777,
+								2786
 							],
 							[
-								11644,
-								11670
+								2850,
+								2860
 							],
 							[
-								12859,
-								12877
+								2974,
+								2983
 							],
 							[
-								13161,
-								13179
+								3039,
+								3048
 							],
 							[
-								13818,
-								13842
+								3107,
+								3122
 							],
 							[
-								14417,
-								14433
+								3292,
+								3296
 							],
 							[
-								16806,
-								16820
+								3569,
+								3576
+							],
+							[
+								3757,
+								3762
+							],
+							[
+								3948,
+								3956
+							],
+							[
+								4415,
+								4426
+							],
+							[
+								4749,
+								4764
+							],
+							[
+								4952,
+								4962
+							],
+							[
+								4983,
+								4995
+							],
+							[
+								5083,
+								5098
+							],
+							[
+								5130,
+								5144
+							],
+							[
+								5176,
+								5192
+							],
+							[
+								5483,
+								5500
+							],
+							[
+								5925,
+								5943
+							],
+							[
+								6077,
+								6090
+							],
+							[
+								6200,
+								6208
+							],
+							[
+								6277,
+								6286
+							],
+							[
+								6357,
+								6371
+							],
+							[
+								6449,
+								6464
+							],
+							[
+								6572,
+								6577
+							],
+							[
+								6626,
+								6631
+							],
+							[
+								6693,
+								6699
+							],
+							[
+								6749,
+								6755
+							],
+							[
+								7163,
+								7192
+							],
+							[
+								7251,
+								7271
+							],
+							[
+								7284,
+								7296
+							],
+							[
+								7309,
+								7324
+							],
+							[
+								7388,
+								7404
+							],
+							[
+								7468,
+								7487
+							],
+							[
+								7561,
+								7582
+							],
+							[
+								7651,
+								7675
+							],
+							[
+								7937,
+								7947
+							],
+							[
+								7986,
+								8001
+							],
+							[
+								8043,
+								8048
+							],
+							[
+								8069,
+								8080
+							],
+							[
+								8153,
+								8165
+							],
+							[
+								8204,
+								8221
+							],
+							[
+								8264,
+								8269
+							],
+							[
+								8329,
+								8336
+							],
+							[
+								8396,
+								8403
+							],
+							[
+								8424,
+								8437
+							],
+							[
+								8509,
+								8515
+							],
+							[
+								8606,
+								8614
+							],
+							[
+								8819,
+								8827
+							],
+							[
+								8877,
+								8886
+							],
+							[
+								9218,
+								9228
+							],
+							[
+								9285,
+								9297
+							],
+							[
+								9382,
+								9400
+							],
+							[
+								9586,
+								9604
+							],
+							[
+								9711,
+								9722
 							]
 						],
 						"symlist":
 						[
-							" Ⓣ  AudioContextPtr ; — typedef",
-							" Ⓣ  AudioDestinationNodePtr ; — typedef",
-							" Ⓣ  AudioListenerPtr ; — typedef",
-							" Ⓣ  AudioDevicePtr ; — typedef",
-							"—Ⓕ– js_audiocontext_constructor ( ) { … } — function",
-							"—Ⓕ– js_audiocontext_get ( ) { … } — function",
-							"—Ⓕ– js_audiocontext_set ( ) { … } — function",
-							"—Ⓕ– js_audiocontext_finalizer ( ) { … } — function",
-							"—Ⓕ– js_audiodestinationnode_constructor ( ) { … } — function",
-							"—Ⓕ– js_audiodestinationnode_get ( ) { … } — function",
-							"—Ⓕ– js_audiodestinationnode_method ( ) { … } — function",
-							"—Ⓕ– js_audiodestinationnode_finalizer ( ) { … } — function",
-							"—Ⓕ– js_audiolistener_constructor ( ) { … } — function",
-							"—Ⓕ– js_audiolistener_get ( ) { … } — function",
-							"—Ⓕ– js_audiolistener_finalizer ( ) { … } — function",
-							"—Ⓕ– js_audiodevice_constructor ( ) { … } — function",
-							"—Ⓕ– js_audiodevice_get ( ) { … } — function",
-							"—Ⓕ– js_audiodevice_set ( ) { … } — function",
-							"—Ⓕ– js_audiodevice_finalizer ( ) { … } — function",
-							"—Ⓕ– js_labsound_init ( ) { … } — function",
-							"—Ⓕ– js_init_module ( ) { … } — function"
+							"AudioNode_h",
+							"lab",
+							"AudioContext",
+							"AudioNodeInput",
+							"AudioNodeOutput",
+							"AudioParam",
+							"AudioSetting",
+							"ContextGraphLock",
+							"ContextRenderLock",
+							"AudioNode",
+							"Internal",
+							" Internal",
+							" AudioNode",
+							" ~AudioNode",
+							" AudioNode",
+							" printGraph",
+							" graphTime",
+							" totalTime",
+							" schedulingState",
+							" name",
+							" process",
+							" reset",
+							" tailTime",
+							" latencyTime",
+							" isScheduledNode",
+							" initialize",
+							" uninitialize",
+							" inputsAreSilent",
+							" silenceOutputs",
+							" unsilenceOutputs",
+							" propagatesSilence",
+							" processIfNecessary",
+							" isInitialized",
+							" addInput",
+							" addOutput",
+							" numberOfInputs",
+							" numberOfOutputs",
+							" input",
+							" input",
+							" output",
+							" output",
+							" checkNumberOfChannelsForInput",
+							" conformChannelCounts",
+							" channelCount",
+							" setChannelCount",
+							" channelCountMode",
+							" setChannelCountMode",
+							" channelInterpretation",
+							" setChannelInterpretation",
+							" paramNames",
+							" paramShortNames",
+							" param",
+							" param_index",
+							" settingNames",
+							" settingShortNames",
+							" param",
+							" setting",
+							" setting",
+							" setting_index",
+							" params",
+							" settings",
+							" addInput",
+							" addOutput",
+							" pullInputs",
+							"AudioContext",
+							" scheduleDisconnect",
+							" disconnectionReady",
+							" _printGraph"
 						]
 					},
-					"AQAAAAAAAAAAAAAA0gMAAAAAAAAAAAAA",
-					"AgAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8"
+					"AQAAAAAAAAAAAAAAAQQAAAAAAAAAAAAA",
+					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADwvw"
 				],
 				[
 					2,
+					1,
+					"outline_refresh",
+					{
+						"path": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound/include/LabSound/core/AudioListener.h",
+						"symkeys":
+						[
+							[
+								124,
+								139
+							],
+							[
+								248,
+								251
+							],
+							[
+								260,
+								270
+							],
+							[
+								391,
+								404
+							],
+							[
+								1036,
+								1049
+							],
+							[
+								1057,
+								1071
+							],
+							[
+								1111,
+								1122
+							],
+							[
+								1187,
+								1198
+							],
+							[
+								1264,
+								1273
+							],
+							[
+								1338,
+								1347
+							],
+							[
+								1412,
+								1421
+							],
+							[
+								1483,
+								1497
+							],
+							[
+								1902,
+								1912
+							],
+							[
+								1972,
+								1980
+							],
+							[
+								2044,
+								2052
+							],
+							[
+								2116,
+								2124
+							],
+							[
+								2183,
+								2194
+							],
+							[
+								2259,
+								2262
+							],
+							[
+								2321,
+								2324
+							],
+							[
+								2383,
+								2386
+							],
+							[
+								2439,
+								2450
+							],
+							[
+								2527,
+								2538
+							],
+							[
+								2603,
+								2612
+							],
+							[
+								2677,
+								2686
+							],
+							[
+								2751,
+								2760
+							],
+							[
+								2825,
+								2841
+							],
+							[
+								2941,
+								2954
+							],
+							[
+								3023,
+								3038
+							],
+							[
+								3135,
+								3147
+							]
+						],
+						"symlist":
+						[
+							"AudioListener_h",
+							"lab",
+							"AudioParam",
+							"AudioListener",
+							" AudioListener",
+							" ~AudioListener",
+							" setPosition",
+							" setPosition",
+							" positionX",
+							" positionY",
+							" positionZ",
+							" setOrientation",
+							" setForward",
+							" forwardX",
+							" forwardY",
+							" forwardZ",
+							" setUpVector",
+							" upX",
+							" upY",
+							" upZ",
+							" setVelocity",
+							" setVelocity",
+							" velocityX",
+							" velocityY",
+							" velocityZ",
+							" setDopplerFactor",
+							" dopplerFactor",
+							" setSpeedOfSound",
+							" speedOfSound"
+						]
+					},
+					"AgAAAAAAAAAAAAAAAAAAAAAAAAABBAAAQXVkaW9Ob2RlX2gKICBsYWIKQXVkaW9Db250ZXh0CkF1ZGlvTm9kZUlucHV0CkF1ZGlvTm9kZU91dHB1dApBdWRpb1BhcmFtCkF1ZGlvU2V0dGluZwpDb250ZXh0R3JhcGhMb2NrCkNvbnRleHRSZW5kZXJMb2NrCkF1ZGlvTm9kZQpJbnRlcm5hbApJbnRlcm5hbApBdWRpb05vZGUKICAgfkF1ZGlvTm9kZQpBdWRpb05vZGUKICAgcHJpbnRHcmFwaAogICBncmFwaFRpbWUKICAgdG90YWxUaW1lCiAgIHNjaGVkdWxpbmdTdGF0ZQogICBuYW1lCiAgIHByb2Nlc3MKICAgcmVzZXQKICAgdGFpbFRpbWUKICAgbGF0ZW5jeVRpbWUKICAgaXNTY2hlZHVsZWROb2RlCiAgIGluaXRpYWxpemUKICAgdW5pbml0aWFsaXplCiAgIGlucHV0c0FyZVNpbGVudAogICBzaWxlbmNlT3V0cHV0cwogICB1bnNpbGVuY2VPdXRwdXRzCiAgIHByb3BhZ2F0ZXNTaWxlbmNlCiAgIHByb2Nlc3NJZk5lY2Vzc2FyeQogICBpc0luaXRpYWxpemVkCiAgIGFkZElucHV0CiAgIGFkZE91dHB1dAogICBudW1iZXJPZklucHV0cwogICBudW1iZXJPZk91dHB1dHMKICAgaW5wdXQKICAgaW5wdXQKICAgb3V0cHV0CiAgIG91dHB1dAogICBjaGVja051bWJlck9mQ2hhbm5lbHNGb3JJbnB1dAogICBjb25mb3JtQ2hhbm5lbENvdW50cwogICBjaGFubmVsQ291bnQKICAgc2V0Q2hhbm5lbENvdW50CiAgIGNoYW5uZWxDb3VudE1vZGUKICAgc2V0Q2hhbm5lbENvdW50TW9kZQogICBjaGFubmVsSW50ZXJwcmV0YXRpb24KICAgc2V0Q2hhbm5lbEludGVycHJldGF0aW9uCiAgIHBhcmFtTmFtZXMKICAgcGFyYW1TaG9ydE5hbWVzCiAgIHBhcmFtCiAgIHBhcmFtX2luZGV4CiAgIHNldHRpbmdOYW1lcwogICBzZXR0aW5nU2hvcnROYW1lcwogICBwYXJhbQogICBzZXR0aW5nCiAgIHNldHRpbmcKICAgc2V0dGluZ19pbmRleAogICBwYXJhbXMKICAgc2V0dGluZ3MKICAgYWRkSW5wdXQKICAgYWRkT3V0cHV0CiAgIHB1bGxJbnB1dHMKQXVkaW9Db250ZXh0CiAgIHNjaGVkdWxlRGlzY29ubmVjdAogICBkaXNjb25uZWN0aW9uUmVhZHkKICAgX3ByaW50R3JhcGgAAAAAAAAAAIgBAAAAAAAAAAAAAA",
+					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAAAAAA"
+				],
+				[
+					3,
+					1,
+					"outline_refresh",
+					{
+						"path": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound/include/LabSound/core/AudioProcessor.h",
+						"symkeys":
+						[
+							[
+								182,
+								198
+							],
+							[
+								231,
+								234
+							],
+							[
+								244,
+								252
+							],
+							[
+								260,
+								277
+							],
+							[
+								620,
+								634
+							],
+							[
+								650,
+								664
+							],
+							[
+								691,
+								706
+							],
+							[
+								805,
+								815
+							],
+							[
+								840,
+								852
+							],
+							[
+								988,
+								995
+							],
+							[
+								1132,
+								1137
+							],
+							[
+								1154,
+								1167
+							],
+							[
+								1222,
+								1230
+							],
+							[
+								1284,
+								1295
+							]
+						],
+						"symlist":
+						[
+							"AudioProcessor_h",
+							"lab",
+							"AudioBus",
+							"ContextRenderLock",
+							"AudioProcessor",
+							" AudioProcessor",
+							" ~AudioProcessor",
+							" initialize",
+							" uninitialize",
+							" process",
+							" reset",
+							" isInitialized",
+							" tailTime",
+							" latencyTime"
+						]
+					},
+					"AgAAAAAAAAAAAAAAAAAAAAAAAACIAQAAQXVkaW9MaXN0ZW5lcl9oCiAgbGFiCkF1ZGlvUGFyYW0KQXVkaW9MaXN0ZW5lcgpBdWRpb0xpc3RlbmVyCiAgIH5BdWRpb0xpc3RlbmVyCiAgIHNldFBvc2l0aW9uCiAgIHNldFBvc2l0aW9uCiAgIHBvc2l0aW9uWAogICBwb3NpdGlvblkKICAgcG9zaXRpb25aCiAgIHNldE9yaWVudGF0aW9uCiAgIHNldEZvcndhcmQKICAgZm9yd2FyZFgKICAgZm9yd2FyZFkKICAgZm9yd2FyZFoKICAgc2V0VXBWZWN0b3IKICAgdXBYCiAgIHVwWQogICB1cFoKICAgc2V0VmVsb2NpdHkKICAgc2V0VmVsb2NpdHkKICAgdmVsb2NpdHlYCiAgIHZlbG9jaXR5WQogICB2ZWxvY2l0eVoKICAgc2V0RG9wcGxlckZhY3RvcgogICBkb3BwbGVyRmFjdG9yCiAgIHNldFNwZWVkT2ZTb3VuZAogICBzcGVlZE9mU291bmQAAAAAAAAAAMAAAAAAAAAAAAAAAA",
+					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAAAAAA"
+				],
+				[
+					4,
+					1,
+					"outline_refresh",
+					{
+						"path": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound/include/LabSound/core/AudioDevice.h",
+						"symkeys":
+						[
+							[
+								141,
+								158
+							],
+							[
+								479,
+								482
+							],
+							[
+								491,
+								499
+							],
+							[
+								507,
+								519
+							],
+							[
+								527,
+								541
+							],
+							[
+								549,
+								567
+							],
+							[
+								575,
+								594
+							],
+							[
+								603,
+								620
+							],
+							[
+								629,
+								644
+							],
+							[
+								716,
+								732
+							],
+							[
+								803,
+								820
+							],
+							[
+								1065,
+								1080
+							],
+							[
+								1527,
+								1539
+							],
+							[
+								2215,
+								2225
+							],
+							[
+								2495,
+								2506
+							],
+							[
+								2722,
+								2733
+							],
+							[
+								2898,
+								2906
+							],
+							[
+								3273,
+								3292
+							],
+							[
+								3353,
+								3365
+							],
+							[
+								3418,
+								3436
+							],
+							[
+								3563,
+								3578
+							],
+							[
+								3648,
+								3662
+							],
+							[
+								3727,
+								3741
+							],
+							[
+								3800,
+								3805
+							],
+							[
+								3830,
+								3834
+							],
+							[
+								3859,
+								3868
+							],
+							[
+								3899,
+								3918
+							],
+							[
+								3936,
+								3952
+							],
+							[
+								4017,
+								4033
+							],
+							[
+								4199,
+								4216
+							],
+							[
+								4247,
+								4252
+							],
+							[
+								4295,
+								4299
+							],
+							[
+								4343,
+								4352
+							],
+							[
+								4401,
+								4420
+							],
+							[
+								4445,
+								4465
+							],
+							[
+								4608,
+								4616
+							],
+							[
+								4688,
+								4699
+							],
+							[
+								4884,
+								4895
+							],
+							[
+								4953,
+								4957
+							],
+							[
+								5034,
+								5038
+							],
+							[
+								5056,
+								5076
+							],
+							[
+								5167,
+								5188
+							],
+							[
+								5249,
+								5255
+							],
+							[
+								5313,
+								5319
+							],
+							[
+								5490,
+								5503
+							],
+							[
+								5568,
+								5583
+							],
+							[
+								5707,
+								5714
+							],
+							[
+								5782,
+								5792
+							],
+							[
+								5822,
+								5834
+							],
+							[
+								5864,
+								5869
+							]
+						],
+						"symlist":
+						[
+							"lab_audiodevice_h",
+							"lab",
+							"AudioBus",
+							"AudioContext",
+							"AudioNodeInput",
+							"AudioHardwareInput",
+							"AudioSourceProvider",
+							"AudioStreamConfig",
+							"AudioDeviceInfo",
+							"AudioDeviceIndex",
+							"AudioStreamConfig",
+							"AudioDeviceInfo",
+							"SamplingInfo",
+							"pull_graph",
+							"AudioDevice",
+							" AudioDevice",
+							" LOG_INFO",
+							" AudioSourceProvider",
+							" ~AudioDevice",
+							" setDestinationNode",
+							" getOutputConfig",
+							" getInputConfig",
+							" sourceProvider",
+							" start",
+							" stop",
+							" isRunning",
+							" backendReinitialize",
+							"AudioDevice_Null",
+							" AudioDevice_Null",
+							" ~AudioDevice_Null",
+							" start",
+							" stop",
+							" isRunning",
+							" backendReinitialize",
+							"AudioDestinationNode",
+							" tailTime",
+							" latencyTime",
+							" static_name",
+							" name",
+							" desc",
+							" AudioDestinationNode",
+							" ~AudioDestinationNode",
+							" device",
+							" render",
+							" offlineRender",
+							" getSamplingInfo",
+							" process",
+							" initialize",
+							" uninitialize",
+							" reset"
+						]
+					},
+					"AgAAAAAAAAAAAAAAAAAAAAAAAADAAAAAQXVkaW9Qcm9jZXNzb3JfaAogIGxhYgpBdWRpb0J1cwpDb250ZXh0UmVuZGVyTG9jawpBdWRpb1Byb2Nlc3NvcgpBdWRpb1Byb2Nlc3NvcgogICB+QXVkaW9Qcm9jZXNzb3IKICAgaW5pdGlhbGl6ZQogICB1bmluaXRpYWxpemUKICAgcHJvY2VzcwogICByZXNldAogICBpc0luaXRpYWxpemVkCiAgIHRhaWxUaW1lCiAgIGxhdGVuY3lUaW1lAAAAAAAAAADuAgAAAAAAAAAAAAA",
+					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAAAAAA"
+				],
+				[
+					5,
+					1,
+					"outline_refresh",
+					{
+						"path": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound/include/LabSound/core/AudioContext.h",
+						"symkeys":
+						[
+							[
+								143,
+								162
+							],
+							[
+								402,
+								405
+							],
+							[
+								415,
+								423
+							],
+							[
+								431,
+								453
+							],
+							[
+								461,
+								474
+							],
+							[
+								482,
+								491
+							],
+							[
+								499,
+								513
+							],
+							[
+								521,
+								536
+							],
+							[
+								544,
+								564
+							],
+							[
+								572,
+								596
+							],
+							[
+								604,
+								620
+							],
+							[
+								628,
+								645
+							],
+							[
+								653,
+								671
+							],
+							[
+								680,
+								692
+							],
+							[
+								712,
+								728
+							],
+							[
+								747,
+								764
+							],
+							[
+								783,
+								803
+							],
+							[
+								1576,
+								1597
+							],
+							[
+								1625,
+								1637
+							],
+							[
+								1753,
+								1774
+							],
+							[
+								1875,
+								1897
+							],
+							[
+								2043,
+								2052
+							],
+							[
+								2092,
+								2103
+							],
+							[
+								2186,
+								2207
+							],
+							[
+								2277,
+								2289
+							],
+							[
+								2320,
+								2332
+							],
+							[
+								2379,
+								2392
+							],
+							[
+								2604,
+								2618
+							],
+							[
+								2631,
+								2644
+							],
+							[
+								2685,
+								2708
+							],
+							[
+								2727,
+								2743
+							],
+							[
+								2762,
+								2778
+							],
+							[
+								2852,
+								2870
+							],
+							[
+								2891,
+								2901
+							],
+							[
+								2921,
+								2939
+							],
+							[
+								3027,
+								3042
+							],
+							[
+								3081,
+								3089
+							],
+							[
+								3199,
+								3212
+							],
+							[
+								3241,
+								3249
+							],
+							[
+								3288,
+								3305
+							],
+							[
+								3356,
+								3366
+							],
+							[
+								3576,
+								3587
+							],
+							[
+								3807,
+								3825
+							],
+							[
+								4276,
+								4296
+							],
+							[
+								4335,
+								4356
+							],
+							[
+								4539,
+								4546
+							],
+							[
+								4671,
+								4677
+							],
+							[
+								5221,
+								5226
+							],
+							[
+								5291,
+								5311
+							],
+							[
+								5393,
+								5414
+							],
+							[
+								5709,
+								5729
+							],
+							[
+								5768,
+								5791
+							],
+							[
+								6029,
+								6054
+							],
+							[
+								6139,
+								6146
+							],
+							[
+								6265,
+								6275
+							],
+							[
+								6394,
+								6405
+							],
+							[
+								6545,
+								6555
+							],
+							[
+								6815,
+								6837
+							],
+							[
+								6974,
+								6986
+							],
+							[
+								7161,
+								7173
+							],
+							[
+								7371,
+								7386
+							],
+							[
+								7739,
+								7751
+							],
+							[
+								7787,
+								7801
+							],
+							[
+								7815,
+								7832
+							],
+							[
+								7882,
+								7898
+							],
+							[
+								8100,
+								8109
+							],
+							[
+								8873,
+								8887
+							],
+							[
+								8935,
+								8941
+							],
+							[
+								8954,
+								8978
+							],
+							[
+								8991,
+								9003
+							]
+						],
+						"symlist":
+						[
+							"lab_audio_context_h",
+							"lab",
+							"AudioBus",
+							"AudioHardwareInputNode",
+							"AudioListener",
+							"AudioNode",
+							"AudioNodeInput",
+							"AudioNodeOutput",
+							"AudioDestinationNode",
+							"AudioScheduledSourceNode",
+							"ContextGraphLock",
+							"ContextRenderLock",
+							"HRTFDatabaseLoader",
+							"AudioContext",
+							"ContextGraphLock",
+							"ContextRenderLock",
+							"AudioDestinationNode",
+							"AudioContextInterface",
+							"AudioContext",
+							" AudioContextInterface",
+							" ~AudioContextInterface",
+							" contextId",
+							" currentTime",
+							" audioContextInterface",
+							" AudioContext",
+							" AudioContext",
+							" ~AudioContext",
+							" lazyInitialize",
+							" isInitialized",
+							" isAutodispatchingEvents",
+							" isOfflineContext",
+							" loadHrtfDatabase",
+							" hrtfDatabaseLoader",
+							" sampleRate",
+							" setDestinationNode",
+							" destinationNode",
+							" listener",
+							" debugTraverse",
+							" diagnose",
+							" diagnosed_silence",
+							" diagnosing",
+							" currentTime",
+							" currentSampleFrame",
+							" predictedCurrentTime",
+							" startOfflineRendering",
+							" suspend",
+							" resume",
+							" close",
+							" handlePreRenderTasks",
+							" handlePostRenderTasks",
+							" addAutomaticPullNode",
+							" removeAutomaticPullNode",
+							" processAutomaticPullNodes",
+							" connect",
+							" disconnect",
+							" isConnected",
+							" disconnect",
+							" synchronizeConnections",
+							" connectParam",
+							" connectParam",
+							" disconnectParam",
+							" enqueueEvent",
+							" dispatchEvents",
+							" appendDebugBuffer",
+							" flushDebugBuffer",
+							"Internals",
+							"NullDeviceNode",
+							" update",
+							" updateAutomaticPullNodes",
+							" uninitialize"
+						]
+					},
+					"AgAAAAAAAAAAAAAAAAAAAAAAAADuAgAAICBsYWJfYXVkaW9kZXZpY2VfaAogIGxhYgpBdWRpb0J1cwpBdWRpb0NvbnRleHQKQXVkaW9Ob2RlSW5wdXQKQXVkaW9IYXJkd2FyZUlucHV0CkF1ZGlvU291cmNlUHJvdmlkZXIKQXVkaW9TdHJlYW1Db25maWcKQXVkaW9EZXZpY2VJbmZvCkF1ZGlvRGV2aWNlSW5kZXgKQXVkaW9TdHJlYW1Db25maWcKQXVkaW9EZXZpY2VJbmZvClNhbXBsaW5nSW5mbwogIHB1bGxfZ3JhcGgKQXVkaW9EZXZpY2UKQXVkaW9EZXZpY2UKTE9HX0lORk8KQXVkaW9Tb3VyY2VQcm92aWRlcgogICB+QXVkaW9EZXZpY2UKICAgc2V0RGVzdGluYXRpb25Ob2RlCiAgIGdldE91dHB1dENvbmZpZwogICBnZXRJbnB1dENvbmZpZwogICBzb3VyY2VQcm92aWRlcgogICBzdGFydAogICBzdG9wCiAgIGlzUnVubmluZwogICBiYWNrZW5kUmVpbml0aWFsaXplCkF1ZGlvRGV2aWNlX051bGwKQXVkaW9EZXZpY2VfTnVsbAogICB+QXVkaW9EZXZpY2VfTnVsbAogICBzdGFydAogICBzdG9wCiAgIGlzUnVubmluZwogICBiYWNrZW5kUmVpbml0aWFsaXplCkF1ZGlvRGVzdGluYXRpb25Ob2RlCiAgIHRhaWxUaW1lCiAgIGxhdGVuY3lUaW1lCiAgIHN0YXRpY19uYW1lCiAgIG5hbWUKICAgZGVzYwpBdWRpb0Rlc3RpbmF0aW9uTm9kZQogICB+QXVkaW9EZXN0aW5hdGlvbk5vZGUKICAgZGV2aWNlCiAgIHJlbmRlcgogICBvZmZsaW5lUmVuZGVyCiAgIGdldFNhbXBsaW5nSW5mbwogICBwcm9jZXNzCiAgIGluaXRpYWxpemUKICAgdW5pbml0aWFsaXplCiAgIHJlc2V0AAAAAAAAAADfBAAAAAAAAAAAAAA",
+					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAAAAAA"
+				],
+				[
+					6,
+					1,
+					"outline_refresh",
+					{
+						"path": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/quickjs-stk.cpp",
+						"symkeys":
+						[
+							[
+								2124,
+								2130
+							],
+							[
+								2172,
+								2184
+							],
+							[
+								2226,
+								2241
+							],
+							[
+								2280,
+								2292
+							],
+							[
+								2331,
+								2343
+							],
+							[
+								2378,
+								2386
+							],
+							[
+								2427,
+								2441
+							],
+							[
+								2458,
+								2479
+							],
+							[
+								2796,
+								2814
+							],
+							[
+								3122,
+								3134
+							],
+							[
+								3370,
+								3385
+							],
+							[
+								3689,
+								3704
+							],
+							[
+								4019,
+								4030
+							],
+							[
+								4406,
+								4416
+							],
+							[
+								4774,
+								4784
+							],
+							[
+								5198,
+								5214
+							],
+							[
+								5337,
+								5344
+							],
+							[
+								5534,
+								5554
+							],
+							[
+								5615,
+								5633
+							],
+							[
+								5707,
+								5731
+							],
+							[
+								7048,
+								7067
+							],
+							[
+								9023,
+								9044
+							],
+							[
+								9148,
+								9161
+							],
+							[
+								9204,
+								9220
+							],
+							[
+								10338,
+								10354
+							],
+							[
+								10783,
+								10805
+							],
+							[
+								10946,
+								10959
+							],
+							[
+								11173,
+								11191
+							],
+							[
+								11246,
+								11264
+							],
+							[
+								11329,
+								11347
+							],
+							[
+								11410,
+								11428
+							],
+							[
+								11491,
+								11511
+							],
+							[
+								11557,
+								11577
+							],
+							[
+								11625,
+								11645
+							],
+							[
+								11699,
+								11719
+							],
+							[
+								11769,
+								11789
+							],
+							[
+								11859,
+								11879
+							],
+							[
+								11929,
+								11947
+							],
+							[
+								12265,
+								12292
+							],
+							[
+								15444,
+								15466
+							],
+							[
+								16219,
+								16238
+							],
+							[
+								16625,
+								16644
+							],
+							[
+								16944,
+								16969
+							],
+							[
+								17119,
+								17135
+							],
+							[
+								17361,
+								17379
+							],
+							[
+								17433,
+								17453
+							],
+							[
+								17533,
+								17551
+							],
+							[
+								17908,
+								17932
+							],
+							[
+								21947,
+								21969
+							],
+							[
+								22110,
+								22123
+							],
+							[
+								22337,
+								22355
+							],
+							[
+								22607,
+								22631
+							],
+							[
+								24928,
+								24950
+							],
+							[
+								25091,
+								25104
+							],
+							[
+								25318,
+								25336
+							],
+							[
+								25574,
+								25594
+							],
+							[
+								26449,
+								26467
+							],
+							[
+								26599,
+								26608
+							],
+							[
+								26807,
+								26825
+							],
+							[
+								27316,
+								27342
+							],
+							[
+								30519,
+								30543
+							],
+							[
+								30690,
+								30705
+							],
+							[
+								30927,
+								30945
+							],
+							[
+								31016,
+								31027
+							],
+							[
+								42244,
+								42262
+							]
+						],
+						"symlist":
+						[
+							"StkPtr",
+							"StkFramesPtr",
+							"StkGeneratorPtr",
+							"StkFilterPtr",
+							"StkEffectPtr",
+							"StkFMPtr",
+							"StkInstrmntPtr",
+							"js_symbol_tostringtag",
+							"js_set_tostringtag",
+							"array_length",
+							"array_to_vector",
+							"array_to_vector",
+							"js_stk_wrap",
+							"js_stk_get",
+							"js_stk_set",
+							"js_stk_finalizer",
+							"~StkPtr",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_PROP_STRING_DEF",
+							"js_stkframes_constructor",
+							"js_stkframes_method",
+							"js_stkframes_free_buf",
+							"~StkFramesPtr",
+							"js_stkframes_get",
+							"js_stkframes_set",
+							"js_stkframes_finalizer",
+							"~StkFramesPtr",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_PROP_STRING_DEF",
+							"js_stkgenerator_constructor",
+							"js_stkgenerator_method",
+							"js_stkgenerator_get",
+							"js_stkgenerator_set",
+							"js_stkgenerator_finalizer",
+							"~StkGeneratorPtr",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_PROP_STRING_DEF",
+							"js_stkfilter_constructor",
+							"js_stkfilter_finalizer",
+							"~StkFilterPtr",
+							"JS_PROP_STRING_DEF",
+							"js_stkeffect_constructor",
+							"js_stkeffect_finalizer",
+							"~StkEffectPtr",
+							"JS_PROP_STRING_DEF",
+							"js_stkfm_constructor",
+							"js_stkfm_finalizer",
+							"~StkFMPtr",
+							"JS_PROP_STRING_DEF",
+							"js_stkinstrmnt_constructor",
+							"js_stkinstrmnt_finalizer",
+							"~StkInstrmntPtr",
+							"JS_PROP_STRING_DEF",
+							"js_stk_init",
+							"js_init_module_stk"
+						]
+					},
+					"AgAAAAAAAAAAAAAAAAAAAAAAAADfBAAAICBsYWJfYXVkaW9fY29udGV4dF9oCiAgbGFiCkF1ZGlvQnVzCkF1ZGlvSGFyZHdhcmVJbnB1dE5vZGUKQXVkaW9MaXN0ZW5lcgpBdWRpb05vZGUKQXVkaW9Ob2RlSW5wdXQKQXVkaW9Ob2RlT3V0cHV0CkF1ZGlvRGVzdGluYXRpb25Ob2RlCkF1ZGlvU2NoZWR1bGVkU291cmNlTm9kZQpDb250ZXh0R3JhcGhMb2NrCkNvbnRleHRSZW5kZXJMb2NrCkhSVEZEYXRhYmFzZUxvYWRlcgpBdWRpb0NvbnRleHQKQ29udGV4dEdyYXBoTG9jawpDb250ZXh0UmVuZGVyTG9jawpBdWRpb0Rlc3RpbmF0aW9uTm9kZQpBdWRpb0NvbnRleHRJbnRlcmZhY2UKQXVkaW9Db250ZXh0CkF1ZGlvQ29udGV4dEludGVyZmFjZQogICB+QXVkaW9Db250ZXh0SW50ZXJmYWNlCiAgIGNvbnRleHRJZAogICBjdXJyZW50VGltZQogICBhdWRpb0NvbnRleHRJbnRlcmZhY2UKQXVkaW9Db250ZXh0CkF1ZGlvQ29udGV4dAogICB+QXVkaW9Db250ZXh0CiAgIGxhenlJbml0aWFsaXplCiAgIGlzSW5pdGlhbGl6ZWQKICAgaXNBdXRvZGlzcGF0Y2hpbmdFdmVudHMKICAgaXNPZmZsaW5lQ29udGV4dAogICBsb2FkSHJ0ZkRhdGFiYXNlCiAgIGhydGZEYXRhYmFzZUxvYWRlcgogICBzYW1wbGVSYXRlCiAgIHNldERlc3RpbmF0aW9uTm9kZQogICBkZXN0aW5hdGlvbk5vZGUKICAgbGlzdGVuZXIKICAgZGVidWdUcmF2ZXJzZQogICBkaWFnbm9zZQogICBkaWFnbm9zZWRfc2lsZW5jZQogICBkaWFnbm9zaW5nCiAgIGN1cnJlbnRUaW1lCiAgIGN1cnJlbnRTYW1wbGVGcmFtZQogICBwcmVkaWN0ZWRDdXJyZW50VGltZQogICBzdGFydE9mZmxpbmVSZW5kZXJpbmcKICAgc3VzcGVuZAogICByZXN1bWUKICAgY2xvc2UKICAgaGFuZGxlUHJlUmVuZGVyVGFza3MKICAgaGFuZGxlUG9zdFJlbmRlclRhc2tzCiAgIGFkZEF1dG9tYXRpY1B1bGxOb2RlCiAgIHJlbW92ZUF1dG9tYXRpY1B1bGxOb2RlCiAgIHByb2Nlc3NBdXRvbWF0aWNQdWxsTm9kZXMKICAgY29ubmVjdAogICBkaXNjb25uZWN0CiAgIGlzQ29ubmVjdGVkCiAgIGRpc2Nvbm5lY3QKICAgc3luY2hyb25pemVDb25uZWN0aW9ucwogICBjb25uZWN0UGFyYW0KICAgY29ubmVjdFBhcmFtCiAgIGRpc2Nvbm5lY3RQYXJhbQogICBlbnF1ZXVlRXZlbnQKICAgZGlzcGF0Y2hFdmVudHMKICAgYXBwZW5kRGVidWdCdWZmZXIKICAgZmx1c2hEZWJ1Z0J1ZmZlcgpJbnRlcm5hbHMKTnVsbERldmljZU5vZGUKICAgdXBkYXRlCiAgIHVwZGF0ZUF1dG9tYXRpY1B1bGxOb2RlcwogICB1bmluaXRpYWxpemUAAAAAAAAAAN0EAAAAAAAAAAAAAA",
+					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAAAAAA"
+				],
+				[
+					7,
+					1,
+					"outline_refresh",
+					{
+						"path": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/quickjs-labsound.cpp",
+						"symkeys":
+						[
+							[
+								156,
+								167
+							],
+							[
+								218,
+								236
+							],
+							[
+								903,
+								918
+							],
+							[
+								971,
+								994
+							],
+							[
+								1040,
+								1056
+							],
+							[
+								1100,
+								1114
+							],
+							[
+								1132,
+								1159
+							],
+							[
+								2383,
+								2402
+							],
+							[
+								3923,
+								3942
+							],
+							[
+								4583,
+								4608
+							],
+							[
+								4764,
+								4780
+							],
+							[
+								5008,
+								5028
+							],
+							[
+								5089,
+								5109
+							],
+							[
+								5199,
+								5219
+							],
+							[
+								5276,
+								5296
+							],
+							[
+								5359,
+								5379
+							],
+							[
+								5456,
+								5476
+							],
+							[
+								5558,
+								5576
+							],
+							[
+								5659,
+								5694
+							],
+							[
+								7351,
+								7378
+							],
+							[
+								8250,
+								8280
+							],
+							[
+								8699,
+								8732
+							],
+							[
+								8915,
+								8939
+							],
+							[
+								9200,
+								9220
+							],
+							[
+								9277,
+								9295
+							],
+							[
+								9453,
+								9471
+							],
+							[
+								9562,
+								9590
+							],
+							[
+								10536,
+								10556
+							],
+							[
+								10989,
+								11015
+							],
+							[
+								11174,
+								11191
+							],
+							[
+								11423,
+								11443
+							],
+							[
+								11504,
+								11524
+							],
+							[
+								11585,
+								11605
+							],
+							[
+								11666,
+								11684
+							],
+							[
+								11768,
+								11794
+							],
+							[
+								12983,
+								13001
+							],
+							[
+								13285,
+								13303
+							],
+							[
+								13942,
+								13966
+							],
+							[
+								14119,
+								14134
+							],
+							[
+								14358,
+								14378
+							],
+							[
+								14452,
+								14470
+							],
+							[
+								14541,
+								14557
+							],
+							[
+								16954,
+								16968
+							]
+						],
+						"symlist":
+						[
+							"js_stk_init",
+							"js_init_module_stk",
+							"AudioContextPtr",
+							"AudioDestinationNodePtr",
+							"AudioListenerPtr",
+							"AudioDevicePtr",
+							"js_audiocontext_constructor",
+							"js_audiocontext_get",
+							"js_audiocontext_set",
+							"js_audiocontext_finalizer",
+							"~AudioContextPtr",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_PROP_STRING_DEF",
+							"js_audiodestinationnode_constructor",
+							"js_audiodestinationnode_get",
+							"js_audiodestinationnode_method",
+							"js_audiodestinationnode_finalizer",
+							"~AudioDestinationNodePtr",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CFUNC_MAGIC_DEF",
+							"JS_PROP_STRING_DEF",
+							"js_audiolistener_constructor",
+							"js_audiolistener_get",
+							"js_audiolistener_finalizer",
+							"~AudioListenerPtr",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_PROP_STRING_DEF",
+							"js_audiodevice_constructor",
+							"js_audiodevice_get",
+							"js_audiodevice_set",
+							"js_audiodevice_finalizer",
+							"~AudioDevicePtr",
+							"JS_CGETSET_MAGIC_DEF",
+							"JS_PROP_STRING_DEF",
+							"js_labsound_init",
+							"js_init_module"
+						]
+					},
+					"AgAAAAAAAAAAAAAAAAAAAAAAAADdBAAAU3RrUHRyClN0a0ZyYW1lc1B0cgpTdGtHZW5lcmF0b3JQdHIKU3RrRmlsdGVyUHRyClN0a0VmZmVjdFB0cgpTdGtGTVB0cgpTdGtJbnN0cm1udFB0cgogIGpzX3N5bWJvbF90b3N0cmluZ3RhZwogIGpzX3NldF90b3N0cmluZ3RhZwogIGFycmF5X2xlbmd0aAogIGFycmF5X3RvX3ZlY3RvcgogIGFycmF5X3RvX3ZlY3RvcgogIGpzX3N0a193cmFwCiAganNfc3RrX2dldAogIGpzX3N0a19zZXQKICBqc19zdGtfZmluYWxpemVyCn5TdGtQdHIKSlNfQ0dFVFNFVF9NQUdJQ19ERUYKSlNfUFJPUF9TVFJJTkdfREVGCiAganNfc3RrZnJhbWVzX2NvbnN0cnVjdG9yCiAganNfc3RrZnJhbWVzX21ldGhvZAogIGpzX3N0a2ZyYW1lc19mcmVlX2J1Zgp+U3RrRnJhbWVzUHRyCiAganNfc3RrZnJhbWVzX2dldAogIGpzX3N0a2ZyYW1lc19zZXQKICBqc19zdGtmcmFtZXNfZmluYWxpemVyCn5TdGtGcmFtZXNQdHIKSlNfQ0ZVTkNfTUFHSUNfREVGCkpTX0NGVU5DX01BR0lDX0RFRgpKU19DRlVOQ19NQUdJQ19ERUYKSlNfQ0ZVTkNfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX1BST1BfU1RSSU5HX0RFRgogIGpzX3N0a2dlbmVyYXRvcl9jb25zdHJ1Y3RvcgogIGpzX3N0a2dlbmVyYXRvcl9tZXRob2QKICBqc19zdGtnZW5lcmF0b3JfZ2V0CiAganNfc3RrZ2VuZXJhdG9yX3NldAogIGpzX3N0a2dlbmVyYXRvcl9maW5hbGl6ZXIKflN0a0dlbmVyYXRvclB0cgpKU19DRlVOQ19NQUdJQ19ERUYKSlNfQ0dFVFNFVF9NQUdJQ19ERUYKSlNfUFJPUF9TVFJJTkdfREVGCiAganNfc3RrZmlsdGVyX2NvbnN0cnVjdG9yCiAganNfc3RrZmlsdGVyX2ZpbmFsaXplcgp+U3RrRmlsdGVyUHRyCkpTX1BST1BfU1RSSU5HX0RFRgogIGpzX3N0a2VmZmVjdF9jb25zdHJ1Y3RvcgogIGpzX3N0a2VmZmVjdF9maW5hbGl6ZXIKflN0a0VmZmVjdFB0cgpKU19QUk9QX1NUUklOR19ERUYKICBqc19zdGtmbV9jb25zdHJ1Y3RvcgogIGpzX3N0a2ZtX2ZpbmFsaXplcgp+U3RrRk1QdHIKSlNfUFJPUF9TVFJJTkdfREVGCiAganNfc3RraW5zdHJtbnRfY29uc3RydWN0b3IKICBqc19zdGtpbnN0cm1udF9maW5hbGl6ZXIKflN0a0luc3RybW50UHRyCkpTX1BST1BfU1RSSU5HX0RFRgogIGpzX3N0a19pbml0CiAganNfaW5pdF9tb2R1bGVfc3RrAAAAAAAAAADEAwAAAAAAAAAAAAA",
+					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAAAAAA"
+				],
+				[
+					8,
 					1,
 					"outline_refresh",
 					{
@@ -664,145 +2350,1388 @@
 						[
 						]
 					},
-					"AgAAAAAAAAAAAAAAAAAAAAAAAACMBAAA4pOJICBBdWRpb0NvbnRleHRQdHIgOyDigJQgdHlwZWRlZgrik4kgIEF1ZGlvRGVzdGluYXRpb25Ob2RlUHRyIDsg4oCUIHR5cGVkZWYK4pOJICBBdWRpb0xpc3RlbmVyUHRyIDsg4oCUIHR5cGVkZWYK4pOJICBBdWRpb0RldmljZVB0ciA7IOKAlCB0eXBlZGVmCuKAlOKSu+KAkyBqc19hdWRpb2NvbnRleHRfY29uc3RydWN0b3IgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uCuKAlOKSu+KAkyBqc19hdWRpb2NvbnRleHRfZ2V0ICggKSB7IOKApiB9IOKAlCBmdW5jdGlvbgrigJTikrvigJMganNfYXVkaW9jb250ZXh0X3NldCAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24K4oCU4pK74oCTIGpzX2F1ZGlvY29udGV4dF9maW5hbGl6ZXIgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uCuKAlOKSu+KAkyBqc19hdWRpb2Rlc3RpbmF0aW9ubm9kZV9jb25zdHJ1Y3RvciAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24K4oCU4pK74oCTIGpzX2F1ZGlvZGVzdGluYXRpb25ub2RlX2dldCAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24K4oCU4pK74oCTIGpzX2F1ZGlvZGVzdGluYXRpb25ub2RlX21ldGhvZCAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24K4oCU4pK74oCTIGpzX2F1ZGlvZGVzdGluYXRpb25ub2RlX2ZpbmFsaXplciAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24K4oCU4pK74oCTIGpzX2F1ZGlvbGlzdGVuZXJfY29uc3RydWN0b3IgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uCuKAlOKSu+KAkyBqc19hdWRpb2xpc3RlbmVyX2dldCAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24K4oCU4pK74oCTIGpzX2F1ZGlvbGlzdGVuZXJfZmluYWxpemVyICggKSB7IOKApiB9IOKAlCBmdW5jdGlvbgrigJTikrvigJMganNfYXVkaW9kZXZpY2VfY29uc3RydWN0b3IgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uCuKAlOKSu+KAkyBqc19hdWRpb2RldmljZV9nZXQgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uCuKAlOKSu+KAkyBqc19hdWRpb2RldmljZV9zZXQgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uCuKAlOKSu+KAkyBqc19hdWRpb2RldmljZV9maW5hbGl6ZXIgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uCuKAlOKSu+KAkyBqc19sYWJzb3VuZF9pbml0ICggKSB7IOKApiB9IOKAlCBmdW5jdGlvbgrigJTikrvigJMganNfaW5pdF9tb2R1bGUgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-					"AgAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAAAAAA"
+					"AgAAAAAAAAAAAAAAAAAAAAAAAADEAwAAICBqc19zdGtfaW5pdAogIGpzX2luaXRfbW9kdWxlX3N0awpBdWRpb0NvbnRleHRQdHIKQXVkaW9EZXN0aW5hdGlvbk5vZGVQdHIKQXVkaW9MaXN0ZW5lclB0cgpBdWRpb0RldmljZVB0cgogIGpzX2F1ZGlvY29udGV4dF9jb25zdHJ1Y3RvcgogIGpzX2F1ZGlvY29udGV4dF9nZXQKICBqc19hdWRpb2NvbnRleHRfc2V0CiAganNfYXVkaW9jb250ZXh0X2ZpbmFsaXplcgp+QXVkaW9Db250ZXh0UHRyCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX1BST1BfU1RSSU5HX0RFRgogIGpzX2F1ZGlvZGVzdGluYXRpb25ub2RlX2NvbnN0cnVjdG9yCiAganNfYXVkaW9kZXN0aW5hdGlvbm5vZGVfZ2V0CiAganNfYXVkaW9kZXN0aW5hdGlvbm5vZGVfbWV0aG9kCiAganNfYXVkaW9kZXN0aW5hdGlvbm5vZGVfZmluYWxpemVyCn5BdWRpb0Rlc3RpbmF0aW9uTm9kZVB0cgpKU19DR0VUU0VUX01BR0lDX0RFRgpKU19DRlVOQ19NQUdJQ19ERUYKSlNfUFJPUF9TVFJJTkdfREVGCiAganNfYXVkaW9saXN0ZW5lcl9jb25zdHJ1Y3RvcgogIGpzX2F1ZGlvbGlzdGVuZXJfZ2V0CiAganNfYXVkaW9saXN0ZW5lcl9maW5hbGl6ZXIKfkF1ZGlvTGlzdGVuZXJQdHIKSlNfQ0dFVFNFVF9NQUdJQ19ERUYKSlNfQ0dFVFNFVF9NQUdJQ19ERUYKSlNfQ0dFVFNFVF9NQUdJQ19ERUYKSlNfUFJPUF9TVFJJTkdfREVGCiAganNfYXVkaW9kZXZpY2VfY29uc3RydWN0b3IKICBqc19hdWRpb2RldmljZV9nZXQKICBqc19hdWRpb2RldmljZV9zZXQKICBqc19hdWRpb2RldmljZV9maW5hbGl6ZXIKfkF1ZGlvRGV2aWNlUHRyCkpTX0NHRVRTRVRfTUFHSUNfREVGCkpTX1BST1BfU1RSSU5HX0RFRgogIGpzX2xhYnNvdW5kX2luaXQKICBqc19pbml0X21vZHVsZQAAAAAAAAAAAAAAAAAAAAAAAAAA",
+					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAAAAAA"
 				],
 				[
-					3,
+					9,
 					2,
 					"outline_refresh",
 					{
-						"path": "/home/roman/Projects/plot-cv/quickjs/qjs-sound/quickjs-labsound.cpp",
+						"path": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound/include/LabSound/core/AudioContext.h",
 						"symkeys":
 						[
 							[
-								779,
-								794
+								143,
+								162
 							],
 							[
-								847,
-								870
+								402,
+								405
 							],
 							[
-								916,
-								932
+								415,
+								423
 							],
 							[
-								976,
-								990
+								431,
+								453
 							],
 							[
-								1008,
-								1035
+								461,
+								474
 							],
 							[
-								2259,
-								2278
+								482,
+								491
 							],
 							[
-								3799,
-								3818
+								499,
+								513
 							],
 							[
-								4459,
-								4484
+								521,
+								536
 							],
 							[
-								5535,
-								5570
+								544,
+								564
 							],
 							[
-								7227,
-								7254
+								572,
+								596
 							],
 							[
-								8126,
-								8156
+								604,
+								620
 							],
 							[
-								8575,
-								8608
+								628,
+								645
 							],
 							[
-								9438,
-								9466
+								653,
+								671
 							],
 							[
-								10412,
-								10432
+								680,
+								692
 							],
 							[
-								10865,
-								10891
+								712,
+								728
 							],
 							[
-								11644,
-								11670
+								747,
+								764
 							],
 							[
-								12859,
-								12877
+								783,
+								803
 							],
 							[
-								13161,
-								13179
+								1576,
+								1597
 							],
 							[
-								13818,
-								13842
+								1625,
+								1637
 							],
 							[
-								14417,
-								14433
+								1753,
+								1774
 							],
 							[
-								16806,
-								16820
+								1875,
+								1897
+							],
+							[
+								2043,
+								2052
+							],
+							[
+								2092,
+								2103
+							],
+							[
+								2186,
+								2207
+							],
+							[
+								2277,
+								2289
+							],
+							[
+								2320,
+								2332
+							],
+							[
+								2379,
+								2392
+							],
+							[
+								2604,
+								2618
+							],
+							[
+								2631,
+								2644
+							],
+							[
+								2685,
+								2708
+							],
+							[
+								2727,
+								2743
+							],
+							[
+								2762,
+								2778
+							],
+							[
+								2852,
+								2870
+							],
+							[
+								2891,
+								2901
+							],
+							[
+								2921,
+								2939
+							],
+							[
+								3027,
+								3042
+							],
+							[
+								3081,
+								3089
+							],
+							[
+								3199,
+								3212
+							],
+							[
+								3241,
+								3249
+							],
+							[
+								3288,
+								3305
+							],
+							[
+								3356,
+								3366
+							],
+							[
+								3576,
+								3587
+							],
+							[
+								3807,
+								3825
+							],
+							[
+								4276,
+								4296
+							],
+							[
+								4335,
+								4356
+							],
+							[
+								4539,
+								4546
+							],
+							[
+								4671,
+								4677
+							],
+							[
+								5221,
+								5226
+							],
+							[
+								5291,
+								5311
+							],
+							[
+								5393,
+								5414
+							],
+							[
+								5709,
+								5729
+							],
+							[
+								5768,
+								5791
+							],
+							[
+								6029,
+								6054
+							],
+							[
+								6139,
+								6146
+							],
+							[
+								6265,
+								6275
+							],
+							[
+								6394,
+								6405
+							],
+							[
+								6545,
+								6555
+							],
+							[
+								6815,
+								6837
+							],
+							[
+								6974,
+								6986
+							],
+							[
+								7161,
+								7173
+							],
+							[
+								7371,
+								7386
+							],
+							[
+								7739,
+								7751
+							],
+							[
+								7787,
+								7801
+							],
+							[
+								7815,
+								7832
+							],
+							[
+								7882,
+								7898
+							],
+							[
+								8100,
+								8109
+							],
+							[
+								8873,
+								8887
+							],
+							[
+								8935,
+								8941
+							],
+							[
+								8954,
+								8978
+							],
+							[
+								8991,
+								9003
 							]
 						],
 						"symlist":
 						[
-							" Ⓣ  AudioContextPtr ; — typedef",
-							" Ⓣ  AudioDestinationNodePtr ; — typedef",
-							" Ⓣ  AudioListenerPtr ; — typedef",
-							" Ⓣ  AudioDevicePtr ; — typedef",
-							"—Ⓕ– js_audiocontext_constructor ( ) { … } — function",
-							"—Ⓕ– js_audiocontext_get ( ) { … } — function",
-							"—Ⓕ– js_audiocontext_set ( ) { … } — function",
-							"—Ⓕ– js_audiocontext_finalizer ( ) { … } — function",
-							"—Ⓕ– js_audiodestinationnode_constructor ( ) { … } — function",
-							"—Ⓕ– js_audiodestinationnode_get ( ) { … } — function",
-							"—Ⓕ– js_audiodestinationnode_method ( ) { … } — function",
-							"—Ⓕ– js_audiodestinationnode_finalizer ( ) { … } — function",
-							"—Ⓕ– js_audiolistener_constructor ( ) { … } — function",
-							"—Ⓕ– js_audiolistener_get ( ) { … } — function",
-							"—Ⓕ– js_audiolistener_finalizer ( ) { … } — function",
-							"—Ⓕ– js_audiodevice_constructor ( ) { … } — function",
-							"—Ⓕ– js_audiodevice_get ( ) { … } — function",
-							"—Ⓕ– js_audiodevice_set ( ) { … } — function",
-							"—Ⓕ– js_audiodevice_finalizer ( ) { … } — function",
-							"—Ⓕ– js_labsound_init ( ) { … } — function",
-							"—Ⓕ– js_init_module ( ) { … } — function"
+							"lab_audio_context_h",
+							"lab",
+							"AudioBus",
+							"AudioHardwareInputNode",
+							"AudioListener",
+							"AudioNode",
+							"AudioNodeInput",
+							"AudioNodeOutput",
+							"AudioDestinationNode",
+							"AudioScheduledSourceNode",
+							"ContextGraphLock",
+							"ContextRenderLock",
+							"HRTFDatabaseLoader",
+							"AudioContext",
+							"ContextGraphLock",
+							"ContextRenderLock",
+							"AudioDestinationNode",
+							"AudioContextInterface",
+							"AudioContext",
+							" AudioContextInterface",
+							" ~AudioContextInterface",
+							" contextId",
+							" currentTime",
+							" audioContextInterface",
+							" AudioContext",
+							" AudioContext",
+							" ~AudioContext",
+							" lazyInitialize",
+							" isInitialized",
+							" isAutodispatchingEvents",
+							" isOfflineContext",
+							" loadHrtfDatabase",
+							" hrtfDatabaseLoader",
+							" sampleRate",
+							" setDestinationNode",
+							" destinationNode",
+							" listener",
+							" debugTraverse",
+							" diagnose",
+							" diagnosed_silence",
+							" diagnosing",
+							" currentTime",
+							" currentSampleFrame",
+							" predictedCurrentTime",
+							" startOfflineRendering",
+							" suspend",
+							" resume",
+							" close",
+							" handlePreRenderTasks",
+							" handlePostRenderTasks",
+							" addAutomaticPullNode",
+							" removeAutomaticPullNode",
+							" processAutomaticPullNodes",
+							" connect",
+							" disconnect",
+							" isConnected",
+							" disconnect",
+							" synchronizeConnections",
+							" connectParam",
+							" connectParam",
+							" disconnectParam",
+							" enqueueEvent",
+							" dispatchEvents",
+							" appendDebugBuffer",
+							" flushDebugBuffer",
+							"Internals",
+							"NullDeviceNode",
+							" update",
+							" updateAutomaticPullNodes",
+							" uninitialize"
 						]
 					},
-					"AwAAAAAAAAAAAAAA0gMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIwEAADik4kgIEF1ZGlvQ29udGV4dFB0ciA7IOKAlCB0eXBlZGVmCuKTiSAgQXVkaW9EZXN0aW5hdGlvbk5vZGVQdHIgOyDigJQgdHlwZWRlZgrik4kgIEF1ZGlvTGlzdGVuZXJQdHIgOyDigJQgdHlwZWRlZgrik4kgIEF1ZGlvRGV2aWNlUHRyIDsg4oCUIHR5cGVkZWYK4oCU4pK74oCTIGpzX2F1ZGlvY29udGV4dF9jb25zdHJ1Y3RvciAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24K4oCU4pK74oCTIGpzX2F1ZGlvY29udGV4dF9nZXQgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uCuKAlOKSu+KAkyBqc19hdWRpb2NvbnRleHRfc2V0ICggKSB7IOKApiB9IOKAlCBmdW5jdGlvbgrigJTikrvigJMganNfYXVkaW9jb250ZXh0X2ZpbmFsaXplciAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24K4oCU4pK74oCTIGpzX2F1ZGlvZGVzdGluYXRpb25ub2RlX2NvbnN0cnVjdG9yICggKSB7IOKApiB9IOKAlCBmdW5jdGlvbgrigJTikrvigJMganNfYXVkaW9kZXN0aW5hdGlvbm5vZGVfZ2V0ICggKSB7IOKApiB9IOKAlCBmdW5jdGlvbgrigJTikrvigJMganNfYXVkaW9kZXN0aW5hdGlvbm5vZGVfbWV0aG9kICggKSB7IOKApiB9IOKAlCBmdW5jdGlvbgrigJTikrvigJMganNfYXVkaW9kZXN0aW5hdGlvbm5vZGVfZmluYWxpemVyICggKSB7IOKApiB9IOKAlCBmdW5jdGlvbgrigJTikrvigJMganNfYXVkaW9saXN0ZW5lcl9jb25zdHJ1Y3RvciAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24K4oCU4pK74oCTIGpzX2F1ZGlvbGlzdGVuZXJfZ2V0ICggKSB7IOKApiB9IOKAlCBmdW5jdGlvbgrigJTikrvigJMganNfYXVkaW9saXN0ZW5lcl9maW5hbGl6ZXIgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uCuKAlOKSu+KAkyBqc19hdWRpb2RldmljZV9jb25zdHJ1Y3RvciAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24K4oCU4pK74oCTIGpzX2F1ZGlvZGV2aWNlX2dldCAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24K4oCU4pK74oCTIGpzX2F1ZGlvZGV2aWNlX3NldCAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24K4oCU4pK74oCTIGpzX2F1ZGlvZGV2aWNlX2ZpbmFsaXplciAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24K4oCU4pK74oCTIGpzX2xhYnNvdW5kX2luaXQgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uCuKAlOKSu+KAkyBqc19pbml0X21vZHVsZSAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24AAAAAAAAAANIDAAAAAAAAAAAAAA",
-					"AgAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAAAAAA"
+					"AwAAAAAAAAAAAAAA3wQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAN8EAAAgIGxhYl9hdWRpb19jb250ZXh0X2gKICBsYWIKQXVkaW9CdXMKQXVkaW9IYXJkd2FyZUlucHV0Tm9kZQpBdWRpb0xpc3RlbmVyCkF1ZGlvTm9kZQpBdWRpb05vZGVJbnB1dApBdWRpb05vZGVPdXRwdXQKQXVkaW9EZXN0aW5hdGlvbk5vZGUKQXVkaW9TY2hlZHVsZWRTb3VyY2VOb2RlCkNvbnRleHRHcmFwaExvY2sKQ29udGV4dFJlbmRlckxvY2sKSFJURkRhdGFiYXNlTG9hZGVyCkF1ZGlvQ29udGV4dApDb250ZXh0R3JhcGhMb2NrCkNvbnRleHRSZW5kZXJMb2NrCkF1ZGlvRGVzdGluYXRpb25Ob2RlCkF1ZGlvQ29udGV4dEludGVyZmFjZQpBdWRpb0NvbnRleHQKQXVkaW9Db250ZXh0SW50ZXJmYWNlCiAgIH5BdWRpb0NvbnRleHRJbnRlcmZhY2UKICAgY29udGV4dElkCiAgIGN1cnJlbnRUaW1lCiAgIGF1ZGlvQ29udGV4dEludGVyZmFjZQpBdWRpb0NvbnRleHQKQXVkaW9Db250ZXh0CiAgIH5BdWRpb0NvbnRleHQKICAgbGF6eUluaXRpYWxpemUKICAgaXNJbml0aWFsaXplZAogICBpc0F1dG9kaXNwYXRjaGluZ0V2ZW50cwogICBpc09mZmxpbmVDb250ZXh0CiAgIGxvYWRIcnRmRGF0YWJhc2UKICAgaHJ0ZkRhdGFiYXNlTG9hZGVyCiAgIHNhbXBsZVJhdGUKICAgc2V0RGVzdGluYXRpb25Ob2RlCiAgIGRlc3RpbmF0aW9uTm9kZQogICBsaXN0ZW5lcgogICBkZWJ1Z1RyYXZlcnNlCiAgIGRpYWdub3NlCiAgIGRpYWdub3NlZF9zaWxlbmNlCiAgIGRpYWdub3NpbmcKICAgY3VycmVudFRpbWUKICAgY3VycmVudFNhbXBsZUZyYW1lCiAgIHByZWRpY3RlZEN1cnJlbnRUaW1lCiAgIHN0YXJ0T2ZmbGluZVJlbmRlcmluZwogICBzdXNwZW5kCiAgIHJlc3VtZQogICBjbG9zZQogICBoYW5kbGVQcmVSZW5kZXJUYXNrcwogICBoYW5kbGVQb3N0UmVuZGVyVGFza3MKICAgYWRkQXV0b21hdGljUHVsbE5vZGUKICAgcmVtb3ZlQXV0b21hdGljUHVsbE5vZGUKICAgcHJvY2Vzc0F1dG9tYXRpY1B1bGxOb2RlcwogICBjb25uZWN0CiAgIGRpc2Nvbm5lY3QKICAgaXNDb25uZWN0ZWQKICAgZGlzY29ubmVjdAogICBzeW5jaHJvbml6ZUNvbm5lY3Rpb25zCiAgIGNvbm5lY3RQYXJhbQogICBjb25uZWN0UGFyYW0KICAgZGlzY29ubmVjdFBhcmFtCiAgIGVucXVldWVFdmVudAogICBkaXNwYXRjaEV2ZW50cwogICBhcHBlbmREZWJ1Z0J1ZmZlcgogICBmbHVzaERlYnVnQnVmZmVyCkludGVybmFscwpOdWxsRGV2aWNlTm9kZQogICB1cGRhdGUKICAgdXBkYXRlQXV0b21hdGljUHVsbE5vZGVzCiAgIHVuaW5pdGlhbGl6ZQAAAAAAAAAA3wQAAAAAAAAAAAAA",
+					"AwAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAAAAAA"
+				],
+				[
+					1,
+					1,
+					"outline_refresh",
+					{
+						"path": null,
+						"symkeys":
+						[
+						],
+						"symlist":
+						[
+						]
+					},
+					"AgAAAAAAAAAAAAAAAAAAAAAAAADfBAAAICBsYWJfYXVkaW9fY29udGV4dF9oCiAgbGFiCkF1ZGlvQnVzCkF1ZGlvSGFyZHdhcmVJbnB1dE5vZGUKQXVkaW9MaXN0ZW5lcgpBdWRpb05vZGUKQXVkaW9Ob2RlSW5wdXQKQXVkaW9Ob2RlT3V0cHV0CkF1ZGlvRGVzdGluYXRpb25Ob2RlCkF1ZGlvU2NoZWR1bGVkU291cmNlTm9kZQpDb250ZXh0R3JhcGhMb2NrCkNvbnRleHRSZW5kZXJMb2NrCkhSVEZEYXRhYmFzZUxvYWRlcgpBdWRpb0NvbnRleHQKQ29udGV4dEdyYXBoTG9jawpDb250ZXh0UmVuZGVyTG9jawpBdWRpb0Rlc3RpbmF0aW9uTm9kZQpBdWRpb0NvbnRleHRJbnRlcmZhY2UKQXVkaW9Db250ZXh0CkF1ZGlvQ29udGV4dEludGVyZmFjZQogICB+QXVkaW9Db250ZXh0SW50ZXJmYWNlCiAgIGNvbnRleHRJZAogICBjdXJyZW50VGltZQogICBhdWRpb0NvbnRleHRJbnRlcmZhY2UKQXVkaW9Db250ZXh0CkF1ZGlvQ29udGV4dAogICB+QXVkaW9Db250ZXh0CiAgIGxhenlJbml0aWFsaXplCiAgIGlzSW5pdGlhbGl6ZWQKICAgaXNBdXRvZGlzcGF0Y2hpbmdFdmVudHMKICAgaXNPZmZsaW5lQ29udGV4dAogICBsb2FkSHJ0ZkRhdGFiYXNlCiAgIGhydGZEYXRhYmFzZUxvYWRlcgogICBzYW1wbGVSYXRlCiAgIHNldERlc3RpbmF0aW9uTm9kZQogICBkZXN0aW5hdGlvbk5vZGUKICAgbGlzdGVuZXIKICAgZGVidWdUcmF2ZXJzZQogICBkaWFnbm9zZQogICBkaWFnbm9zZWRfc2lsZW5jZQogICBkaWFnbm9zaW5nCiAgIGN1cnJlbnRUaW1lCiAgIGN1cnJlbnRTYW1wbGVGcmFtZQogICBwcmVkaWN0ZWRDdXJyZW50VGltZQogICBzdGFydE9mZmxpbmVSZW5kZXJpbmcKICAgc3VzcGVuZAogICByZXN1bWUKICAgY2xvc2UKICAgaGFuZGxlUHJlUmVuZGVyVGFza3MKICAgaGFuZGxlUG9zdFJlbmRlclRhc2tzCiAgIGFkZEF1dG9tYXRpY1B1bGxOb2RlCiAgIHJlbW92ZUF1dG9tYXRpY1B1bGxOb2RlCiAgIHByb2Nlc3NBdXRvbWF0aWNQdWxsTm9kZXMKICAgY29ubmVjdAogICBkaXNjb25uZWN0CiAgIGlzQ29ubmVjdGVkCiAgIGRpc2Nvbm5lY3QKICAgc3luY2hyb25pemVDb25uZWN0aW9ucwogICBjb25uZWN0UGFyYW0KICAgY29ubmVjdFBhcmFtCiAgIGRpc2Nvbm5lY3RQYXJhbQogICBlbnF1ZXVlRXZlbnQKICAgZGlzcGF0Y2hFdmVudHMKICAgYXBwZW5kRGVidWdCdWZmZXIKICAgZmx1c2hEZWJ1Z0J1ZmZlcgpJbnRlcm5hbHMKTnVsbERldmljZU5vZGUKICAgdXBkYXRlCiAgIHVwZGF0ZUF1dG9tYXRpY1B1bGxOb2RlcwogICB1bmluaXRpYWxpemUAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+					"AQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/"
+				],
+				[
+					2,
+					1,
+					"outline_refresh",
+					{
+						"path": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound/include/LabSound/core/AudioContext.h",
+						"symkeys":
+						[
+							[
+								143,
+								162
+							],
+							[
+								402,
+								405
+							],
+							[
+								415,
+								423
+							],
+							[
+								431,
+								453
+							],
+							[
+								461,
+								474
+							],
+							[
+								482,
+								491
+							],
+							[
+								499,
+								513
+							],
+							[
+								521,
+								536
+							],
+							[
+								544,
+								564
+							],
+							[
+								572,
+								596
+							],
+							[
+								604,
+								620
+							],
+							[
+								628,
+								645
+							],
+							[
+								653,
+								671
+							],
+							[
+								680,
+								692
+							],
+							[
+								712,
+								728
+							],
+							[
+								747,
+								764
+							],
+							[
+								783,
+								803
+							],
+							[
+								1576,
+								1597
+							],
+							[
+								1625,
+								1637
+							],
+							[
+								1753,
+								1774
+							],
+							[
+								1875,
+								1897
+							],
+							[
+								2043,
+								2052
+							],
+							[
+								2092,
+								2103
+							],
+							[
+								2186,
+								2207
+							],
+							[
+								2277,
+								2289
+							],
+							[
+								2320,
+								2332
+							],
+							[
+								2379,
+								2392
+							],
+							[
+								2604,
+								2618
+							],
+							[
+								2631,
+								2644
+							],
+							[
+								2685,
+								2708
+							],
+							[
+								2727,
+								2743
+							],
+							[
+								2762,
+								2778
+							],
+							[
+								2852,
+								2870
+							],
+							[
+								2891,
+								2901
+							],
+							[
+								2921,
+								2939
+							],
+							[
+								3027,
+								3042
+							],
+							[
+								3081,
+								3089
+							],
+							[
+								3199,
+								3212
+							],
+							[
+								3241,
+								3249
+							],
+							[
+								3288,
+								3305
+							],
+							[
+								3356,
+								3366
+							],
+							[
+								3576,
+								3587
+							],
+							[
+								3807,
+								3825
+							],
+							[
+								4276,
+								4296
+							],
+							[
+								4335,
+								4356
+							],
+							[
+								4539,
+								4546
+							],
+							[
+								4671,
+								4677
+							],
+							[
+								5221,
+								5226
+							],
+							[
+								5291,
+								5311
+							],
+							[
+								5393,
+								5414
+							],
+							[
+								5709,
+								5729
+							],
+							[
+								5768,
+								5791
+							],
+							[
+								6029,
+								6054
+							],
+							[
+								6139,
+								6146
+							],
+							[
+								6265,
+								6275
+							],
+							[
+								6394,
+								6405
+							],
+							[
+								6545,
+								6555
+							],
+							[
+								6815,
+								6837
+							],
+							[
+								6974,
+								6986
+							],
+							[
+								7161,
+								7173
+							],
+							[
+								7371,
+								7386
+							],
+							[
+								7739,
+								7751
+							],
+							[
+								7787,
+								7801
+							],
+							[
+								7815,
+								7832
+							],
+							[
+								7882,
+								7898
+							],
+							[
+								8100,
+								8109
+							],
+							[
+								8873,
+								8887
+							],
+							[
+								8935,
+								8941
+							],
+							[
+								8954,
+								8978
+							],
+							[
+								8991,
+								9003
+							]
+						],
+						"symlist":
+						[
+							"lab_audio_context_h",
+							"lab",
+							"AudioBus",
+							"AudioHardwareInputNode",
+							"AudioListener",
+							"AudioNode",
+							"AudioNodeInput",
+							"AudioNodeOutput",
+							"AudioDestinationNode",
+							"AudioScheduledSourceNode",
+							"ContextGraphLock",
+							"ContextRenderLock",
+							"HRTFDatabaseLoader",
+							"AudioContext",
+							"ContextGraphLock",
+							"ContextRenderLock",
+							"AudioDestinationNode",
+							"AudioContextInterface",
+							"AudioContext",
+							" AudioContextInterface",
+							" ~AudioContextInterface",
+							" contextId",
+							" currentTime",
+							" audioContextInterface",
+							" AudioContext",
+							" AudioContext",
+							" ~AudioContext",
+							" lazyInitialize",
+							" isInitialized",
+							" isAutodispatchingEvents",
+							" isOfflineContext",
+							" loadHrtfDatabase",
+							" hrtfDatabaseLoader",
+							" sampleRate",
+							" setDestinationNode",
+							" destinationNode",
+							" listener",
+							" debugTraverse",
+							" diagnose",
+							" diagnosed_silence",
+							" diagnosing",
+							" currentTime",
+							" currentSampleFrame",
+							" predictedCurrentTime",
+							" startOfflineRendering",
+							" suspend",
+							" resume",
+							" close",
+							" handlePreRenderTasks",
+							" handlePostRenderTasks",
+							" addAutomaticPullNode",
+							" removeAutomaticPullNode",
+							" processAutomaticPullNodes",
+							" connect",
+							" disconnect",
+							" isConnected",
+							" disconnect",
+							" synchronizeConnections",
+							" connectParam",
+							" connectParam",
+							" disconnectParam",
+							" enqueueEvent",
+							" dispatchEvents",
+							" appendDebugBuffer",
+							" flushDebugBuffer",
+							"Internals",
+							"NullDeviceNode",
+							" update",
+							" updateAutomaticPullNodes",
+							" uninitialize"
+						]
+					},
+					"AQAAAAAAAAAAAAAA3wQAAAAAAAAAAAAA",
+					"AQAAAAAAAAAAAAAA"
+				],
+				[
+					3,
+					1,
+					"outline_refresh",
+					{
+						"path": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound/include/LabSound/core/AudioDevice.h",
+						"symkeys":
+						[
+							[
+								141,
+								158
+							],
+							[
+								479,
+								482
+							],
+							[
+								491,
+								499
+							],
+							[
+								507,
+								519
+							],
+							[
+								527,
+								541
+							],
+							[
+								549,
+								567
+							],
+							[
+								575,
+								594
+							],
+							[
+								603,
+								620
+							],
+							[
+								629,
+								644
+							],
+							[
+								716,
+								732
+							],
+							[
+								803,
+								820
+							],
+							[
+								1065,
+								1080
+							],
+							[
+								1527,
+								1539
+							],
+							[
+								2215,
+								2225
+							],
+							[
+								2495,
+								2506
+							],
+							[
+								2722,
+								2733
+							],
+							[
+								2898,
+								2906
+							],
+							[
+								3273,
+								3292
+							],
+							[
+								3353,
+								3365
+							],
+							[
+								3418,
+								3436
+							],
+							[
+								3563,
+								3578
+							],
+							[
+								3648,
+								3662
+							],
+							[
+								3727,
+								3741
+							],
+							[
+								3800,
+								3805
+							],
+							[
+								3830,
+								3834
+							],
+							[
+								3859,
+								3868
+							],
+							[
+								3899,
+								3918
+							],
+							[
+								3936,
+								3952
+							],
+							[
+								4017,
+								4033
+							],
+							[
+								4199,
+								4216
+							],
+							[
+								4247,
+								4252
+							],
+							[
+								4295,
+								4299
+							],
+							[
+								4343,
+								4352
+							],
+							[
+								4401,
+								4420
+							],
+							[
+								4445,
+								4465
+							],
+							[
+								4608,
+								4616
+							],
+							[
+								4688,
+								4699
+							],
+							[
+								4884,
+								4895
+							],
+							[
+								4953,
+								4957
+							],
+							[
+								5034,
+								5038
+							],
+							[
+								5056,
+								5076
+							],
+							[
+								5167,
+								5188
+							],
+							[
+								5249,
+								5255
+							],
+							[
+								5313,
+								5319
+							],
+							[
+								5490,
+								5503
+							],
+							[
+								5568,
+								5583
+							],
+							[
+								5707,
+								5714
+							],
+							[
+								5782,
+								5792
+							],
+							[
+								5822,
+								5834
+							],
+							[
+								5864,
+								5869
+							]
+						],
+						"symlist":
+						[
+							"lab_audiodevice_h",
+							"lab",
+							"AudioBus",
+							"AudioContext",
+							"AudioNodeInput",
+							"AudioHardwareInput",
+							"AudioSourceProvider",
+							"AudioStreamConfig",
+							"AudioDeviceInfo",
+							"AudioDeviceIndex",
+							"AudioStreamConfig",
+							"AudioDeviceInfo",
+							"SamplingInfo",
+							"pull_graph",
+							"AudioDevice",
+							" AudioDevice",
+							" LOG_INFO",
+							" AudioSourceProvider",
+							" ~AudioDevice",
+							" setDestinationNode",
+							" getOutputConfig",
+							" getInputConfig",
+							" sourceProvider",
+							" start",
+							" stop",
+							" isRunning",
+							" backendReinitialize",
+							"AudioDevice_Null",
+							" AudioDevice_Null",
+							" ~AudioDevice_Null",
+							" start",
+							" stop",
+							" isRunning",
+							" backendReinitialize",
+							"AudioDestinationNode",
+							" tailTime",
+							" latencyTime",
+							" static_name",
+							" name",
+							" desc",
+							" AudioDestinationNode",
+							" ~AudioDestinationNode",
+							" device",
+							" render",
+							" offlineRender",
+							" getSamplingInfo",
+							" process",
+							" initialize",
+							" uninitialize",
+							" reset"
+						]
+					},
+					"AgAAAAAAAAAAAAAAAAAAAAAAAADfBAAAICBsYWJfYXVkaW9fY29udGV4dF9oCiAgbGFiCkF1ZGlvQnVzCkF1ZGlvSGFyZHdhcmVJbnB1dE5vZGUKQXVkaW9MaXN0ZW5lcgpBdWRpb05vZGUKQXVkaW9Ob2RlSW5wdXQKQXVkaW9Ob2RlT3V0cHV0CkF1ZGlvRGVzdGluYXRpb25Ob2RlCkF1ZGlvU2NoZWR1bGVkU291cmNlTm9kZQpDb250ZXh0R3JhcGhMb2NrCkNvbnRleHRSZW5kZXJMb2NrCkhSVEZEYXRhYmFzZUxvYWRlcgpBdWRpb0NvbnRleHQKQ29udGV4dEdyYXBoTG9jawpDb250ZXh0UmVuZGVyTG9jawpBdWRpb0Rlc3RpbmF0aW9uTm9kZQpBdWRpb0NvbnRleHRJbnRlcmZhY2UKQXVkaW9Db250ZXh0CkF1ZGlvQ29udGV4dEludGVyZmFjZQogICB+QXVkaW9Db250ZXh0SW50ZXJmYWNlCiAgIGNvbnRleHRJZAogICBjdXJyZW50VGltZQogICBhdWRpb0NvbnRleHRJbnRlcmZhY2UKQXVkaW9Db250ZXh0CkF1ZGlvQ29udGV4dAogICB+QXVkaW9Db250ZXh0CiAgIGxhenlJbml0aWFsaXplCiAgIGlzSW5pdGlhbGl6ZWQKICAgaXNBdXRvZGlzcGF0Y2hpbmdFdmVudHMKICAgaXNPZmZsaW5lQ29udGV4dAogICBsb2FkSHJ0ZkRhdGFiYXNlCiAgIGhydGZEYXRhYmFzZUxvYWRlcgogICBzYW1wbGVSYXRlCiAgIHNldERlc3RpbmF0aW9uTm9kZQogICBkZXN0aW5hdGlvbk5vZGUKICAgbGlzdGVuZXIKICAgZGVidWdUcmF2ZXJzZQogICBkaWFnbm9zZQogICBkaWFnbm9zZWRfc2lsZW5jZQogICBkaWFnbm9zaW5nCiAgIGN1cnJlbnRUaW1lCiAgIGN1cnJlbnRTYW1wbGVGcmFtZQogICBwcmVkaWN0ZWRDdXJyZW50VGltZQogICBzdGFydE9mZmxpbmVSZW5kZXJpbmcKICAgc3VzcGVuZAogICByZXN1bWUKICAgY2xvc2UKICAgaGFuZGxlUHJlUmVuZGVyVGFza3MKICAgaGFuZGxlUG9zdFJlbmRlclRhc2tzCiAgIGFkZEF1dG9tYXRpY1B1bGxOb2RlCiAgIHJlbW92ZUF1dG9tYXRpY1B1bGxOb2RlCiAgIHByb2Nlc3NBdXRvbWF0aWNQdWxsTm9kZXMKICAgY29ubmVjdAogICBkaXNjb25uZWN0CiAgIGlzQ29ubmVjdGVkCiAgIGRpc2Nvbm5lY3QKICAgc3luY2hyb25pemVDb25uZWN0aW9ucwogICBjb25uZWN0UGFyYW0KICAgY29ubmVjdFBhcmFtCiAgIGRpc2Nvbm5lY3RQYXJhbQogICBlbnF1ZXVlRXZlbnQKICAgZGlzcGF0Y2hFdmVudHMKICAgYXBwZW5kRGVidWdCdWZmZXIKICAgZmx1c2hEZWJ1Z0J1ZmZlcgpJbnRlcm5hbHMKTnVsbERldmljZU5vZGUKICAgdXBkYXRlCiAgIHVwZGF0ZUF1dG9tYXRpY1B1bGxOb2RlcwogICB1bmluaXRpYWxpemUAAAAAAAAAAO4CAAAAAAAAAAAAAA",
+					"AQAAAAAAAAAAAAAA"
 				],
 				[
 					4,
 					1,
 					"outline_refresh",
 					{
-						"path": "/home/roman/Projects/plot-cv/quickjs/qjs-sound/quickjs-stk.cpp",
+						"path": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound/include/LabSound/core/AudioContext.h",
 						"symkeys":
 						[
+							[
+								143,
+								162
+							],
+							[
+								402,
+								405
+							],
+							[
+								415,
+								423
+							],
+							[
+								431,
+								453
+							],
+							[
+								461,
+								474
+							],
+							[
+								482,
+								491
+							],
+							[
+								499,
+								513
+							],
+							[
+								521,
+								536
+							],
+							[
+								544,
+								564
+							],
+							[
+								572,
+								596
+							],
+							[
+								604,
+								620
+							],
+							[
+								628,
+								645
+							],
+							[
+								653,
+								671
+							],
+							[
+								680,
+								692
+							],
+							[
+								712,
+								728
+							],
+							[
+								747,
+								764
+							],
+							[
+								783,
+								803
+							],
+							[
+								1576,
+								1597
+							],
+							[
+								1625,
+								1637
+							],
+							[
+								1753,
+								1774
+							],
+							[
+								1875,
+								1897
+							],
+							[
+								2043,
+								2052
+							],
+							[
+								2092,
+								2103
+							],
+							[
+								2186,
+								2207
+							],
+							[
+								2277,
+								2289
+							],
+							[
+								2320,
+								2332
+							],
+							[
+								2379,
+								2392
+							],
+							[
+								2604,
+								2618
+							],
+							[
+								2631,
+								2644
+							],
+							[
+								2685,
+								2708
+							],
+							[
+								2727,
+								2743
+							],
+							[
+								2762,
+								2778
+							],
+							[
+								2852,
+								2870
+							],
+							[
+								2891,
+								2901
+							],
+							[
+								2921,
+								2939
+							],
+							[
+								3027,
+								3042
+							],
+							[
+								3081,
+								3089
+							],
+							[
+								3199,
+								3212
+							],
+							[
+								3241,
+								3249
+							],
+							[
+								3288,
+								3305
+							],
+							[
+								3356,
+								3366
+							],
+							[
+								3576,
+								3587
+							],
+							[
+								3807,
+								3825
+							],
+							[
+								4276,
+								4296
+							],
+							[
+								4335,
+								4356
+							],
+							[
+								4539,
+								4546
+							],
+							[
+								4671,
+								4677
+							],
+							[
+								5221,
+								5226
+							],
+							[
+								5291,
+								5311
+							],
+							[
+								5393,
+								5414
+							],
+							[
+								5709,
+								5729
+							],
+							[
+								5768,
+								5791
+							],
+							[
+								6029,
+								6054
+							],
+							[
+								6139,
+								6146
+							],
+							[
+								6265,
+								6275
+							],
+							[
+								6394,
+								6405
+							],
+							[
+								6545,
+								6555
+							],
+							[
+								6815,
+								6837
+							],
+							[
+								6974,
+								6986
+							],
+							[
+								7161,
+								7173
+							],
+							[
+								7371,
+								7386
+							],
+							[
+								7739,
+								7751
+							],
+							[
+								7787,
+								7801
+							],
+							[
+								7815,
+								7832
+							],
+							[
+								7882,
+								7898
+							],
+							[
+								8100,
+								8109
+							],
+							[
+								8873,
+								8887
+							],
+							[
+								8935,
+								8941
+							],
+							[
+								8954,
+								8978
+							],
+							[
+								8991,
+								9003
+							]
 						],
 						"symlist":
 						[
+							"lab_audio_context_h",
+							"lab",
+							"AudioBus",
+							"AudioHardwareInputNode",
+							"AudioListener",
+							"AudioNode",
+							"AudioNodeInput",
+							"AudioNodeOutput",
+							"AudioDestinationNode",
+							"AudioScheduledSourceNode",
+							"ContextGraphLock",
+							"ContextRenderLock",
+							"HRTFDatabaseLoader",
+							"AudioContext",
+							"ContextGraphLock",
+							"ContextRenderLock",
+							"AudioDestinationNode",
+							"AudioContextInterface",
+							"AudioContext",
+							" AudioContextInterface",
+							" ~AudioContextInterface",
+							" contextId",
+							" currentTime",
+							" audioContextInterface",
+							" AudioContext",
+							" AudioContext",
+							" ~AudioContext",
+							" lazyInitialize",
+							" isInitialized",
+							" isAutodispatchingEvents",
+							" isOfflineContext",
+							" loadHrtfDatabase",
+							" hrtfDatabaseLoader",
+							" sampleRate",
+							" setDestinationNode",
+							" destinationNode",
+							" listener",
+							" debugTraverse",
+							" diagnose",
+							" diagnosed_silence",
+							" diagnosing",
+							" currentTime",
+							" currentSampleFrame",
+							" predictedCurrentTime",
+							" startOfflineRendering",
+							" suspend",
+							" resume",
+							" close",
+							" handlePreRenderTasks",
+							" handlePostRenderTasks",
+							" addAutomaticPullNode",
+							" removeAutomaticPullNode",
+							" processAutomaticPullNodes",
+							" connect",
+							" disconnect",
+							" isConnected",
+							" disconnect",
+							" synchronizeConnections",
+							" connectParam",
+							" connectParam",
+							" disconnectParam",
+							" enqueueEvent",
+							" dispatchEvents",
+							" appendDebugBuffer",
+							" flushDebugBuffer",
+							"Internals",
+							"NullDeviceNode",
+							" update",
+							" updateAutomaticPullNodes",
+							" uninitialize"
 						]
 					},
-					"AgAAAAAAAAAAAAAAAAAAAAAAAACMBAAA4pOJICBBdWRpb0NvbnRleHRQdHIgOyDigJQgdHlwZWRlZgrik4kgIEF1ZGlvRGVzdGluYXRpb25Ob2RlUHRyIDsg4oCUIHR5cGVkZWYK4pOJICBBdWRpb0xpc3RlbmVyUHRyIDsg4oCUIHR5cGVkZWYK4pOJICBBdWRpb0RldmljZVB0ciA7IOKAlCB0eXBlZGVmCuKAlOKSu+KAkyBqc19hdWRpb2NvbnRleHRfY29uc3RydWN0b3IgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uCuKAlOKSu+KAkyBqc19hdWRpb2NvbnRleHRfZ2V0ICggKSB7IOKApiB9IOKAlCBmdW5jdGlvbgrigJTikrvigJMganNfYXVkaW9jb250ZXh0X3NldCAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24K4oCU4pK74oCTIGpzX2F1ZGlvY29udGV4dF9maW5hbGl6ZXIgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uCuKAlOKSu+KAkyBqc19hdWRpb2Rlc3RpbmF0aW9ubm9kZV9jb25zdHJ1Y3RvciAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24K4oCU4pK74oCTIGpzX2F1ZGlvZGVzdGluYXRpb25ub2RlX2dldCAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24K4oCU4pK74oCTIGpzX2F1ZGlvZGVzdGluYXRpb25ub2RlX21ldGhvZCAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24K4oCU4pK74oCTIGpzX2F1ZGlvZGVzdGluYXRpb25ub2RlX2ZpbmFsaXplciAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24K4oCU4pK74oCTIGpzX2F1ZGlvbGlzdGVuZXJfY29uc3RydWN0b3IgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uCuKAlOKSu+KAkyBqc19hdWRpb2xpc3RlbmVyX2dldCAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24K4oCU4pK74oCTIGpzX2F1ZGlvbGlzdGVuZXJfZmluYWxpemVyICggKSB7IOKApiB9IOKAlCBmdW5jdGlvbgrigJTikrvigJMganNfYXVkaW9kZXZpY2VfY29uc3RydWN0b3IgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uCuKAlOKSu+KAkyBqc19hdWRpb2RldmljZV9nZXQgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uCuKAlOKSu+KAkyBqc19hdWRpb2RldmljZV9zZXQgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uCuKAlOKSu+KAkyBqc19hdWRpb2RldmljZV9maW5hbGl6ZXIgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uCuKAlOKSu+KAkyBqc19sYWJzb3VuZF9pbml0ICggKSB7IOKApiB9IOKAlCBmdW5jdGlvbgrigJTikrvigJMganNfaW5pdF9tb2R1bGUgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-					"AgAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAAAAAA"
+					"AgAAAAAAAAAAAAAAAAAAAAAAAADuAgAAICBsYWJfYXVkaW9kZXZpY2VfaAogIGxhYgpBdWRpb0J1cwpBdWRpb0NvbnRleHQKQXVkaW9Ob2RlSW5wdXQKQXVkaW9IYXJkd2FyZUlucHV0CkF1ZGlvU291cmNlUHJvdmlkZXIKQXVkaW9TdHJlYW1Db25maWcKQXVkaW9EZXZpY2VJbmZvCkF1ZGlvRGV2aWNlSW5kZXgKQXVkaW9TdHJlYW1Db25maWcKQXVkaW9EZXZpY2VJbmZvClNhbXBsaW5nSW5mbwogIHB1bGxfZ3JhcGgKQXVkaW9EZXZpY2UKQXVkaW9EZXZpY2UKTE9HX0lORk8KQXVkaW9Tb3VyY2VQcm92aWRlcgogICB+QXVkaW9EZXZpY2UKICAgc2V0RGVzdGluYXRpb25Ob2RlCiAgIGdldE91dHB1dENvbmZpZwogICBnZXRJbnB1dENvbmZpZwogICBzb3VyY2VQcm92aWRlcgogICBzdGFydAogICBzdG9wCiAgIGlzUnVubmluZwogICBiYWNrZW5kUmVpbml0aWFsaXplCkF1ZGlvRGV2aWNlX051bGwKQXVkaW9EZXZpY2VfTnVsbAogICB+QXVkaW9EZXZpY2VfTnVsbAogICBzdGFydAogICBzdG9wCiAgIGlzUnVubmluZwogICBiYWNrZW5kUmVpbml0aWFsaXplCkF1ZGlvRGVzdGluYXRpb25Ob2RlCiAgIHRhaWxUaW1lCiAgIGxhdGVuY3lUaW1lCiAgIHN0YXRpY19uYW1lCiAgIG5hbWUKICAgZGVzYwpBdWRpb0Rlc3RpbmF0aW9uTm9kZQogICB+QXVkaW9EZXN0aW5hdGlvbk5vZGUKICAgZGV2aWNlCiAgIHJlbmRlcgogICBvZmZsaW5lUmVuZGVyCiAgIGdldFNhbXBsaW5nSW5mbwogICBwcm9jZXNzCiAgIGluaXRpYWxpemUKICAgdW5pbml0aWFsaXplCiAgIHJlc2V0AAAAAAAAAADfBAAAAAAAAAAAAAA",
+					"AQAAAAAAAAAAAAAA"
 				],
 				[
 					5,
@@ -817,136 +3746,71 @@
 						[
 						]
 					},
-					"AQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-					"AgAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAAAAAA"
+					"AgAAAAAAAAAAAAAAAAAAAAAAAADfBAAAICBsYWJfYXVkaW9fY29udGV4dF9oCiAgbGFiCkF1ZGlvQnVzCkF1ZGlvSGFyZHdhcmVJbnB1dE5vZGUKQXVkaW9MaXN0ZW5lcgpBdWRpb05vZGUKQXVkaW9Ob2RlSW5wdXQKQXVkaW9Ob2RlT3V0cHV0CkF1ZGlvRGVzdGluYXRpb25Ob2RlCkF1ZGlvU2NoZWR1bGVkU291cmNlTm9kZQpDb250ZXh0R3JhcGhMb2NrCkNvbnRleHRSZW5kZXJMb2NrCkhSVEZEYXRhYmFzZUxvYWRlcgpBdWRpb0NvbnRleHQKQ29udGV4dEdyYXBoTG9jawpDb250ZXh0UmVuZGVyTG9jawpBdWRpb0Rlc3RpbmF0aW9uTm9kZQpBdWRpb0NvbnRleHRJbnRlcmZhY2UKQXVkaW9Db250ZXh0CkF1ZGlvQ29udGV4dEludGVyZmFjZQogICB+QXVkaW9Db250ZXh0SW50ZXJmYWNlCiAgIGNvbnRleHRJZAogICBjdXJyZW50VGltZQogICBhdWRpb0NvbnRleHRJbnRlcmZhY2UKQXVkaW9Db250ZXh0CkF1ZGlvQ29udGV4dAogICB+QXVkaW9Db250ZXh0CiAgIGxhenlJbml0aWFsaXplCiAgIGlzSW5pdGlhbGl6ZWQKICAgaXNBdXRvZGlzcGF0Y2hpbmdFdmVudHMKICAgaXNPZmZsaW5lQ29udGV4dAogICBsb2FkSHJ0ZkRhdGFiYXNlCiAgIGhydGZEYXRhYmFzZUxvYWRlcgogICBzYW1wbGVSYXRlCiAgIHNldERlc3RpbmF0aW9uTm9kZQogICBkZXN0aW5hdGlvbk5vZGUKICAgbGlzdGVuZXIKICAgZGVidWdUcmF2ZXJzZQogICBkaWFnbm9zZQogICBkaWFnbm9zZWRfc2lsZW5jZQogICBkaWFnbm9zaW5nCiAgIGN1cnJlbnRUaW1lCiAgIGN1cnJlbnRTYW1wbGVGcmFtZQogICBwcmVkaWN0ZWRDdXJyZW50VGltZQogICBzdGFydE9mZmxpbmVSZW5kZXJpbmcKICAgc3VzcGVuZAogICByZXN1bWUKICAgY2xvc2UKICAgaGFuZGxlUHJlUmVuZGVyVGFza3MKICAgaGFuZGxlUG9zdFJlbmRlclRhc2tzCiAgIGFkZEF1dG9tYXRpY1B1bGxOb2RlCiAgIHJlbW92ZUF1dG9tYXRpY1B1bGxOb2RlCiAgIHByb2Nlc3NBdXRvbWF0aWNQdWxsTm9kZXMKICAgY29ubmVjdAogICBkaXNjb25uZWN0CiAgIGlzQ29ubmVjdGVkCiAgIGRpc2Nvbm5lY3QKICAgc3luY2hyb25pemVDb25uZWN0aW9ucwogICBjb25uZWN0UGFyYW0KICAgY29ubmVjdFBhcmFtCiAgIGRpc2Nvbm5lY3RQYXJhbQogICBlbnF1ZXVlRXZlbnQKICAgZGlzcGF0Y2hFdmVudHMKICAgYXBwZW5kRGVidWdCdWZmZXIKICAgZmx1c2hEZWJ1Z0J1ZmZlcgpJbnRlcm5hbHMKTnVsbERldmljZU5vZGUKICAgdXBkYXRlCiAgIHVwZGF0ZUF1dG9tYXRpY1B1bGxOb2RlcwogICB1bmluaXRpYWxpemUAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+					"AQAAAAAAAAAAAAAA"
 				],
 				[
 					6,
 					1,
 					"outline_refresh",
 					{
-						"path": "/home/roman/Projects/plot-cv/quickjs/qjs-sound/quickjs-labsound.cpp",
+						"path": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound/src/core/AudioDevice.cpp",
 						"symkeys":
 						[
 							[
-								779,
-								794
+								537,
+								540
 							],
 							[
-								847,
-								870
+								550,
+								565
 							],
 							[
-								916,
-								932
+								2818,
+								2821
 							],
 							[
-								976,
-								990
+								2848,
+								2874
 							],
 							[
-								1008,
-								1035
+								2953,
+								2995
 							],
 							[
-								2259,
-								2278
+								3829,
+								3857
 							],
 							[
-								3799,
-								3818
+								4237,
+								4272
 							],
 							[
-								4459,
-								4484
-							],
-							[
-								5535,
-								5570
-							],
-							[
-								7227,
-								7254
-							],
-							[
-								8126,
-								8156
-							],
-							[
-								8575,
-								8608
-							],
-							[
-								9438,
-								9466
-							],
-							[
-								10412,
-								10432
-							],
-							[
-								10865,
-								10891
-							],
-							[
-								11644,
-								11670
-							],
-							[
-								12859,
-								12877
-							],
-							[
-								13161,
-								13179
-							],
-							[
-								13818,
-								13842
-							],
-							[
-								14417,
-								14433
-							],
-							[
-								16806,
-								16820
+								5309,
+								5330
 							]
 						],
 						"symlist":
 						[
-							" Ⓣ  AudioContextPtr ; — typedef",
-							" Ⓣ  AudioDestinationNodePtr ; — typedef",
-							" Ⓣ  AudioListenerPtr ; — typedef",
-							" Ⓣ  AudioDevicePtr ; — typedef",
-							"—Ⓕ– js_audiocontext_constructor ( ) { … } — function",
-							"—Ⓕ– js_audiocontext_get ( ) { … } — function",
-							"—Ⓕ– js_audiocontext_set ( ) { … } — function",
-							"—Ⓕ– js_audiocontext_finalizer ( ) { … } — function",
-							"—Ⓕ– js_audiodestinationnode_constructor ( ) { … } — function",
-							"—Ⓕ– js_audiodestinationnode_get ( ) { … } — function",
-							"—Ⓕ– js_audiodestinationnode_method ( ) { … } — function",
-							"—Ⓕ– js_audiodestinationnode_finalizer ( ) { … } — function",
-							"—Ⓕ– js_audiolistener_constructor ( ) { … } — function",
-							"—Ⓕ– js_audiolistener_get ( ) { … } — function",
-							"—Ⓕ– js_audiolistener_finalizer ( ) { … } — function",
-							"—Ⓕ– js_audiodevice_constructor ( ) { … } — function",
-							"—Ⓕ– js_audiodevice_get ( ) { … } — function",
-							"—Ⓕ– js_audiodevice_set ( ) { … } — function",
-							"—Ⓕ– js_audiodevice_finalizer ( ) { … } — function",
-							"—Ⓕ– js_labsound_init ( ) { … } — function",
-							"—Ⓕ– js_init_module ( ) { … } — function"
+							"lab",
+							"lab::pull_graph",
+							"lab",
+							"AudioDestinationNode::desc",
+							"AudioDestinationNode::AudioDestinationNode",
+							"AudioDestinationNode::render",
+							"AudioDestinationNode::offlineRender",
+							"static_cast<uint64_t>"
 						]
 					},
-					"AQAAAAAAAAAAAAAA0gMAAAAAAAAAAAAA",
-					"AgAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAAAAAA"
+					"AQAAAAAAAAAAAAAAvAAAAAAAAAAAAAAA",
+					"AQAAAAAAAAAAAAAA"
 				],
 				[
 					7,
 					1,
 					"outline_refresh",
 					{
-						"path": "/home/roman/Projects/plot-cv/quickjs/qjs-sound/quickjs-stk.cpp",
+						"path": null,
 						"symkeys":
 						[
 						],
@@ -954,153 +3818,305 @@
 						[
 						]
 					},
-					"AgAAAAAAAAAAAAAAAAAAAAAAAACMBAAA4pOJICBBdWRpb0NvbnRleHRQdHIgOyDigJQgdHlwZWRlZgrik4kgIEF1ZGlvRGVzdGluYXRpb25Ob2RlUHRyIDsg4oCUIHR5cGVkZWYK4pOJICBBdWRpb0xpc3RlbmVyUHRyIDsg4oCUIHR5cGVkZWYK4pOJICBBdWRpb0RldmljZVB0ciA7IOKAlCB0eXBlZGVmCuKAlOKSu+KAkyBqc19hdWRpb2NvbnRleHRfY29uc3RydWN0b3IgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uCuKAlOKSu+KAkyBqc19hdWRpb2NvbnRleHRfZ2V0ICggKSB7IOKApiB9IOKAlCBmdW5jdGlvbgrigJTikrvigJMganNfYXVkaW9jb250ZXh0X3NldCAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24K4oCU4pK74oCTIGpzX2F1ZGlvY29udGV4dF9maW5hbGl6ZXIgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uCuKAlOKSu+KAkyBqc19hdWRpb2Rlc3RpbmF0aW9ubm9kZV9jb25zdHJ1Y3RvciAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24K4oCU4pK74oCTIGpzX2F1ZGlvZGVzdGluYXRpb25ub2RlX2dldCAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24K4oCU4pK74oCTIGpzX2F1ZGlvZGVzdGluYXRpb25ub2RlX21ldGhvZCAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24K4oCU4pK74oCTIGpzX2F1ZGlvZGVzdGluYXRpb25ub2RlX2ZpbmFsaXplciAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24K4oCU4pK74oCTIGpzX2F1ZGlvbGlzdGVuZXJfY29uc3RydWN0b3IgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uCuKAlOKSu+KAkyBqc19hdWRpb2xpc3RlbmVyX2dldCAoICkgeyDigKYgfSDigJQgZnVuY3Rpb24K4oCU4pK74oCTIGpzX2F1ZGlvbGlzdGVuZXJfZmluYWxpemVyICggKSB7IOKApiB9IOKAlCBmdW5jdGlvbgrigJTikrvigJMganNfYXVkaW9kZXZpY2VfY29uc3RydWN0b3IgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uCuKAlOKSu+KAkyBqc19hdWRpb2RldmljZV9nZXQgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uCuKAlOKSu+KAkyBqc19hdWRpb2RldmljZV9zZXQgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uCuKAlOKSu+KAkyBqc19hdWRpb2RldmljZV9maW5hbGl6ZXIgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uCuKAlOKSu+KAkyBqc19sYWJzb3VuZF9pbml0ICggKSB7IOKApiB9IOKAlCBmdW5jdGlvbgrigJTikrvigJMganNfaW5pdF9tb2R1bGUgKCApIHsg4oCmIH0g4oCUIGZ1bmN0aW9uAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-					"AgAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAAAAAA"
+					"AgAAAAAAAAAAAAAAAAAAAAAAAAC8AAAAICBsYWIKICBsYWI6OnB1bGxfZ3JhcGgKICBsYWIKQXVkaW9EZXN0aW5hdGlvbk5vZGU6OmRlc2MKQXVkaW9EZXN0aW5hdGlvbk5vZGU6OkF1ZGlvRGVzdGluYXRpb25Ob2RlCkF1ZGlvRGVzdGluYXRpb25Ob2RlOjpyZW5kZXIKQXVkaW9EZXN0aW5hdGlvbk5vZGU6Om9mZmxpbmVSZW5kZXIKICBzdGF0aWNfY2FzdDx1aW50NjRfdD4AAAAAAAAAAAAAAAAAAAAAAAAAAA",
+					"AQAAAAAAAAAAAAAA"
 				],
 				[
 					8,
 					1,
 					"outline_refresh",
 					{
-						"path": "/home/roman/Projects/plot-cv/quickjs/qjs-sound/quickjs-labsound.cpp",
+						"path": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound/include/LabSound/core/AudioDevice.h",
 						"symkeys":
 						[
 							[
-								779,
-								794
+								141,
+								158
 							],
 							[
-								847,
-								870
+								479,
+								482
 							],
 							[
-								916,
-								932
+								491,
+								499
 							],
 							[
-								976,
-								990
+								507,
+								519
 							],
 							[
-								1008,
-								1035
+								527,
+								541
 							],
 							[
-								2259,
-								2278
+								549,
+								567
 							],
 							[
-								3799,
-								3818
+								575,
+								594
 							],
 							[
-								4459,
-								4484
+								603,
+								620
 							],
 							[
-								5535,
-								5570
+								629,
+								644
 							],
 							[
-								7227,
-								7254
+								716,
+								732
 							],
 							[
-								8126,
-								8156
+								803,
+								820
 							],
 							[
-								8575,
-								8608
+								1065,
+								1080
 							],
 							[
-								9438,
-								9466
+								1527,
+								1539
 							],
 							[
-								10412,
-								10432
+								2215,
+								2225
 							],
 							[
-								10865,
-								10891
+								2495,
+								2506
 							],
 							[
-								11644,
-								11670
+								2722,
+								2733
 							],
 							[
-								12859,
-								12877
+								2898,
+								2906
 							],
 							[
-								13161,
-								13179
+								3273,
+								3292
 							],
 							[
-								13818,
-								13842
+								3353,
+								3365
 							],
 							[
-								14417,
-								14433
+								3418,
+								3436
 							],
 							[
-								16806,
-								16820
+								3563,
+								3578
+							],
+							[
+								3648,
+								3662
+							],
+							[
+								3727,
+								3741
+							],
+							[
+								3800,
+								3805
+							],
+							[
+								3830,
+								3834
+							],
+							[
+								3859,
+								3868
+							],
+							[
+								3899,
+								3918
+							],
+							[
+								3936,
+								3952
+							],
+							[
+								4017,
+								4033
+							],
+							[
+								4199,
+								4216
+							],
+							[
+								4247,
+								4252
+							],
+							[
+								4295,
+								4299
+							],
+							[
+								4343,
+								4352
+							],
+							[
+								4401,
+								4420
+							],
+							[
+								4445,
+								4465
+							],
+							[
+								4608,
+								4616
+							],
+							[
+								4688,
+								4699
+							],
+							[
+								4884,
+								4895
+							],
+							[
+								4953,
+								4957
+							],
+							[
+								5034,
+								5038
+							],
+							[
+								5056,
+								5076
+							],
+							[
+								5167,
+								5188
+							],
+							[
+								5249,
+								5255
+							],
+							[
+								5313,
+								5319
+							],
+							[
+								5490,
+								5503
+							],
+							[
+								5568,
+								5583
+							],
+							[
+								5707,
+								5714
+							],
+							[
+								5782,
+								5792
+							],
+							[
+								5822,
+								5834
+							],
+							[
+								5864,
+								5869
 							]
 						],
 						"symlist":
 						[
-							" Ⓣ  AudioContextPtr ; — typedef",
-							" Ⓣ  AudioDestinationNodePtr ; — typedef",
-							" Ⓣ  AudioListenerPtr ; — typedef",
-							" Ⓣ  AudioDevicePtr ; — typedef",
-							"—Ⓕ– js_audiocontext_constructor ( ) { … } — function",
-							"—Ⓕ– js_audiocontext_get ( ) { … } — function",
-							"—Ⓕ– js_audiocontext_set ( ) { … } — function",
-							"—Ⓕ– js_audiocontext_finalizer ( ) { … } — function",
-							"—Ⓕ– js_audiodestinationnode_constructor ( ) { … } — function",
-							"—Ⓕ– js_audiodestinationnode_get ( ) { … } — function",
-							"—Ⓕ– js_audiodestinationnode_method ( ) { … } — function",
-							"—Ⓕ– js_audiodestinationnode_finalizer ( ) { … } — function",
-							"—Ⓕ– js_audiolistener_constructor ( ) { … } — function",
-							"—Ⓕ– js_audiolistener_get ( ) { … } — function",
-							"—Ⓕ– js_audiolistener_finalizer ( ) { … } — function",
-							"—Ⓕ– js_audiodevice_constructor ( ) { … } — function",
-							"—Ⓕ– js_audiodevice_get ( ) { … } — function",
-							"—Ⓕ– js_audiodevice_set ( ) { … } — function",
-							"—Ⓕ– js_audiodevice_finalizer ( ) { … } — function",
-							"—Ⓕ– js_labsound_init ( ) { … } — function",
-							"—Ⓕ– js_init_module ( ) { … } — function"
+							"lab_audiodevice_h",
+							"lab",
+							"AudioBus",
+							"AudioContext",
+							"AudioNodeInput",
+							"AudioHardwareInput",
+							"AudioSourceProvider",
+							"AudioStreamConfig",
+							"AudioDeviceInfo",
+							"AudioDeviceIndex",
+							"AudioStreamConfig",
+							"AudioDeviceInfo",
+							"SamplingInfo",
+							"pull_graph",
+							"AudioDevice",
+							" AudioDevice",
+							" LOG_INFO",
+							" AudioSourceProvider",
+							" ~AudioDevice",
+							" setDestinationNode",
+							" getOutputConfig",
+							" getInputConfig",
+							" sourceProvider",
+							" start",
+							" stop",
+							" isRunning",
+							" backendReinitialize",
+							"AudioDevice_Null",
+							" AudioDevice_Null",
+							" ~AudioDevice_Null",
+							" start",
+							" stop",
+							" isRunning",
+							" backendReinitialize",
+							"AudioDestinationNode",
+							" tailTime",
+							" latencyTime",
+							" static_name",
+							" name",
+							" desc",
+							" AudioDestinationNode",
+							" ~AudioDestinationNode",
+							" device",
+							" render",
+							" offlineRender",
+							" getSamplingInfo",
+							" process",
+							" initialize",
+							" uninitialize",
+							" reset"
 						]
 					},
-					"AQAAAAAAAAAAAAAA0gMAAAAAAAAAAAAA",
-					"AgAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAAAAAA"
+					"AQAAAAAAAAAAAAAA7gIAAAAAAAAAAAAA",
+					"AQAAAAAAAAAAAAAA"
 				]
 			]
 		},
 		{
-			"contents": "\"\n#include <quickjs.h>\n#include <cutils.h>\n#include \"defines.h#include \"LabSound/LabSound.h\"\n#include \"LabSound/backends/AudioDevice_RtAudio.h\"\n\n/*VISIBLE*/ JSClassID js_audiocontext_class_id = 0, js_audiodestinationnode_class_id = 0, js_audiolistener_class_id = 0, js_audiodevice_class_id = 0;\n/*VISIBLE*/ JSValue audiocontext_proto = {{0}, JS_TAG_UNDEFINED}, audiocontext_ctor = {{0}, JS_TAG_UNDEFINED}, audiodestinationnode_proto = {{0}, JS_TAG_UNDEFINED},\n                    audiodestinationnode_ctor = {{0}, JS_TAG_UNDEFINED}, audiolistener_proto = {{0}, JS_TAG_UNDEFINED}, audiolistener_ctor = {{0}, JS_TAG_UNDEFINED},\n                    audiodevice_proto = {{0}, JS_TAG_UNDEFINED}, audiodevice_ctor = {{0}, JS_TAG_UNDEFINED};\n\ntypedef std::shared_ptr<lab::AudioContext> AudioContextPtr;\ntypedef std::shared_ptr<lab::AudioDestinationNode> AudioDestinationNodePtr;\ntypedef std::shared_ptr<lab::AudioListener> AudioListenerPtr;\ntypedef std::shared_ptr<lab::AudioDevice> AudioDevicePtr;\n\nstatic JSValue\njs_audiocontext_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {\n  JSValue proto, obj = JS_UNDEFINED;\n  bool isOffline = false, autoDispatchEvents = true;\n\n  if(argc > 0)\n    isOffline = JS_ToBool(ctx, argv[0]);\n  if(argc > 1)\n    autoDispatchEvents = JS_ToBool(ctx, argv[1]);\n\n  AudioContextPtr* sac = static_cast<AudioContextPtr*>(js_mallocz(ctx, sizeof(AudioContextPtr)));\n\n  new(sac) AudioContextPtr(std::make_shared<lab::AudioContext>(isOffline, autoDispatchEvents));\n\n  /* using new_target to get the prototype is necessary when the class is extended. */\n  proto = JS_GetPropertyStr(ctx, new_target, \"prototype\");\n  if(JS_IsException(proto))\n    goto fail;\n\n  if(!JS_IsObject(proto))\n    proto = audiocontext_proto;\n\n  /* using new_target to get the prototype is necessary when the class is extended. */\n  obj = JS_NewObjectProtoClass(ctx, proto, js_audiocontext_class_id);\n  JS_FreeValue(ctx, proto);\n\n  if(JS_IsException(obj))\n    goto fail;\n\n  JS_SetOpaque(obj, sac);\n  return obj;\n\nfail:\n  JS_FreeValue(ctx, obj);\n  return JS_EXCEPTION;\n}\n\nenum {\n  PROP_SAMPLERATE,\n  PROP_DESTINATION_NODE,\n  PROP_LISTENER,\n  PROP_CURRENTTIME,\n  PROP_CURRENTSAMPLEFRAME,\n  PROP_PREDICTED_CURRENTTIME,\n};\n\nstatic JSValue\njs_audiocontext_get(JSContext* ctx, JSValueConst this_val, int magic) {\n  AudioContextPtr* sac;\n  JSValue ret = JS_UNDEFINED;\n\n  if(!(sac = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id))))\n    return JS_EXCEPTION;\n\n  switch(magic) {\n    case PROP_SAMPLERATE: {\n      ret = JS_NewFloat64(ctx, (*sac)->sampleRate());\n      break;\n    }\n\n    case PROP_DESTINATION_NODE: {\n      AudioDestinationNodePtr sadn = (*sac)->destinationNode();\n\n      ret = JS_NewObjectProtoClass(ctx, audiodestinationnode_proto, js_audiodestinationnode_class_id);\n\n      AudioDestinationNodePtr* ptr = static_cast<AudioDestinationNodePtr*>(js_mallocz(ctx, sizeof(AudioDestinationNodePtr)));\n\n      new(ptr) AudioDestinationNodePtr(sadn);\n\n      JS_SetOpaque(ret, ptr);\n      break;\n    }\n\n    case PROP_LISTENER: {\n      AudioListenerPtr sal = (*sac)->listener();\n\n      ret = JS_NewObjectProtoClass(ctx, audiolistener_proto, js_audiolistener_class_id);\n\n      AudioListenerPtr* ptr = static_cast<AudioListenerPtr*>(js_mallocz(ctx, sizeof(AudioListenerPtr)));\n\n      new(ptr) AudioListenerPtr(sal);\n\n      JS_SetOpaque(ret, ptr);\n      break;\n    }\n\n    case PROP_CURRENTTIME: {\n      ret = JS_NewFloat64(ctx, (*sac)->currentTime());\n      break;\n    }\n    case PROP_CURRENTSAMPLEFRAME: {\n      ret = JS_NewInt64(ctx, (*sac)->currentSampleFrame());\n      break;\n    }\n\n    case PROP_PREDICTED_CURRENTTIME: {\n      ret = JS_NewFloat64(ctx, (*sac)->predictedCurrentTime());\n      break;\n    }\n  }\n\n  return ret;\n}\n\nstatic JSValue\njs_audiocontext_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {\n  AudioContextPtr* sac;\n  JSValue ret = JS_UNDEFINED;\n\n  if(!(sac = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id))))\n    return JS_EXCEPTION;\n\n  switch(magic) {\n    case PROP_DESTINATION_NODE: {\n      AudioDestinationNodePtr* sadn;\n\n      if(!(sadn = static_cast<AudioDestinationNodePtr*>(JS_GetOpaque2(ctx, value, js_audiodestinationnode_class_id))))\n        return JS_ThrowInternalError(ctx, \"value must be AudioDestinationNode\");\n\n      (*sac)->setDestinationNode(*sadn);\n\n      break;\n    }\n  }\n\n  return ret;\n}\n\nstatic void\njs_audiocontext_finalizer(JSRuntime* rt, JSValue val) {\n  AudioContextPtr* sac;\n\n  if((sac = static_cast<AudioContextPtr*>(JS_GetOpaque(val, js_audiocontext_class_id)))) {\n    sac->~AudioContextPtr();\n    js_free_rt(rt, sac);\n  }\n}\n\nstatic JSClassDef js_audiocontext_class = {\n    .class_name = \"AudioContext\",\n    .finalizer = js_audiocontext_finalizer,\n};\n\nstatic const JSCFunctionListEntry js_audiocontext_funcs[] = {\n    JS_CGETSET_MAGIC_DEF(\"sampleRate\", js_audiocontext_get, 0, PROP_SAMPLERATE),\n    JS_CGETSET_MAGIC_DEF(\"destinationNode\", js_audiocontext_get, js_audiocontext_set, PROP_DESTINATION_NODE),\n    JS_CGETSET_MAGIC_DEF(\"listener\", js_audiocontext_get, 0, PROP_LISTENER),\n    JS_CGETSET_MAGIC_DEF(\"currentTime\", js_audiocontext_get, 0, PROP_CURRENTTIME),\n    JS_CGETSET_MAGIC_DEF(\"currentSampleFrame\", js_audiocontext_get, 0, PROP_CURRENTSAMPLEFRAME),\n    JS_CGETSET_MAGIC_DEF(\"predictedCurrentTime\", js_audiocontext_get, 0, PROP_PREDICTED_CURRENTTIME),\n    JS_PROP_STRING_DEF(\"[Symbol.toStringTag]\", \"AudioContext\", JS_PROP_CONFIGURABLE),\n};\n\nstatic JSValue\njs_audiodestinationnode_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {\n  JSValue proto, obj = JS_UNDEFINED;\n  lab::AudioContext* ac = nullptr;\n  std::shared_ptr<lab::AudioDevice> device;\n\n  if(argc > 0) {\n    AudioContextPtr* acptr;\n\n    if(!(acptr = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, argv[0], js_audiocontext_class_id))))\n      return JS_EXCEPTION;\n\n    ac = acptr->get();\n  }\n\n  if(!ac) {\n    return JS_ThrowInternalError(ctx, \"argument 1 must be AudioContext\");\n  }\n\n  if(argc > 1) {\n    AudioDevicePtr* adptr;\n\n    if(!(adptr = static_cast<AudioDevicePtr*>(JS_GetOpaque2(ctx, argv[1], js_audiodevice_class_id))))\n      return JS_EXCEPTION;\n\n    device = *adptr;\n  }\n\n  if(!device.get()) {\n    return JS_ThrowInternalError(ctx, \"argument 2 must be AudioDevice\");\n  }\n\n  AudioDestinationNodePtr* sadn = static_cast<AudioDestinationNodePtr*>(js_mallocz(ctx, sizeof(AudioDestinationNodePtr)));\n\n  new(sadn) AudioDestinationNodePtr(std::make_shared<lab::AudioDestinationNode>(*ac, device));\n\n  /* using new_target to get the prototype is necessary when the class is extended. */\n  proto = JS_GetPropertyStr(ctx, new_target, \"prototype\");\n  if(JS_IsException(proto))\n    goto fail;\n\n  if(!JS_IsObject(proto))\n    proto = audiodestinationnode_proto;\n\n  /* using new_target to get the prototype is necessary when the class is extended. */\n  obj = JS_NewObjectProtoClass(ctx, proto, js_audiodestinationnode_class_id);\n  JS_FreeValue(ctx, proto);\n\n  if(JS_IsException(obj))\n    goto fail;\n\n  JS_SetOpaque(obj, sadn);\n  return obj;\n\nfail:\n  JS_FreeValue(ctx, obj);\n  return JS_EXCEPTION;\n}\n\nenum {\n  PROP_NAME,\n  PROP_DEVICE,\n};\n\nstatic JSValue\njs_audiodestinationnode_get(JSContext* ctx, JSValueConst this_val, int magic) {\n  AudioDestinationNodePtr* sadn;\n  JSValue ret = JS_UNDEFINED;\n\n  if(!(sadn = static_cast<AudioDestinationNodePtr*>(JS_GetOpaque2(ctx, this_val, js_audiodestinationnode_class_id))))\n    return JS_EXCEPTION;\n\n  if(sadn->get() == nullptr)\n    return JS_UNDEFINED;\n\n  switch(magic) {\n    case PROP_NAME: {\n      ret = JS_NewString(ctx, (*sadn)->name());\n      break;\n    }\n\n      /* case PROP_DEVICE: {\n          lab::AudioDevice* ad = (*sadn)->device();\n\n         ret = JS_NewObjectProtoClass(ctx, audiodevice_proto, js_audiodevice_class_id);\n\n         AudioDevicePtr* ptr = static_cast<AudioDevicePtr*>(js_mallocz(ctx, sizeof(AudioDevicePtr)));\n\n         new(ptr) AudioDevicePtr(*ad);\n\n         JS_SetOpaque(ret, ptr);\n         break;\n       }*/\n  }\n\n  return ret;\n}\n\nenum {\n  AUDIODESTINATION_RESET,\n};\n\nstatic JSValue\njs_audiodestinationnode_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {\n  AudioDestinationNodePtr* sadn;\n  JSValue ret = JS_UNDEFINED;\n\n  if(!(sadn = static_cast<AudioDestinationNodePtr*>(JS_GetOpaque2(ctx, this_val, js_audiodestinationnode_class_id))))\n    return JS_EXCEPTION;\n\n  switch(magic) {\n    case AUDIODESTINATION_RESET: {\n      sadn->reset();\n      break;\n    }\n  }\n\n  return ret;\n}\n\nstatic void\njs_audiodestinationnode_finalizer(JSRuntime* rt, JSValue val) {\n  AudioDestinationNodePtr* sadn;\n\n  if((sadn = static_cast<AudioDestinationNodePtr*>(JS_GetOpaque(val, js_audiodestinationnode_class_id)))) {\n    sadn->~AudioDestinationNodePtr();\n    js_free_rt(rt, sadn);\n  }\n}\n\nstatic JSClassDef js_audiodestinationnode_class = {\n    .class_name = \"AudioDestinationNode\",\n    .finalizer = js_audiodestinationnode_finalizer,\n};\n\nstatic const JSCFunctionListEntry js_audiodestinationnode_funcs[] = {\n    JS_CGETSET_MAGIC_DEF(\"name\", js_audiodestinationnode_get, 0, PROP_NAME),\n    JS_CFUNC_MAGIC_DEF(\"reset\", 0, js_audiodestinationnode_method, AUDIODESTINATION_RESET),\n    // JS_CGETSET_MAGIC_DEF(\"device\", js_audiodestinationnode_get, 0, PROP_DEVICE),\n    JS_PROP_STRING_DEF(\"[Symbol.toStringTag]\", \"AudioDestinationNode\", JS_PROP_CONFIGURABLE),\n};\n\nstatic JSValue\njs_audiolistener_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {\n  JSValue proto, obj = JS_UNDEFINED;\n\n  AudioListenerPtr* sal = static_cast<AudioListenerPtr*>(js_mallocz(ctx, sizeof(AudioListenerPtr)));\n\n  new(sal) AudioListenerPtr(std::make_shared<lab::AudioListener>());\n\n  /* using new_target to get the prototype is necessary when the class is extended. */\n  proto = JS_GetPropertyStr(ctx, new_target, \"prototype\");\n  if(JS_IsException(proto))\n    goto fail;\n\n  if(!JS_IsObject(proto))\n    proto = audiolistener_proto;\n\n  /* using new_target to get the prototype is necessary when the class is extended. */\n  obj = JS_NewObjectProtoClass(ctx, proto, js_audiolistener_class_id);\n  JS_FreeValue(ctx, proto);\n\n  if(JS_IsException(obj))\n    goto fail;\n\n  JS_SetOpaque(obj, sal);\n  return obj;\n\nfail:\n  JS_FreeValue(ctx, obj);\n  return JS_EXCEPTION;\n}\n\nenum {\n  PROP_POSITION_X,\n  PROP_POSITION_Y,\n  PROP_POSITION_Z,\n};\n\nstatic JSValue\njs_audiolistener_get(JSContext* ctx, JSValueConst this_val, int magic) {\n  AudioListenerPtr* sal;\n  JSValue ret = JS_UNDEFINED;\n\n  if(!(sal = static_cast<AudioListenerPtr*>(JS_GetOpaque2(ctx, this_val, js_audiolistener_class_id))))\n    return JS_EXCEPTION;\n\n  switch(magic) {\n    case PROP_POSITION_X: {\n      break;\n    }\n\n    case PROP_POSITION_Y: {\n      break;\n    }\n\n    case PROP_POSITION_Z: {\n      break;\n    }\n  }\n\n  return ret;\n}\n\nstatic void\njs_audiolistener_finalizer(JSRuntime* rt, JSValue val) {\n  AudioListenerPtr* sal;\n\n  if((sal = static_cast<AudioListenerPtr*>(JS_GetOpaque(val, js_audiolistener_class_id)))) {\n    sal->~AudioListenerPtr();\n    js_free_rt(rt, sal);\n  }\n}\n\nstatic JSClassDef js_audiolistener_class = {\n    .class_name = \"AudioListener\",\n    .finalizer = js_audiolistener_finalizer,\n};\n\nstatic const JSCFunctionListEntry js_audiolistener_funcs[] = {\n    JS_CGETSET_MAGIC_DEF(\"positionX\", js_audiolistener_get, 0, PROP_POSITION_X),\n    JS_CGETSET_MAGIC_DEF(\"positionY\", js_audiolistener_get, 0, PROP_POSITION_Y),\n    JS_CGETSET_MAGIC_DEF(\"positionZ\", js_audiolistener_get, 0, PROP_POSITION_Z),\n    JS_PROP_STRING_DEF(\"[Symbol.toStringTag]\", \"AudioListener\", JS_PROP_CONFIGURABLE),\n};\n\nstatic JSValue\njs_audiodevice_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {\n  JSValue proto, obj = JS_UNDEFINED;\n\n  lab::AudioStreamConfig in_config, out_config;\n  AudioDevicePtr* sad = static_cast<AudioDevicePtr*>(js_mallocz(ctx, sizeof(AudioDevicePtr)));\n\n  in_config.device_index = 0;\n  in_config.desired_channels = 2;\n  in_config.desired_samplerate = 44100;\n\n  out_config.device_index = 0;\n  out_config.desired_channels = 2;\n  out_config.desired_samplerate = 44100;\n\n  new(sad) AudioDevicePtr(std::make_shared<lab::AudioDevice_RtAudio>(in_config, out_config));\n\n  /* using new_target to get the prototype is necessary when the class is extended. */\n  proto = JS_GetPropertyStr(ctx, new_target, \"prototype\");\n  if(JS_IsException(proto))\n    goto fail;\n\n  if(!JS_IsObject(proto))\n    proto = audiodevice_proto;\n\n  /* using new_target to get the prototype is necessary when the class is extended. */\n  obj = JS_NewObjectProtoClass(ctx, proto, js_audiodevice_class_id);\n  JS_FreeValue(ctx, proto);\n\n  if(JS_IsException(obj))\n    goto fail;\n\n  JS_SetOpaque(obj, sad);\n  return obj;\n\nfail:\n  JS_FreeValue(ctx, obj);\n  return JS_EXCEPTION;\n}\n\nenum { DEVICE_DESTINATION_NODE };\n\nstatic JSValue\njs_audiodevice_get(JSContext* ctx, JSValueConst this_val, int magic) {\n  AudioDevicePtr* sad;\n  JSValue ret = JS_UNDEFINED;\n\n  if(!(sad = static_cast<AudioDevicePtr*>(JS_GetOpaque2(ctx, this_val, js_audiodevice_class_id))))\n    return JS_EXCEPTION;\n\n  switch(magic) {}\n\n  return ret;\n}\n\nstatic JSValue\njs_audiodevice_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {\n  AudioDevicePtr* sad;\n  JSValue ret = JS_UNDEFINED;\n\n  if(!(sad = static_cast<AudioDevicePtr*>(JS_GetOpaque2(ctx, this_val, js_audiodevice_class_id))))\n    return JS_EXCEPTION;\n\n  switch(magic) {\n    case DEVICE_DESTINATION_NODE: {\n      AudioDestinationNodePtr* sadn;\n\n      if(!(sadn = static_cast<AudioDestinationNodePtr*>(JS_GetOpaque2(ctx, value, js_audiodestinationnode_class_id))))\n        return JS_ThrowInternalError(ctx, \"value must be AudioDestinationNode\");\n\n      (*sad)->setDestinationNode(*sadn);\n      break;\n    }\n  }\n\n  return ret;\n}\n\nstatic void\njs_audiodevice_finalizer(JSRuntime* rt, JSValue val) {\n  AudioDevicePtr* sad;\n\n  if((sad = static_cast<AudioDevicePtr*>(JS_GetOpaque(val, js_audiodevice_class_id)))) {\n    sad->~AudioDevicePtr();\n    js_free_rt(rt, sad);\n  }\n}\n\nstatic JSClassDef js_audiodevice_class = {\n    .class_name = \"AudioDevice\",\n    .finalizer = js_audiodevice_finalizer,\n};\n\nstatic const JSCFunctionListEntry js_audiodevice_funcs[] = {\n    JS_CGETSET_MAGIC_DEF(\"destinationNode\", 0, js_audiodevice_set, DEVICE_DESTINATION_NODE),\n\n    JS_PROP_STRING_DEF(\"[Symbol.toStringTag]\", \"AudioDevice\", JS_PROP_CONFIGURABLE),\n};\n\nint\njs_labsound_init(JSContext* ctx, JSModuleDef* m) {\n  JS_NewClassID(&js_audiocontext_class_id);\n  JS_NewClass(JS_GetRuntime(ctx), js_audiocontext_class_id, &js_audiocontext_class);\n\n  audiocontext_ctor = JS_NewCFunction2(ctx, js_audiocontext_constructor, \"AudioContext\", 1, JS_CFUNC_constructor, 0);\n  audiocontext_proto = JS_NewObject(ctx);\n\n  JS_SetPropertyFunctionList(ctx, audiocontext_proto, js_audiocontext_funcs, countof(js_audiocontext_funcs));\n\n  JS_SetClassProto(ctx, js_audiocontext_class_id, audiocontext_proto);\n\n  JS_NewClassID(&js_audiodestinationnode_class_id);\n  JS_NewClass(JS_GetRuntime(ctx), js_audiodestinationnode_class_id, &js_audiodestinationnode_class);\n\n  audiodestinationnode_ctor = JS_NewCFunction2(ctx, js_audiodestinationnode_constructor, \"AudioDestinationNode\", 1, JS_CFUNC_constructor, 0);\n  audiodestinationnode_proto = JS_NewObject(ctx);\n\n  JS_SetPropertyFunctionList(ctx, audiodestinationnode_proto, js_audiodestinationnode_funcs, countof(js_audiodestinationnode_funcs));\n\n  JS_SetClassProto(ctx, js_audiodestinationnode_class_id, audiodestinationnode_proto);\n\n  JS_NewClassID(&js_audiolistener_class_id);\n  JS_NewClass(JS_GetRuntime(ctx), js_audiolistener_class_id, &js_audiolistener_class);\n\n  audiolistener_ctor = JS_NewCFunction2(ctx, js_audiolistener_constructor, \"AudioListener\", 1, JS_CFUNC_constructor, 0);\n  audiolistener_proto = JS_NewObject(ctx);\n\n  JS_SetPropertyFunctionList(ctx, audiolistener_proto, js_audiolistener_funcs, countof(js_audiolistener_funcs));\n\n  JS_SetClassProto(ctx, js_audiolistener_class_id, audiolistener_proto);\n\n  JS_NewClassID(&js_audiodevice_class_id);\n  JS_NewClass(JS_GetRuntime(ctx), js_audiodevice_class_id, &js_audiodevice_class);\n\n  audiodevice_ctor = JS_NewCFunction2(ctx, js_audiodevice_constructor, \"AudioDevice\", 1, JS_CFUNC_constructor, 0);\n  audiodevice_proto = JS_NewObject(ctx);\n\n  JS_SetPropertyFunctionList(ctx, audiodevice_proto, js_audiodevice_funcs, countof(js_audiodevice_funcs));\n\n  JS_SetClassProto(ctx, js_audiodevice_class_id, audiodevice_proto);\n\n  if(m) {\n    JS_SetModuleExport(ctx, m, \"AudioContext\", audiocontext_ctor);\n    JS_SetModuleExport(ctx, m, \"AudioDestinationNode\", audiodestinationnode_ctor);\n    JS_SetModuleExport(ctx, m, \"AudioListener\", audiolistener_ctor);\n    JS_SetModuleExport(ctx, m, \"AudioDevice\", audiodevice_ctor);\n  }\n\n  return 0;\n}\n\nextern \"C\" VISIBLE JSModuleDef*\njs_init_module(JSContext* ctx, const char* module_name) {\n  JSModuleDef* m;\n\n  if((m = JS_NewCModule(ctx, module_name, js_labsound_init))) {\n    JS_AddModuleExport(ctx, m, \"AudioContext\");\n    JS_AddModuleExport(ctx, m, \"AudioDestinationNode\");\n    JS_AddModuleExport(ctx, m, \"AudioListener\");\n    JS_AddModuleExport(ctx, m, \"AudioDevice\");\n  }\n\n  return m;\n}\n",
-			"file": "quickjs-labsound.cpp",
-			"file_size": 17346,
-			"file_write_time": 133889594677496035,
+			"contents": "\n",
 			"settings":
 			{
-				"buffer_size": 17166,
+				"buffer_size": 1,
 				"line_ending": "Unix"
 			},
 			"undo_stack":
 			[
 				[
-					47,
 					1,
-					"",
-					null,
-					"AgAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAPgAAAAAAAAA+AAAAAAAAAAIAAAAiCg",
-					"AgAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAA8AAAAAAAAAD4AAAAAAAAAAAAAAAAA8L8"
+					1,
+					"insert",
+					{
+						"characters": "\n"
+					},
+					"AQAAAAAAAAAAAAAAAQAAAAAAAAAAAAAA",
+					"BQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8AAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADwvwAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8"
 				]
 			]
+		},
+		{
+			"file": "quickjs-labsound.cpp",
+			"settings":
+			{
+				"buffer_size": 17346,
+				"line_ending": "Unix"
+			}
 		},
 		{
 			"file": "quickjs-stk.cpp",
@@ -1108,90 +4124,58 @@
 			{
 				"buffer_size": 44396,
 				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "LabSound/include/LabSound/core/AudioContext.h",
+			"settings":
+			{
+				"buffer_size": 9418,
+				"line_ending": "Unix"
 			},
 			"undo_stack":
 			[
-				[
-					2,
-					1,
-					"revert",
-					null,
-					"AgAAAAAAAAAAAAAAAAAAAAAAAAA+AAAAI2luY2x1ZGUgPHF1aWNranMuaD4KI2luY2x1ZGUgPGN1dGlscy5oPgojaW5jbHVkZSAiZGVmaW5lcy5oIgoAAAAAAAAAAGcAAAAAAAAAAAAAAA",
-					"AgAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8"
-				],
-				[
-					3,
-					1,
-					"revert",
-					null,
-					"AgAAAAAAAAAAAAAAAAAAAAAAAABnAAAAI2luY2x1ZGUgPHF1aWNranMuaD4KI2luY2x1ZGUgPGN1dGlscy5oPgojaW5jbHVkZSAiZGVmaW5lcy5oIgojaW5jbHVkZSAiU3RrLmgiCiNpbmNsdWRlICJHZW5lcmF0b3IuaCIKCgAAAAAAAAAAdAIAAAAAAAAAAAAA",
-					"AgAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8"
-				],
-				[
-					4,
-					1,
-					"revert",
-					null,
-					"AgAAAAAAAAAAAAAAAAAAAAAAAAB0AgAAI2luY2x1ZGUgPHF1aWNranMuaD4KI2luY2x1ZGUgPGN1dGlscy5oPgojaW5jbHVkZSAiZGVmaW5lcy5oIgojaW5jbHVkZSAiU3RrLmgiCiNpbmNsdWRlICJHZW5lcmF0b3IuaCIKCi8qVklTSUJMRSovIEpTQ2xhc3NJRCBqc19zdGtmcmFtZXNfY2xhc3NfaWQgPSAwLCBqc19zdGtfY2xhc3NfaWQgPSAwLCBqc19zdGtmaWx0ZXJfY2xhc3NfaWQgPSAwLCBqc19zdGtnZW5lcmF0b3JfY2xhc3NfaWQgPSAwOwovKlZJU0lCTEUqLyBKU1ZhbHVlIHN0a2ZyYW1lc19wcm90byA9IHt7MH0sIEpTX1RBR19VTkRFRklORUR9LCBzdGtmcmFtZXNfY3RvciA9IHt7MH0sIEpTX1RBR19VTkRFRklORUR9LCBzdGtfcHJvdG8gPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwKICAgICAgICAgICAgICAgICAgICBzdGtfY3RvciA9IHt7MH0sIEpTX1RBR19VTkRFRklORUR9LCBzdGtmaWx0ZXJfcHJvdG8gPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwgc3RrZmlsdGVyX2N0b3IgPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwKICAgICAgICAgICAgICAgICAgICBzdGtnZW5lcmF0b3JfcHJvdG8gPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwgc3RrZ2VuZXJhdG9yX2N0b3IgPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfTsKCnQKCgAAAAAAAAAAcQIAAAAAAAAAAAAA",
-					"AgAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8"
-				],
-				[
-					5,
-					1,
-					"revert",
-					null,
-					"AgAAAAAAAAAAAAAAAAAAAAAAAABxAgAAI2luY2x1ZGUgPHF1aWNranMuaD4KI2luY2x1ZGUgPGN1dGlscy5oPgojaW5jbHVkZSAiZGVmaW5lcy5oIgojaW5jbHVkZSAiU3RrLmgiCiNpbmNsdWRlICJHZW5lcmF0b3IuaCIKCi8qVklTSUJMRSovIEpTQ2xhc3NJRCBqc19zdGtmcmFtZXNfY2xhc3NfaWQgPSAwLCBqc19zdGtfY2xhc3NfaWQgPSAwLCBqc19zdGtmaWx0ZXJfY2xhc3NfaWQgPSAwLCBqc19zdGtnZW5lcmF0b3JfY2xhc3NfaWQgPSAwOwovKlZJU0lCTEUqLyBKU1ZhbHVlIHN0a2ZyYW1lc19wcm90byA9IHt7MH0sIEpTX1RBR19VTkRFRklORUR9LCBzdGtmcmFtZXNfY3RvciA9IHt7MH0sIEpTX1RBR19VTkRFRklORUR9LCBzdGtfcHJvdG8gPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwKICAgICAgICAgICAgICAgICAgICBzdGtfY3RvciA9IHt7MH0sIEpTX1RBR19VTkRFRklORUR9LCBzdGtmaWx0ZXJfcHJvdG8gPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwgc3RrZmlsdGVyX2N0b3IgPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwKICAgICAgICAgICAgICAgICAgICBzdGtnZW5lcmF0b3JfcHJvdG8gPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwgc3RrZ2VuZXJhdG9yX2N0b3IgPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfTsKCgAAAAAAAAAAaAoAAAAAAAAAAAAA",
-					"AgAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8"
-				],
-				[
-					6,
-					1,
-					"revert",
-					null,
-					"AgAAAAAAAAAAAAAAAAAAAAAAAABoCgAAI2luY2x1ZGUgPHF1aWNranMuaD4KI2luY2x1ZGUgPGN1dGlscy5oPgojaW5jbHVkZSAiZGVmaW5lcy5oIgojaW5jbHVkZSAiU3RrLmgiCiNpbmNsdWRlICJHZW5lcmF0b3IuaCIKCi8qVklTSUJMRSovIEpTQ2xhc3NJRCBqc19zdGtmcmFtZXNfY2xhc3NfaWQgPSAwLCBqc19zdGtfY2xhc3NfaWQgPSAwLCBqc19zdGtmaWx0ZXJfY2xhc3NfaWQgPSAwLCBqc19zdGtnZW5lcmF0b3JfY2xhc3NfaWQgPSAwOwovKlZJU0lCTEUqLyBKU1ZhbHVlIHN0a2ZyYW1lc19wcm90byA9IHt7MH0sIEpTX1RBR19VTkRFRklORUR9LCBzdGtmcmFtZXNfY3RvciA9IHt7MH0sIEpTX1RBR19VTkRFRklORUR9LCBzdGtfcHJvdG8gPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwKICAgICAgICAgICAgICAgICAgICBzdGtfY3RvciA9IHt7MH0sIEpTX1RBR19VTkRFRklORUR9LCBzdGtmaWx0ZXJfcHJvdG8gPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwgc3RrZmlsdGVyX2N0b3IgPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwKICAgICAgICAgICAgICAgICAgICBzdGtnZW5lcmF0b3JfcHJvdG8gPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwgc3RrZ2VuZXJhdG9yX2N0b3IgPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfTsKCmludApqc19sYWJzb3VuZF9pbml0KEpTQ29udGV4dCogY3R4LCBKU01vZHVsZURlZiogbSkgewogIEpTX05ld0NsYXNzSUQoJmpzX3N0a2ZyYW1lc19jbGFzc19pZCk7CiAgSlNfTmV3Q2xhc3MoSlNfR2V0UnVudGltZShjdHgpLCBqc19zdGtmcmFtZXNfY2xhc3NfaWQsICZqc19zdGtmcmFtZXNfY2xhc3MpOwoKICBzdGtmcmFtZXNfY3RvciA9IEpTX05ld0NGdW5jdGlvbjIoY3R4LCBqc19zdGtmcmFtZXNfY29uc3RydWN0b3IsICJTdGtGcmFtZXMiLCAxLCBKU19DRlVOQ19jb25zdHJ1Y3RvciwgMCk7CiAgc3RrZnJhbWVzX3Byb3RvID0gSlNfTmV3T2JqZWN0KGN0eCk7CgogIEpTX1NldFByb3BlcnR5RnVuY3Rpb25MaXN0KGN0eCwgc3RrZnJhbWVzX3Byb3RvLCBqc19zdGtmcmFtZXNfZnVuY3MsIGNvdW50b2YoanNfc3RrZnJhbWVzX2Z1bmNzKSk7CgogIEpTX1NldENsYXNzUHJvdG8oY3R4LCBqc19zdGtmcmFtZXNfY2xhc3NfaWQsIHN0a2ZyYW1lc19wcm90byk7CgogIEpTX05ld0NsYXNzSUQoJmpzX3N0a19jbGFzc19pZCk7CiAgSlNfTmV3Q2xhc3MoSlNfR2V0UnVudGltZShjdHgpLCBqc19zdGtfY2xhc3NfaWQsICZqc19zdGtfY2xhc3MpOwoKICBzdGtfY3RvciA9IEpTX05ld0NGdW5jdGlvbjIoY3R4LCBqc19zdGtfY29uc3RydWN0b3IsICJTdGsiLCAxLCBKU19DRlVOQ19jb25zdHJ1Y3RvciwgMCk7CiAgc3RrX3Byb3RvID0gSlNfTmV3T2JqZWN0KGN0eCk7CgogIEpTX1NldFByb3BlcnR5RnVuY3Rpb25MaXN0KGN0eCwgc3RrX3Byb3RvLCBqc19zdGtfZnVuY3MsIGNvdW50b2YoanNfc3RrX2Z1bmNzKSk7CgogIEpTX1NldENsYXNzUHJvdG8oY3R4LCBqc19zdGtfY2xhc3NfaWQsIHN0a19wcm90byk7CgogIEpTX05ld0NsYXNzSUQoJmpzX3N0a2ZpbHRlcl9jbGFzc19pZCk7CiAgSlNfTmV3Q2xhc3MoSlNfR2V0UnVudGltZShjdHgpLCBqc19zdGtmaWx0ZXJfY2xhc3NfaWQsICZqc19zdGtmaWx0ZXJfY2xhc3MpOwoKICBzdGtmaWx0ZXJfY3RvciA9IEpTX05ld0NGdW5jdGlvbjIoY3R4LCBqc19zdGtmaWx0ZXJfY29uc3RydWN0b3IsICJTdGtHZW5lcmF0b3IiLCAxLCBKU19DRlVOQ19jb25zdHJ1Y3RvciwgMCk7CiAgc3RrZmlsdGVyX3Byb3RvID0gSlNfTmV3T2JqZWN0KGN0eCk7CgogIEpTX1NldFByb3BlcnR5RnVuY3Rpb25MaXN0KGN0eCwgc3RrZmlsdGVyX3Byb3RvLCBqc19zdGtmaWx0ZXJfZnVuY3MsIGNvdW50b2YoanNfc3RrZmlsdGVyX2Z1bmNzKSk7CgogIEpTX1NldENsYXNzUHJvdG8oY3R4LCBqc19zdGtmaWx0ZXJfY2xhc3NfaWQsIHN0a2ZpbHRlcl9wcm90byk7CgogIEpTX05ld0NsYXNzSUQoJmpzX3N0a2dlbmVyYXRvcl9jbGFzc19pZCk7CiAgSlNfTmV3Q2xhc3MoSlNfR2V0UnVudGltZShjdHgpLCBqc19zdGtnZW5lcmF0b3JfY2xhc3NfaWQsICZqc19zdGtnZW5lcmF0b3JfY2xhc3MpOwoKICBzdGtnZW5lcmF0b3JfY3RvciA9IEpTX05ld0NGdW5jdGlvbjIoY3R4LCBqc19zdGtnZW5lcmF0b3JfY29uc3RydWN0b3IsICJTdGtGaWx0ZXIiLCAxLCBKU19DRlVOQ19jb25zdHJ1Y3RvciwgMCk7CiAgc3RrZ2VuZXJhdG9yX3Byb3RvID0gSlNfTmV3T2JqZWN0KGN0eCk7CgogIEpTX1NldFByb3BlcnR5RnVuY3Rpb25MaXN0KGN0eCwgc3RrZ2VuZXJhdG9yX3Byb3RvLCBqc19zdGtnZW5lcmF0b3JfZnVuY3MsIGNvdW50b2YoanNfc3RrZ2VuZXJhdG9yX2Z1bmNzKSk7CgogIEpTX1NldENsYXNzUHJvdG8oY3R4LCBqc19zdGtnZW5lcmF0b3JfY2xhc3NfaWQsIHN0a2dlbmVyYXRvcl9wcm90byk7CgogIGlmKG0pIHsKICAgIEpTX1NldE1vZHVsZUV4cG9ydChjdHgsIG0sICJTdGtGcmFtZXMiLCBzdGtmcmFtZXNfY3Rvcik7CiAgICBKU19TZXRNb2R1bGVFeHBvcnQoY3R4LCBtLCAiU3RrIiwgc3RrX2N0b3IpOwogICAgSlNfU2V0TW9kdWxlRXhwb3J0KGN0eCwgbSwgIlN0a0dlbmVyYXRvciIsIHN0a2ZpbHRlcl9jdG9yKTsKICAgIEpTX1NldE1vZHVsZUV4cG9ydChjdHgsIG0sICJTdGtGaWx0ZXIiLCBzdGtnZW5lcmF0b3JfY3Rvcik7CiAgfQoKICByZXR1cm4gMDsKfQoKAAAAAAAAAABjCgAAAAAAAAAAAAA",
-					"AgAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8"
-				],
-				[
-					7,
-					1,
-					"revert",
-					null,
-					"AgAAAAAAAAAAAAAAAAAAAAAAAABjCgAAI2luY2x1ZGUgPHF1aWNranMuaD4KI2luY2x1ZGUgPGN1dGlscy5oPgojaW5jbHVkZSAiZGVmaW5lcy5oIgojaW5jbHVkZSAiU3RrLmgiCiNpbmNsdWRlICJHZW5lcmF0b3IuaCIKCi8qVklTSUJMRSovIEpTQ2xhc3NJRCBqc19zdGtmcmFtZXNfY2xhc3NfaWQgPSAwLCBqc19zdGtfY2xhc3NfaWQgPSAwLCBqc19zdGtmaWx0ZXJfY2xhc3NfaWQgPSAwLCBqc19zdGtnZW5lcmF0b3JfY2xhc3NfaWQgPSAwOwovKlZJU0lCTEUqLyBKU1ZhbHVlIHN0a2ZyYW1lc19wcm90byA9IHt7MH0sIEpTX1RBR19VTkRFRklORUR9LCBzdGtmcmFtZXNfY3RvciA9IHt7MH0sIEpTX1RBR19VTkRFRklORUR9LCBzdGtfcHJvdG8gPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwKICAgICAgICAgICAgICAgICAgICBzdGtfY3RvciA9IHt7MH0sIEpTX1RBR19VTkRFRklORUR9LCBzdGtmaWx0ZXJfcHJvdG8gPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwgc3RrZmlsdGVyX2N0b3IgPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwKICAgICAgICAgICAgICAgICAgICBzdGtnZW5lcmF0b3JfcHJvdG8gPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwgc3RrZ2VuZXJhdG9yX2N0b3IgPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfTsKCmludApqc19zdGtfaW5pdChKU0NvbnRleHQqIGN0eCwgSlNNb2R1bGVEZWYqIG0pIHsKICBKU19OZXdDbGFzc0lEKCZqc19zdGtmcmFtZXNfY2xhc3NfaWQpOwogIEpTX05ld0NsYXNzKEpTX0dldFJ1bnRpbWUoY3R4KSwganNfc3RrZnJhbWVzX2NsYXNzX2lkLCAmanNfc3RrZnJhbWVzX2NsYXNzKTsKCiAgc3RrZnJhbWVzX2N0b3IgPSBKU19OZXdDRnVuY3Rpb24yKGN0eCwganNfc3RrZnJhbWVzX2NvbnN0cnVjdG9yLCAiU3RrRnJhbWVzIiwgMSwgSlNfQ0ZVTkNfY29uc3RydWN0b3IsIDApOwogIHN0a2ZyYW1lc19wcm90byA9IEpTX05ld09iamVjdChjdHgpOwoKICBKU19TZXRQcm9wZXJ0eUZ1bmN0aW9uTGlzdChjdHgsIHN0a2ZyYW1lc19wcm90bywganNfc3RrZnJhbWVzX2Z1bmNzLCBjb3VudG9mKGpzX3N0a2ZyYW1lc19mdW5jcykpOwoKICBKU19TZXRDbGFzc1Byb3RvKGN0eCwganNfc3RrZnJhbWVzX2NsYXNzX2lkLCBzdGtmcmFtZXNfcHJvdG8pOwoKICBKU19OZXdDbGFzc0lEKCZqc19zdGtfY2xhc3NfaWQpOwogIEpTX05ld0NsYXNzKEpTX0dldFJ1bnRpbWUoY3R4KSwganNfc3RrX2NsYXNzX2lkLCAmanNfc3RrX2NsYXNzKTsKCiAgc3RrX2N0b3IgPSBKU19OZXdDRnVuY3Rpb24yKGN0eCwganNfc3RrX2NvbnN0cnVjdG9yLCAiU3RrIiwgMSwgSlNfQ0ZVTkNfY29uc3RydWN0b3IsIDApOwogIHN0a19wcm90byA9IEpTX05ld09iamVjdChjdHgpOwoKICBKU19TZXRQcm9wZXJ0eUZ1bmN0aW9uTGlzdChjdHgsIHN0a19wcm90bywganNfc3RrX2Z1bmNzLCBjb3VudG9mKGpzX3N0a19mdW5jcykpOwoKICBKU19TZXRDbGFzc1Byb3RvKGN0eCwganNfc3RrX2NsYXNzX2lkLCBzdGtfcHJvdG8pOwoKICBKU19OZXdDbGFzc0lEKCZqc19zdGtmaWx0ZXJfY2xhc3NfaWQpOwogIEpTX05ld0NsYXNzKEpTX0dldFJ1bnRpbWUoY3R4KSwganNfc3RrZmlsdGVyX2NsYXNzX2lkLCAmanNfc3RrZmlsdGVyX2NsYXNzKTsKCiAgc3RrZmlsdGVyX2N0b3IgPSBKU19OZXdDRnVuY3Rpb24yKGN0eCwganNfc3RrZmlsdGVyX2NvbnN0cnVjdG9yLCAiU3RrR2VuZXJhdG9yIiwgMSwgSlNfQ0ZVTkNfY29uc3RydWN0b3IsIDApOwogIHN0a2ZpbHRlcl9wcm90byA9IEpTX05ld09iamVjdChjdHgpOwoKICBKU19TZXRQcm9wZXJ0eUZ1bmN0aW9uTGlzdChjdHgsIHN0a2ZpbHRlcl9wcm90bywganNfc3RrZmlsdGVyX2Z1bmNzLCBjb3VudG9mKGpzX3N0a2ZpbHRlcl9mdW5jcykpOwoKICBKU19TZXRDbGFzc1Byb3RvKGN0eCwganNfc3RrZmlsdGVyX2NsYXNzX2lkLCBzdGtmaWx0ZXJfcHJvdG8pOwoKICBKU19OZXdDbGFzc0lEKCZqc19zdGtnZW5lcmF0b3JfY2xhc3NfaWQpOwogIEpTX05ld0NsYXNzKEpTX0dldFJ1bnRpbWUoY3R4KSwganNfc3RrZ2VuZXJhdG9yX2NsYXNzX2lkLCAmanNfc3RrZ2VuZXJhdG9yX2NsYXNzKTsKCiAgc3RrZ2VuZXJhdG9yX2N0b3IgPSBKU19OZXdDRnVuY3Rpb24yKGN0eCwganNfc3RrZ2VuZXJhdG9yX2NvbnN0cnVjdG9yLCAiU3RrRmlsdGVyIiwgMSwgSlNfQ0ZVTkNfY29uc3RydWN0b3IsIDApOwogIHN0a2dlbmVyYXRvcl9wcm90byA9IEpTX05ld09iamVjdChjdHgpOwoKICBKU19TZXRQcm9wZXJ0eUZ1bmN0aW9uTGlzdChjdHgsIHN0a2dlbmVyYXRvcl9wcm90bywganNfc3RrZ2VuZXJhdG9yX2Z1bmNzLCBjb3VudG9mKGpzX3N0a2dlbmVyYXRvcl9mdW5jcykpOwoKICBKU19TZXRDbGFzc1Byb3RvKGN0eCwganNfc3RrZ2VuZXJhdG9yX2NsYXNzX2lkLCBzdGtnZW5lcmF0b3JfcHJvdG8pOwoKICBpZihtKSB7CiAgICBKU19TZXRNb2R1bGVFeHBvcnQoY3R4LCBtLCAiU3RrRnJhbWVzIiwgc3RrZnJhbWVzX2N0b3IpOwogICAgSlNfU2V0TW9kdWxlRXhwb3J0KGN0eCwgbSwgIlN0ayIsIHN0a19jdG9yKTsKICAgIEpTX1NldE1vZHVsZUV4cG9ydChjdHgsIG0sICJTdGtHZW5lcmF0b3IiLCBzdGtmaWx0ZXJfY3Rvcik7CiAgICBKU19TZXRNb2R1bGVFeHBvcnQoY3R4LCBtLCAiU3RrRmlsdGVyIiwgc3RrZ2VuZXJhdG9yX2N0b3IpOwogIH0KCiAgcmV0dXJuIDA7Cn0KCgAAAAAAAAAACgwAAAAAAAAAAAAA",
-					"AgAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8"
-				],
-				[
-					8,
-					1,
-					"revert",
-					null,
-					"AgAAAAAAAAAAAAAAAAAAAAAAAAAKDAAAI2luY2x1ZGUgPHF1aWNranMuaD4KI2luY2x1ZGUgPGN1dGlscy5oPgojaW5jbHVkZSAiZGVmaW5lcy5oIgojaW5jbHVkZSAiU3RrLmgiCiNpbmNsdWRlICJHZW5lcmF0b3IuaCIKCi8qVklTSUJMRSovIEpTQ2xhc3NJRCBqc19zdGtmcmFtZXNfY2xhc3NfaWQgPSAwLCBqc19zdGtfY2xhc3NfaWQgPSAwLCBqc19zdGtmaWx0ZXJfY2xhc3NfaWQgPSAwLCBqc19zdGtnZW5lcmF0b3JfY2xhc3NfaWQgPSAwOwovKlZJU0lCTEUqLyBKU1ZhbHVlIHN0a2ZyYW1lc19wcm90byA9IHt7MH0sIEpTX1RBR19VTkRFRklORUR9LCBzdGtmcmFtZXNfY3RvciA9IHt7MH0sIEpTX1RBR19VTkRFRklORUR9LCBzdGtfcHJvdG8gPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwKICAgICAgICAgICAgICAgICAgICBzdGtfY3RvciA9IHt7MH0sIEpTX1RBR19VTkRFRklORUR9LCBzdGtmaWx0ZXJfcHJvdG8gPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwgc3RrZmlsdGVyX2N0b3IgPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwKICAgICAgICAgICAgICAgICAgICBzdGtnZW5lcmF0b3JfcHJvdG8gPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwgc3RrZ2VuZXJhdG9yX2N0b3IgPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfTsKCnN0YXRpYyBKU1ZhbHVlCmpzX3N0a2ZyYW1lc19jb25zdHJ1Y3RvcihKU0NvbnRleHQqIGN0eCwgSlNWYWx1ZUNvbnN0IG5ld190YXJnZXQsIGludCBhcmdjLCBKU1ZhbHVlQ29uc3QgYXJndltdKSB7CiAgcmV0dXJuIEpTX1VOREVGSU5FRDsKfQoKc3RhdGljIEpTVmFsdWUKanNfc3RrZ2VuZXJhdG9yX2NvbnN0cnVjdG9yKEpTQ29udGV4dCogY3R4LCBKU1ZhbHVlQ29uc3QgbmV3X3RhcmdldCwgaW50IGFyZ2MsIEpTVmFsdWVDb25zdCBhcmd2W10pIHsKICByZXR1cm4gSlNfVU5ERUZJTkVEOwp9CgpzdGF0aWMgSlNWYWx1ZQpqc19zdGtmaWx0ZXJfY29uc3RydWN0b3IoSlNDb250ZXh0KiBjdHgsIEpTVmFsdWVDb25zdCBuZXdfdGFyZ2V0LCBpbnQgYXJnYywgSlNWYWx1ZUNvbnN0IGFyZ3ZbXSkgewogIHJldHVybiBKU19VTkRFRklORUQ7Cn0KCmludApqc19zdGtfaW5pdChKU0NvbnRleHQqIGN0eCwgSlNNb2R1bGVEZWYqIG0pIHsKICBKU19OZXdDbGFzc0lEKCZqc19zdGtmcmFtZXNfY2xhc3NfaWQpOwogIEpTX05ld0NsYXNzKEpTX0dldFJ1bnRpbWUoY3R4KSwganNfc3RrZnJhbWVzX2NsYXNzX2lkLCAmanNfc3RrZnJhbWVzX2NsYXNzKTsKCiAgc3RrZnJhbWVzX2N0b3IgPSBKU19OZXdDRnVuY3Rpb24yKGN0eCwganNfc3RrZnJhbWVzX2NvbnN0cnVjdG9yLCAiU3RrRnJhbWVzIiwgMSwgSlNfQ0ZVTkNfY29uc3RydWN0b3IsIDApOwogIHN0a2ZyYW1lc19wcm90byA9IEpTX05ld09iamVjdChjdHgpOwoKICBKU19TZXRQcm9wZXJ0eUZ1bmN0aW9uTGlzdChjdHgsIHN0a2ZyYW1lc19wcm90bywganNfc3RrZnJhbWVzX2Z1bmNzLCBjb3VudG9mKGpzX3N0a2ZyYW1lc19mdW5jcykpOwoKICBKU19TZXRDbGFzc1Byb3RvKGN0eCwganNfc3RrZnJhbWVzX2NsYXNzX2lkLCBzdGtmcmFtZXNfcHJvdG8pOwoKICBKU19OZXdDbGFzc0lEKCZqc19zdGtfY2xhc3NfaWQpOwogIEpTX05ld0NsYXNzKEpTX0dldFJ1bnRpbWUoY3R4KSwganNfc3RrX2NsYXNzX2lkLCAmanNfc3RrX2NsYXNzKTsKCiAgc3RrX2N0b3IgPSBKU19OZXdDRnVuY3Rpb24yKGN0eCwganNfc3RrX2NvbnN0cnVjdG9yLCAiU3RrIiwgMSwgSlNfQ0ZVTkNfY29uc3RydWN0b3IsIDApOwogIHN0a19wcm90byA9IEpTX05ld09iamVjdChjdHgpOwoKICBKU19TZXRQcm9wZXJ0eUZ1bmN0aW9uTGlzdChjdHgsIHN0a19wcm90bywganNfc3RrX2Z1bmNzLCBjb3VudG9mKGpzX3N0a19mdW5jcykpOwoKICBKU19TZXRDbGFzc1Byb3RvKGN0eCwganNfc3RrX2NsYXNzX2lkLCBzdGtfcHJvdG8pOwoKICBKU19OZXdDbGFzc0lEKCZqc19zdGtmaWx0ZXJfY2xhc3NfaWQpOwogIEpTX05ld0NsYXNzKEpTX0dldFJ1bnRpbWUoY3R4KSwganNfc3RrZmlsdGVyX2NsYXNzX2lkLCAmanNfc3RrZmlsdGVyX2NsYXNzKTsKCiAgc3RrZmlsdGVyX2N0b3IgPSBKU19OZXdDRnVuY3Rpb24yKGN0eCwganNfc3RrZmlsdGVyX2NvbnN0cnVjdG9yLCAiU3RrR2VuZXJhdG9yIiwgMSwgSlNfQ0ZVTkNfY29uc3RydWN0b3IsIDApOwogIHN0a2ZpbHRlcl9wcm90byA9IEpTX05ld09iamVjdChjdHgpOwoKICBKU19TZXRQcm9wZXJ0eUZ1bmN0aW9uTGlzdChjdHgsIHN0a2ZpbHRlcl9wcm90bywganNfc3RrZmlsdGVyX2Z1bmNzLCBjb3VudG9mKGpzX3N0a2ZpbHRlcl9mdW5jcykpOwoKICBKU19TZXRDbGFzc1Byb3RvKGN0eCwganNfc3RrZmlsdGVyX2NsYXNzX2lkLCBzdGtmaWx0ZXJfcHJvdG8pOwoKICBKU19OZXdDbGFzc0lEKCZqc19zdGtnZW5lcmF0b3JfY2xhc3NfaWQpOwogIEpTX05ld0NsYXNzKEpTX0dldFJ1bnRpbWUoY3R4KSwganNfc3RrZ2VuZXJhdG9yX2NsYXNzX2lkLCAmanNfc3RrZ2VuZXJhdG9yX2NsYXNzKTsKCiAgc3RrZ2VuZXJhdG9yX2N0b3IgPSBKU19OZXdDRnVuY3Rpb24yKGN0eCwganNfc3RrZ2VuZXJhdG9yX2NvbnN0cnVjdG9yLCAiU3RrRmlsdGVyIiwgMSwgSlNfQ0ZVTkNfY29uc3RydWN0b3IsIDApOwogIHN0a2dlbmVyYXRvcl9wcm90byA9IEpTX05ld09iamVjdChjdHgpOwoKICBKU19TZXRQcm9wZXJ0eUZ1bmN0aW9uTGlzdChjdHgsIHN0a2dlbmVyYXRvcl9wcm90bywganNfc3RrZ2VuZXJhdG9yX2Z1bmNzLCBjb3VudG9mKGpzX3N0a2dlbmVyYXRvcl9mdW5jcykpOwoKICBKU19TZXRDbGFzc1Byb3RvKGN0eCwganNfc3RrZ2VuZXJhdG9yX2NsYXNzX2lkLCBzdGtnZW5lcmF0b3JfcHJvdG8pOwoKICBpZihtKSB7CiAgICBKU19TZXRNb2R1bGVFeHBvcnQoY3R4LCBtLCAiU3RrRnJhbWVzIiwgc3RrZnJhbWVzX2N0b3IpOwogICAgSlNfU2V0TW9kdWxlRXhwb3J0KGN0eCwgbSwgIlN0ayIsIHN0a19jdG9yKTsKICAgIEpTX1NldE1vZHVsZUV4cG9ydChjdHgsIG0sICJTdGtHZW5lcmF0b3IiLCBzdGtmaWx0ZXJfY3Rvcik7CiAgICBKU19TZXRNb2R1bGVFeHBvcnQoY3R4LCBtLCAiU3RrRmlsdGVyIiwgc3RrZ2VuZXJhdG9yX2N0b3IpOwogIH0KCiAgcmV0dXJuIDA7Cn0KCgAAAAAAAAAAMw8AAAAAAAAAAAAA",
-					"AgAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8"
-				],
-				[
-					9,
-					1,
-					"revert",
-					null,
-					"AgAAAAAAAAAAAAAAAAAAAAAAAAAzDwAAI2luY2x1ZGUgPHF1aWNranMuaD4KI2luY2x1ZGUgPGN1dGlscy5oPgojaW5jbHVkZSAiZGVmaW5lcy5oIgojaW5jbHVkZSAiU3RrLmgiCiNpbmNsdWRlICJHZW5lcmF0b3IuaCIKCi8qVklTSUJMRSovIEpTQ2xhc3NJRCBqc19zdGtmcmFtZXNfY2xhc3NfaWQgPSAwLCBqc19zdGtfY2xhc3NfaWQgPSAwLCBqc19zdGtmaWx0ZXJfY2xhc3NfaWQgPSAwLCBqc19zdGtnZW5lcmF0b3JfY2xhc3NfaWQgPSAwOwovKlZJU0lCTEUqLyBKU1ZhbHVlIHN0a2ZyYW1lc19wcm90byA9IHt7MH0sIEpTX1RBR19VTkRFRklORUR9LCBzdGtmcmFtZXNfY3RvciA9IHt7MH0sIEpTX1RBR19VTkRFRklORUR9LCBzdGtfcHJvdG8gPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwKICAgICAgICAgICAgICAgICAgICBzdGtfY3RvciA9IHt7MH0sIEpTX1RBR19VTkRFRklORUR9LCBzdGtmaWx0ZXJfcHJvdG8gPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwgc3RrZmlsdGVyX2N0b3IgPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwKICAgICAgICAgICAgICAgICAgICBzdGtnZW5lcmF0b3JfcHJvdG8gPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwgc3RrZ2VuZXJhdG9yX2N0b3IgPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfTsKCnN0YXRpYyBKU1ZhbHVlCmpzX3N0a2ZyYW1lc19jb25zdHJ1Y3RvcihKU0NvbnRleHQqIGN0eCwgSlNWYWx1ZUNvbnN0IG5ld190YXJnZXQsIGludCBhcmdjLCBKU1ZhbHVlQ29uc3QgYXJndltdKSB7CiAgcmV0dXJuIEpTX1VOREVGSU5FRDsKfQpzdGF0aWMgSlNDbGFzc0RlZiBqc19zdGtmcmFtZXNfY2xhc3MgPSB7CiAgICAuY2xhc3NfbmFtZSA9ICJTdGtGcmFtZXMiLAogICAgLy8uZmluYWxpemVyID0ganNfc3RrZnJhbWVzX2ZpbmFsaXplciwKfTsKCnN0YXRpYyBjb25zdCBKU0NGdW5jdGlvbkxpc3RFbnRyeSBqc19zdGtmcmFtZXNfZnVuY3NbXSA9IHsKICAgIEpTX1BST1BfU1RSSU5HX0RFRigiW1N5bWJvbC50b1N0cmluZ1RhZ10iLCAiU3RrRnJhbWVzIiwgSlNfUFJPUF9DT05GSUdVUkFCTEUpLAp9OwoKc3RhdGljIEpTVmFsdWUKanNfc3RrZ2VuZXJhdG9yX2NvbnN0cnVjdG9yKEpTQ29udGV4dCogY3R4LCBKU1ZhbHVlQ29uc3QgbmV3X3RhcmdldCwgaW50IGFyZ2MsIEpTVmFsdWVDb25zdCBhcmd2W10pIHsKICByZXR1cm4gSlNfVU5ERUZJTkVEOwp9CgpzdGF0aWMgSlNDbGFzc0RlZiBqc19zdGtnZW5lcmF0b3JfY2xhc3MgPSB7CiAgICAuY2xhc3NfbmFtZSA9ICJTdGtHZW5lcmF0b3IiLAogICAgLy8uZmluYWxpemVyID0ganNfc3RrZ2VuZXJhdG9yX2ZpbmFsaXplciwKfTsKCnN0YXRpYyBjb25zdCBKU0NGdW5jdGlvbkxpc3RFbnRyeSBqc19zdGtnZW5lcmF0b3JfZnVuY3NbXSA9IHsKICAgIEpTX1BST1BfU1RSSU5HX0RFRigiW1N5bWJvbC50b1N0cmluZ1RhZ10iLCAiU3RrR2VuZXJhdG9yIiwgSlNfUFJPUF9DT05GSUdVUkFCTEUpLAp9OwoKc3RhdGljIEpTVmFsdWUKanNfc3RrZmlsdGVyX2NvbnN0cnVjdG9yKEpTQ29udGV4dCogY3R4LCBKU1ZhbHVlQ29uc3QgbmV3X3RhcmdldCwgaW50IGFyZ2MsIEpTVmFsdWVDb25zdCBhcmd2W10pIHsKICByZXR1cm4gSlNfVU5ERUZJTkVEOwp9CgpzdGF0aWMgSlNDbGFzc0RlZiBqc19zdGtmaWx0ZXJfY2xhc3MgPSB7CiAgICAuY2xhc3NfbmFtZSA9ICJTdGtGaWx0ZXIiLAogICAgLy8uZmluYWxpemVyID0ganNfc3RrZmlsdGVyX2ZpbmFsaXplciwKfTsKCnN0YXRpYyBjb25zdCBKU0NGdW5jdGlvbkxpc3RFbnRyeSBqc19zdGtmaWx0ZXJfZnVuY3NbXSA9IHsKICAgIEpTX1BST1BfU1RSSU5HX0RFRigiW1N5bWJvbC50b1N0cmluZ1RhZ10iLCAiU3RrRmlsdGVyIiwgSlNfUFJPUF9DT05GSUdVUkFCTEUpLAp9OwoKaW50CmpzX3N0a19pbml0KEpTQ29udGV4dCogY3R4LCBKU01vZHVsZURlZiogbSkgewogIEpTX05ld0NsYXNzSUQoJmpzX3N0a2ZyYW1lc19jbGFzc19pZCk7CiAgSlNfTmV3Q2xhc3MoSlNfR2V0UnVudGltZShjdHgpLCBqc19zdGtmcmFtZXNfY2xhc3NfaWQsICZqc19zdGtmcmFtZXNfY2xhc3MpOwoKICBzdGtmcmFtZXNfY3RvciA9IEpTX05ld0NGdW5jdGlvbjIoY3R4LCBqc19zdGtmcmFtZXNfY29uc3RydWN0b3IsICJTdGtGcmFtZXMiLCAxLCBKU19DRlVOQ19jb25zdHJ1Y3RvciwgMCk7CiAgc3RrZnJhbWVzX3Byb3RvID0gSlNfTmV3T2JqZWN0KGN0eCk7CgogIEpTX1NldFByb3BlcnR5RnVuY3Rpb25MaXN0KGN0eCwgc3RrZnJhbWVzX3Byb3RvLCBqc19zdGtmcmFtZXNfZnVuY3MsIGNvdW50b2YoanNfc3RrZnJhbWVzX2Z1bmNzKSk7CgogIEpTX1NldENsYXNzUHJvdG8oY3R4LCBqc19zdGtmcmFtZXNfY2xhc3NfaWQsIHN0a2ZyYW1lc19wcm90byk7CgogIEpTX05ld0NsYXNzSUQoJmpzX3N0a19jbGFzc19pZCk7CiAgSlNfTmV3Q2xhc3MoSlNfR2V0UnVudGltZShjdHgpLCBqc19zdGtfY2xhc3NfaWQsICZqc19zdGtfY2xhc3MpOwoKICBzdGtfY3RvciA9IEpTX05ld0NGdW5jdGlvbjIoY3R4LCBqc19zdGtfY29uc3RydWN0b3IsICJTdGsiLCAxLCBKU19DRlVOQ19jb25zdHJ1Y3RvciwgMCk7CiAgc3RrX3Byb3RvID0gSlNfTmV3T2JqZWN0KGN0eCk7CgogIEpTX1NldFByb3BlcnR5RnVuY3Rpb25MaXN0KGN0eCwgc3RrX3Byb3RvLCBqc19zdGtfZnVuY3MsIGNvdW50b2YoanNfc3RrX2Z1bmNzKSk7CgogIEpTX1NldENsYXNzUHJvdG8oY3R4LCBqc19zdGtfY2xhc3NfaWQsIHN0a19wcm90byk7CgogIEpTX05ld0NsYXNzSUQoJmpzX3N0a2ZpbHRlcl9jbGFzc19pZCk7CiAgSlNfTmV3Q2xhc3MoSlNfR2V0UnVudGltZShjdHgpLCBqc19zdGtmaWx0ZXJfY2xhc3NfaWQsICZqc19zdGtmaWx0ZXJfY2xhc3MpOwoKICBzdGtmaWx0ZXJfY3RvciA9IEpTX05ld0NGdW5jdGlvbjIoY3R4LCBqc19zdGtmaWx0ZXJfY29uc3RydWN0b3IsICJTdGtHZW5lcmF0b3IiLCAxLCBKU19DRlVOQ19jb25zdHJ1Y3RvciwgMCk7CiAgc3RrZmlsdGVyX3Byb3RvID0gSlNfTmV3T2JqZWN0KGN0eCk7CgogIEpTX1NldFByb3BlcnR5RnVuY3Rpb25MaXN0KGN0eCwgc3RrZmlsdGVyX3Byb3RvLCBqc19zdGtmaWx0ZXJfZnVuY3MsIGNvdW50b2YoanNfc3RrZmlsdGVyX2Z1bmNzKSk7CgogIEpTX1NldENsYXNzUHJvdG8oY3R4LCBqc19zdGtmaWx0ZXJfY2xhc3NfaWQsIHN0a2ZpbHRlcl9wcm90byk7CgogIEpTX05ld0NsYXNzSUQoJmpzX3N0a2dlbmVyYXRvcl9jbGFzc19pZCk7CiAgSlNfTmV3Q2xhc3MoSlNfR2V0UnVudGltZShjdHgpLCBqc19zdGtnZW5lcmF0b3JfY2xhc3NfaWQsICZqc19zdGtnZW5lcmF0b3JfY2xhc3MpOwoKICBzdGtnZW5lcmF0b3JfY3RvciA9IEpTX05ld0NGdW5jdGlvbjIoY3R4LCBqc19zdGtnZW5lcmF0b3JfY29uc3RydWN0b3IsICJTdGtGaWx0ZXIiLCAxLCBKU19DRlVOQ19jb25zdHJ1Y3RvciwgMCk7CiAgc3RrZ2VuZXJhdG9yX3Byb3RvID0gSlNfTmV3T2JqZWN0KGN0eCk7CgogIEpTX1NldFByb3BlcnR5RnVuY3Rpb25MaXN0KGN0eCwgc3RrZ2VuZXJhdG9yX3Byb3RvLCBqc19zdGtnZW5lcmF0b3JfZnVuY3MsIGNvdW50b2YoanNfc3RrZ2VuZXJhdG9yX2Z1bmNzKSk7CgogIEpTX1NldENsYXNzUHJvdG8oY3R4LCBqc19zdGtnZW5lcmF0b3JfY2xhc3NfaWQsIHN0a2dlbmVyYXRvcl9wcm90byk7CgogIGlmKG0pIHsKICAgIEpTX1NldE1vZHVsZUV4cG9ydChjdHgsIG0sICJTdGtGcmFtZXMiLCBzdGtmcmFtZXNfY3Rvcik7CiAgICBKU19TZXRNb2R1bGVFeHBvcnQoY3R4LCBtLCAiU3RrIiwgc3RrX2N0b3IpOwogICAgSlNfU2V0TW9kdWxlRXhwb3J0KGN0eCwgbSwgIlN0a0dlbmVyYXRvciIsIHN0a2ZpbHRlcl9jdG9yKTsKICAgIEpTX1NldE1vZHVsZUV4cG9ydChjdHgsIG0sICJTdGtGaWx0ZXIiLCBzdGtnZW5lcmF0b3JfY3Rvcik7CiAgfQoKICByZXR1cm4gMDsKfQoKAAAAAAAAAACjEAAAAAAAAAAAAAA",
-					"AgAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8"
-				],
-				[
-					10,
-					1,
-					"revert",
-					null,
-					"AgAAAAAAAAAAAAAAAAAAAAAAAACjEAAAI2luY2x1ZGUgPHF1aWNranMuaD4KI2luY2x1ZGUgPGN1dGlscy5oPgojaW5jbHVkZSAiZGVmaW5lcy5oIgojaW5jbHVkZSAiU3RrLmgiCiNpbmNsdWRlICJHZW5lcmF0b3IuaCIKCi8qVklTSUJMRSovIEpTQ2xhc3NJRCBqc19zdGtmcmFtZXNfY2xhc3NfaWQgPSAwLCBqc19zdGtfY2xhc3NfaWQgPSAwLCBqc19zdGtmaWx0ZXJfY2xhc3NfaWQgPSAwLCBqc19zdGtnZW5lcmF0b3JfY2xhc3NfaWQgPSAwOwovKlZJU0lCTEUqLyBKU1ZhbHVlIHN0a2ZyYW1lc19wcm90byA9IHt7MH0sIEpTX1RBR19VTkRFRklORUR9LCBzdGtmcmFtZXNfY3RvciA9IHt7MH0sIEpTX1RBR19VTkRFRklORUR9LCBzdGtfcHJvdG8gPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwKICAgICAgICAgICAgICAgICAgICBzdGtfY3RvciA9IHt7MH0sIEpTX1RBR19VTkRFRklORUR9LCBzdGtmaWx0ZXJfcHJvdG8gPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwgc3RrZmlsdGVyX2N0b3IgPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwKICAgICAgICAgICAgICAgICAgICBzdGtnZW5lcmF0b3JfcHJvdG8gPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwgc3RrZ2VuZXJhdG9yX2N0b3IgPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfTsKCnN0YXRpYyBKU1ZhbHVlCmpzX3N0a19jb25zdHJ1Y3RvcihKU0NvbnRleHQqIGN0eCwgSlNWYWx1ZUNvbnN0IG5ld190YXJnZXQsIGludCBhcmdjLCBKU1ZhbHVlQ29uc3QgYXJndltdKSB7CiAgcmV0dXJuIEpTX1VOREVGSU5FRDsKfQpzdGF0aWMgSlNDbGFzc0RlZiBqc19zdGtfY2xhc3MgPSB7CiAgICAuY2xhc3NfbmFtZSA9ICJTdGsiLAogICAgLy8uZmluYWxpemVyID0ganNfc3RrX2ZpbmFsaXplciwKfTsKCnN0YXRpYyBjb25zdCBKU0NGdW5jdGlvbkxpc3RFbnRyeSBqc19zdGtfZnVuY3NbXSA9IHsKICAgIEpTX1BST1BfU1RSSU5HX0RFRigiW1N5bWJvbC50b1N0cmluZ1RhZ10iLCAiU3RrIiwgSlNfUFJPUF9DT05GSUdVUkFCTEUpLAp9OwoKc3RhdGljIEpTVmFsdWUKanNfc3RrZnJhbWVzX2NvbnN0cnVjdG9yKEpTQ29udGV4dCogY3R4LCBKU1ZhbHVlQ29uc3QgbmV3X3RhcmdldCwgaW50IGFyZ2MsIEpTVmFsdWVDb25zdCBhcmd2W10pIHsKICByZXR1cm4gSlNfVU5ERUZJTkVEOwp9CnN0YXRpYyBKU0NsYXNzRGVmIGpzX3N0a2ZyYW1lc19jbGFzcyA9IHsKICAgIC5jbGFzc19uYW1lID0gIlN0a0ZyYW1lcyIsCiAgICAvLy5maW5hbGl6ZXIgPSBqc19zdGtmcmFtZXNfZmluYWxpemVyLAp9OwoKc3RhdGljIGNvbnN0IEpTQ0Z1bmN0aW9uTGlzdEVudHJ5IGpzX3N0a2ZyYW1lc19mdW5jc1tdID0gewogICAgSlNfUFJPUF9TVFJJTkdfREVGKCJbU3ltYm9sLnRvU3RyaW5nVGFnXSIsICJTdGtGcmFtZXMiLCBKU19QUk9QX0NPTkZJR1VSQUJMRSksCn07CgpzdGF0aWMgSlNWYWx1ZQpqc19zdGtnZW5lcmF0b3JfY29uc3RydWN0b3IoSlNDb250ZXh0KiBjdHgsIEpTVmFsdWVDb25zdCBuZXdfdGFyZ2V0LCBpbnQgYXJnYywgSlNWYWx1ZUNvbnN0IGFyZ3ZbXSkgewogIHJldHVybiBKU19VTkRFRklORUQ7Cn0KCnN0YXRpYyBKU0NsYXNzRGVmIGpzX3N0a2dlbmVyYXRvcl9jbGFzcyA9IHsKICAgIC5jbGFzc19uYW1lID0gIlN0a0dlbmVyYXRvciIsCiAgICAvLy5maW5hbGl6ZXIgPSBqc19zdGtnZW5lcmF0b3JfZmluYWxpemVyLAp9OwoKc3RhdGljIGNvbnN0IEpTQ0Z1bmN0aW9uTGlzdEVudHJ5IGpzX3N0a2dlbmVyYXRvcl9mdW5jc1tdID0gewogICAgSlNfUFJPUF9TVFJJTkdfREVGKCJbU3ltYm9sLnRvU3RyaW5nVGFnXSIsICJTdGtHZW5lcmF0b3IiLCBKU19QUk9QX0NPTkZJR1VSQUJMRSksCn07CgpzdGF0aWMgSlNWYWx1ZQpqc19zdGtmaWx0ZXJfY29uc3RydWN0b3IoSlNDb250ZXh0KiBjdHgsIEpTVmFsdWVDb25zdCBuZXdfdGFyZ2V0LCBpbnQgYXJnYywgSlNWYWx1ZUNvbnN0IGFyZ3ZbXSkgewogIHJldHVybiBKU19VTkRFRklORUQ7Cn0KCnN0YXRpYyBKU0NsYXNzRGVmIGpzX3N0a2ZpbHRlcl9jbGFzcyA9IHsKICAgIC5jbGFzc19uYW1lID0gIlN0a0ZpbHRlciIsCiAgICAvLy5maW5hbGl6ZXIgPSBqc19zdGtmaWx0ZXJfZmluYWxpemVyLAp9OwoKc3RhdGljIGNvbnN0IEpTQ0Z1bmN0aW9uTGlzdEVudHJ5IGpzX3N0a2ZpbHRlcl9mdW5jc1tdID0gewogICAgSlNfUFJPUF9TVFJJTkdfREVGKCJbU3ltYm9sLnRvU3RyaW5nVGFnXSIsICJTdGtGaWx0ZXIiLCBKU19QUk9QX0NPTkZJR1VSQUJMRSksCn07CgppbnQKanNfc3RrX2luaXQoSlNDb250ZXh0KiBjdHgsIEpTTW9kdWxlRGVmKiBtKSB7CiAgSlNfTmV3Q2xhc3NJRCgmanNfc3RrZnJhbWVzX2NsYXNzX2lkKTsKICBKU19OZXdDbGFzcyhKU19HZXRSdW50aW1lKGN0eCksIGpzX3N0a2ZyYW1lc19jbGFzc19pZCwgJmpzX3N0a2ZyYW1lc19jbGFzcyk7CgogIHN0a2ZyYW1lc19jdG9yID0gSlNfTmV3Q0Z1bmN0aW9uMihjdHgsIGpzX3N0a2ZyYW1lc19jb25zdHJ1Y3RvciwgIlN0a0ZyYW1lcyIsIDEsIEpTX0NGVU5DX2NvbnN0cnVjdG9yLCAwKTsKICBzdGtmcmFtZXNfcHJvdG8gPSBKU19OZXdPYmplY3QoY3R4KTsKCiAgSlNfU2V0UHJvcGVydHlGdW5jdGlvbkxpc3QoY3R4LCBzdGtmcmFtZXNfcHJvdG8sIGpzX3N0a2ZyYW1lc19mdW5jcywgY291bnRvZihqc19zdGtmcmFtZXNfZnVuY3MpKTsKCiAgSlNfU2V0Q2xhc3NQcm90byhjdHgsIGpzX3N0a2ZyYW1lc19jbGFzc19pZCwgc3RrZnJhbWVzX3Byb3RvKTsKCiAgSlNfTmV3Q2xhc3NJRCgmanNfc3RrX2NsYXNzX2lkKTsKICBKU19OZXdDbGFzcyhKU19HZXRSdW50aW1lKGN0eCksIGpzX3N0a19jbGFzc19pZCwgJmpzX3N0a19jbGFzcyk7CgogIHN0a19jdG9yID0gSlNfTmV3Q0Z1bmN0aW9uMihjdHgsIGpzX3N0a19jb25zdHJ1Y3RvciwgIlN0ayIsIDEsIEpTX0NGVU5DX2NvbnN0cnVjdG9yLCAwKTsKICBzdGtfcHJvdG8gPSBKU19OZXdPYmplY3QoY3R4KTsKCiAgSlNfU2V0UHJvcGVydHlGdW5jdGlvbkxpc3QoY3R4LCBzdGtfcHJvdG8sIGpzX3N0a19mdW5jcywgY291bnRvZihqc19zdGtfZnVuY3MpKTsKCiAgSlNfU2V0Q2xhc3NQcm90byhjdHgsIGpzX3N0a19jbGFzc19pZCwgc3RrX3Byb3RvKTsKCiAgSlNfTmV3Q2xhc3NJRCgmanNfc3RrZmlsdGVyX2NsYXNzX2lkKTsKICBKU19OZXdDbGFzcyhKU19HZXRSdW50aW1lKGN0eCksIGpzX3N0a2ZpbHRlcl9jbGFzc19pZCwgJmpzX3N0a2ZpbHRlcl9jbGFzcyk7CgogIHN0a2ZpbHRlcl9jdG9yID0gSlNfTmV3Q0Z1bmN0aW9uMihjdHgsIGpzX3N0a2ZpbHRlcl9jb25zdHJ1Y3RvciwgIlN0a0dlbmVyYXRvciIsIDEsIEpTX0NGVU5DX2NvbnN0cnVjdG9yLCAwKTsKICBzdGtmaWx0ZXJfcHJvdG8gPSBKU19OZXdPYmplY3QoY3R4KTsKCiAgSlNfU2V0UHJvcGVydHlGdW5jdGlvbkxpc3QoY3R4LCBzdGtmaWx0ZXJfcHJvdG8sIGpzX3N0a2ZpbHRlcl9mdW5jcywgY291bnRvZihqc19zdGtmaWx0ZXJfZnVuY3MpKTsKCiAgSlNfU2V0Q2xhc3NQcm90byhjdHgsIGpzX3N0a2ZpbHRlcl9jbGFzc19pZCwgc3RrZmlsdGVyX3Byb3RvKTsKCiAgSlNfTmV3Q2xhc3NJRCgmanNfc3RrZ2VuZXJhdG9yX2NsYXNzX2lkKTsKICBKU19OZXdDbGFzcyhKU19HZXRSdW50aW1lKGN0eCksIGpzX3N0a2dlbmVyYXRvcl9jbGFzc19pZCwgJmpzX3N0a2dlbmVyYXRvcl9jbGFzcyk7CgogIHN0a2dlbmVyYXRvcl9jdG9yID0gSlNfTmV3Q0Z1bmN0aW9uMihjdHgsIGpzX3N0a2dlbmVyYXRvcl9jb25zdHJ1Y3RvciwgIlN0a0ZpbHRlciIsIDEsIEpTX0NGVU5DX2NvbnN0cnVjdG9yLCAwKTsKICBzdGtnZW5lcmF0b3JfcHJvdG8gPSBKU19OZXdPYmplY3QoY3R4KTsKCiAgSlNfU2V0UHJvcGVydHlGdW5jdGlvbkxpc3QoY3R4LCBzdGtnZW5lcmF0b3JfcHJvdG8sIGpzX3N0a2dlbmVyYXRvcl9mdW5jcywgY291bnRvZihqc19zdGtnZW5lcmF0b3JfZnVuY3MpKTsKCiAgSlNfU2V0Q2xhc3NQcm90byhjdHgsIGpzX3N0a2dlbmVyYXRvcl9jbGFzc19pZCwgc3RrZ2VuZXJhdG9yX3Byb3RvKTsKCiAgaWYobSkgewogICAgSlNfU2V0TW9kdWxlRXhwb3J0KGN0eCwgbSwgIlN0a0ZyYW1lcyIsIHN0a2ZyYW1lc19jdG9yKTsKICAgIEpTX1NldE1vZHVsZUV4cG9ydChjdHgsIG0sICJTdGsiLCBzdGtfY3Rvcik7CiAgICBKU19TZXRNb2R1bGVFeHBvcnQoY3R4LCBtLCAiU3RrR2VuZXJhdG9yIiwgc3RrZmlsdGVyX2N0b3IpOwogICAgSlNfU2V0TW9kdWxlRXhwb3J0KGN0eCwgbSwgIlN0a0ZpbHRlciIsIHN0a2dlbmVyYXRvcl9jdG9yKTsKICB9CgogIHJldHVybiAwOwp9CgoAAAAAAAAAAKMQAAAAAAAAAAAAAA",
-					"AgAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8"
-				],
-				[
-					11,
-					1,
-					"revert",
-					null,
-					"AwAAAAAAAAAAAAAAAAAAAAAAAACjEAAAI2luY2x1ZGUgPHF1aWNranMuaD4KI2luY2x1ZGUgPGN1dGlscy5oPgojaW5jbHVkZSAiZGVmaW5lcy5oIgojaW5jbHVkZSAiU3RrLmgiCiNpbmNsdWRlICJHZW5lcmF0b3IuaCIKCi8qVklTSUJMRSovIEpTQ2xhc3NJRCBqc19zdGtmcmFtZXNfY2xhc3NfaWQgPSAwLCBqc19zdGtfY2xhc3NfaWQgPSAwLCBqc19zdGtmaWx0ZXJfY2xhc3NfaWQgPSAwLCBqc19zdGtnZW5lcmF0b3JfY2xhc3NfaWQgPSAwOwovKlZJU0lCTEUqLyBKU1ZhbHVlIHN0a2ZyYW1lc19wcm90byA9IHt7MH0sIEpTX1RBR19VTkRFRklORUR9LCBzdGtmcmFtZXNfY3RvciA9IHt7MH0sIEpTX1RBR19VTkRFRklORUR9LCBzdGtfcHJvdG8gPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwKICAgICAgICAgICAgICAgICAgICBzdGtfY3RvciA9IHt7MH0sIEpTX1RBR19VTkRFRklORUR9LCBzdGtmaWx0ZXJfcHJvdG8gPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwgc3RrZmlsdGVyX2N0b3IgPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwKICAgICAgICAgICAgICAgICAgICBzdGtnZW5lcmF0b3JfcHJvdG8gPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfSwgc3RrZ2VuZXJhdG9yX2N0b3IgPSB7ezB9LCBKU19UQUdfVU5ERUZJTkVEfTsKCnN0YXRpYyBKU1ZhbHVlCmpzX3N0a19jb25zdHJ1Y3RvcihKU0NvbnRleHQqIGN0eCwgSlNWYWx1ZUNvbnN0IG5ld190YXJnZXQsIGludCBhcmdjLCBKU1ZhbHVlQ29uc3QgYXJndltdKSB7CiAgcmV0dXJuIEpTX1VOREVGSU5FRDsKfQpzdGF0aWMgSlNDbGFzc0RlZiBqc19zdGtfY2xhc3MgPSB7CiAgICAuY2xhc3NfbmFtZSA9ICJTdGsiLAogICAgLy8uZmluYWxpemVyID0ganNfc3RrX2ZpbmFsaXplciwKfTsKCnN0YXRpYyBjb25zdCBKU0NGdW5jdGlvbkxpc3RFbnRyeSBqc19zdGtfZnVuY3NbXSA9IHsKICAgIEpTX1BST1BfU1RSSU5HX0RFRigiW1N5bWJvbC50b1N0cmluZ1RhZ10iLCAiU3RrIiwgSlNfUFJPUF9DT05GSUdVUkFCTEUpLAp9OwoKc3RhdGljIEpTVmFsdWUKanNfc3RrZnJhbWVzX2NvbnN0cnVjdG9yKEpTQ29udGV4dCogY3R4LCBKU1ZhbHVlQ29uc3QgbmV3X3RhcmdldCwgaW50IGFyZ2MsIEpTVmFsdWVDb25zdCBhcmd2W10pIHsKICByZXR1cm4gSlNfVU5ERUZJTkVEOwp9CnN0YXRpYyBKU0NsYXNzRGVmIGpzX3N0a2ZyYW1lc19jbGFzcyA9IHsKICAgIC5jbGFzc19uYW1lID0gIlN0a0ZyYW1lcyIsCiAgICAvLy5maW5hbGl6ZXIgPSBqc19zdGtmcmFtZXNfZmluYWxpemVyLAp9OwoKc3RhdGljIGNvbnN0IEpTQ0Z1bmN0aW9uTGlzdEVudHJ5IGpzX3N0a2ZyYW1lc19mdW5jc1tdID0gewogICAgSlNfUFJPUF9TVFJJTkdfREVGKCJbU3ltYm9sLnRvU3RyaW5nVGFnXSIsICJTdGtGcmFtZXMiLCBKU19QUk9QX0NPTkZJR1VSQUJMRSksCn07CgpzdGF0aWMgSlNWYWx1ZQpqc19zdGtnZW5lcmF0b3JfY29uc3RydWN0b3IoSlNDb250ZXh0KiBjdHgsIEpTVmFsdWVDb25zdCBuZXdfdGFyZ2V0LCBpbnQgYXJnYywgSlNWYWx1ZUNvbnN0IGFyZ3ZbXSkgewogIHJldHVybiBKU19VTkRFRklORUQ7Cn0KCnN0YXRpYyBKU0NsYXNzRGVmIGpzX3N0a2dlbmVyYXRvcl9jbGFzcyA9IHsKICAgIC5jbGFzc19uYW1lID0gIlN0a0dlbmVyYXRvciIsCiAgICAvLy5maW5hbGl6ZXIgPSBqc19zdGtnZW5lcmF0b3JfZmluYWxpemVyLAp9OwoKc3RhdGljIGNvbnN0IEpTQ0Z1bmN0aW9uTGlzdEVudHJ5IGpzX3N0a2dlbmVyYXRvcl9mdW5jc1tdID0gewogICAgSlNfUFJPUF9TVFJJTkdfREVGKCJbU3ltYm9sLnRvU3RyaW5nVGFnXSIsICJTdGtHZW5lcmF0b3IiLCBKU19QUk9QX0NPTkZJR1VSQUJMRSksCn07CgpzdGF0aWMgSlNWYWx1ZQpqc19zdGtmaWx0ZXJfY29uc3RydWN0b3IoSlNDb250ZXh0KiBjdHgsIEpTVmFsdWVDb25zdCBuZXdfdGFyZ2V0LCBpbnQgYXJnYywgSlNWYWx1ZUNvbnN0IGFyZ3ZbXSkgewogIHJldHVybiBKU19VTkRFRklORUQ7Cn0KCnN0YXRpYyBKU0NsYXNzRGVmIGpzX3N0a2ZpbHRlcl9jbGFzcyA9IHsKICAgIC5jbGFzc19uYW1lID0gIlN0a0ZpbHRlciIsCiAgICAvLy5maW5hbGl6ZXIgPSBqc19zdGtmaWx0ZXJfZmluYWxpemVyLAp9OwoKc3RhdGljIGNvbnN0IEpTQ0Z1bmN0aW9uTGlzdEVudHJ5IGpzX3N0a2ZpbHRlcl9mdW5jc1tdID0gewogICAgSlNfUFJPUF9TVFJJTkdfREVGKCJbU3ltYm9sLnRvU3RyaW5nVGFnXSIsICJTdGtGaWx0ZXIiLCBKU19QUk9QX0NPTkZJR1VSQUJMRSksCn07CgppbnQKanNfc3RrX2luaXQoSlNDb250ZXh0KiBjdHgsIEpTTW9kdWxlRGVmKiBtKSB7CiAgSlNfTmV3Q2xhc3NJRCgmanNfc3RrX2NsYXNzX2lkKTsKICBKU19OZXdDbGFzcyhKU19HZXRSdW50aW1lKGN0eCksIGpzX3N0a19jbGFzc19pZCwgJmpzX3N0a19jbGFzcyk7CgogIHN0a19jdG9yID0gSlNfTmV3Q0Z1bmN0aW9uMihjdHgsIGpzX3N0a19jb25zdHJ1Y3RvciwgIlN0ayIsIDEsIEpTX0NGVU5DX2NvbnN0cnVjdG9yLCAwKTsKICBzdGtfcHJvdG8gPSBKU19OZXdPYmplY3QoY3R4KTsKCiAgSlNfU2V0UHJvcGVydHlGdW5jdGlvbkxpc3QoY3R4LCBzdGtfcHJvdG8sIGpzX3N0a19mdW5jcywgY291bnRvZihqc19zdGtfZnVuY3MpKTsKCiAgSlNfU2V0Q2xhc3NQcm90byhjdHgsIGpzX3N0a19jbGFzc19pZCwgc3RrX3Byb3RvKTsKCiAgSlNfTmV3Q2xhc3NJRCgmanNfc3RrZnJhbWVzX2NsYXNzX2lkKTsKICBKU19OZXdDbGFzcyhKU19HZXRSdW50aW1lKGN0eCksIGpzX3N0a2ZyYW1lc19jbGFzc19pZCwgJmpzX3N0a2ZyYW1lc19jbGFzcyk7CgogIHN0a2ZyYW1lc19jdG9yID0gSlNfTmV3Q0Z1bmN0aW9uMihjdHgsIGpzX3N0a2ZyYW1lc19jb25zdHJ1Y3RvciwgIlN0a0ZyYW1lcyIsIDEsIEpTX0NGVU5DX2NvbnN0cnVjdG9yLCAwKTsKICBzdGtmcmFtZXNfcHJvdG8gPSBKU19OZXdPYmplY3QoY3R4KTsKCiAgSlNfU2V0UHJvcGVydHlGdW5jdGlvbkxpc3QoY3R4LCBzdGtmcmFtZXNfcHJvdG8sIGpzX3N0a2ZyYW1lc19mdW5jcywgY291bnRvZihqc19zdGtmcmFtZXNfZnVuY3MpKTsKCiAgSlNfU2V0Q2xhc3NQcm90byhjdHgsIGpzX3N0a2ZyYW1lc19jbGFzc19pZCwgc3RrZnJhbWVzX3Byb3RvKTsKCiAgSlNfTmV3Q2xhc3NJRCgmanNfc3RrZmlsdGVyX2NsYXNzX2lkKTsKICBKU19OZXdDbGFzcyhKU19HZXRSdW50aW1lKGN0eCksIGpzX3N0a2ZpbHRlcl9jbGFzc19pZCwgJmpzX3N0a2ZpbHRlcl9jbGFzcyk7CgogIHN0a2ZpbHRlcl9jdG9yID0gSlNfTmV3Q0Z1bmN0aW9uMihjdHgsIGpzX3N0a2ZpbHRlcl9jb25zdHJ1Y3RvciwgIlN0a0dlbmVyYXRvciIsIDEsIEpTX0NGVU5DX2NvbnN0cnVjdG9yLCAwKTsKICBzdGtmaWx0ZXJfcHJvdG8gPSBKU19OZXdPYmplY3QoY3R4KTsKCiAgSlNfU2V0UHJvcGVydHlGdW5jdGlvbkxpc3QoY3R4LCBzdGtmaWx0ZXJfcHJvdG8sIGpzX3N0a2ZpbHRlcl9mdW5jcywgY291bnRvZihqc19zdGtmaWx0ZXJfZnVuY3MpKTsKCiAgSlNfU2V0Q2xhc3NQcm90byhjdHgsIGpzX3N0a2ZpbHRlcl9jbGFzc19pZCwgc3RrZmlsdGVyX3Byb3RvKTsKCiAgSlNfTmV3Q2xhc3NJRCgmanNfc3RrZ2VuZXJhdG9yX2NsYXNzX2lkKTsKICBKU19OZXdDbGFzcyhKU19HZXRSdW50aW1lKGN0eCksIGpzX3N0a2dlbmVyYXRvcl9jbGFzc19pZCwgJmpzX3N0a2dlbmVyYXRvcl9jbGFzcyk7CgogIHN0a2dlbmVyYXRvcl9jdG9yID0gSlNfTmV3Q0Z1bmN0aW9uMihjdHgsIGpzX3N0a2dlbmVyYXRvcl9jb25zdHJ1Y3RvciwgIlN0a0ZpbHRlciIsIDEsIEpTX0NGVU5DX2NvbnN0cnVjdG9yLCAwKTsKICBzdGtnZW5lcmF0b3JfcHJvdG8gPSBKU19OZXdPYmplY3QoY3R4KTsKCiAgSlNfU2V0UHJvcGVydHlGdW5jdGlvbkxpc3QoY3R4LCBzdGtnZW5lcmF0b3JfcHJvdG8sIGpzX3N0a2dlbmVyYXRvcl9mdW5jcywgY291bnRvZihqc19zdGtnZW5lcmF0b3JfZnVuY3MpKTsKCiAgSlNfU2V0Q2xhc3NQcm90byhjdHgsIGpzX3N0a2dlbmVyYXRvcl9jbGFzc19pZCwgc3RrZ2VuZXJhdG9yX3Byb3RvKTsKCiAgaWYobSkgewogICAgSlNfU2V0TW9kdWxlRXhwb3J0KGN0eCwgbSwgIlN0ayIsIHN0a19jdG9yKTsKICAgIEpTX1NldE1vZHVsZUV4cG9ydChjdHgsIG0sICJTdGtGcmFtZXMiLCBzdGtmcmFtZXNfY3Rvcik7CiAgICBKU19TZXRNb2R1bGVFeHBvcnQoY3R4LCBtLCAiU3RrR2VuZXJhdG9yIiwgc3RrZmlsdGVyX2N0b3IpOwogICAgSlNfU2V0TW9kdWxlRXhwb3J0KGN0eCwgbSwgIlN0a0ZpbHRlciIsIHN0a2dlbmVyYXRvcl9jdG9yKTsKICB9CgogIHJldHVybiAwOwp9CgoAAAAAAAAAADWpAAAAAAAAAAAAAAAAAAAAAAAAbK0AAAAAAAAAAAAA",
-					"AgAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPC/AAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8L8"
-				]
 			]
+		},
+		{
+			"file": "LabSound/src/core/AudioDevice.cpp",
+			"settings":
+			{
+				"buffer_size": 5892,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "LabSound/include/LabSound/core/AudioDevice.h",
+			"settings":
+			{
+				"buffer_size": 5946,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "LabSound/include/LabSound/core/AudioProcessor.h",
+			"settings":
+			{
+				"buffer_size": 1427,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "LabSound/include/LabSound/core/AudioListener.h",
+			"settings":
+			{
+				"buffer_size": 3225,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "LabSound/include/LabSound/core/AudioNode.h",
+			"settings":
+			{
+				"buffer_size": 9875,
+				"line_ending": "Unix"
+			}
 		}
 	],
 	"build_system": "",
@@ -1370,10 +4354,17 @@
 	},
 	"expanded_folders":
 	[
-		"/home/roman/Projects/plot-cv/quickjs/qjs-sound"
+		"/home/janos/Projects/plot-cv/quickjs/qjs-sound",
+		"/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound",
+		"/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound/include",
+		"/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound/include/LabSound",
+		"/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound/include/LabSound/core",
+		"/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound/include/LabSound/extended",
+		"/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound/qmake"
 	],
 	"file_history":
 	[
+		"/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound/include/LabSound/core/AudioDevice.h",
 		"/home/roman/Projects/plot-cv/quickjs/qjs-lws/libwebsockets/include/libwebsockets/lws-context-vhost.h",
 		"/home/roman/Projects/plot-cv/quickjs/qjs-lws/test.js",
 		"/home/roman/Projects/plot-cv/quickjs/qjs-lws/lws-context.c",
@@ -1500,12 +4491,11 @@
 		"/home/roman/Projects/plot-cv/quickjs/qjs-modules/inst/x86_64-linux-release/usr/local/bin/resolve-imports.js",
 		"/home/roman/Projects/plot-cv/quickjs/qjs-modules/inst/x86_64-linux-release/usr/local/bin/list-exports.js",
 		"/home/roman/Projects/plot-cv/quickjs/qjs-modules/inst/x86_64-linux-llvm/usr/local/bin/resolve-imports.js",
-		"/home/roman/Projects/plot-cv/quickjs/qjs-modules/inst/x86_64-linux-llvm/usr/local/bin/list-exports.js",
-		"/home/roman/Projects/plot-cv/quickjs/qjs-modules/inst/x86_64-linux-gnu/usr/local/bin/resolve-imports.js"
+		"/home/roman/Projects/plot-cv/quickjs/qjs-modules/inst/x86_64-linux-llvm/usr/local/bin/list-exports.js"
 	],
 	"find":
 	{
-		"height": 26.0
+		"height": 29.0
 	},
 	"find_in_files":
 	{
@@ -1546,7 +4536,361 @@
 					"semi_transient": false,
 					"settings":
 					{
-						"buffer_size": 978,
+						"buffer_size": 750,
+						"regions":
+						{
+						},
+						"selection":
+						[
+						],
+						"settings":
+						{
+							"auto_complete_triggers":
+							[
+								{
+									"characters": "./",
+									"selector": "text.html, text.xml"
+								},
+								{
+									"rhs_empty": true,
+									"selector": "punctuation.accessor"
+								}
+							],
+							"current_file": "/home/janos/Projects/plot-cv/quickjs/qjs-sound/LabSound/include/LabSound/core/AudioDevice.h",
+							"function_name_status_row": -1,
+							"outline_rename_mode": false,
+							"symkeys":
+							[
+								[
+									141,
+									158
+								],
+								[
+									479,
+									482
+								],
+								[
+									491,
+									499
+								],
+								[
+									507,
+									519
+								],
+								[
+									527,
+									541
+								],
+								[
+									549,
+									567
+								],
+								[
+									575,
+									594
+								],
+								[
+									603,
+									620
+								],
+								[
+									629,
+									644
+								],
+								[
+									716,
+									732
+								],
+								[
+									803,
+									820
+								],
+								[
+									1065,
+									1080
+								],
+								[
+									1527,
+									1539
+								],
+								[
+									2215,
+									2225
+								],
+								[
+									2495,
+									2506
+								],
+								[
+									2722,
+									2733
+								],
+								[
+									2898,
+									2906
+								],
+								[
+									3273,
+									3292
+								],
+								[
+									3353,
+									3365
+								],
+								[
+									3418,
+									3436
+								],
+								[
+									3563,
+									3578
+								],
+								[
+									3648,
+									3662
+								],
+								[
+									3727,
+									3741
+								],
+								[
+									3800,
+									3805
+								],
+								[
+									3830,
+									3834
+								],
+								[
+									3859,
+									3868
+								],
+								[
+									3899,
+									3918
+								],
+								[
+									3936,
+									3952
+								],
+								[
+									4017,
+									4033
+								],
+								[
+									4199,
+									4216
+								],
+								[
+									4247,
+									4252
+								],
+								[
+									4295,
+									4299
+								],
+								[
+									4343,
+									4352
+								],
+								[
+									4401,
+									4420
+								],
+								[
+									4445,
+									4465
+								],
+								[
+									4608,
+									4616
+								],
+								[
+									4688,
+									4699
+								],
+								[
+									4884,
+									4895
+								],
+								[
+									4953,
+									4957
+								],
+								[
+									5034,
+									5038
+								],
+								[
+									5056,
+									5076
+								],
+								[
+									5167,
+									5188
+								],
+								[
+									5249,
+									5255
+								],
+								[
+									5313,
+									5319
+								],
+								[
+									5490,
+									5503
+								],
+								[
+									5568,
+									5583
+								],
+								[
+									5707,
+									5714
+								],
+								[
+									5782,
+									5792
+								],
+								[
+									5822,
+									5834
+								],
+								[
+									5864,
+									5869
+								]
+							],
+							"symlist":
+							[
+								"  lab_audiodevice_h",
+								"  lab",
+								"AudioBus",
+								"AudioContext",
+								"AudioNodeInput",
+								"AudioHardwareInput",
+								"AudioSourceProvider",
+								"AudioStreamConfig",
+								"AudioDeviceInfo",
+								"AudioDeviceIndex",
+								"AudioStreamConfig",
+								"AudioDeviceInfo",
+								"SamplingInfo",
+								"  pull_graph",
+								"AudioDevice",
+								"AudioDevice",
+								"LOG_INFO",
+								"AudioSourceProvider",
+								"\t~AudioDevice",
+								"\tsetDestinationNode",
+								"\tgetOutputConfig",
+								"\tgetInputConfig",
+								"\tsourceProvider",
+								"\tstart",
+								"\tstop",
+								"\tisRunning",
+								"\tbackendReinitialize",
+								"AudioDevice_Null",
+								"AudioDevice_Null",
+								"\t~AudioDevice_Null",
+								"\tstart",
+								"\tstop",
+								"\tisRunning",
+								"\tbackendReinitialize",
+								"AudioDestinationNode",
+								"\ttailTime",
+								"\tlatencyTime",
+								"\tstatic_name",
+								"\tname",
+								"\tdesc",
+								"AudioDestinationNode",
+								"\t~AudioDestinationNode",
+								"\tdevice",
+								"\trender",
+								"\tofflineRender",
+								"\tgetSamplingInfo",
+								"\tprocess",
+								"\tinitialize",
+								"\tuninitialize",
+								"\treset"
+							],
+							"syntax": "Packages/Outline/outline.hidden-tmLanguage",
+							"tab_size": 3,
+							"tabs_extra_last_activated": 1744488158.23,
+							"tabs_extra_last_activated_sheet_index": 0,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 0,
+					"stack_multiselect": false,
+					"type": "text"
+				}
+			]
+		},
+		{
+			"sheets":
+			[
+				{
+					"buffer": 1,
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 1,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								1,
+								1
+							]
+						],
+						"settings":
+						{
+							"auto_complete_triggers":
+							[
+								{
+									"characters": "./",
+									"selector": "text.html, text.xml"
+								},
+								{
+									"rhs_empty": true,
+									"selector": "punctuation.accessor"
+								}
+							],
+							"auto_name": "",
+							"function_name_status_row": 1,
+							"rulers":
+							[
+							],
+							"syntax": "Packages/Text/Plain text.tmLanguage",
+							"tab_size": 2,
+							"tabs_extra_last_activated": 1744488158.38,
+							"tabs_extra_last_activated_sheet_index": 0,
+							"translate_tabs_to_spaces": false,
+							"word_wrap": false,
+							"wrap_width": 0
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 3,
+					"stack_multiselect": false,
+					"type": "text"
+				},
+				{
+					"buffer": 2,
+					"file": "quickjs-labsound.cpp",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 17346,
 						"regions":
 						{
 						},
@@ -1570,186 +4914,23 @@
 									"selector": "punctuation.accessor"
 								}
 							],
-							"current_file": "/home/roman/Projects/plot-cv/quickjs/qjs-sound/quickjs-labsound.cpp",
-							"function_name_status_row": -1,
-							"outline_rename_mode": false,
-							"symkeys":
-							[
-								[
-									779,
-									794
-								],
-								[
-									847,
-									870
-								],
-								[
-									916,
-									932
-								],
-								[
-									976,
-									990
-								],
-								[
-									1008,
-									1035
-								],
-								[
-									2259,
-									2278
-								],
-								[
-									3799,
-									3818
-								],
-								[
-									4459,
-									4484
-								],
-								[
-									5535,
-									5570
-								],
-								[
-									7227,
-									7254
-								],
-								[
-									8126,
-									8156
-								],
-								[
-									8575,
-									8608
-								],
-								[
-									9438,
-									9466
-								],
-								[
-									10412,
-									10432
-								],
-								[
-									10865,
-									10891
-								],
-								[
-									11644,
-									11670
-								],
-								[
-									12859,
-									12877
-								],
-								[
-									13161,
-									13179
-								],
-								[
-									13818,
-									13842
-								],
-								[
-									14417,
-									14433
-								],
-								[
-									16806,
-									16820
-								]
-							],
-							"symlist":
-							[
-								"Ⓣ  AudioContextPtr ; — typedef",
-								"Ⓣ  AudioDestinationNodePtr ; — typedef",
-								"Ⓣ  AudioListenerPtr ; — typedef",
-								"Ⓣ  AudioDevicePtr ; — typedef",
-								"—Ⓕ– js_audiocontext_constructor ( ) { … } — function",
-								"—Ⓕ– js_audiocontext_get ( ) { … } — function",
-								"—Ⓕ– js_audiocontext_set ( ) { … } — function",
-								"—Ⓕ– js_audiocontext_finalizer ( ) { … } — function",
-								"—Ⓕ– js_audiodestinationnode_constructor ( ) { … } — function",
-								"—Ⓕ– js_audiodestinationnode_get ( ) { … } — function",
-								"—Ⓕ– js_audiodestinationnode_method ( ) { … } — function",
-								"—Ⓕ– js_audiodestinationnode_finalizer ( ) { … } — function",
-								"—Ⓕ– js_audiolistener_constructor ( ) { … } — function",
-								"—Ⓕ– js_audiolistener_get ( ) { … } — function",
-								"—Ⓕ– js_audiolistener_finalizer ( ) { … } — function",
-								"—Ⓕ– js_audiodevice_constructor ( ) { … } — function",
-								"—Ⓕ– js_audiodevice_get ( ) { … } — function",
-								"—Ⓕ– js_audiodevice_set ( ) { … } — function",
-								"—Ⓕ– js_audiodevice_finalizer ( ) { … } — function",
-								"—Ⓕ– js_labsound_init ( ) { … } — function",
-								"—Ⓕ– js_init_module ( ) { … } — function"
-							],
-							"syntax": "Packages/Outline/outline.hidden-tmLanguage",
-							"tabs_extra_last_activated": 1744452535.01,
-							"tabs_extra_last_activated_sheet_index": 0
+							"function_name_status_row": 0,
+							"syntax": "Packages/C++11/C++11.tmLanguage",
+							"tab_size": 2,
+							"tabs_extra_last_activated": 1744488158.36,
+							"tabs_extra_last_activated_sheet_index": 0,
+							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
 						"translation.y": 0.0,
 						"zoom_level": 1.0
 					},
-					"stack_index": 0,
-					"stack_multiselect": false,
-					"type": "text"
-				}
-			]
-		},
-		{
-			"sheets":
-			[
-				{
-					"buffer": 1,
-					"file": "quickjs-labsound.cpp",
-					"selected": true,
-					"semi_transient": false,
-					"settings":
-					{
-						"buffer_size": 17166,
-						"regions":
-						{
-						},
-						"selection":
-						[
-							[
-								1767,
-								1766
-							]
-						],
-						"settings":
-						{
-							"auto_complete_triggers":
-							[
-								{
-									"characters": "./",
-									"selector": "text.html, text.xml"
-								},
-								{
-									"rhs_empty": true,
-									"selector": "punctuation.accessor"
-								}
-							],
-							"function_name_status_row": 36,
-							"reload_file_on_change": false,
-							"syntax": "Packages/C Improved/C Improved.tmLanguage",
-							"tab_size": 2,
-							"tabs_extra_last_activated": 1744500353.03,
-							"tabs_extra_last_activated_sheet_index": 0,
-							"translate_tabs_to_spaces": true
-						},
-						"translation.x": 0.0,
-						"translation.y": 4.0,
-						"zoom_level": 1.0
-					},
-					"stack_index": 0,
+					"stack_index": 4,
 					"stack_multiselect": false,
 					"type": "text"
 				},
 				{
-					"buffer": 2,
+					"buffer": 3,
 					"file": "quickjs-stk.cpp",
 					"semi_transient": false,
 					"settings":
@@ -1779,10 +4960,100 @@
 								}
 							],
 							"function_name_status_row": 0,
-							"syntax": "Packages/C Improved/C Improved.tmLanguage",
+							"syntax": "Packages/C++11/C++11.tmLanguage",
 							"tab_size": 2,
-							"tabs_extra_last_activated": 1744452931.77,
-							"tabs_extra_last_activated_sheet_index": 1,
+							"tabs_extra_last_activated": 1744488158.34,
+							"tabs_extra_last_activated_sheet_index": 0,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 5,
+					"stack_multiselect": false,
+					"type": "text"
+				},
+				{
+					"buffer": 4,
+					"file": "LabSound/include/LabSound/core/AudioContext.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 9418,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								7898,
+								7832
+							]
+						],
+						"settings":
+						{
+							"auto_complete_triggers":
+							[
+								{
+									"characters": "./",
+									"selector": "text.html, text.xml"
+								},
+								{
+									"rhs_empty": true,
+									"selector": "punctuation.accessor"
+								}
+							],
+							"function_name_status_row": 204,
+							"syntax": "Packages/C++11/C++11.tmLanguage",
+							"tab_size": 4,
+							"tabs_extra_last_activated": 1744506509.08,
+							"tabs_extra_last_activated_sheet_index": 3,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 2215.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 2,
+					"stack_multiselect": false,
+					"type": "text"
+				},
+				{
+					"buffer": 5,
+					"file": "LabSound/src/core/AudioDevice.cpp",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 5892,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								0,
+								0
+							]
+						],
+						"settings":
+						{
+							"auto_complete_triggers":
+							[
+								{
+									"characters": "./",
+									"selector": "text.html, text.xml"
+								},
+								{
+									"rhs_empty": true,
+									"selector": "punctuation.accessor"
+								}
+							],
+							"function_name_status_row": 0,
+							"syntax": "Packages/C++11/C++11.tmLanguage",
+							"tab_size": 4,
+							"tabs_extra_last_activated": 1744506512.94,
+							"tabs_extra_last_activated_sheet_index": 4,
 							"translate_tabs_to_spaces": true
 						},
 						"translation.x": 0.0,
@@ -1792,13 +5063,194 @@
 					"stack_index": 1,
 					"stack_multiselect": false,
 					"type": "text"
+				},
+				{
+					"buffer": 6,
+					"file": "LabSound/include/LabSound/core/AudioDevice.h",
+					"selected": true,
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 5946,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								0,
+								0
+							]
+						],
+						"settings":
+						{
+							"auto_complete_triggers":
+							[
+								{
+									"characters": "./",
+									"selector": "text.html, text.xml"
+								},
+								{
+									"rhs_empty": true,
+									"selector": "punctuation.accessor"
+								}
+							],
+							"function_name_status_row": 0,
+							"syntax": "Packages/C++11/C++11.tmLanguage",
+							"tab_size": 4,
+							"tabs_extra_last_activated": 1744506603.59,
+							"tabs_extra_last_activated_sheet_index": 5,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 0,
+					"stack_multiselect": false,
+					"type": "text"
+				},
+				{
+					"buffer": 7,
+					"file": "LabSound/include/LabSound/core/AudioProcessor.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 1427,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								0,
+								0
+							]
+						],
+						"settings":
+						{
+							"auto_complete_triggers":
+							[
+								{
+									"characters": "./",
+									"selector": "text.html, text.xml"
+								},
+								{
+									"rhs_empty": true,
+									"selector": "punctuation.accessor"
+								}
+							],
+							"function_name_status_row": 0,
+							"syntax": "Packages/C++11/C++11.tmLanguage",
+							"tab_size": 4,
+							"tabs_extra_last_activated": 1744488158.28,
+							"tabs_extra_last_activated_sheet_index": 0,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 495.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 6,
+					"stack_multiselect": false,
+					"type": "text"
+				},
+				{
+					"buffer": 8,
+					"file": "LabSound/include/LabSound/core/AudioListener.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 3225,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								0,
+								0
+							]
+						],
+						"settings":
+						{
+							"auto_complete_triggers":
+							[
+								{
+									"characters": "./",
+									"selector": "text.html, text.xml"
+								},
+								{
+									"rhs_empty": true,
+									"selector": "punctuation.accessor"
+								}
+							],
+							"function_name_status_row": 0,
+							"syntax": "Packages/C++11/C++11.tmLanguage",
+							"tab_size": 4,
+							"tabs_extra_last_activated": 1744488158.26,
+							"tabs_extra_last_activated_sheet_index": 0,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 7,
+					"stack_multiselect": false,
+					"type": "text"
+				},
+				{
+					"buffer": 9,
+					"file": "LabSound/include/LabSound/core/AudioNode.h",
+					"semi_transient": false,
+					"settings":
+					{
+						"buffer_size": 9875,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								624,
+								624
+							]
+						],
+						"settings":
+						{
+							"auto_complete_triggers":
+							[
+								{
+									"characters": "./",
+									"selector": "text.html, text.xml"
+								},
+								{
+									"rhs_empty": true,
+									"selector": "punctuation.accessor"
+								}
+							],
+							"function_name_status_row": 28,
+							"syntax": "Packages/C++11/C++11.tmLanguage",
+							"tab_size": 4,
+							"tabs_extra_last_activated": 1744488158.24,
+							"tabs_extra_last_activated_sheet_index": 0,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"stack_index": 8,
+					"stack_multiselect": false,
+					"type": "text"
 				}
 			]
 		}
 	],
 	"incremental_find":
 	{
-		"height": 26.0
+		"height": 29.0
 	},
 	"input":
 	{
@@ -1856,7 +5308,7 @@
 	"project": "qjs-sound.sublime-project",
 	"replace":
 	{
-		"height": 48.0
+		"height": 54.0
 	},
 	"save_all_on_build": false,
 	"select_file":
@@ -1865,6 +5317,14 @@
 		"last_filter": "",
 		"selected_items":
 		[
+			[
+				"audiodev",
+				"LabSound/include/LabSound/core/AudioDevice.h"
+			],
+			[
+				"audiodevi",
+				"LabSound/src/core/AudioDevice.cpp"
+			],
 			[
 				"lws-context-v",
 				"libwebsockets/include/libwebsockets/lws-context-vhost.h"
@@ -2367,14 +5827,6 @@
 			],
 			[
 				"directory",
-				"quickjs-directory.c"
-			],
-			[
-				"getden",
-				"include/getdents.h"
-			],
-			[
-				"quickjs-dire",
 				"quickjs-directory.c"
 			]
 		],
