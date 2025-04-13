@@ -2,11 +2,11 @@
 	path = LabSound
 	url = git@github.com:rsenn/LabSound.git
 [submodule "stk"]
-	path = stk
+	path = third_party/stk
 	url = git@github.com:rsenn/stk.git
 [submodule "sndobj"]
-	path = sndobj
+	path = third_party/sndobj
 	url = git@github.com:rsenn/sndobj.git
 [submodule "libsndfile"]
-	path = libsndfile
+	path = third_party/libsndfile
 	url = git@github.com:rsenn/libsndfile.git
