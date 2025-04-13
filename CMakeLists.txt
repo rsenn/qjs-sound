@@ -78,9 +78,7 @@ set(labsound_LIBRARIES
     #A ${LABSOUND_BINARY_DIR}/bin/libLabSoundRtAudio${DEBUG_SUFFIX}.a
     libLabSound libLabSoundRtAudio ${LABSOUND_BINARY_DIR}/third_party/libnyquist/lib/liblibnyquist.a
     #LabSound_d libnyquist_d
-    pulse pulse-simple 
-    samplerate
-    pthread)
+    pulse pulse-simple samplerate pthread)
 
 link_directories(${labsound_LINK_DIRECTORIES})
 
