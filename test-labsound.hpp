@@ -16,14 +16,14 @@
 #include <stdexcept>
 #include <vector>
 
-using namespace lab;
+//using namespace lab;
 
 // Returns input, output
-inline std::pair<AudioStreamConfig, AudioStreamConfig>
+inline std::pair<lab::AudioStreamConfig, lab::AudioStreamConfig>
 GetDefaultAudioDeviceConfiguration(const bool with_input = true) {
-  const std::vector<AudioDeviceInfo> audioDevices = lab::AudioDevice_RtAudio::MakeAudioDeviceList();
+  const std::vector<lab::AudioDeviceInfo> audioDevices = lab::AudioDevice_RtAudio::MakeAudioDeviceList();
 
-  AudioDeviceInfo defaultOutputInfo, defaultInputInfo;
+  lab::AudioDeviceInfo defaultOutputInfo, defaultInputInfo;
 
   for(auto& info : audioDevices) {
     if(info.is_default_output)
@@ -33,14 +33,16 @@ GetDefaultAudioDeviceConfiguration(const bool with_input = true) {
       defaultInputInfo = info;
   }
 
-  AudioStreamConfig outputConfig;
+  lab::AudioStreamConfig outputConfig;
+  
   if(defaultOutputInfo.index != -1) {
     outputConfig.device_index = defaultOutputInfo.index;
     outputConfig.desired_channels = std::min(uint32_t(2), defaultOutputInfo.num_output_channels);
     outputConfig.desired_samplerate = defaultOutputInfo.nominal_samplerate;
   }
 
-  AudioStreamConfig inputConfig;
+  lab::AudioStreamConfig inputConfig;
+
   if(with_input) {
     if(defaultInputInfo.index != -1) {
       inputConfig.device_index = defaultInputInfo.index;
