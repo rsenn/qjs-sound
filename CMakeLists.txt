@@ -2,9 +2,9 @@ project(qjs-sound C CXX)
 
 cmake_minimum_required(VERSION 3.19)
 
-option(USE_STK "Use Stk library" OFF)
+option(USE_LABSOUND "Use LabSound library" ON)
+option(USE_STK "Use Stk library" ON)
 
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include")
 #add_subdirectory(stk)
 #add_subdirectory(sndobj)
 
@@ -25,25 +25,57 @@ message("MODULE_COMPILE_FLAGS: ${MODULE_COMPILE_FLAGS}")
 
 include(ExternalProject)
 
-ExternalProject_Add(
-  LabSound
-  SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound"
-  BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/third_party/LabSound"
-  PREFIX LabSound
-  CMAKE_ARGS "-DBUILD_SHARED_LIBS:BOOL=OFF"
-             #"-DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}"
-             "-DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo"
-             "-DCMAKE_VERBOSE_MAKEFILE:BOOL=OFF"
-             "-DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON"
-             "-DCMAKE_C_COMPILER:STRING=${CMAKE_C_COMPILER}"
-             "-DCMAKE_CXX_COMPILER:STRING=${CMAKE_CXX_COMPILER}"
-             "-DCMAKE_C_FLAGS:STRING=${CMAKE_C_FLAGS} ${MODULE_COMPILE_FLAGS}"
-             "-DCMAKE_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS} ${MODULE_COMPILE_FLAGS}"
-  INSTALL_COMMAND "")
+if(USE_LABSOUND)
+  ExternalProject_Add(
+    LabSound
+    SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound"
+    BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/third_party/LabSound"
+    PREFIX LabSound
+    CMAKE_ARGS "-DBUILD_SHARED_LIBS:BOOL=OFF"
+               #"-DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}"
+               "-DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo"
+               "-DCMAKE_VERBOSE_MAKEFILE:BOOL=OFF"
+               "-DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON"
+               "-DCMAKE_C_COMPILER:STRING=${CMAKE_C_COMPILER}"
+               "-DCMAKE_CXX_COMPILER:STRING=${CMAKE_CXX_COMPILER}"
+               "-DCMAKE_C_FLAGS:STRING=${CMAKE_C_FLAGS} ${MODULE_COMPILE_FLAGS}"
+               "-DCMAKE_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS} ${MODULE_COMPILE_FLAGS}"
+    INSTALL_COMMAND "")
 
-ExternalProject_Get_Property(LabSound BINARY_DIR)
-set(LABSOUND_BINARY_DIR "${BINARY_DIR}")
-message("Binary dir of LabSound = ${LABSOUND_BINARY_DIR}")
+  ExternalProject_Get_Property(LabSound BINARY_DIR)
+  set(LABSOUND_BINARY_DIR "${BINARY_DIR}")
+  message("Binary dir of LabSound = ${LABSOUND_BINARY_DIR}")
+endif(USE_LABSOUND)
+
+if(USE_STK)
+  ExternalProject_Add(
+    stk
+    SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk"
+    BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/third_party/stk"
+    PREFIX stk
+    CMAKE_ARGS "-DBUILD_SHARED_LIBS:BOOL=OFF"
+               #"-DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}"
+               "-DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo"
+               "-DCMAKE_VERBOSE_MAKEFILE:BOOL=OFF"
+               "-DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON"
+               "-DCMAKE_C_COMPILER:STRING=${CMAKE_C_COMPILER}"
+               "-DCMAKE_CXX_COMPILER:STRING=${CMAKE_CXX_COMPILER}"
+               "-DCMAKE_C_FLAGS:STRING=${CMAKE_C_FLAGS} ${MODULE_COMPILE_FLAGS}"
+               "-DCMAKE_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS} ${MODULE_COMPILE_FLAGS}"
+    INSTALL_COMMAND "")
+
+  ExternalProject_Get_Property(stk BINARY_DIR)
+  set(STK_LIBRARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/third_party/stk")
+  set(STK_LIBRARY stk)
+  set(STK_BINARY_DIR "${BINARY_DIR}")
+  add_library(libstk STATIC IMPORTED )
+  file(GLOB  STK_LIBRARY_PATH "${STK_LIBRARY_DIR}/*.a")
+  set_target_properties(libstk PROPERTIES IMPORTED_LOCATION "${STK_LIBRARY_PATH}")
+
+  link_directories("${STK_LIBRARY_DIR}")
+
+  message("Binary dir of stk = ${STK_BINARY_DIR}")
+endif(USE_STK)
 
 include(CheckCCompilerFlag)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindQuickJS.cmake)
@@ -84,25 +116,61 @@ find_quickjs()
 configure_quickjs()
 add_definitions(-fvisibility=hidden)
 
+dump(QUICKJS_INCLUDE_DIR QUICKJS_LIBRARY_DIR)
+include_directories(${QUICKJS_INCLUDE_DIR})
+link_directories(${QUICKJS_LIBRARY_DIR})
+
 if(USE_STK)
   if(LINUX OR ANDROID)
-    add_definitions(-D__LINUX_PULSE__)
+    add_definitions(-D__LINUX_ALSA__ 
+      #-D__LINUX_PULSE__
+      )
   endif()
 
-  file(GLOB COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/stk/src/*.cpp)
-  list(FILTER COMMON_SOURCES EXCLUDE REGEX "(Inet|Rt|Tcp|Udp|Messager|Thread|Mutex|Socket)")
-  list(APPEND COMMON_SOURCES quickjs-stk.cpp)
+  #link_directories(${STK_LIBRARY_DIR})
 
-  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/include ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/src/include/)
+  set(stk_LIBRARIES libstk)
+  set(stk_LINK_DIRECTORIES "${STK_LIBRARY_DIR}")
+
+dump(stk_LIBRARIES stk_LINK_DIRECTORIES)
+
+  file(GLOB stk_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/stk/src/*.cpp)
+  list(FILTER stk_SOURCES EXCLUDE REGEX "(Inet|Rt|Tcp|Udp|Messager|Thread|Mutex|Socket)")
+  #list(APPEND stk_SOURCES quickjs-stk.cpp)
+
+  dump(stk_SOURCES)
 
   add_definitions(-DUSE_STK)
+
+  make_module(stk cpp)
+
+  include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/include"
+                      "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/src/include")
+  set_target_properties(
+    qjs-stk
+    PROPERTIES
+      INCLUDE_DIRECTORIES
+      "${QUICKJS_INCLUDE_DIR};${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/include;${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/src/include"
+  )
 endif(USE_STK)
 
-dump(COMMON_SOURCES)
+if(USE_LABSOUND)
+  #[[file(
+    GLOB
+    labsound_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/src/extended/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/src/backends/RtAudio/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/src/backends/miniaudio/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/src/internal/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/src/internal/src/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/src/core/*.cpp)]]
 
-set(labsound_NAME sound)
-make_module(labsound cpp)
-#make_module(stk cpp)
+  make_module(labsound cpp)
+  include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include")
+  set_target_properties(
+    qjs-labsound PROPERTIES INCLUDE_DIRECTORIES
+                            "${QUICKJS_INCLUDE_DIR};${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include")
+endif(USE_LABSOUND)
 
 add_executable(test-labsound test-labsound.cpp)
 

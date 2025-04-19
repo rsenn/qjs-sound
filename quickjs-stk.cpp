@@ -1503,3 +1503,16 @@ js_init_module_stk(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "StkGenerator");
   JS_AddModuleExport(ctx, m, "StkFilter");
 }
+
+extern "C" VISIBLE JSModuleDef*
+js_init_module(JSContext* ctx, const char* module_name) {
+  JSModuleDef* m;
+
+  if((m = JS_NewCModule(ctx, module_name, js_stk_init))) {
+#ifdef USE_STK
+    js_init_module_stk(ctx, m);
+#endif
+  }
+
+  return m;
+}

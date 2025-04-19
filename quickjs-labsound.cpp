@@ -9,8 +9,9 @@ extern int js_stk_init(JSContext* ctx, JSModuleDef* m);
 extern "C" void js_init_module_stk(JSContext* ctx, JSModuleDef*);
 
 static JSClassID js_audiocontext_class_id, js_audiodestinationnode_class_id, js_audiolistener_class_id,
-                      js_audiodevice_class_id;
-static JSValue audiocontext_proto, audiocontext_ctor, audiodestinationnode_proto, audiodestinationnode_ctor, audiolistener_proto, audiolistener_ctor, audiodevice_proto, audiodevice_ctor;
+    js_audiodevice_class_id;
+static JSValue audiocontext_proto, audiocontext_ctor, audiodestinationnode_proto, audiodestinationnode_ctor,
+    audiolistener_proto, audiolistener_ctor, audiodevice_proto, audiodevice_ctor;
 
 typedef std::shared_ptr<lab::AudioContext> AudioContextPtr;
 typedef std::shared_ptr<lab::AudioDestinationNode> AudioDestinationNodePtr;
@@ -184,7 +185,7 @@ js_audiodestinationnode_constructor(JSContext* ctx, JSValueConst new_target, int
     ac = acptr->get();
   }
 
-  if(!ac) 
+  if(!ac)
     return JS_ThrowInternalError(ctx, "argument 1 must be AudioContext");
 
   if(argc > 1) {
@@ -196,7 +197,7 @@ js_audiodestinationnode_constructor(JSContext* ctx, JSValueConst new_target, int
     device = *adptr;
   }
 
-  if(!device.get()) 
+  if(!device.get())
     return JS_ThrowInternalError(ctx, "argument 2 must be AudioDevice");
 
   AudioDestinationNodePtr* sadn =
@@ -250,18 +251,18 @@ js_audiodestinationnode_get(JSContext* ctx, JSValueConst this_val, int magic) {
       ret = JS_NewString(ctx, (*sadn)->name());
       break;
     }
-    /*case PROP_DEVICE: {
-      lab::AudioDevice* ad = (*sadn)->device();
+      /*case PROP_DEVICE: {
+        lab::AudioDevice* ad = (*sadn)->device();
 
-      ret = JS_NewObjectProtoClass(ctx, audiodevice_proto, js_audiodevice_class_id);
+        ret = JS_NewObjectProtoClass(ctx, audiodevice_proto, js_audiodevice_class_id);
 
-      AudioDevicePtr* ptr = static_cast<AudioDevicePtr*>(js_mallocz(ctx, sizeof(AudioDevicePtr)));
+        AudioDevicePtr* ptr = static_cast<AudioDevicePtr*>(js_mallocz(ctx, sizeof(AudioDevicePtr)));
 
-      new(ptr) AudioDevicePtr(*ad);
+        new(ptr) AudioDevicePtr(*ad);
 
-      JS_SetOpaque(ret, ptr);
-      break;
-    }*/
+        JS_SetOpaque(ret, ptr);
+        break;
+      }*/
   }
 
   return ret;
@@ -550,10 +551,6 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
     JS_SetModuleExport(ctx, m, "AudioDevice", audiodevice_ctor);
   }
 
-#ifdef USE_STK
-  js_stk_init(ctx, m);
-#endif
-
   return 0;
 }
 
@@ -562,14 +559,7 @@ js_init_module(JSContext* ctx, const char* module_name) {
   JSModuleDef* m;
 
   if((m = JS_NewCModule(ctx, module_name, js_labsound_init))) {
-    JS_AddModuleExport(ctx, m, "AudioContext");
-    JS_AddModuleExport(ctx, m, "AudioDestinationNode");
-    JS_AddModuleExport(ctx, m, "AudioListener");
-    JS_AddModuleExport(ctx, m, "AudioDevice");
-
-#ifdef USE_STK
-    js_init_module_stk(ctx, m);
-#endif
+    js_labsound_init(ctx, m);
   }
 
   return m;
