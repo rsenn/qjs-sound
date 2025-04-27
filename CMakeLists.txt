@@ -31,16 +31,15 @@ if(USE_LABSOUND)
     SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound"
     BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/third_party/LabSound"
     PREFIX LabSound
-    CMAKE_ARGS
-      "-DBUILD_SHARED_LIBS:BOOL=OFF"
-      #"-DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}"
-      "-DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo"
-      "-DCMAKE_VERBOSE_MAKEFILE:BOOL=OFF"
-      "-DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON"
-      "-DCMAKE_C_COMPILER:STRING=${CMAKE_C_COMPILER}"
-      "-DCMAKE_CXX_COMPILER:STRING=${CMAKE_CXX_COMPILER}"
-      "-DCMAKE_C_FLAGS:STRING=${CMAKE_C_FLAGS} ${MODULE_COMPILE_FLAGS}"
-      "-DCMAKE_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS} ${MODULE_COMPILE_FLAGS}"
+    CMAKE_ARGS "-DBUILD_SHARED_LIBS:BOOL=OFF"
+               #"-DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}"
+               "-DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo"
+               "-DCMAKE_VERBOSE_MAKEFILE:BOOL=OFF"
+               "-DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON"
+               "-DCMAKE_C_COMPILER:STRING=${CMAKE_C_COMPILER}"
+               "-DCMAKE_CXX_COMPILER:STRING=${CMAKE_CXX_COMPILER}"
+               "-DCMAKE_C_FLAGS:STRING=${CMAKE_C_FLAGS} ${MODULE_COMPILE_FLAGS}"
+               "-DCMAKE_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS} ${MODULE_COMPILE_FLAGS}"
     INSTALL_COMMAND "")
 
   ExternalProject_Get_Property(LabSound BINARY_DIR)
@@ -54,16 +53,15 @@ if(USE_STK)
     SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk"
     BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/third_party/stk"
     PREFIX stk
-    CMAKE_ARGS
-      "-DBUILD_SHARED_LIBS:BOOL=OFF"
-      #"-DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}"
-      "-DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo"
-      "-DCMAKE_VERBOSE_MAKEFILE:BOOL=OFF"
-      "-DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON"
-      "-DCMAKE_C_COMPILER:STRING=${CMAKE_C_COMPILER}"
-      "-DCMAKE_CXX_COMPILER:STRING=${CMAKE_CXX_COMPILER}"
-      "-DCMAKE_C_FLAGS:STRING=${CMAKE_C_FLAGS} ${MODULE_COMPILE_FLAGS}"
-      "-DCMAKE_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS} ${MODULE_COMPILE_FLAGS}"
+    CMAKE_ARGS "-DBUILD_SHARED_LIBS:BOOL=OFF"
+               #"-DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}"
+               "-DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo"
+               "-DCMAKE_VERBOSE_MAKEFILE:BOOL=OFF"
+               "-DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON"
+               "-DCMAKE_C_COMPILER:STRING=${CMAKE_C_COMPILER}"
+               "-DCMAKE_CXX_COMPILER:STRING=${CMAKE_CXX_COMPILER}"
+               "-DCMAKE_C_FLAGS:STRING=${CMAKE_C_FLAGS} ${MODULE_COMPILE_FLAGS}"
+               "-DCMAKE_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS} ${MODULE_COMPILE_FLAGS}"
     INSTALL_COMMAND "")
 
   ExternalProject_Get_Property(stk BINARY_DIR)
@@ -76,8 +74,7 @@ if(USE_STK)
     set(STK_LIBRARY_PATH "${STK_LIBRARY_DIR}/libstk.a")
   endif(NOT STK_LIBRARY_PATH)
   dump(STK_LIBRARY_PATH)
-  set_target_properties(libstk PROPERTIES IMPORTED_LOCATION
-                                          "${STK_LIBRARY_PATH}")
+  set_target_properties(libstk PROPERTIES IMPORTED_LOCATION "${STK_LIBRARY_PATH}")
 
   link_directories("${STK_LIBRARY_DIR}")
 
@@ -88,8 +85,7 @@ include(CheckCCompilerFlag)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindQuickJS.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/QuickJSModule.cmake)
 
-set(labsound_LINK_DIRECTORIES ${LABSOUND_BINARY_DIR}/bin
-                              ${LABSOUND_BINARY_DIR}/third_party/libnyquist/lib)
+set(labsound_LINK_DIRECTORIES ${LABSOUND_BINARY_DIR}/bin ${LABSOUND_BINARY_DIR}/third_party/libnyquist/lib)
 
 if(CMAKE_BUILD_TYPE MATCHES "Rel")
   #set(DEBUG_SUFFIX _d)
@@ -100,33 +96,23 @@ endif(CMAKE_BUILD_TYPE MATCHES "Rel")
 add_library(libLabSound STATIC IMPORTED GLOBAL)
 set_target_properties(
   libLabSound
-  PROPERTIES IMPORTED_LOCATION
-             "${LABSOUND_BINARY_DIR}/bin/libLabSound${DEBUG_SUFFIX}.a"
-             IMPORTED_LOCATION_DEBUG
-             "${LABSOUND_BINARY_DIR}/bin/libLabSound${DEBUG_SUFFIX}.a"
-             IMPORTED_CONFIGURATIONS "RELEASE;DEBUG")
+  PROPERTIES IMPORTED_LOCATION "${LABSOUND_BINARY_DIR}/bin/libLabSound${DEBUG_SUFFIX}.a"
+             IMPORTED_LOCATION_DEBUG "${LABSOUND_BINARY_DIR}/bin/libLabSound${DEBUG_SUFFIX}.a" IMPORTED_CONFIGURATIONS
+                                                                                               "RELEASE;DEBUG")
 add_library(libLabSoundRtAudio STATIC IMPORTED GLOBAL)
 set_target_properties(
   libLabSoundRtAudio
-  PROPERTIES IMPORTED_LOCATION
-             "${LABSOUND_BINARY_DIR}/bin/libLabSoundRtAudio${DEBUG_SUFFIX}.a"
-             IMPORTED_LOCATION_DEBUG
-             "${LABSOUND_BINARY_DIR}/bin/libLabSoundRtAudio${DEBUG_SUFFIX}.a"
+  PROPERTIES IMPORTED_LOCATION "${LABSOUND_BINARY_DIR}/bin/libLabSoundRtAudio${DEBUG_SUFFIX}.a"
+             IMPORTED_LOCATION_DEBUG "${LABSOUND_BINARY_DIR}/bin/libLabSoundRtAudio${DEBUG_SUFFIX}.a"
              IMPORTED_CONFIGURATIONS "RELEASE;DEBUG")
 
-link_directories(${LABSOUND_BINARY_DIR}/bin
-                 ${LABSOUND_BINARY_DIR}/third_party/libnyquist/lib)
+link_directories(${LABSOUND_BINARY_DIR}/bin ${LABSOUND_BINARY_DIR}/third_party/libnyquist/lib)
 set(labsound_LIBRARIES
     #  ${LABSOUND_BINARY_DIR}/bin/libLabSound${DEBUG_SUFFIX}.a
     #A ${LABSOUND_BINARY_DIR}/bin/libLabSoundRtAudio${DEBUG_SUFFIX}.a
-    libLabSound
-    libLabSoundRtAudio
-    ${LABSOUND_BINARY_DIR}/third_party/libnyquist/lib/liblibnyquist.a
+    libLabSound libLabSoundRtAudio ${LABSOUND_BINARY_DIR}/third_party/libnyquist/lib/liblibnyquist.a
     #LabSound_d libnyquist_d
-    pulse
-    pulse-simple
-    samplerate
-    pthread)
+    pulse pulse-simple samplerate pthread)
 
 link_directories(${labsound_LINK_DIRECTORIES})
 
@@ -152,8 +138,7 @@ if(USE_STK)
   dump(stk_LIBRARIES stk_LINK_DIRECTORIES)
 
   file(GLOB stk_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/stk/src/*.cpp)
-  list(FILTER stk_SOURCES EXCLUDE REGEX
-       "(Inet|Rt|Tcp|Udp|Messager|Thread|Mutex|Socket)")
+  list(FILTER stk_SOURCES EXCLUDE REGEX "(Inet|Rt|Tcp|Udp|Messager|Thread|Mutex|Socket)")
   #list(APPEND stk_SOURCES quickjs-stk.cpp)
 
   dump(stk_SOURCES)
@@ -184,14 +169,10 @@ if(USE_LABSOUND)
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/src/core/*.cpp)]]
 
   make_module(labsound cpp)
-  include_directories(
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include")
+  include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include")
   set_target_properties(
-    qjs-labsound
-    PROPERTIES
-      INCLUDE_DIRECTORIES
-      "${QUICKJS_INCLUDE_DIR};${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include"
-  )
+    qjs-labsound PROPERTIES INCLUDE_DIRECTORIES
+                            "${QUICKJS_INCLUDE_DIR};${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include")
 endif(USE_LABSOUND)
 
 add_executable(test-labsound test-labsound.cpp)
