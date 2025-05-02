@@ -1,3 +1,4 @@
+import { AudioContext } from 'labsound';
 let context = new AudioContext();
 
 let d = context.destination;

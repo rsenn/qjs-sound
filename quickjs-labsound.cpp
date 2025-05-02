@@ -554,12 +554,22 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   return 0;
 }
 
+extern "C" VISIBLE void
+js_init_module_labsound(JSContext* ctx, JSModuleDef* m) {
+  JS_AddModuleExport(ctx, m, "AudioContext");
+  JS_AddModuleExport(ctx, m, "AudioDestinationNode");
+  JS_AddModuleExport(ctx, m, "AudioListener");
+  JS_AddModuleExport(ctx, m, "AudioDevice");
+}
+
 extern "C" VISIBLE JSModuleDef*
 js_init_module(JSContext* ctx, const char* module_name) {
   JSModuleDef* m;
 
   if((m = JS_NewCModule(ctx, module_name, js_labsound_init))) {
-    js_labsound_init(ctx, m);
+#ifdef USE_LABSOUND
+    js_init_module_labsound(ctx, m);
+#endif
   }
 
   return m;
