@@ -73,7 +73,7 @@ if(USE_STK)
   if(NOT STK_LIBRARY_PATH)
     set(STK_LIBRARY_PATH "${STK_LIBRARY_DIR}/libstk.a")
   endif(NOT STK_LIBRARY_PATH)
-  dump(STK_LIBRARY_PATH)
+  #dump(STK_LIBRARY_PATH)
   set_target_properties(libstk PROPERTIES IMPORTED_LOCATION "${STK_LIBRARY_PATH}")
 
   link_directories("${STK_LIBRARY_DIR}")
@@ -120,7 +120,7 @@ find_quickjs()
 configure_quickjs()
 add_definitions(-fvisibility=hidden)
 
-dump(QUICKJS_INCLUDE_DIR QUICKJS_LIBRARY_DIR)
+#dump(QUICKJS_INCLUDE_DIR QUICKJS_LIBRARY_DIR)
 include_directories(${QUICKJS_INCLUDE_DIR})
 link_directories(${QUICKJS_LIBRARY_DIR})
 
@@ -135,13 +135,13 @@ if(USE_STK)
   set(stk_LIBRARIES libstk)
   set(stk_LINK_DIRECTORIES "${STK_LIBRARY_DIR}")
 
-  dump(stk_LIBRARIES stk_LINK_DIRECTORIES)
+  #dump(stk_LIBRARIES stk_LINK_DIRECTORIES)
 
   file(GLOB stk_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/stk/src/*.cpp)
   list(FILTER stk_SOURCES EXCLUDE REGEX "(Inet|Rt|Tcp|Udp|Messager|Thread|Mutex|Socket)")
   #list(APPEND stk_SOURCES quickjs-stk.cpp)
 
-  dump(stk_SOURCES)
+  #dump(stk_SOURCES)
 
   add_definitions(-DUSE_STK)
 
