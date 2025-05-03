@@ -68,20 +68,40 @@ endfunction(RELATIVE_PATH RELATIVE_TO OUT_VAR)
 include(CheckFunctionExists)
 
 macro(CHECK_FUNCTION_DEF FUNC)
-  if(ARGC GREATER_EQUAL 2)
+  if(${ARGC} GREATER 1)
     set(RESULT_VAR "${ARGV1}")
-    set(PREPROC_DEF "${ARGV2}")
-  else(ARGC GREATER_EQUAL 2)
+  else(${ARGC} GREATER 1)
     string(TOUPPER "HAVE_${FUNC}" RESULT_VAR)
+  endif(${ARGC} GREATER 1)
+  
+  if(${ARGC} GREATER 2)
+    set(PREPROC_DEF "${ARGV2}")
+  else(${ARGC} GREATER 2)
     string(TOUPPER "HAVE_${FUNC}" PREPROC_DEF)
-  endif(ARGC GREATER_EQUAL 2)
-  check_function_exists("${FUNC}" "${RESULT_VAR}")
+  endif(${ARGC} GREATER 2)
+
+  if(NOT DEFINED ${RESULT_VAR})
+    check_function_exists("${FUNC}" "_${RESULT_VAR}")
+
+    if(${_${RESULT_VAR}})
+      #unset("${RESULT_VAR}")
+      #unset("${RESULT_VAR}" CACHE)
+      #set("${RESULT_VAR}" TRUE)
+      set("${RESULT_VAR}" TRUE CACHE BOOL "Define this if you have the '${FUNC}' function")
+    else(${_${RESULT_VAR}})
+      #unset("${RESULT_VAR}")
+      #unset("${RESULT_VAR}" CACHE)
+      #set("${RESULT_VAR}" FALSE)
+      set("${RESULT_VAR}" FALSE CACHE BOOL "Define this if you have the '${FUNC}' function")
+    endif(${_${RESULT_VAR}})
+  endif(NOT DEFINED ${RESULT_VAR})
+
   if(${${RESULT_VAR}})
-    set("${RESULT_VAR}" TRUE CACHE BOOL "Define this if you have the '${FUNC}' function")
-    if(NOT "${PREPROC_DEF}" STREQUAL "")
-      add_definitions(-D${PREPROC_DEF})
-    endif(NOT "${PREPROC_DEF}" STREQUAL "")
+      if(NOT "${PREPROC_DEF}" STREQUAL "")
+        add_definitions(-D${PREPROC_DEF})
+      endif(NOT "${PREPROC_DEF}" STREQUAL "")
   endif(${${RESULT_VAR}})
+  #message("${RESULT_VAR}: ${${RESULT_VAR}}")
 endmacro(CHECK_FUNCTION_DEF FUNC)
 
 macro(CHECK_FUNCTIONS)
@@ -194,6 +214,39 @@ macro(RPATH_APPEND VAR)
     endif("${${VAR}}" STREQUAL "")
   endforeach(VALUE ${ARGN})
 endmacro(RPATH_APPEND VAR)
+
+function(TRY_CODE FILE CODE RESULT_VAR OUTPUT_VAR LIBS LDFLAGS)
+  if(NOT DEFINED "${RESULT_VAR}" OR NOT DEFINED "${OUTPUT_VAR}")
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/${FILE}" "${CODE}")
+
+    try_compile(
+      RESULT "${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/${FILE}" CMAKE_FLAGS "${CMAKE_REQUIRED_FLAGS}"
+      COMPILE_DEFINITIONS "${CMAKE_REQUIRED_DEFINITIONS}" LINK_OPTIONS "${LDFLAGS}" LINK_LIBRARIES "${LIBS}"
+      OUTPUT_VARIABLE OUTPUT)
+
+    set(${RESULT_VAR} "${RESULT}" PARENT_SCOPE)
+    set(${OUTPUT_VAR} "${OUTPUT}" PARENT_SCOPE)
+  endif(NOT DEFINED "${RESULT_VAR}" OR NOT DEFINED "${OUTPUT_VAR}")
+endfunction()
+
+function(CHECK_EXTERNAL NAME LIBS LDFLAGS OUTPUT_VAR)
+  set(CMAKE_TRY_COMPILE_TARGET_TYPE EXECUTABLE)
+  try_code(
+    "test-${NAME}.c"
+    "
+  extern int ${NAME}(void);
+  int main() {
+    ${NAME}();
+    return 0;
+  }
+  "
+    "${OUTPUT_VAR}"
+    OUT
+    "${LIBS}"
+    "${LDFLAGS}")
+  #dump(${OUTPUT_VAR})
+  set(${OUTPUT_VAR} "${${OUTPUT_VAR}}" PARENT_SCOPE)
+endfunction(CHECK_EXTERNAL NAME LIBS LDFLAGS OUTPUT_VAR)
 
 function(CHECK_FLAG FLAG VAR)
   if(NOT VAR OR VAR STREQUAL "")
