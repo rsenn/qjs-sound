@@ -4,6 +4,10 @@
 #include <quickjs.h>
 #include <cutils.h>
 
+/**
+ * \defgroup from_js<Output> shims
+ * @{
+ */
 template <class Output>
 inline Output
 from_js(JSContext* ctx, JSValueConst val) {
@@ -25,7 +29,14 @@ from_js<std::string>(JSContext* ctx, JSValueConst val) {
   JS_FreeCString(ctx, s);
   return ret;
 }
+/**
+ * @}
+ */
 
+/**
+ * \defgroup to_js<Input> shims
+ * @{
+ */
 template <class Input>
 inline JSValue
 to_js(JSContext* ctx, Input num) {
@@ -67,7 +78,14 @@ to_js(JSContext* ctx, const Container<Input>& container) {
 
   return ret;
 }
+/**
+ * @}
+ */
 
+
+/**
+ * \class JSClassID container
+ */
 struct ClassId {
   ClassId() : cid() {}
   ClassId(JSClassID _id) : cid(_id) {}
