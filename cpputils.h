@@ -3,6 +3,7 @@
 
 #include <quickjs.h>
 #include <cutils.h>
+#include <list>
 
 /**
  * \defgroup from_js<Output> shims
@@ -19,6 +20,14 @@ from_js<int64_t>(JSContext* ctx, JSValueConst val) {
   int64_t i;
   JS_ToInt64(ctx, &i, val);
   return i;
+}
+
+template <>
+inline double
+from_js<double>(JSContext* ctx, JSValueConst val) {
+  double d;
+  JS_ToFloat64(ctx, &d, val);
+  return d;
 }
 
 template <>
@@ -82,18 +91,25 @@ to_js(JSContext* ctx, const Container<Input>& container) {
  * @}
  */
 
-
-/**
- * \class JSClassID container
+/*! \class ClassId
+ *  \brief JSClassID container
  */
 struct ClassId {
-  ClassId() : cid() {}
-  ClassId(JSClassID _id) : cid(_id) {}
+  ClassId&
+  init() {
+    JS_NewClassID(&cid);
+    return *this;
+  }
+
+  ClassId&
+  inherit(ClassId& p) {
+    for(ClassId* ptr = parent = &p; ptr; ptr = ptr->parent)
+      ptr->descendants.push_back(this);
+
+    return *this;
+  }
 
   /* clang-format off */
-
-  JSClassID* operator&() { return &cid; };
-  JSClassID const* operator&() const { return &cid; };
 
   operator JSClassID&() { return cid; };
   operator JSClassID const&() const { return cid; };
@@ -105,6 +121,17 @@ struct ClassId {
 
 private:
   JSClassID cid;
+  ClassId* parent;
+  std::list<ClassId*> descendants;
+};
+
+template <class T> struct ClassPtr : std::shared_ptr<T> {
+  typedef std::shared_ptr<T> base_type;
+  typedef std::shared_ptr<lab::AudioContext> context_type;
+
+  ClassPtr(const base_type& an, const context_type& ac) : base_type(an), context(ac) {}
+
+  context_type context;
 };
 
 #endif /* defined(CPPUTILS_H) */
