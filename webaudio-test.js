@@ -1,4 +1,4 @@
-import { AudioContext } from 'labsound';
+import { AudioContext, OscillatorNode } from 'labsound';
 let context = new AudioContext();
 
 let d = context.destination;
