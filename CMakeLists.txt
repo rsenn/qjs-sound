@@ -47,7 +47,7 @@ if(USE_LABSOUND)
   message("Binary dir of LabSound = ${LABSOUND_BINARY_DIR}")
 endif(USE_LABSOUND)
 
-if(USE_STK)
+if(USE_STK_XXX)
   ExternalProject_Add(
     stk
     SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk"
@@ -79,7 +79,7 @@ if(USE_STK)
   link_directories("${STK_LIBRARY_DIR}")
 
   message("Binary dir of stk = ${STK_BINARY_DIR}")
-endif(USE_STK)
+endif()
 
 include(CheckCCompilerFlag)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindQuickJS.cmake)
@@ -131,9 +131,10 @@ if(USE_STK)
   endif()
 
   #link_directories(${STK_LIBRARY_DIR})
-
-  set(stk_LIBRARIES libstk)
+  if(STK_LIBRARY)
+  set(stk_LIBRARIES ${STK_LIBRARY})
   set(stk_LINK_DIRECTORIES "${STK_LIBRARY_DIR}")
+  endif(STK_LIBRARY)
 
   #dump(stk_LIBRARIES stk_LINK_DIRECTORIES)
 
