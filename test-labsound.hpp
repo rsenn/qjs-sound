@@ -62,8 +62,7 @@ GetDefaultAudioDeviceConfiguration(const bool with_input = true) {
     inputConfig.desired_samplerate = min_rate;
     outputConfig.desired_samplerate = min_rate;
 
-    std::cout << "Warning ~ input and output sample rates don't match, attempting to set minimum"
-              << std::endl;
+    std::cout << "Warning ~ input and output sample rates don't match, attempting to set minimum" << std::endl;
   }
 
   return {inputConfig, outputConfig};

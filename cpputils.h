@@ -3,7 +3,8 @@
 
 #include <quickjs.h>
 #include <cutils.h>
-#include <list>
+#include <vector>
+#include <string>
 
 /**
  * \defgroup from_js<Output> shims
@@ -114,15 +115,52 @@ struct ClassId {
   operator JSClassID&() { return cid; };
   operator JSClassID const&() const { return cid; };
 
-  template<class T = void> T* opaque(JSValueConst val) const { return JS_GetOpaque(val, cid); }
-  template<class T = void> T* opaque(JSContext *ctx, JSValueConst val) const { return JS_GetOpaque2(ctx, val, cid); }
-
   /* clang-format on */
+
+  template <class Fn>
+  void
+  recurse(const Fn& fn) const {
+    fn(cid);
+
+    for(ClassId* cidp : descendants)
+      cidp->recurse(fn);
+  }
+
+  template <class T = void>
+  T*
+  opaque(JSValueConst val) const {
+    T* ptr;
+
+    if((ptr = static_cast<T*>(JS_GetOpaque(val, cid))))
+      return ptr;
+
+    for(ClassId* cidp : descendants)
+      if((ptr = cidp->opaque<T>(val)))
+        return ptr;
+
+    return nullptr;
+  }
+
+  template <class T = void>
+  T*
+  opaque(JSContext* ctx, JSValueConst val) const {
+    T* ptr = opaque<T>(val);
+
+    if(ptr == nullptr) {
+      std::string ids = "";
+
+      recurse([&ids](JSClassID id) { ids.append(","); ids.append(std::to_string(id)); });
+
+      JS_ThrowTypeError(ctx, "Object is not of class id %s", ids.c_str()+1);
+    }
+
+    return ptr;
+  }
 
 private:
   JSClassID cid;
   ClassId* parent;
-  std::list<ClassId*> descendants;
+  std::vector<ClassId*> descendants;
 };
 
 template <class T> struct ClassPtr : std::shared_ptr<T> {

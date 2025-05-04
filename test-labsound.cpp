@@ -11,8 +11,7 @@ using lab::OscillatorType;
 
 int
 main(int argc, char* argv[]) {
-  auto [_inputConfig,_outputConfig] = GetDefaultAudioDeviceConfiguration(true);
-
+  auto [_inputConfig, _outputConfig] = GetDefaultAudioDeviceConfiguration(true);
 
   std::shared_ptr<lab::AudioDevice_RtAudio> device(new lab::AudioDevice_RtAudio(_inputConfig, _outputConfig));
 

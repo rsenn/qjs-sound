@@ -18,8 +18,9 @@ typedef std::shared_ptr<lab::AudioListener> AudioListenerPtr;
 typedef std::shared_ptr<lab::AudioDevice> AudioDevicePtr;
 typedef ClassPtr<lab::AudioNode> AudioNodePtr;
 typedef ClassPtr<lab::AudioScheduledSourceNode> AudioScheduledSourceNodePtr;
+typedef ClassPtr<lab::OscillatorNode> OscillatorNodePtr;
 
-typedef std::shared_ptr<lab::OscillatorNode> OscillatorNodePtr;
+// typedef std::shared_ptr<lab::OscillatorNode> OscillatorNodePtr;
 
 static JSValue
 js_audiocontext_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
@@ -321,7 +322,9 @@ fail:
   return JS_EXCEPTION;
 }
 
-enum { DEVICE_DESTINATION, };
+enum {
+  DEVICE_DESTINATION,
+};
 
 static JSValue
 js_audiodevice_get(JSContext* ctx, JSValueConst this_val, int magic) {
@@ -331,9 +334,7 @@ js_audiodevice_get(JSContext* ctx, JSValueConst this_val, int magic) {
   if(!(ad = static_cast<AudioDevicePtr*>(JS_GetOpaque2(ctx, this_val, js_audiodevice_class_id))))
     return JS_EXCEPTION;
 
-  switch(magic) {
-      
-  }
+  switch(magic) {}
 
   return ret;
 }
@@ -347,7 +348,7 @@ js_audiodevice_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, in
     return JS_EXCEPTION;
 
   switch(magic) {
-   case DEVICE_DESTINATION: {
+    case DEVICE_DESTINATION: {
       AudioDestinationNodePtr* sadn;
 
       if(!(sadn = static_cast<AudioDestinationNodePtr*>(JS_GetOpaque2(ctx, value, js_audiodestinationnode_class_id))))
@@ -432,7 +433,7 @@ js_audionode_methods(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
   AudioNodePtr* an;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(an = static_cast<AudioNodePtr*>(JS_GetOpaque2(ctx, this_val, js_audionode_class_id))))
+  if(!(an = js_audionode_class_id.opaque<AudioNodePtr>(ctx, this_val)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -511,7 +512,7 @@ js_audionode_get(JSContext* ctx, JSValueConst this_val, int magic) {
   AudioNodePtr* an;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(an = static_cast<AudioNodePtr*>(JS_GetOpaque2(ctx, this_val, js_audionode_class_id))))
+  if(!(an = js_audionode_class_id.opaque<AudioNodePtr>(ctx, this_val)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -534,7 +535,7 @@ js_audionode_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int 
   JSValue ret = JS_UNDEFINED;
   double d;
 
-  if(!(an = static_cast<AudioNodePtr*>(JS_GetOpaque2(ctx, this_val, js_audionode_class_id))))
+  if(!(an = js_audionode_class_id.opaque<AudioNodePtr>(ctx, this_val)))
     return JS_EXCEPTION;
 
   JS_ToFloat64(ctx, &d, value);
@@ -557,7 +558,7 @@ static void
 js_audionode_finalizer(JSRuntime* rt, JSValue val) {
   AudioNodePtr* an;
 
-  if((an = static_cast<AudioNodePtr*>(JS_GetOpaque(val, js_audionode_class_id)))) {
+  if((an = js_audionode_class_id.opaque<AudioNodePtr>(val))) {
     an->~AudioNodePtr();
     js_free_rt(rt, an);
   }
@@ -800,20 +801,16 @@ static const std::array<const char*, 8> oscillator_types = {
 static JSValue
 js_oscillatornode_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
   JSValue proto, obj = JS_UNDEFINED;
-  lab::AudioContext* ac = nullptr;
 
-  if(argc > 0) {
-    AudioContextPtr* acptr;
+  AudioContextPtr* acptr;
 
-    if(!(acptr = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, argv[0], js_audiocontext_class_id))))
-      return JS_EXCEPTION;
-
-    ac = acptr->get();
-  }
+  if(!(acptr = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, argv[0], js_audiocontext_class_id))))
+    return JS_EXCEPTION;
+  lab::AudioContext& ac = *acptr->get();
 
   OscillatorNodePtr* on = static_cast<OscillatorNodePtr*>(js_mallocz(ctx, sizeof(OscillatorNodePtr)));
 
-  new(on) OscillatorNodePtr(std::make_shared<lab::OscillatorNode>(*ac));
+  new(on) OscillatorNodePtr(std::make_shared<lab::OscillatorNode>(ac), *acptr);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   proto = JS_GetPropertyStr(ctx, new_target, "prototype");
@@ -840,6 +837,9 @@ fail:
 
 enum {
   OSCILLATORNODE_START,
+  OSCILLATORNODE_STARTWHEN,
+  OSCILLATORNODE_STOP,
+  OSCILLATORNODE_CONNECT,
 };
 
 static JSValue
@@ -856,6 +856,26 @@ js_oscillatornode_methods(JSContext* ctx, JSValueConst this_val, int argc, JSVal
       JS_ToFloat64(ctx, &when, argv[0]);
 
       (*on)->start(when);
+      break;
+    }
+    case OSCILLATORNODE_STARTWHEN: {
+        (*on)->startWhen();
+      break;
+    }
+    case OSCILLATORNODE_STOP: {
+      double when;
+      JS_ToFloat64(ctx, &when, argv[0]);
+
+   (*on)->stop(when);
+      break;
+    }
+    case OSCILLATORNODE_CONNECT: {
+      AudioNodePtr* an;
+
+      if(!(an = js_audionode_class_id.opaque<AudioNodePtr>(ctx, this_val)))
+        return JS_EXCEPTION;
+
+      on->context->connect(*an, *on);
       break;
     }
   }
@@ -978,6 +998,10 @@ static JSClassDef js_oscillatornode_class = {
 
 static const JSCFunctionListEntry js_oscillatornode_funcs[] = {
     JS_CFUNC_MAGIC_DEF("start", 1, js_oscillatornode_methods, OSCILLATORNODE_START),
+    JS_CFUNC_MAGIC_DEF("startWhen", 0, js_oscillatornode_methods, OSCILLATORNODE_STARTWHEN),
+    JS_CFUNC_MAGIC_DEF("stop", 1, js_oscillatornode_methods, OSCILLATORNODE_STOP),
+
+    JS_CFUNC_MAGIC_DEF("connect", 1, js_oscillatornode_methods, OSCILLATORNODE_CONNECT),
     JS_CGETSET_MAGIC_DEF("amplitude", js_oscillatornode_get, js_oscillatornode_set, OSCILLATORNODE_AMPLITUDE),
     JS_CGETSET_MAGIC_DEF("frequency", js_oscillatornode_get, js_oscillatornode_set, OSCILLATORNODE_FREQUENCY),
     JS_CGETSET_MAGIC_DEF("detune", js_oscillatornode_get, js_oscillatornode_set, OSCILLATORNODE_DETUNE),
@@ -1063,7 +1087,7 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   JS_SetConstructor(ctx, audioscheduledsourcenode_ctor, audioscheduledsourcenode_proto);
 
   js_oscillatornode_class_id.init();
-  js_audiodestinationnode_class_id.inherit(js_audionode_class_id);
+  js_oscillatornode_class_id.inherit(js_audioscheduledsourcenode_class_id);
   JS_NewClass(JS_GetRuntime(ctx), js_oscillatornode_class_id, &js_oscillatornode_class);
 
   oscillatornode_ctor =
