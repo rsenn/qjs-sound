@@ -108,11 +108,13 @@ set_target_properties(
 
 link_directories(${LABSOUND_BINARY_DIR}/bin ${LABSOUND_BINARY_DIR}/third_party/libnyquist/lib)
 set(labsound_LIBRARIES
-    #  ${LABSOUND_BINARY_DIR}/bin/libLabSound${DEBUG_SUFFIX}.a
-    #A ${LABSOUND_BINARY_DIR}/bin/libLabSoundRtAudio${DEBUG_SUFFIX}.a
+    #${LABSOUND_BINARY_DIR}/bin/libLabSound${DEBUG_SUFFIX}.a
+    #${LABSOUND_BINARY_DIR}/bin/libLabSoundRtAudio${DEBUG_SUFFIX}.a
     libLabSound libLabSoundRtAudio ${LABSOUND_BINARY_DIR}/third_party/libnyquist/lib/liblibnyquist.a
     #LabSound_d libnyquist_d
-    pulse pulse-simple samplerate pthread)
+    asound
+    pulse pulse-simple
+    samplerate pthread)
 
 link_directories(${labsound_LINK_DIRECTORIES})
 
@@ -126,8 +128,8 @@ link_directories(${QUICKJS_LIBRARY_DIR})
 
 if(USE_STK)
   if(LINUX OR ANDROID)
-    add_definitions(-D__LINUX_ALSA__ #-D__LINUX_PULSE__
-    )
+    add_definitions(-D__LINUX_ALSA__)
+    add_definitions(-D__LINUX_PULSE__)
   endif()
 
   #link_directories(${STK_LIBRARY_DIR})
