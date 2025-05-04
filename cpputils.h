@@ -149,9 +149,12 @@ struct ClassId {
     if(ptr == nullptr) {
       std::string ids = "";
 
-      recurse([&ids](JSClassID id) { ids.append(","); ids.append(std::to_string(id)); });
+      recurse([&ids](JSClassID id) {
+        ids.append(",");
+        ids.append(std::to_string(id));
+      });
 
-      JS_ThrowTypeError(ctx, "Object is not of class id %s", ids.c_str()+1);
+      JS_ThrowTypeError(ctx, "Object is not of class id %s", ids.c_str() + 1);
     }
 
     return ptr;

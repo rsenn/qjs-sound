@@ -859,14 +859,14 @@ js_oscillatornode_methods(JSContext* ctx, JSValueConst this_val, int argc, JSVal
       break;
     }
     case OSCILLATORNODE_STARTWHEN: {
-        (*on)->startWhen();
+      (*on)->startWhen();
       break;
     }
     case OSCILLATORNODE_STOP: {
       double when;
       JS_ToFloat64(ctx, &when, argv[0]);
 
-   (*on)->stop(when);
+      (*on)->stop(when);
       break;
     }
     case OSCILLATORNODE_CONNECT: {
