@@ -60,7 +60,7 @@ fail:
 
 enum {
   PROP_SAMPLERATE,
-  PROP_DESTINATION_NODE,
+  PROP_DESTINATION,
   PROP_LISTENER,
   PROP_CURRENTTIME,
   PROP_CURRENTSAMPLEFRAME,
@@ -80,7 +80,7 @@ js_audiocontext_get(JSContext* ctx, JSValueConst this_val, int magic) {
       ret = JS_NewFloat64(ctx, (*ac)->sampleRate());
       break;
     }
-    case PROP_DESTINATION_NODE: {
+    case PROP_DESTINATION: {
       AudioDestinationNodePtr sadn = (*ac)->destinationNode();
 
       ret = JS_NewObjectProtoClass(ctx, audiodestinationnode_proto, js_audiodestinationnode_class_id);
@@ -131,7 +131,7 @@ js_audiocontext_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, i
     return JS_EXCEPTION;
 
   switch(magic) {
-    case PROP_DESTINATION_NODE: {
+    case PROP_DESTINATION: {
       AudioDestinationNodePtr* sadn;
 
       if(!(sadn = static_cast<AudioDestinationNodePtr*>(JS_GetOpaque2(ctx, value, js_audiodestinationnode_class_id))))
@@ -163,7 +163,7 @@ static JSClassDef js_audiocontext_class = {
 
 static const JSCFunctionListEntry js_audiocontext_funcs[] = {
     JS_CGETSET_MAGIC_DEF("sampleRate", js_audiocontext_get, 0, PROP_SAMPLERATE),
-    JS_CGETSET_MAGIC_DEF("destinationNode", js_audiocontext_get, js_audiocontext_set, PROP_DESTINATION_NODE),
+    JS_CGETSET_MAGIC_DEF("destination", js_audiocontext_get, js_audiocontext_set, PROP_DESTINATION),
     JS_CGETSET_MAGIC_DEF("listener", js_audiocontext_get, 0, PROP_LISTENER),
     JS_CGETSET_MAGIC_DEF("currentTime", js_audiocontext_get, 0, PROP_CURRENTTIME),
     JS_CGETSET_MAGIC_DEF("currentSampleFrame", js_audiocontext_get, 0, PROP_CURRENTSAMPLEFRAME),
