@@ -125,6 +125,7 @@ add_definitions(-fvisibility=hidden)
 #dump(QUICKJS_INCLUDE_DIR QUICKJS_LIBRARY_DIR)
 include_directories(${QUICKJS_INCLUDE_DIR})
 link_directories(${QUICKJS_LIBRARY_DIR})
+link_libraries(quickjs)
 
 if(USE_STK)
   if(LINUX OR ANDROID)
