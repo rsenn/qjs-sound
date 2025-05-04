@@ -1336,6 +1336,7 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   JS_SetClassProto(ctx, js_audiosummingjunction_class_id, audiosummingjunction_proto);
 
   js_audioparam_class_id.init();
+  js_audioparam_class_id.inherit(js_audiosummingjunction_class_id);
   JS_NewClass(JS_GetRuntime(ctx), js_audioparam_class_id, &js_audioparam_class);
 
   audioparam_ctor = JS_NewObjectProto(ctx, JS_NULL);
