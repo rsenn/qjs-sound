@@ -1,4 +1,4 @@
-import { AudioContext, OscillatorNode}from 'labsound';
+import { AudioContext, OscillatorNode } from 'labsound';
 import { setTimeout } from 'os';
 
 let context = new AudioContext();
