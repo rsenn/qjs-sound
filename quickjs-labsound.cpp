@@ -59,6 +59,19 @@ js_audiochannel_free(JSRuntime* rt, void* opaque, void* ptr) {
   js_free_rt(rt, ac);
 }
 
+static std::pair<float*, int>
+js_audiochannel_buffer(JSContext* ctx, JSValueConst value) {
+  size_t size, byte_offset, byte_length, bytes_per_element;
+  JSValue buffer = JS_GetTypedArrayBuffer(ctx, value, &byte_offset, &byte_length, &bytes_per_element);
+  uint8_t* buf = JS_GetArrayBuffer(ctx, &size, buffer);
+  JS_FreeValue(ctx, buffer);
+
+  if(!buf)
+    return std::make_pair(nullptr, 0);
+
+  return std::make_pair(reinterpret_cast<float*>(buf + byte_offset), int(byte_length / bytes_per_element));
+}
+
 static std::vector<JSObject*>*
 js_audiobuffer_channelobjs(JSContext* ctx, std::shared_ptr<lab::AudioBus>& bus) {
   std::vector<JSObject*>* ret = nullptr;
@@ -275,12 +288,14 @@ js_audiobuffer_methods(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
 
       lab::AudioChannel& src = *(*ab)->channel(ch);
 
-      size_t size, byte_offset, byte_length, bytes_per_element;
-      JSValue buffer = JS_GetTypedArrayBuffer(ctx, argv[0], &byte_offset, &byte_length, &bytes_per_element);
-      uint8_t* buf = JS_GetArrayBuffer(ctx, &size, buffer);
-      JS_FreeValue(ctx, buffer);
+      auto [buf, len] = js_audiochannel_buffer(ctx, argv[0]);
 
-      if(!buf || bytes_per_element != sizeof(float))
+      /*   size_t size, byte_offset, byte_length, bytes_per_element;
+         JSValue buffer = JS_GetTypedArrayBuffer(ctx, argv[0], &byte_offset, &byte_length, &bytes_per_element);
+         uint8_t* buf = JS_GetArrayBuffer(ctx, &size, buffer);
+         JS_FreeValue(ctx, buffer);*/
+
+      if(!buf)
         return JS_ThrowTypeError(ctx, "argument 1 must be a Float32Array");
 
       int start = argc > 2 ? from_js<int>(argv[2]) : 0;
@@ -288,7 +303,7 @@ js_audiobuffer_methods(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       if(start < 0 || start >= src.length())
         return JS_ThrowRangeError(ctx, "startInChannel %d not in range 0 - %d (source size)", start, src.length());
 
-      lab::AudioChannel dest(reinterpret_cast<float*>(buf + byte_offset), byte_length / bytes_per_element);
+      lab::AudioChannel dest(buf, len);
 
       const int frames = std::min(dest.length(), src.length() - start);
       dest.copyFromRange(&src, start, start + frames);
@@ -307,7 +322,7 @@ js_audiobuffer_methods(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       uint8_t* buf = JS_GetArrayBuffer(ctx, &size, buffer);
       JS_FreeValue(ctx, buffer);
 
-      if(!buf || bytes_per_element != sizeof(float))
+      if(!buf /*|| bytes_per_element != sizeof(float)*/)
         return JS_ThrowTypeError(ctx, "argument 1 must be a Float32Array");
 
       int start = argc > 2 ? from_js<int>(argv[2]) : 0;
