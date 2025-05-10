@@ -68,6 +68,9 @@ js_audiobuffer_channels(JSContext* ctx, AudioChannelPtr& ac) {
     return key.expired();
   });
 
+  if(count > 0)
+    std::cerr << "Erased " << count << " expired references" << std::endl;
+
   /*  auto s = channel_map.begin(), e = channel_map.end();
 
     while(s != e) {
