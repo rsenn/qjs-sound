@@ -60,9 +60,15 @@ js_audiochannel_free(JSRuntime* rt, void* opaque, void* ptr) {
 
 static JSObject*&
 js_audiobuffer_channels(JSContext* ctx, AudioChannelPtr& ac) {
-  const auto count = std::erase_if(channel_map, [](const auto& item) {
+  const auto count = std::erase_if(channel_map, [ctx](const auto& item) {
     auto const& [key, value] = item;
-    return key.expired();
+    const bool expired = key.expired();
+
+if(expired) 
+  for(  JSObject* ptr : value) 
+    JS_FreeValue(ctx, JS_MKPTR(JS_TAG_OBJECT, ptr));
+
+    return expired;
   });
 
   if(count > 0)
