@@ -271,30 +271,26 @@ js_audiobuffer_methods(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       int ch = js_channel_get(ctx, argv[1]);
 
       if(ch < 0 || ch >= (*ab)->numberOfChannels())
-        return JS_ThrowRangeError(ctx, "channel number out of range 0 < ch < %d", (*ab)->numberOfChannels());
+        return JS_ThrowRangeError(ctx, "channel number not in range 0 - %d", (*ab)->numberOfChannels());
 
       lab::AudioChannel& src = *(*ab)->channel(ch);
 
-      size_t byte_offset, byte_length, bytes_per_element;
+      size_t size, byte_offset, byte_length, bytes_per_element;
       JSValue buffer = JS_GetTypedArrayBuffer(ctx, argv[0], &byte_offset, &byte_length, &bytes_per_element);
-      size_t size;
       uint8_t* buf = JS_GetArrayBuffer(ctx, &size, buffer);
       JS_FreeValue(ctx, buffer);
 
       if(!buf || bytes_per_element != sizeof(float))
         return JS_ThrowTypeError(ctx, "argument 1 must be a Float32Array");
 
-      uint32_t start = 0;
+      int start = argc > 2 ? from_js<int>(argv[2]) : 0;
 
-      if(argc > 2)
-        JS_ToUint32(ctx, &start, argv[2]);
-
-      if(start >= src.length())
-        return JS_ThrowRangeError(ctx, "startInChannel %d greater than source size %d", start, src.length());
+      if(start < 0 || start >= src.length())
+        return JS_ThrowRangeError(ctx, "startInChannel %d not in range 0 - %d (source size)", start, src.length());
 
       lab::AudioChannel dest(reinterpret_cast<float*>(buf + byte_offset), byte_length / bytes_per_element);
 
-      const int frames = std::min(dest.length(), src.length() - int(start));
+      const int frames = std::min(dest.length(), src.length() - start);
       dest.copyFromRange(&src, start, start + frames);
       break;
     }
@@ -302,30 +298,26 @@ js_audiobuffer_methods(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       int ch = js_channel_get(ctx, argv[1]);
 
       if(ch < 0 || ch >= (*ab)->numberOfChannels())
-        return JS_ThrowRangeError(ctx, "channel number out of range 0 < ch < %d", (*ab)->numberOfChannels());
+        return JS_ThrowRangeError(ctx, "channel number not in range 0 - %d", (*ab)->numberOfChannels());
 
       lab::AudioChannel& dest = *(*ab)->channel(ch);
 
-      size_t byte_offset, byte_length, bytes_per_element;
+      size_t size, byte_offset, byte_length, bytes_per_element;
       JSValue buffer = JS_GetTypedArrayBuffer(ctx, argv[0], &byte_offset, &byte_length, &bytes_per_element);
-      size_t size;
       uint8_t* buf = JS_GetArrayBuffer(ctx, &size, buffer);
       JS_FreeValue(ctx, buffer);
 
       if(!buf || bytes_per_element != sizeof(float))
         return JS_ThrowTypeError(ctx, "argument 1 must be a Float32Array");
 
-      uint32_t start = 0;
+      int start = argc > 2 ? from_js<int>(argv[2]) : 0;
 
-      if(argc > 2)
-        JS_ToUint32(ctx, &start, argv[2]);
-
-      if(start >= dest.length())
-        return JS_ThrowRangeError(ctx, "startInChannel %d greater than destination size %d", start, dest.length());
+      if(start < 0 || start >= dest.length())
+        return JS_ThrowRangeError(ctx, "startInChannel %d not in range 0 - %d (destination size)", start, dest.length());
 
       lab::AudioChannel src(reinterpret_cast<float*>(buf + byte_offset), byte_length / bytes_per_element);
 
-      const int frames = std::min(src.length(), dest.length() - int(start));
+      const int frames = std::min(src.length(), dest.length() - start);
       memcpy(dest.mutableData() + start, src.data(), frames * sizeof(float));
       break;
     }
