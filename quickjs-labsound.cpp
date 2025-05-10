@@ -101,13 +101,12 @@ js_audiochannel_object(JSContext* ctx, const AudioChannelPtr& ac) {
   if(count > 0)
     std::cerr << "Erased " << count << " expired references" << std::endl;
 
-  const auto len = std::max(ac.value + 1, ac->length());
   JSObjectArray* obj;
 
   if(!(obj = js_audiobuffer_channelobjs(ctx, ac))) {
     AudioBufferIndex key(ac);
 
-    channel_map.emplace(make_pair(key, JSObjectArray(len, nullptr)));
+    channel_map.emplace(make_pair(key, JSObjectArray(ac->length(), nullptr)));
 
     obj = &channel_map[key];
   }
