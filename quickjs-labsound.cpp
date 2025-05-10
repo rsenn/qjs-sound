@@ -64,9 +64,9 @@ js_audiobuffer_channels(JSContext* ctx, AudioChannelPtr& ac) {
     auto const& [key, value] = item;
     const bool expired = key.expired();
 
-if(expired) 
-  for(  JSObject* ptr : value) 
-    JS_FreeValue(ctx, JS_MKPTR(JS_TAG_OBJECT, ptr));
+    if(expired)
+      for(JSObject* ptr : value)
+        JS_FreeValue(ctx, JS_MKPTR(JS_TAG_OBJECT, ptr));
 
     return expired;
   });
