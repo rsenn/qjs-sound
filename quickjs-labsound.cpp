@@ -159,7 +159,7 @@ js_audiochannel_create(JSContext* ctx, AudioChannelPtr& ac) {
   JS_FreeValue(ctx, args[2]);
   JS_FreeValue(ctx, f32arr);
 
-  obj = JS_VALUE_GET_OBJ(ret);
+  obj = JS_VALUE_GET_OBJ(JS_DupValue(ctx, ret));
 
   return ret;
 }
