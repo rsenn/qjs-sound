@@ -84,7 +84,7 @@ js_audiobuffer_channels(JSContext* ctx, AudioChannelPtr& ac) {
     if(expired)
       for(JSObject* ptr : value)
         if(ptr)
-          JS_FreeValue(ctx, to_js<JSObject*>(ptr));
+          JS_FreeValue(ctx, to_js(ptr));
 
     return expired;
   });
@@ -118,7 +118,7 @@ js_audiochannel_create(JSContext* ctx, AudioChannelPtr& ac) {
   JSObject*& obj = js_audiobuffer_channels(ctx, ac);
 
   if(obj)
-    return JS_DupValue(ctx, to_js<JSObject*>(obj));
+    return JS_DupValue(ctx, to_js(obj));
 
   if(!(ptr = js_malloc<AudioChannelPtr>(ctx)))
     return JS_ThrowOutOfMemory(ctx);
