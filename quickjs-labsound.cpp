@@ -136,7 +136,7 @@ js_audiochannel_create(JSContext* ctx, AudioChannelPtr& ac) {
   JSObject*& obj = js_audiobuffer_channels(ctx, ac);
 
   if(obj)
-    return JS_MKPTR(JS_TAG_OBJECT, obj);
+    return JS_DupValue(ctx, JS_MKPTR(JS_TAG_OBJECT, obj));
 
   if(!(acptr = js_malloc<AudioChannelPtr>(ctx)))
     return JS_ThrowOutOfMemory(ctx);
