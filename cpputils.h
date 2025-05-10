@@ -6,6 +6,8 @@
 #include <vector>
 #include <string>
 
+#include "LabSound/LabSound.h"
+
 /**
  * \defgroup from_js<Output> shims
  * @{
@@ -67,6 +69,28 @@ template<>
 inline JSObject*
 from_js<JSObject*>(JSValueConst val) {
   return JS_VALUE_GET_TAG(val) == JS_TAG_OBJECT ? JS_VALUE_GET_OBJ(val) : nullptr;
+}
+
+template<>
+inline lab::Channel
+from_js<lab::Channel>(JSContext* ctx, JSValueConst value) {
+  static const char* const channel_names[] = {"Left", "Right", "Center", "Mono", "LFE", "SurroundLeft", "SurroundRight", "BackLeft", "BackRight"};
+  const char* str;
+  int32_t n = -1;
+  if((str = JS_ToCString(ctx, value))) {
+    if(!strcasecmp(str, "first")) {
+      n = 0;
+    } else
+      for(size_t i = 0; i < countof(channel_names); ++i)
+        if(!strcasecmp(str, channel_names[i])) {
+          n = i;
+          break;
+        }
+    JS_FreeCString(ctx, str);
+  }
+  if(n == -1)
+    JS_ToInt32(ctx, &n, value);
+  return lab::Channel(n);
 }
 /**
  * @}

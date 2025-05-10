@@ -1,7 +1,6 @@
 #include <quickjs.h>
 #include <cutils.h>
 #include "defines.h"
-#include "LabSound/LabSound.h"
 #include "LabSound/backends/AudioDevice_RtAudio.h"
 #include "cpputils.h"
 #include <array>
@@ -117,7 +116,7 @@ js_audiochannel_create(JSContext* ctx, AudioChannelPtr& ac) {
   return ret;
 }
 
-static int
+/*static int
 js_channel_get(JSContext* ctx, JSValueConst value) {
   static const char* const channel_names[] = {"Left", "Right", "Center", "Mono", "LFE", "SurroundLeft", "SurroundRight", "BackLeft", "BackRight"};
   const char* str;
@@ -140,7 +139,7 @@ js_channel_get(JSContext* ctx, JSValueConst value) {
     JS_ToInt32(ctx, &n, value);
 
   return n;
-}
+}*/
 
 static vector<JSObject*>*
 js_audiobuffer_channelobjs(JSContext* ctx, shared_ptr<lab::AudioBus>& bus) {
@@ -291,7 +290,7 @@ js_audiobuffer_methods(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
 
   switch(magic) {
     case BUFFER_COPY_FROM_CHANNEL: {
-      int ch = js_channel_get(ctx, argv[1]);
+      int ch = static_cast<int>(from_js<lab::Channel>(ctx, argv[1]));
 
       if(ch < 0 || ch >= (*ab)->numberOfChannels())
         return JS_ThrowRangeError(ctx, "channel number not in range 0 - %d", (*ab)->numberOfChannels());
@@ -308,15 +307,16 @@ js_audiobuffer_methods(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       if(start < 0 || start >= src.length())
         return JS_ThrowRangeError(ctx, "startInChannel %d not in range 0 - %d (source size)", start, src.length());
 
-      // lab::AudioChannel dest(buf, len);
-
       const int frames = min(len, src.length() - start);
-      // dest.copyFromRange(&src, start, start + frames);
+
+      /*lab::AudioChannel dest(buf, len);
+      dest.copyFromRange(&src, start, start + frames);*/
+
       memcpy(buf, src.data() + start, frames * sizeof(float));
       break;
     }
     case BUFFER_COPY_TO_CHANNEL: {
-      int ch = js_channel_get(ctx, argv[1]);
+      int ch = static_cast<int>(from_js<lab::Channel>(ctx, argv[1]));
 
       if(ch < 0 || ch >= (*ab)->numberOfChannels())
         return JS_ThrowRangeError(ctx, "channel number not in range 0 - %d", (*ab)->numberOfChannels());
@@ -340,7 +340,7 @@ js_audiobuffer_methods(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       break;
     }
     case BUFFER_GET_CHANNEL_DATA: {
-      int ch = js_channel_get(ctx, argv[0]);
+      int ch = static_cast<int>(from_js<lab::Channel>(ctx, argv[0]));
 
       if(ch < 0 || ch >= (*ab)->numberOfChannels())
         return JS_ThrowRangeError(ctx, "channel number out of range 0 < ch < %d", (*ab)->numberOfChannels());
@@ -415,7 +415,7 @@ js_audiobuffer_get(JSContext* ctx, JSValueConst this_val, int magic) {
   AudioBufferPtr* ab;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(ab = static_cast<AudioBufferPtr*>(JS_GetOpaque2(ctx, this_val, js_audiobuffer_class_id))))
+  if(!(ab = js_audiobuffer_class_id.opaque<AudioBufferPtr>(ctx, this_val)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -470,7 +470,7 @@ js_audiobuffer_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, in
   AudioBufferPtr* ab;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(ab = static_cast<AudioBufferPtr*>(JS_GetOpaque2(ctx, this_val, js_audiobuffer_class_id))))
+  if(!(ab = js_audiobuffer_class_id.opaque<AudioBufferPtr>(ctx, this_val)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -517,10 +517,10 @@ js_audiobuffer_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, in
 }
 
 static void
-js_audiobuffer_finalizer(JSRuntime* rt, JSValue val) {
+js_audiobuffer_finalizer(JSRuntime* rt, JSValue this_val) {
   AudioBufferPtr* ab;
 
-  if((ab = static_cast<AudioBufferPtr*>(JS_GetOpaque(val, js_audiobuffer_class_id)))) {
+  if(!(ab = js_audiobuffer_class_id.opaque<AudioBufferPtr>(this_val))) {
     ab->~AudioBufferPtr();
     js_free_rt(rt, ab);
   }
@@ -603,7 +603,7 @@ js_audiocontext_get(JSContext* ctx, JSValueConst this_val, int magic) {
   AudioContextPtr* ac;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(ac = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id))))
+  if(!(ac = js_audiocontext_class_id.opaque<AudioContextPtr>(ctx, this_val)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -657,7 +657,7 @@ js_audiocontext_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, i
   AudioContextPtr* ac;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(ac = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id))))
+  if(!(ac = js_audiocontext_class_id.opaque<AudioContextPtr>(ctx, this_val)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -677,10 +677,10 @@ js_audiocontext_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, i
 }
 
 static void
-js_audiocontext_finalizer(JSRuntime* rt, JSValue val) {
+js_audiocontext_finalizer(JSRuntime* rt, JSValue this_val) {
   AudioContextPtr* ac;
 
-  if((ac = static_cast<AudioContextPtr*>(JS_GetOpaque(val, js_audiocontext_class_id)))) {
+  if(!(ac = js_audiocontext_class_id.opaque<AudioContextPtr>(this_val))) {
     ac->~AudioContextPtr();
     js_free_rt(rt, ac);
   }
@@ -743,7 +743,7 @@ js_audiolistener_get(JSContext* ctx, JSValueConst this_val, int magic) {
   AudioListenerPtr* al;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(al = static_cast<AudioListenerPtr*>(JS_GetOpaque2(ctx, this_val, js_audiolistener_class_id))))
+  if(!(al = js_audiolistener_class_id.opaque<AudioListenerPtr>(ctx, this_val)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -768,7 +768,7 @@ js_audiolistener_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, 
   AudioListenerPtr* al;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(al = static_cast<AudioListenerPtr*>(JS_GetOpaque2(ctx, this_val, js_audiolistener_class_id))))
+  if(!(al = js_audiolistener_class_id.opaque<AudioListenerPtr>(ctx, this_val)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -790,10 +790,10 @@ js_audiolistener_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, 
 }
 
 static void
-js_audiolistener_finalizer(JSRuntime* rt, JSValue val) {
+js_audiolistener_finalizer(JSRuntime* rt, JSValue this_val) {
   AudioListenerPtr* al;
 
-  if((al = static_cast<AudioListenerPtr*>(JS_GetOpaque(val, js_audiolistener_class_id)))) {
+  if(!(al = js_audiolistener_class_id.opaque<AudioListenerPtr>(this_val))) {
     al->~AudioListenerPtr();
     js_free_rt(rt, al);
   }
@@ -860,7 +860,7 @@ js_audiodevice_get(JSContext* ctx, JSValueConst this_val, int magic) {
   AudioDevicePtr* ad;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(ad = static_cast<AudioDevicePtr*>(JS_GetOpaque2(ctx, this_val, js_audiodevice_class_id))))
+  if(!(ad = js_audiodevice_class_id.opaque<AudioDevicePtr>(ctx, this_val)))
     return JS_EXCEPTION;
 
   switch(magic) {}
@@ -873,7 +873,7 @@ js_audiodevice_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, in
   AudioDevicePtr* ad;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(ad = static_cast<AudioDevicePtr*>(JS_GetOpaque2(ctx, this_val, js_audiodevice_class_id))))
+  if(!(ad = js_audiodevice_class_id.opaque<AudioDevicePtr>(ctx, this_val)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -893,10 +893,10 @@ js_audiodevice_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, in
 }
 
 static void
-js_audiodevice_finalizer(JSRuntime* rt, JSValue val) {
+js_audiodevice_finalizer(JSRuntime* rt, JSValue this_val) {
   AudioDevicePtr* ad;
 
-  if((ad = static_cast<AudioDevicePtr*>(JS_GetOpaque(val, js_audiodevice_class_id)))) {
+  if(!(ad = js_audiodevice_class_id.opaque<AudioDevicePtr>(this_val))) {
     ad->~AudioDevicePtr();
     js_free_rt(rt, ad);
   }
@@ -1084,10 +1084,10 @@ js_audionode_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int 
 }
 
 static void
-js_audionode_finalizer(JSRuntime* rt, JSValue val) {
+js_audionode_finalizer(JSRuntime* rt, JSValue this_val) {
   AudioNodePtr* an;
 
-  if((an = js_audionode_class_id.opaque<AudioNodePtr>(val))) {
+  if((an = js_audionode_class_id.opaque<AudioNodePtr>(this_val))) {
     an->~AudioNodePtr();
     js_free_rt(rt, an);
   }
@@ -1182,7 +1182,7 @@ js_audiodestinationnode_get(JSContext* ctx, JSValueConst this_val, int magic) {
   AudioDestinationNodePtr* adn;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(adn = static_cast<AudioDestinationNodePtr*>(JS_GetOpaque2(ctx, this_val, js_audiodestinationnode_class_id))))
+  if(!(adn = js_audiodestinationnode_class_id.opaque<AudioDestinationNodePtr>(ctx, this_val)))
     return JS_EXCEPTION;
 
   if(adn->get() == nullptr)
@@ -1207,7 +1207,7 @@ js_audiodestinationnode_method(JSContext* ctx, JSValueConst this_val, int argc, 
   AudioDestinationNodePtr* adn;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(adn = static_cast<AudioDestinationNodePtr*>(JS_GetOpaque2(ctx, this_val, js_audiodestinationnode_class_id))))
+  if(!(adn = js_audiodestinationnode_class_id.opaque<AudioDestinationNodePtr>(ctx, this_val)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -1221,10 +1221,10 @@ js_audiodestinationnode_method(JSContext* ctx, JSValueConst this_val, int argc, 
 }
 
 static void
-js_audiodestinationnode_finalizer(JSRuntime* rt, JSValue val) {
+js_audiodestinationnode_finalizer(JSRuntime* rt, JSValue this_val) {
   AudioDestinationNodePtr* adn;
 
-  if((adn = static_cast<AudioDestinationNodePtr*>(JS_GetOpaque(val, js_audiodestinationnode_class_id)))) {
+  if(!(adn = js_audiodestinationnode_class_id.opaque<AudioDestinationNodePtr>(this_val))) {
     adn->~AudioDestinationNodePtr();
     js_free_rt(rt, adn);
   }
@@ -1280,7 +1280,7 @@ js_audioscheduledsourcenode_method(JSContext* ctx, JSValueConst this_val, int ar
   AudioScheduledSourceNodePtr* assn;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(assn = static_cast<AudioScheduledSourceNodePtr*>(JS_GetOpaque2(ctx, this_val, js_audioscheduledsourcenode_class_id))))
+  if(!(assn = js_audioscheduledsourcenode_class_id.opaque<AudioScheduledSourceNodePtr>(ctx, this_val)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -1294,10 +1294,10 @@ js_audioscheduledsourcenode_method(JSContext* ctx, JSValueConst this_val, int ar
 }
 
 static void
-js_audioscheduledsourcenode_finalizer(JSRuntime* rt, JSValue val) {
+js_audioscheduledsourcenode_finalizer(JSRuntime* rt, JSValue this_val) {
   AudioScheduledSourceNodePtr* assn;
 
-  if((assn = static_cast<AudioScheduledSourceNodePtr*>(JS_GetOpaque(val, js_audioscheduledsourcenode_class_id)))) {
+  if(!(assn = js_audioscheduledsourcenode_class_id.opaque<AudioScheduledSourceNodePtr>(this_val))) {
     assn->~AudioScheduledSourceNodePtr();
     js_free_rt(rt, assn);
   }
@@ -1332,6 +1332,7 @@ js_oscillatornode_constructor(JSContext* ctx, JSValueConst new_target, int argc,
 
   if(!(acptr = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, argv[0], js_audiocontext_class_id))))
     return JS_EXCEPTION;
+
   lab::AudioContext& ac = *acptr->get();
 
   OscillatorNodePtr* on = js_malloc<OscillatorNodePtr>(ctx);
@@ -1373,7 +1374,7 @@ js_oscillatornode_methods(JSContext* ctx, JSValueConst this_val, int argc, JSVal
   OscillatorNodePtr* on;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(on = static_cast<OscillatorNodePtr*>(JS_GetOpaque2(ctx, this_val, js_oscillatornode_class_id))))
+  if(!(on = js_oscillatornode_class_id.opaque<OscillatorNodePtr>(ctx, this_val)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -1422,7 +1423,7 @@ js_oscillatornode_get(JSContext* ctx, JSValueConst this_val, int magic) {
   OscillatorNodePtr* on;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(on = static_cast<OscillatorNodePtr*>(JS_GetOpaque2(ctx, this_val, js_oscillatornode_class_id))))
+  if(!(on = js_oscillatornode_class_id.opaque<OscillatorNodePtr>(ctx, this_val)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -1457,7 +1458,7 @@ js_oscillatornode_set(JSContext* ctx, JSValueConst this_val, JSValueConst value,
   JSValue ret = JS_UNDEFINED;
   double d;
 
-  if(!(on = static_cast<OscillatorNodePtr*>(JS_GetOpaque2(ctx, this_val, js_oscillatornode_class_id))))
+  if(!(on = js_oscillatornode_class_id.opaque<OscillatorNodePtr>(ctx, this_val)))
     return JS_EXCEPTION;
 
   JS_ToFloat64(ctx, &d, value);
@@ -1505,10 +1506,10 @@ js_oscillatornode_set(JSContext* ctx, JSValueConst this_val, JSValueConst value,
 }
 
 static void
-js_oscillatornode_finalizer(JSRuntime* rt, JSValue val) {
+js_oscillatornode_finalizer(JSRuntime* rt, JSValue this_val) {
   OscillatorNodePtr* on;
 
-  if((on = static_cast<OscillatorNodePtr*>(JS_GetOpaque(val, js_oscillatornode_class_id)))) {
+  if(!(on = js_oscillatornode_class_id.opaque<OscillatorNodePtr>(this_val))) {
     on->~OscillatorNodePtr();
     js_free_rt(rt, on);
   }
@@ -1535,11 +1536,11 @@ static const JSCFunctionListEntry js_oscillatornode_funcs[] = {
 static JSValue
 js_audiosummingjunction_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
   JSValue proto, obj = JS_UNDEFINED;
-
   AudioContextPtr* acptr;
 
   if(!(acptr = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, argv[0], js_audiocontext_class_id))))
     return JS_EXCEPTION;
+
   lab::AudioContext& ac = *acptr->get();
 
   AudioSummingJunctionPtr* on = js_malloc<AudioSummingJunctionPtr>(ctx);
@@ -1575,10 +1576,10 @@ enum {
 
 static JSValue
 js_audiosummingjunction_methods(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
-  AudioSummingJunctionPtr* on;
+  AudioSummingJunctionPtr* asj;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(on = static_cast<AudioSummingJunctionPtr*>(JS_GetOpaque2(ctx, this_val, js_audiosummingjunction_class_id))))
+  if(!(asj = js_audiosummingjunction_class_id.opaque<AudioSummingJunctionPtr>(ctx, this_val)))
     return JS_EXCEPTION;
 
   switch(magic) {}
@@ -1592,10 +1593,10 @@ enum {
 
 static JSValue
 js_audiosummingjunction_get(JSContext* ctx, JSValueConst this_val, int magic) {
-  AudioSummingJunctionPtr* on;
+  AudioSummingJunctionPtr* asj;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(on = static_cast<AudioSummingJunctionPtr*>(JS_GetOpaque2(ctx, this_val, js_audiosummingjunction_class_id))))
+  if(!(asj = js_audiosummingjunction_class_id.opaque<AudioSummingJunctionPtr>(ctx, this_val)))
     return JS_EXCEPTION;
 
   switch(magic) {}
@@ -1605,10 +1606,10 @@ js_audiosummingjunction_get(JSContext* ctx, JSValueConst this_val, int magic) {
 
 static JSValue
 js_audiosummingjunction_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
-  AudioSummingJunctionPtr* on;
+  AudioSummingJunctionPtr* asj;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(on = static_cast<AudioSummingJunctionPtr*>(JS_GetOpaque2(ctx, this_val, js_audiosummingjunction_class_id))))
+  if(!(asj = js_audiosummingjunction_class_id.opaque<AudioSummingJunctionPtr>(ctx, this_val)))
     return JS_EXCEPTION;
 
   switch(magic) {}
@@ -1617,12 +1618,12 @@ js_audiosummingjunction_set(JSContext* ctx, JSValueConst this_val, JSValueConst 
 }
 
 static void
-js_audiosummingjunction_finalizer(JSRuntime* rt, JSValue val) {
-  AudioSummingJunctionPtr* on;
+js_audiosummingjunction_finalizer(JSRuntime* rt, JSValue this_val) {
+  AudioSummingJunctionPtr* asj;
 
-  if((on = static_cast<AudioSummingJunctionPtr*>(JS_GetOpaque(val, js_audiosummingjunction_class_id)))) {
-    on->~AudioSummingJunctionPtr();
-    js_free_rt(rt, on);
+  if(!(asj = js_audiosummingjunction_class_id.opaque<AudioSummingJunctionPtr>(this_val))) {
+    asj->~AudioSummingJunctionPtr();
+    js_free_rt(rt, asj);
   }
 }
 
@@ -1673,10 +1674,10 @@ enum {
 
 static JSValue
 js_audioparam_methods(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
-  AudioParamPtr* on;
+  AudioParamPtr* ap;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(on = static_cast<AudioParamPtr*>(JS_GetOpaque2(ctx, this_val, js_audioparam_class_id))))
+  if(!(ap = js_audioparam_class_id.opaque<AudioParamPtr>(ctx, this_val)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -1700,10 +1701,10 @@ enum {
 
 static JSValue
 js_audioparam_get(JSContext* ctx, JSValueConst this_val, int magic) {
-  AudioParamPtr* on;
+  AudioParamPtr* ap;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(on = static_cast<AudioParamPtr*>(JS_GetOpaque2(ctx, this_val, js_audioparam_class_id))))
+  if(!(ap = js_audioparam_class_id.opaque<AudioParamPtr>(ctx, this_val)))
     return JS_EXCEPTION;
 
   switch(magic) {}
@@ -1713,10 +1714,10 @@ js_audioparam_get(JSContext* ctx, JSValueConst this_val, int magic) {
 
 static JSValue
 js_audioparam_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
-  AudioParamPtr* on;
+  AudioParamPtr* ap;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(on = static_cast<AudioParamPtr*>(JS_GetOpaque2(ctx, this_val, js_audioparam_class_id))))
+  if(!(ap = js_audioparam_class_id.opaque<AudioParamPtr>(ctx, this_val)))
     return JS_EXCEPTION;
 
   switch(magic) {}
@@ -1725,12 +1726,12 @@ js_audioparam_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int
 }
 
 static void
-js_audioparam_finalizer(JSRuntime* rt, JSValue val) {
-  AudioParamPtr* on;
+js_audioparam_finalizer(JSRuntime* rt, JSValue this_val) {
+  AudioParamPtr* ap;
 
-  if((on = static_cast<AudioParamPtr*>(JS_GetOpaque(val, js_audioparam_class_id)))) {
-    on->~AudioParamPtr();
-    js_free_rt(rt, on);
+  if(!(ap = js_audioparam_class_id.opaque<AudioParamPtr>(this_val))) {
+    ap->~AudioParamPtr();
+    js_free_rt(rt, ap);
   }
 }
 
