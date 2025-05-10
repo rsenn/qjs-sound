@@ -12,7 +12,25 @@
  */
 template<class Output>
 inline Output
-from_js(JSContext* ctx, JSValueConst val) {}
+from_js(JSContext* ctx, JSValueConst val) {
+  throw std::exception();
+}
+
+template<>
+inline int32_t
+from_js<int32_t>(JSContext* ctx, JSValueConst val) {
+  int32_t i;
+  JS_ToInt32(ctx, &i, val);
+  return i;
+}
+
+template<>
+inline uint32_t
+from_js<uint32_t>(JSContext* ctx, JSValueConst val) {
+  uint32_t u;
+  JS_ToUint32(ctx, &u, val);
+  return u;
+}
 
 template<>
 inline int64_t
@@ -41,7 +59,9 @@ from_js<std::string>(JSContext* ctx, JSValueConst val) {
 
 template<class Output>
 inline Output
-from_js(JSValueConst val) {}
+from_js(JSValueConst val) {
+  throw std::exception();
+}
 
 template<>
 inline JSObject*
