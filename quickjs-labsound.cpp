@@ -247,7 +247,9 @@ fail:
 }
 
 enum {
-  BUFFER_CHANNEL,
+  BUFFER_COPY_FROM_CHANNEL,
+  BUFFER_COPY_TO_CHANNEL,
+  BUFFER_GET_CHANNEL_DATA,
   BUFFER_TOPOLOGY_MATCHES,
   BUFFER_SCALE,
   BUFFER_RESET,
@@ -265,20 +267,52 @@ js_audiobuffer_methods(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
     return JS_EXCEPTION;
 
   switch(magic) {
-    case BUFFER_CHANNEL: {
+    case BUFFER_COPY_FROM_CHANNEL: {
+      break;
+    }
+    case BUFFER_COPY_TO_CHANNEL: {
+      int ch = js_channel_get(ctx, argv[1]);
+
+      if(ch == -1)
+        return JS_ThrowRangeError(ctx, "argument 2 must be a valid channel");
+
+      if(ch < 0 || ch >= (*ab)->numberOfChannels())
+        return JS_ThrowRangeError(ctx, "channel number out of range 0 < ch < %d", (*ab)->numberOfChannels());
+
+      lab::AudioChannel* ac = (*ab)->channel(ch);
+
+      size_t offset, length, bytes_per_element;
+      JSValue buffer = JS_GetTypedArrayBuffer(ctx, argv[0], &offset, &length, &bytes_per_element);
+      uint8_t* buf;
+      size_t size;
+
+      if(bytes_per_element != sizeof(float)) {
+        JS_FreeValue(ctx, buffer);
+        return JS_ThrowTypeError(ctx, "argument 1 must be a Float32Array");
+      }
+
+      if((buf = JS_GetArrayBuffer(ctx, &size, buffer))) {
+        lab::AudioChannel ach(reinterpret_cast<float*>(buf), length);
+
+        ac->copyFrom(&ach);
+        ret = JS_TRUE;
+      }
+
+      break;
+    }
+    case BUFFER_GET_CHANNEL_DATA: {
       int ch = js_channel_get(ctx, argv[0]);
 
       if(ch == -1)
         return JS_ThrowRangeError(ctx, "argument 1 must be a valid channel");
 
-      lab::AudioChannel* ac;
+      if(ch < 0 || ch >= (*ab)->numberOfChannels())
+        return JS_ThrowRangeError(ctx, "channel number out of range 0 < ch < %d", (*ab)->numberOfChannels());
 
-      if((ac = (*ab)->channel(ch))) {
-        AudioChannelPtr acptr(*ab, ch);
+      lab::AudioChannel* ac = (*ab)->channel(ch);
+      AudioChannelPtr acptr(*ab, ch);
 
-        ret = js_audiochannel_create(ctx, acptr);
-      }
-
+      ret = js_audiochannel_create(ctx, acptr);
       break;
     }
 
@@ -468,7 +502,9 @@ static const JSCFunctionListEntry js_audiobuffer_funcs[] = {
     JS_CFUNC_MAGIC_DEF("copyFrom", 1, js_audiobuffer_methods, BUFFER_COPY_FROM),
     JS_CFUNC_MAGIC_DEF("sumFrom", 1, js_audiobuffer_methods, BUFFER_SUM_FROM),
     JS_CFUNC_MAGIC_DEF("normalize", 0, js_audiobuffer_methods, BUFFER_NORMALIZE),
-    JS_CFUNC_MAGIC_DEF("channel", 1, js_audiobuffer_methods, BUFFER_CHANNEL),
+    JS_CFUNC_MAGIC_DEF("copyFromChannel", 2, js_audiobuffer_methods, BUFFER_COPY_FROM_CHANNEL),
+    JS_CFUNC_MAGIC_DEF("copyToChannel", 2, js_audiobuffer_methods, BUFFER_COPY_TO_CHANNEL),
+    JS_CFUNC_MAGIC_DEF("getChannelData", 1, js_audiobuffer_methods, BUFFER_GET_CHANNEL_DATA),
     JS_CGETSET_MAGIC_DEF("length", js_audiobuffer_get, 0, BUFFER_LENGTH),
     JS_CGETSET_MAGIC_DEF("duration", js_audiobuffer_get, 0, BUFFER_DURATION),
     JS_CGETSET_MAGIC_DEF("numberOfChannels", js_audiobuffer_get, 0, BUFFER_NUMBER_OF_CHANNELS),
