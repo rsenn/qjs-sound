@@ -98,22 +98,19 @@ js_audiobuffer_channels(JSContext* ctx, AudioChannelPtr& ac) {
   if(obj) {
     if(bus->length() <= ac.value)
       obj->resize(bus->length());
-
-    if(obj->operator[](ac.value))
-      return obj->operator[](ac.value);
+    else if((*obj)[ac.value])
+      return (*obj)[ac.value];
   }
 
-  for(auto& [k, v] : channel_map) {
+  /*for(auto& [k, v] : channel_map) {
     std::shared_ptr<lab::AudioBus> ab(k);
-
     if(ab.get() == bus.get()) {
       if(v.size() <= ac.value)
         v.resize(ac.value + 1);
-
       if(v[ac.value])
         return v[ac.value];
     }
-  }
+  }*/
 
   if(!obj) {
     AudioBufferIndex key(ac);
