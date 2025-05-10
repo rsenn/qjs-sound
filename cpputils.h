@@ -10,12 +10,11 @@
  * \defgroup from_js<Output> shims
  * @{
  */
-template <class Output>
+template<class Output>
 inline Output
-from_js(JSContext* ctx, JSValueConst val) {
-}
+from_js(JSContext* ctx, JSValueConst val) {}
 
-template <>
+template<>
 inline int64_t
 from_js<int64_t>(JSContext* ctx, JSValueConst val) {
   int64_t i;
@@ -23,7 +22,7 @@ from_js<int64_t>(JSContext* ctx, JSValueConst val) {
   return i;
 }
 
-template <>
+template<>
 inline double
 from_js<double>(JSContext* ctx, JSValueConst val) {
   double d;
@@ -31,7 +30,7 @@ from_js<double>(JSContext* ctx, JSValueConst val) {
   return d;
 }
 
-template <>
+template<>
 inline std::string
 from_js<std::string>(JSContext* ctx, JSValueConst val) {
   const char* s = JS_ToCString(ctx, val);
@@ -47,37 +46,37 @@ from_js<std::string>(JSContext* ctx, JSValueConst val) {
  * \defgroup to_js<Input> shims
  * @{
  */
-template <class Input>
+template<class Input>
 inline JSValue
 to_js(JSContext* ctx, Input num) {
   return JS_EXCEPTION;
 }
 
-template <>
+template<>
 inline JSValue
 to_js<const std::string&>(JSContext* ctx, const std::string& str) {
   return JS_NewString(ctx, str.c_str());
 }
 
-template <>
+template<>
 inline JSValue
 to_js<int64_t>(JSContext* ctx, int64_t num) {
   return JS_NewInt64(ctx, num);
 }
 
-template <>
+template<>
 inline JSValue
 to_js<int32_t>(JSContext* ctx, int32_t num) {
   return JS_NewInt32(ctx, num);
 }
 
-template <>
+template<>
 inline JSValue
 to_js<uint32_t>(JSContext* ctx, uint32_t num) {
   return JS_NewUint32(ctx, num);
 }
 
-template <template <class> class Container, class Input>
+template<template<class> class Container, class Input>
 inline JSValue
 to_js(JSContext* ctx, const Container<Input>& container) {
   uint32_t i = 0;
@@ -117,7 +116,7 @@ struct ClassId {
 
   /* clang-format on */
 
-  template <class Fn>
+  template<class Fn>
   void
   recurse(const Fn& fn) const {
     fn(cid);
@@ -126,7 +125,7 @@ struct ClassId {
       cidp->recurse(fn);
   }
 
-  template <class T = void>
+  template<class T = void>
   T*
   opaque(JSValueConst val) const {
     T* ptr;
@@ -141,7 +140,7 @@ struct ClassId {
     return nullptr;
   }
 
-  template <class T = void>
+  template<class T = void>
   T*
   opaque(JSContext* ctx, JSValueConst val) const {
     T* ptr = opaque<T>(val);
@@ -166,7 +165,7 @@ private:
   std::vector<ClassId*> descendants;
 };
 
-template <class T> struct ClassPtr : std::shared_ptr<T> {
+template<class T> struct ClassPtr : std::shared_ptr<T> {
   typedef std::shared_ptr<T> base_type;
   typedef std::shared_ptr<lab::AudioContext> context_type;
 
