@@ -308,10 +308,11 @@ js_audiobuffer_methods(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       if(start < 0 || start >= src.length())
         return JS_ThrowRangeError(ctx, "startInChannel %d not in range 0 - %d (source size)", start, src.length());
 
-      lab::AudioChannel dest(buf, len);
+      // lab::AudioChannel dest(buf, len);
 
-      const int frames = min(dest.length(), src.length() - start);
-      dest.copyFromRange(&src, start, start + frames);
+      const int frames = min(len, src.length() - start);
+      // dest.copyFromRange(&src, start, start + frames);
+      memcpy(buf, src.data() + start, frames * sizeof(float));
       break;
     }
     case BUFFER_COPY_TO_CHANNEL: {
