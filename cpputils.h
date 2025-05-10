@@ -38,6 +38,16 @@ from_js<std::string>(JSContext* ctx, JSValueConst val) {
   JS_FreeCString(ctx, s);
   return ret;
 }
+
+template<class Output>
+inline Output
+from_js(JSValueConst val) {}
+
+template<>
+inline JSObject*
+from_js<JSObject*>(JSValueConst val) {
+  return JS_VALUE_GET_TAG(val) == JS_TAG_OBJECT ? JS_VALUE_GET_OBJ(val) : nullptr;
+}
 /**
  * @}
  */
@@ -87,6 +97,19 @@ to_js(JSContext* ctx, const Container<Input>& container) {
 
   return ret;
 }
+
+template<class Input>
+inline JSValue
+to_js(Input num) {
+  return JS_EXCEPTION;
+}
+
+template<>
+inline JSValue
+to_js<JSObject*>(JSObject* obj) {
+  return JS_MKPTR(JS_TAG_OBJECT, obj);
+}
+
 /**
  * @}
  */
