@@ -96,7 +96,7 @@ js_audiobuffer_channels(JSContext* ctx, AudioChannelPtr& ac) {
   std::vector<JSObject*>* obj = js_audiobuffer_channelobjs(ctx, bus);
 
   if(obj) {
-    if(ac.value >= bus->length())
+    if(bus->length() <= ac.value)
       obj->resize(bus->length());
 
     if(obj->operator[](ac.value))
@@ -131,25 +131,25 @@ js_audiobuffer_channels(JSContext* ctx, AudioChannelPtr& ac) {
 
 static JSValue
 js_audiochannel_create(JSContext* ctx, AudioChannelPtr& ac) {
-  AudioChannelPtr* acptr;
+  AudioChannelPtr* ptr;
   JSValue ret = JS_UNDEFINED;
   JSObject*& obj = js_audiobuffer_channels(ctx, ac);
 
   if(obj)
     return JS_DupValue(ctx, JS_MKPTR(JS_TAG_OBJECT, obj));
 
-  if(!(acptr = js_malloc<AudioChannelPtr>(ctx)))
+  if(!(ptr = js_malloc<AudioChannelPtr>(ctx)))
     return JS_ThrowOutOfMemory(ctx);
 
-  new(acptr) AudioChannelPtr(ac);
+  new(ptr) AudioChannelPtr(ac);
 
-  lab::AudioChannel* c = (*acptr)->channel(acptr->value);
+  lab::AudioChannel* ch = (*ptr)->channel(ptr->value);
 
   JSValue f32arr = js_float32array_ctor(ctx);
   JSValue args[] = {
-      JS_NewArrayBuffer(ctx, (uint8_t*)c->mutableData(), c->length() * sizeof(float), &js_audiochannel_free, acptr, FALSE),
+      JS_NewArrayBuffer(ctx, (uint8_t*)ch->mutableData(), ch->length() * sizeof(float), &js_audiochannel_free, ptr, FALSE),
       JS_NewUint32(ctx, 0),
-      JS_NewUint32(ctx, c->length()),
+      JS_NewUint32(ctx, ch->length()),
   };
 
   ret = JS_CallConstructor(ctx, f32arr, countof(args), args);
@@ -292,8 +292,9 @@ js_audiobuffer_methods(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       lab::AudioChannel* ac;
 
       if((ac = (*ab)->channel(ch))) {
-        int size = ac->length();
-        float* data = ac->mutableData();
+        AudioChannelPtr acptr(*ab, ch);
+
+        ret = js_audiochannel_create(ctx, acptr);
       }
 
       break;
