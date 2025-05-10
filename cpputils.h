@@ -165,7 +165,21 @@ private:
   std::vector<ClassId*> descendants;
 };
 
-template<class T> struct ClassPtr : std::shared_ptr<T> {
+template<class T, class U = std::shared_ptr<lab::AudioContext>> struct ClassPtr : std::shared_ptr<T> {
+  typedef std::shared_ptr<T> base_type;
+  typedef U value_type;
+
+  ClassPtr(const base_type& b, const value_type& v) : base_type(b), value(v) {}
+
+  std::shared_ptr<T>
+  get() const {
+    return base_type::get();
+  }
+
+  value_type value;
+};
+
+/*template<class T> struct ClassPtr : std::shared_ptr<T> {
   typedef std::shared_ptr<T> base_type;
   typedef std::shared_ptr<lab::AudioContext> context_type;
 
@@ -173,5 +187,12 @@ template<class T> struct ClassPtr : std::shared_ptr<T> {
 
   context_type context;
 };
+*/
+
+template<class T>
+static inline T*
+js_malloc(JSContext* ctx) {
+  return static_cast<T*>(js_malloc(ctx, sizeof(T)));
+}
 
 #endif /* defined(CPPUTILS_H) */
