@@ -58,15 +58,32 @@ js_audiochannel_free(JSRuntime* rt, void* opaque, void* ptr) {
   js_free_rt(rt, ac);
 }
 
+static std::vector<JSObject*>*
+js_audiobuffer_channelobjs(JSContext* ctx, std::shared_ptr<lab::AudioBus>& bus) {
+  std::vector<JSObject*>* ret = nullptr;
+
+  for(auto& [k, v] : channel_map) {
+    std::shared_ptr<lab::AudioBus> ab(k);
+
+    if(ab.get() == bus.get()) {
+      ret = &v;
+      break;
+    }
+  }
+
+  return ret;
+}
+
 static JSObject*&
 js_audiobuffer_channels(JSContext* ctx, AudioChannelPtr& ac) {
   const auto count = std::erase_if(channel_map, [ctx](const auto& item) {
-    auto const& [key, value] = item;
+    const auto& [key, value] = item;
     const bool expired = key.expired();
 
     if(expired)
       for(JSObject* ptr : value)
-        JS_FreeValue(ctx, JS_MKPTR(JS_TAG_OBJECT, ptr));
+        if(ptr)
+          JS_FreeValue(ctx, JS_MKPTR(JS_TAG_OBJECT, ptr));
 
     return expired;
   });
@@ -76,28 +93,40 @@ js_audiobuffer_channels(JSContext* ctx, AudioChannelPtr& ac) {
 
   std::shared_ptr<lab::AudioBus> bus(ac);
 
+  std::vector<JSObject*>* obj = js_audiobuffer_channelobjs(ctx, bus);
+
+  if(obj) {
+    if(ac.value >= bus->length())
+      obj->resize(bus->length());
+
+    if(obj->operator[](ac.value))
+      return obj->operator[](ac.value);
+  }
+
   for(auto& [k, v] : channel_map) {
     std::shared_ptr<lab::AudioBus> ab(k);
 
     if(ab.get() == bus.get()) {
-
-      if(ac.value >= v.size())
+      if(v.size() <= ac.value)
         v.resize(ac.value + 1);
 
-      return v[ac.value];
+      if(v[ac.value])
+        return v[ac.value];
     }
   }
 
-  AudioBufferIndex key(ac);
+  if(!obj) {
+    AudioBufferIndex key(ac);
 
-  channel_map.emplace(std::make_pair(key, std::vector<JSObject*>(bus->length())));
+    channel_map.emplace(std::make_pair(key, std::vector<JSObject*>(bus->length(), nullptr)));
 
-  auto& v = channel_map[key];
+    obj = &channel_map[key];
+  }
 
-  if(ac.value >= v.size())
-    v.resize(ac.value + 1);
+  if(obj->size() <= ac.value)
+    obj->resize(ac.value + 1);
 
-  return v[ac.value];
+  return (*obj)[ac.value];
 }
 
 static JSValue
