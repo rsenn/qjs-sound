@@ -56,13 +56,6 @@ js_audiochannel_free(JSRuntime* rt, void* opaque, void* ptr) {
   js_free_rt(rt, ac);
 }
 
-/*static bool
-operator<(const AudioBufferIndex& a, const AudioBufferIndex& b) {
-  std::shared_ptr<lab::AudioBus> s1(a), s2(b);
-
-  return s1.get() < s2.get();
-}*/
-
 static JSObject*&
 js_audiobuffer_channels(JSContext* ctx, AudioChannelPtr& ac) {
   std::shared_ptr<lab::AudioBus> bus(ac);
@@ -95,21 +88,10 @@ static JSValue
 js_audiochannel_create(JSContext* ctx, AudioChannelPtr& ac) {
   AudioChannelPtr* acptr;
   JSValue ret = JS_UNDEFINED;
+  JSObject*& obj = js_audiobuffer_channels(ctx, ac);
 
-  std::shared_ptr<lab::AudioBus> bus(ac);
-
-  for(auto& [k, v] : channel_map) {
-    std::shared_ptr<lab::AudioBus> ab(k);
-
-    if(ab.get() == bus.get()) {
-      JSObject* obj;
-
-      if((obj = v[ac.value]))
-        return JS_MKPTR(JS_TAG_OBJECT, obj);
-    }
-
-    std::cout << ab.get() << " = " << v[0] << std::endl;
-  }
+  if(obj)
+    return JS_MKPTR(JS_TAG_OBJECT, obj);
 
   if(!(acptr = js_malloc<AudioChannelPtr>(ctx)))
     return JS_ThrowOutOfMemory(ctx);
@@ -132,10 +114,7 @@ js_audiochannel_create(JSContext* ctx, AudioChannelPtr& ac) {
   JS_FreeValue(ctx, args[2]);
   JS_FreeValue(ctx, f32arr);
 
-  JSObject* obj = JS_VALUE_GET_OBJ(ret);
-
-  /*auto p =*/
-  // channel_map.emplace(std::make_pair(AudioBufferIndex(bus), std::vector<JSObject*>(bus->length())));
+  obj = JS_VALUE_GET_OBJ(ret);
 
   return ret;
 }
