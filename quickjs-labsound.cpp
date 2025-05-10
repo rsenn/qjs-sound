@@ -277,15 +277,12 @@ js_audiobuffer_methods(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
 
       size_t offset, length, bytes_per_element;
       JSValue buffer = JS_GetTypedArrayBuffer(ctx, argv[0], &offset, &length, &bytes_per_element);
-      uint8_t* buf;
       size_t size;
-
-      if(!(buf = JS_GetArrayBuffer(ctx, &size, buffer)) || bytes_per_element != sizeof(float)) {
-        JS_FreeValue(ctx, buffer);
-        return JS_ThrowTypeError(ctx, "argument 1 must be a Float32Array");
-      }
-
+      uint8_t* buf = JS_GetArrayBuffer(ctx, &size, buffer);
       JS_FreeValue(ctx, buffer);
+
+      if(!buf || bytes_per_element != sizeof(float))
+        return JS_ThrowTypeError(ctx, "argument 1 must be a Float32Array");
 
       uint32_t start = 0;
 
@@ -298,8 +295,6 @@ js_audiobuffer_methods(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       lab::AudioChannel dest(reinterpret_cast<float*>(buf), length);
 
       dest.copyFromRange(src, start, std::min(length, size_t(src->length() - start)));
-      ret = JS_TRUE;
-
       break;
     }
     case BUFFER_COPY_TO_CHANNEL: {
@@ -312,15 +307,12 @@ js_audiobuffer_methods(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
 
       size_t offset, length, bytes_per_element;
       JSValue buffer = JS_GetTypedArrayBuffer(ctx, argv[0], &offset, &length, &bytes_per_element);
-      uint8_t* buf;
       size_t size;
-
-      if(!(buf = JS_GetArrayBuffer(ctx, &size, buffer)) || bytes_per_element != sizeof(float)) {
-        JS_FreeValue(ctx, buffer);
-        return JS_ThrowTypeError(ctx, "argument 1 must be a Float32Array");
-      }
-
+      uint8_t* buf = JS_GetArrayBuffer(ctx, &size, buffer);
       JS_FreeValue(ctx, buffer);
+
+      if(!buf || bytes_per_element != sizeof(float))
+        return JS_ThrowTypeError(ctx, "argument 1 must be a Float32Array");
 
       uint32_t start = 0;
 
@@ -333,10 +325,6 @@ js_audiobuffer_methods(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       lab::AudioChannel src(reinterpret_cast<float*>(buf), length);
 
       memcpy(dest->mutableData() + offset, src.mutableData(), std::min(length, dest->length() - offset) * sizeof(float));
-
-      // dest->copyFrom(&src);
-      ret = JS_TRUE;
-
       break;
     }
     case BUFFER_GET_CHANNEL_DATA: {
