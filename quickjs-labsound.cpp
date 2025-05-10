@@ -60,16 +60,16 @@ js_audiochannel_free(JSRuntime* rt, void* opaque, void* ptr) {
 
 static JSObject*&
 js_audiobuffer_channels(JSContext* ctx, AudioChannelPtr& ac) {
-  std::shared_ptr<lab::AudioBus> bus(ac);
-
   const auto count = std::erase_if(channel_map, [](const auto& item) {
     auto const& [key, value] = item;
-
     return key.expired();
   });
 
   if(count > 0)
     std::cerr << "Erased " << count << " expired references" << std::endl;
+
+  std::shared_ptr<lab::AudioBus> bus(ac);
+
 
   /*  auto s = channel_map.begin(), e = channel_map.end();
 
