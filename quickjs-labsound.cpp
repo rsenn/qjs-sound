@@ -196,17 +196,43 @@ js_audiobuffer_constructor(JSContext* ctx, JSValueConst new_target, int argc, JS
   double sampleRate = 44100;
 
   if(argc > 0) {
-    JSValue value = JS_GetPropertyStr(ctx, argv[0], "length");
-    JS_ToIndex(ctx, &length, value);
-    JS_FreeValue(ctx, value);
+    JSValue value;
+    if(JS_IsObject(argv[0])) {
+      if(js_has_property(ctx, argv[0], "length")) {
+        value = JS_GetPropertyStr(ctx, argv[0], "length");
+        JS_ToIndex(ctx, &length, value);
+        JS_FreeValue(ctx, value);
+      }
 
-    value = JS_GetPropertyStr(ctx, argv[0], "numberOfChannels");
-    JS_ToIndex(ctx, &numberOfChannels, value);
-    JS_FreeValue(ctx, value);
+      if(js_has_property(ctx, argv[0], "numberOfChannels")) {
+        value = JS_GetPropertyStr(ctx, argv[0], "numberOfChannels");
+        JS_ToIndex(ctx, &numberOfChannels, value);
+        JS_FreeValue(ctx, value);
+      }
 
-    value = JS_GetPropertyStr(ctx, argv[0], "sampleRate");
-    JS_ToFloat64(ctx, &sampleRate, value);
-    JS_FreeValue(ctx, value);
+      if(js_has_property(ctx, argv[0], "sampleRate")) {
+        value = JS_GetPropertyStr(ctx, argv[0], "sampleRate");
+        JS_ToFloat64(ctx, &sampleRate, value);
+        JS_FreeValue(ctx, value);
+      }
+
+      if(length == 0 && sampleRate > 0 && js_has_property(ctx, argv[0], "duration")) {
+        double duration;
+        value = JS_GetPropertyStr(ctx, argv[0], "duration");
+        JS_ToFloat64(ctx, &duration, value);
+        length = duration * sampleRate;
+        JS_FreeValue(ctx, value);
+      }
+
+    } else {
+      JS_ToIndex(ctx, &length, argv[0]);
+
+      if(argc > 1)
+        JS_ToIndex(ctx, &numberOfChannels, argv[1]);
+
+      if(argc > 2)
+        JS_ToFloat64(ctx, &sampleRate, argv[2]);
+    }
   }
 
   AudioBufferPtr* ab = js_malloc<AudioBufferPtr>(ctx);
@@ -322,6 +348,7 @@ js_audiobuffer_methods(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
 
 enum {
   BUFFER_LENGTH,
+  BUFFER_DURATION,
   BUFFER_NUMBER_OF_CHANNELS,
   BUFFER_SAMPLERATE,
   BUFFER_SILENT,
@@ -341,6 +368,19 @@ js_audiobuffer_get(JSContext* ctx, JSValueConst this_val, int magic) {
   switch(magic) {
     case BUFFER_LENGTH: {
       ret = JS_NewUint32(ctx, (*ab)->length());
+      break;
+    }
+    case BUFFER_DURATION: {
+      double rate = (*ab)->sampleRate();
+      double len = (*ab)->length();
+
+      if(len == 0)
+        ret = JS_NewInt32(ctx, 0);
+      else if(rate > 0)
+        ret = JS_NewFloat64(ctx, len / rate);
+      else
+        ret = (JSValue){.u = {.float64 = NAN}, .tag = JS_TAG_FLOAT64};
+
       break;
     }
     case BUFFER_NUMBER_OF_CHANNELS: {
@@ -445,7 +485,10 @@ static const JSCFunctionListEntry js_audiobuffer_funcs[] = {
     JS_CFUNC_MAGIC_DEF("copyFrom", 1, js_audiobuffer_methods, BUFFER_COPY_FROM),
     JS_CFUNC_MAGIC_DEF("sumFrom", 1, js_audiobuffer_methods, BUFFER_SUM_FROM),
     JS_CFUNC_MAGIC_DEF("normalize", 0, js_audiobuffer_methods, BUFFER_NORMALIZE),
+    JS_CFUNC_MAGIC_DEF("channel", 1, js_audiobuffer_methods, BUFFER_CHANNEL),
     JS_CGETSET_MAGIC_DEF("length", js_audiobuffer_get, 0, BUFFER_LENGTH),
+    JS_CGETSET_MAGIC_DEF("duration", js_audiobuffer_get, 0, BUFFER_DURATION),
+    JS_CGETSET_MAGIC_DEF("numberOfChannels", js_audiobuffer_get, 0, BUFFER_NUMBER_OF_CHANNELS),
     JS_CGETSET_MAGIC_DEF("sampleRate", js_audiobuffer_get, 0, BUFFER_SAMPLERATE),
     JS_CGETSET_MAGIC_DEF("silent", js_audiobuffer_get, 0, BUFFER_SILENT),
     JS_CGETSET_MAGIC_DEF("zero", js_audiobuffer_get, 0, BUFFER_ZERO),
@@ -1654,7 +1697,7 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   JS_NewClass(JS_GetRuntime(ctx), js_audiobuffer_class_id, &js_audiobuffer_class);
 
   audiobuffer_ctor = JS_NewCFunction2(ctx, js_audiobuffer_constructor, "AudioBuffer", 1, JS_CFUNC_constructor, 0);
-  audiobuffer_proto = JS_NewObject(ctx);
+  audiobuffer_proto = JS_NewObjectProto(ctx, JS_NULL);
 
   JS_SetPropertyFunctionList(ctx, audiobuffer_proto, js_audiobuffer_funcs, countof(js_audiobuffer_funcs));
 
@@ -1665,7 +1708,7 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   JS_NewClass(JS_GetRuntime(ctx), js_audiocontext_class_id, &js_audiocontext_class);
 
   audiocontext_ctor = JS_NewCFunction2(ctx, js_audiocontext_constructor, "AudioContext", 1, JS_CFUNC_constructor, 0);
-  audiocontext_proto = JS_NewObject(ctx);
+  audiocontext_proto = JS_NewObjectProto(ctx, JS_NULL);
 
   JS_SetPropertyFunctionList(ctx, audiocontext_proto, js_audiocontext_funcs, countof(js_audiocontext_funcs));
 
@@ -1676,7 +1719,7 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   JS_NewClass(JS_GetRuntime(ctx), js_audiolistener_class_id, &js_audiolistener_class);
 
   audiolistener_ctor = JS_NewCFunction2(ctx, js_audiolistener_constructor, "AudioListener", 1, JS_CFUNC_constructor, 0);
-  audiolistener_proto = JS_NewObject(ctx);
+  audiolistener_proto = JS_NewObjectProto(ctx, JS_NULL);
 
   JS_SetPropertyFunctionList(ctx, audiolistener_proto, js_audiolistener_funcs, countof(js_audiolistener_funcs));
 
@@ -1687,7 +1730,7 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   JS_NewClass(JS_GetRuntime(ctx), js_audiodevice_class_id, &js_audiodevice_class);
 
   audiodevice_ctor = JS_NewCFunction2(ctx, js_audiodevice_constructor, "AudioDevice", 1, JS_CFUNC_constructor, 0);
-  audiodevice_proto = JS_NewObject(ctx);
+  audiodevice_proto = JS_NewObjectProto(ctx, JS_NULL);
 
   JS_SetPropertyFunctionList(ctx, audiodevice_proto, js_audiodevice_funcs, countof(js_audiodevice_funcs));
 
@@ -1698,7 +1741,7 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   JS_NewClass(JS_GetRuntime(ctx), js_audionode_class_id, &js_audionode_class);
 
   audionode_ctor = JS_NewObjectProto(ctx, JS_NULL);
-  audionode_proto = JS_NewObject(ctx);
+  audionode_proto = JS_NewObjectProto(ctx, JS_NULL);
 
   JS_SetPropertyFunctionList(ctx, audionode_proto, js_audionode_funcs, countof(js_audionode_funcs));
 
@@ -1762,7 +1805,7 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   JS_SetClassProto(ctx, js_audioparam_class_id, audioparam_proto);
 
   if(m) {
-    JS_SetModuleExport(ctx, m, "AudioBuffer", audiocontext_ctor);
+    JS_SetModuleExport(ctx, m, "AudioBuffer", audiobuffer_ctor);
     JS_SetModuleExport(ctx, m, "AudioContext", audiocontext_ctor);
     JS_SetModuleExport(ctx, m, "AudioListener", audiolistener_ctor);
     JS_SetModuleExport(ctx, m, "AudioDevice", audiodevice_ctor);

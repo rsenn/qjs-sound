@@ -91,6 +91,14 @@ to_js(JSContext* ctx, const Container<Input>& container) {
  * @}
  */
 
+BOOL
+js_has_property(JSContext* ctx, JSValueConst obj, const char* name) {
+  JSAtom atom = JS_NewAtom(ctx, name);
+  BOOL ret = JS_HasProperty(ctx, obj, atom);
+  JS_FreeAtom(ctx, atom);
+  return ret;
+}
+
 /*! \class ClassId
  *  \brief JSClassID container
  */
