@@ -15,7 +15,14 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -w")]]
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/functions.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/check-flags.cmake)
+#include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CheckFlags.cmake)
 
+#check_cxx_standard_flag(c++20 c++23)
+
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
+
+#check_flag("-std=c++20" STD_CXX20 MODULE_COMPILE_FLAGS)
 check_flag("-w" F_NOWARN MODULE_COMPILE_FLAGS)
 check_flag("-fPIC" F_PIC MODULE_COMPILE_FLAGS)
 check_flag("-fvisibility=hidden" VISIBILITY_HIDDEN MODULE_COMPILE_FLAGS)

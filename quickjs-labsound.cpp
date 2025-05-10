@@ -5,6 +5,8 @@
 #include "LabSound/backends/AudioDevice_RtAudio.h"
 #include "cpputils.h"
 #include <array>
+#include <map>
+#include <vector>
 
 static ClassId js_audiobuffer_class_id, js_audiocontext_class_id, js_audiolistener_class_id, js_audiodevice_class_id, js_audionode_class_id, js_audiodestinationnode_class_id,
     js_audioscheduledsourcenode_class_id, js_oscillatornode_class_id, js_audiosummingjunction_class_id, js_audioparam_class_id;
@@ -60,22 +62,27 @@ static JSObject*&
 js_audiobuffer_channels(JSContext* ctx, AudioChannelPtr& ac) {
   std::shared_ptr<lab::AudioBus> bus(ac);
 
-   auto s=channel_map.begin(), e=channel_map.end();
+  const auto count = std::erase_if(channel_map, [](const auto& item) {
+    auto const& [key, value] = item;
 
-   while(s != e) {
-const AudioBufferIndex& index= s->first;
+    return key.expired();
+  });
 
-ChannelMap::iterator next = ++s;
+  /*  auto s = channel_map.begin(), e = channel_map.end();
 
-if(index.expired())
-  channel_map.erase(s);
+    while(s != e) {
+      const AudioBufferIndex& index = s->first;
 
-s=next;
-   }
+      ChannelMap::iterator next = ++s;
+
+      if(index.expired())
+        channel_map.erase(s);
+
+      s = next;
+    }*/
 
   for(auto& [k, v] : channel_map) {
     std::shared_ptr<lab::AudioBus> ab(k);
-
 
     if(ab.get() == bus.get()) {
 
