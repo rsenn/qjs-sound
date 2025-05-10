@@ -70,20 +70,6 @@ js_audiobuffer_channels(JSContext* ctx, AudioChannelPtr& ac) {
 
   std::shared_ptr<lab::AudioBus> bus(ac);
 
-
-  /*  auto s = channel_map.begin(), e = channel_map.end();
-
-    while(s != e) {
-      const AudioBufferIndex& index = s->first;
-
-      ChannelMap::iterator next = ++s;
-
-      if(index.expired())
-        channel_map.erase(s);
-
-      s = next;
-    }*/
-
   for(auto& [k, v] : channel_map) {
     std::shared_ptr<lab::AudioBus> ab(k);
 
