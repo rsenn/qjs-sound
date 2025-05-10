@@ -7,6 +7,7 @@
 #include <array>
 #include <map>
 #include <vector>
+#include <algorithm>
 
 static ClassId js_audiobuffer_class_id, js_audiocontext_class_id, js_audiolistener_class_id, js_audiodevice_class_id, js_audionode_class_id, js_audiodestinationnode_class_id,
     js_audioscheduledsourcenode_class_id, js_oscillatornode_class_id, js_audiosummingjunction_class_id, js_audioparam_class_id;
@@ -93,35 +94,19 @@ js_audiobuffer_channels(JSContext* ctx, AudioChannelPtr& ac) {
 
   std::shared_ptr<lab::AudioBus> bus(ac);
 
-  std::vector<JSObject*>* obj = js_audiobuffer_channelobjs(ctx, bus);
+  std::vector<JSObject*>* obj;
+  const auto len = std::max(ac.value + 1, bus->length());
 
-  if(obj) {
-    if(bus->length() <= ac.value)
-      obj->resize(bus->length());
-    else if((*obj)[ac.value])
-      return (*obj)[ac.value];
-  }
-
-  /*for(auto& [k, v] : channel_map) {
-    std::shared_ptr<lab::AudioBus> ab(k);
-    if(ab.get() == bus.get()) {
-      if(v.size() <= ac.value)
-        v.resize(ac.value + 1);
-      if(v[ac.value])
-        return v[ac.value];
-    }
-  }*/
-
-  if(!obj) {
+  if((obj = js_audiobuffer_channelobjs(ctx, bus))) {
+    if(obj->size() < len)
+      obj->resize(len);
+  } else {
     AudioBufferIndex key(ac);
 
-    channel_map.emplace(std::make_pair(key, std::vector<JSObject*>(bus->length(), nullptr)));
+    channel_map.emplace(std::make_pair(key, std::vector<JSObject*>(len, nullptr)));
 
     obj = &channel_map[key];
   }
-
-  if(obj->size() <= ac.value)
-    obj->resize(ac.value + 1);
 
   return (*obj)[ac.value];
 }
