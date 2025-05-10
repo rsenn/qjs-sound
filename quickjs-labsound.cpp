@@ -268,13 +268,34 @@ js_audiobuffer_methods(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
 
   switch(magic) {
     case BUFFER_COPY_FROM_CHANNEL: {
+      int ch = js_channel_get(ctx, argv[1]);
+
+      if(ch < 0 || ch >= (*ab)->numberOfChannels())
+        return JS_ThrowRangeError(ctx, "channel number out of range 0 < ch < %d", (*ab)->numberOfChannels());
+
+      lab::AudioChannel* ac = (*ab)->channel(ch);
+
+      size_t offset, length, bytes_per_element;
+      JSValue buffer = JS_GetTypedArrayBuffer(ctx, argv[0], &offset, &length, &bytes_per_element);
+      uint8_t* buf;
+      size_t size;
+
+      if(bytes_per_element != sizeof(float)) {
+        JS_FreeValue(ctx, buffer);
+        return JS_ThrowTypeError(ctx, "argument 1 must be a Float32Array");
+      }
+
+      if((buf = JS_GetArrayBuffer(ctx, &size, buffer))) {
+        lab::AudioChannel ach(reinterpret_cast<float*>(buf), length);
+
+        ach.copyFrom(ac);
+        ret = JS_TRUE;
+      }
+
       break;
     }
     case BUFFER_COPY_TO_CHANNEL: {
       int ch = js_channel_get(ctx, argv[1]);
-
-      if(ch == -1)
-        return JS_ThrowRangeError(ctx, "argument 2 must be a valid channel");
 
       if(ch < 0 || ch >= (*ab)->numberOfChannels())
         return JS_ThrowRangeError(ctx, "channel number out of range 0 < ch < %d", (*ab)->numberOfChannels());
@@ -302,9 +323,6 @@ js_audiobuffer_methods(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
     }
     case BUFFER_GET_CHANNEL_DATA: {
       int ch = js_channel_get(ctx, argv[0]);
-
-      if(ch == -1)
-        return JS_ThrowRangeError(ctx, "argument 1 must be a valid channel");
 
       if(ch < 0 || ch >= (*ab)->numberOfChannels())
         return JS_ThrowRangeError(ctx, "channel number out of range 0 < ch < %d", (*ab)->numberOfChannels());
