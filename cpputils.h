@@ -93,7 +93,7 @@ from_js<lab::Channel>(JSContext* ctx, JSValueConst value) {
   }
   if(ret == -1)
     JS_ToInt32(ctx, &ret, value);
-  return lab::Channel(ret);
+  return lab::Channel(ret + int(lab::Channel::Left));
 }
 
 template<>
@@ -113,7 +113,27 @@ from_js<lab::ChannelInterpretation>(JSContext* ctx, JSValueConst value) {
   }
   if(ret == -1)
     JS_ToInt32(ctx, &ret, value);
-  return lab::ChannelInterpretation(ret);
+  return lab::ChannelInterpretation(ret + int(lab::ChannelInterpretation::Speakers));
+}
+
+template<>
+inline lab::ChannelCountMode
+from_js<lab::ChannelCountMode>(JSContext* ctx, JSValueConst value) {
+  int32_t ret = -1;
+  const char* s;
+  static const char* const names[] = {"Max", "ClampedMax", "Explicit", "End"};
+
+  if((s = JS_ToCString(ctx, value))) {
+    for(size_t i = 0; i < countof(names); ++i)
+      if(!strcasecmp(s, names[i])) {
+        ret = i;
+        break;
+      }
+    JS_FreeCString(ctx, s);
+  }
+  if(ret == -1)
+    JS_ToInt32(ctx, &ret, value);
+  return lab::ChannelCountMode(ret + int(lab::ChannelCountMode::Max));
 }
 /**
  * @}
