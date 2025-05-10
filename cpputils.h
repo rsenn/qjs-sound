@@ -74,23 +74,46 @@ from_js<JSObject*>(JSValueConst val) {
 template<>
 inline lab::Channel
 from_js<lab::Channel>(JSContext* ctx, JSValueConst value) {
-  static const char* const channel_names[] = {"Left", "Right", "Center", "Mono", "LFE", "SurroundLeft", "SurroundRight", "BackLeft", "BackRight"};
-  const char* str;
-  int32_t n = -1;
-  if((str = JS_ToCString(ctx, value))) {
-    if(!strcasecmp(str, "first")) {
-      n = 0;
+  int32_t ret = -1;
+  const char* s;
+  static const char* const names[] = {"Left", "Right", "Center", "LFE", "SurroundLeft", "SurroundRight", "BackLeft", "BackRight"};
+
+  if((s = JS_ToCString(ctx, value))) {
+    if(!strcasecmp(s, "first")) {
+      ret = 0;
+    } else if(!strcasecmp(s, "mono")) {
+      ret = 2;
     } else
-      for(size_t i = 0; i < countof(channel_names); ++i)
-        if(!strcasecmp(str, channel_names[i])) {
-          n = i;
+      for(size_t i = 0; i < countof(names); ++i)
+        if(!strcasecmp(s, names[i])) {
+          ret = i;
           break;
         }
-    JS_FreeCString(ctx, str);
+    JS_FreeCString(ctx, s);
   }
-  if(n == -1)
-    JS_ToInt32(ctx, &n, value);
-  return lab::Channel(n);
+  if(ret == -1)
+    JS_ToInt32(ctx, &ret, value);
+  return lab::Channel(ret);
+}
+
+template<>
+inline lab::ChannelInterpretation
+from_js<lab::ChannelInterpretation>(JSContext* ctx, JSValueConst value) {
+  int32_t ret = -1;
+  const char* s;
+  static const char* const names[] = {"Speakers", "Discrete"};
+
+  if((s = JS_ToCString(ctx, value))) {
+    for(size_t i = 0; i < countof(names); ++i)
+      if(!strcasecmp(s, names[i])) {
+        ret = i;
+        break;
+      }
+    JS_FreeCString(ctx, s);
+  }
+  if(ret == -1)
+    JS_ToInt32(ctx, &ret, value);
+  return lab::ChannelInterpretation(ret);
 }
 /**
  * @}

@@ -277,6 +277,8 @@ enum {
   BUFFER_RESET,
   BUFFER_COPY_FROM,
   BUFFER_SUM_FROM,
+  BUFFER_COPY_WITH_GAIN_FROM,
+  BUFFER_COPY_WITH_SAMPLE_ACCURATE_GAIN_VALUES_FROM,
   BUFFER_NORMALIZE,
 };
 
@@ -373,21 +375,45 @@ js_audiobuffer_methods(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       break;
     }
     case BUFFER_COPY_FROM: {
-      AudioBufferPtr* other;
+      AudioBufferPtr* source;
+      lab::ChannelInterpretation interp = argc > 1 ? from_js<lab::ChannelInterpretation>(ctx, argv[1]) : lab::ChannelInterpretation::Speakers;
 
-      if(!(other = js_audiobuffer_class_id.opaque<AudioBufferPtr>(this_val)))
+      if(!(source = js_audiobuffer_class_id.opaque<AudioBufferPtr>(argv[0])))
         return JS_ThrowTypeError(ctx, "argument 1 must be an AudioBuffer");
 
-      (*ab)->copyFrom(*(*other));
+      (*ab)->copyFrom(*(*source), interp);
       break;
     }
     case BUFFER_SUM_FROM: {
-      AudioBufferPtr* other;
+      AudioBufferPtr* source;
+      lab::ChannelInterpretation interp = argc > 1 ? from_js<lab::ChannelInterpretation>(ctx, argv[1]) : lab::ChannelInterpretation::Speakers;
 
-      if(!(other = js_audiobuffer_class_id.opaque<AudioBufferPtr>(this_val)))
+      if(!(source = js_audiobuffer_class_id.opaque<AudioBufferPtr>(argv[0])))
         return JS_ThrowTypeError(ctx, "argument 1 must be an AudioBuffer");
 
-      (*ab)->sumFrom(*(*other));
+      (*ab)->sumFrom(*(*source), interp);
+      break;
+    }
+    case BUFFER_COPY_WITH_GAIN_FROM: {
+      AudioBufferPtr* source;
+      double targetGain = from_js<double>(ctx, argv[2]);
+      float lastMixGain;
+
+      if(!(source = js_audiobuffer_class_id.opaque<AudioBufferPtr>(argv[0])))
+        return JS_ThrowTypeError(ctx, "argument 1 must be an AudioBuffer");
+
+      (*ab)->copyWithGainFrom(*(*source), &lastMixGain, targetGain);
+      break;
+    }
+    case BUFFER_COPY_WITH_SAMPLE_ACCURATE_GAIN_VALUES_FROM: {
+      AudioBufferPtr* source;
+      auto [ptr, len] = js_audiochannel_buffer(ctx, argv[1]);
+      int numberOfGainValues = argc > 2 ? from_js<int>(ctx, argv[2]) : len;
+
+      if(!(source = js_audiobuffer_class_id.opaque<AudioBufferPtr>(argv[0])))
+        return JS_ThrowTypeError(ctx, "argument 1 must be an AudioBuffre");
+
+      (*ab)->copyWithSampleAccurateGainValuesFrom(*(*source), ptr, std::min(numberOfGainValues, len));
       break;
     }
     case BUFFER_NORMALIZE: {
@@ -537,6 +563,8 @@ static const JSCFunctionListEntry js_audiobuffer_funcs[] = {
     JS_CFUNC_MAGIC_DEF("reset", 0, js_audiobuffer_methods, BUFFER_RESET),
     JS_CFUNC_MAGIC_DEF("copyFrom", 1, js_audiobuffer_methods, BUFFER_COPY_FROM),
     JS_CFUNC_MAGIC_DEF("sumFrom", 1, js_audiobuffer_methods, BUFFER_SUM_FROM),
+    JS_CFUNC_MAGIC_DEF("copyWithGainFrom", 3, js_audiobuffer_methods, BUFFER_COPY_WITH_GAIN_FROM),
+    JS_CFUNC_MAGIC_DEF("copyWithSampleAccurateGainValuesFrom", 3, js_audiobuffer_methods, BUFFER_COPY_WITH_SAMPLE_ACCURATE_GAIN_VALUES_FROM),
     JS_CFUNC_MAGIC_DEF("normalize", 0, js_audiobuffer_methods, BUFFER_NORMALIZE),
     JS_CFUNC_MAGIC_DEF("copyFromChannel", 2, js_audiobuffer_methods, BUFFER_COPY_FROM_CHANNEL),
     JS_CFUNC_MAGIC_DEF("copyToChannel", 2, js_audiobuffer_methods, BUFFER_COPY_TO_CHANNEL),
