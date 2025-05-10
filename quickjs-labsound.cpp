@@ -104,10 +104,7 @@ js_audiochannel_object(JSContext* ctx, const AudioChannelPtr& ac) {
   const auto len = std::max(ac.value + 1, ac->length());
   JSObjectArray* obj;
 
-  if((obj = js_audiobuffer_channelobjs(ctx, ac))) {
-    if(obj->size() < len)
-      obj->resize(len);
-  } else {
+  if(!(obj = js_audiobuffer_channelobjs(ctx, ac))) {
     AudioBufferIndex key(ac);
 
     channel_map.emplace(make_pair(key, JSObjectArray(len, nullptr)));
@@ -158,9 +155,12 @@ js_audiobuffer_channelobjs(JSContext* ctx, const AudioBufferPtr& ab) {
   JSObjectArray* ret = nullptr;
 
   for(auto& [k, v] : channel_map) {
-    AudioBufferPtr ab(k);
+    AudioBufferPtr ab2(k);
 
-    if(ab.get() == ab.get()) {
+    if(ab2.get() == ab.get()) {
+      if(v.size() < ab->numberOfChannels())
+        v.resize(ab->numberOfChannels());
+
       ret = &v;
       break;
     }
