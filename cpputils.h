@@ -9,6 +9,8 @@
 
 #include "LabSound/LabSound.h"
 
+template<class T> using PointerRange = std::pair<T*, T*>;
+
 /**
  * \defgroup from_js<Output> shims
  * @{
@@ -96,6 +98,27 @@ inline JSObject*
 from_js<JSObject*>(JSContext* ctx, JSValueConst val) {
   JS_DupValue(ctx, val);
   return from_js<JSObject*>(val);
+}
+
+template<class Output, class T>
+inline Output
+from_js(JSContext* ctx, JSValueConst val, T arg) {
+  throw std::exception();
+}
+
+template<>
+inline uint8_t*
+from_js<uint8_t*>(JSContext* ctx, JSValueConst val, size_t* szptr) {
+  return JS_GetArrayBuffer(ctx, szptr, val);
+}
+
+template<>
+inline PointerRange<uint8_t>
+from_js<PointerRange<uint8_t>>(JSContext* ctx, JSValueConst val) {
+  size_t len;
+  uint8_t* ptr = from_js<uint8_t*>(ctx, val, &len);
+
+  return PointerRange<uint8_t>(ptr, ptr ? ptr + len : nullptr);
 }
 
 template<>
@@ -376,15 +399,14 @@ protected:
 class ArrayBufferView : public ObjectRef, public std::ranges::view_interface<ArrayBufferView> {
 public:
   ArrayBufferView() = delete;
-  ArrayBufferView(JSContext* ctx, JSValueConst buf) : ObjectRef(ctx, buf) { m_data = JS_GetArrayBuffer(ctx, &m_size, buf); }
+  ArrayBufferView(JSContext* ctx, JSValueConst buf) : ObjectRef(ctx, buf), m_range(from_js<PointerRange<uint8_t>>(ctx, buf)) {}
 
   /* clang-format off */ 
-  uint8_t* begin() const { return m_data; }
-  uint8_t* end() const { return m_data ?  m_data + m_size : nullptr; }
+  uint8_t* begin() const { return m_range.first; }
+  uint8_t* end() const { return m_range.second; }
   /* clang-format on */
 
 private:
-  uint8_t* m_data;
-  size_t m_size;
+  PointerRange<uint8_t> m_range;
 };
 #endif /* defined(CPPUTILS_H) */
