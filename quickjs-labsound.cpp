@@ -705,9 +705,9 @@ js_audioparam_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
     }
     case AUDIOPARAM_SET_VALUE_CURVE_AT_TIME: {
       double t, d;
-      std::vector<float> curve=from_js<std::vector, float>(ctx, argv[0]); 
+      auto curve = from_js<std::vector, float>(ctx, argv[0]);
 
-          JS_ToFloat64(ctx, &t, argv[1]);
+      JS_ToFloat64(ctx, &t, argv[1]);
       JS_ToFloat64(ctx, &d, argv[2]);
 
       (*ap)->setValueCurveAtTime(curve, t, d);

@@ -66,7 +66,7 @@ from_js(JSValueConst val) {
 }
 
 template<template<class> class Container, class Input>
-inline Container<Input> 
+inline Container<Input>
 from_js(JSContext* ctx, JSValueConst val) {
   JSValue lprop = JS_GetPropertyStr(ctx, val, "length");
   uint32_t i, len = from_js<uint32_t>(lprop);
