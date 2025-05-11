@@ -375,20 +375,16 @@ protected:
 
 class ArrayBufferView : public ObjectRef, public std::ranges::view_interface<ArrayBufferView> {
 public:
-  ArrayBufferView() = default;
-  ArrayBufferView(JSContext* ctx, JSValueConst buf) : ObjectRef(ctx, buf) {
-    size_t size;
-
-    if((m_begin = JS_GetArrayBuffer(ctx, &size, buf)))
-      m_end = m_begin + size;
-  }
+  ArrayBufferView() = delete;
+  ArrayBufferView(JSContext* ctx, JSValueConst buf) : ObjectRef(ctx, buf) { m_data = JS_GetArrayBuffer(ctx, &m_size, buf); }
 
   /* clang-format off */ 
-  uint8_t* begin() const { return m_begin; }
-  uint8_t* end() const { return m_end; }
+  uint8_t* begin() const { return m_data; }
+  uint8_t* end() const { return m_data ?  m_data + m_size : nullptr; }
   /* clang-format on */
 
 private:
-  uint8_t *m_begin, *m_end;
+  uint8_t* m_data;
+  size_t m_size;
 };
 #endif /* defined(CPPUTILS_H) */
