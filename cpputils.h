@@ -341,7 +341,13 @@ js_malloc(JSContext* ctx) {
 
 class ObjectRef {
 public:
-  ObjectRef() = default;
+  ObjectRef() = delete;
+
+  ObjectRef(const ObjectRef& other) : m_ctx(other.m_ctx), m_obj(other.m_obj) {
+    JS_DupContext(m_ctx);
+    JS_DupValue(m_ctx, constValue());
+  }
+
   ObjectRef(JSContext* ctx, JSValueConst buf) : m_ctx(JS_DupContext(ctx)), m_obj(from_js<JSObject*>(ctx, buf)) {}
 
   ~ObjectRef() {
