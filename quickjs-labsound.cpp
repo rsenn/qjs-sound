@@ -635,6 +635,157 @@ static const JSCFunctionListEntry js_audiobuffer_functions[] = {
 };
 
 static JSValue
+js_audioparam_wrap(JSContext* ctx, JSValueConst new_target, AudioParamPtr& aparam) {
+  JSValue proto, obj = JS_UNDEFINED;
+  AudioParamPtr* ap = js_malloc<AudioParamPtr>(ctx);
+
+  new(ap) AudioParamPtr(aparam);
+
+  /* using new_target to get the prototype is necessary when the class is extended. */
+  proto = JS_GetPropertyStr(ctx, new_target, "prototype");
+  if(JS_IsException(proto))
+    goto fail;
+
+  if(!JS_IsObject(proto))
+    proto = audioparam_proto;
+
+  /* using new_target to get the prototype is necessary when the class is extended. */
+  obj = JS_NewObjectProtoClass(ctx, proto, js_audioparam_class_id);
+  JS_FreeValue(ctx, proto);
+
+  if(JS_IsException(obj))
+    goto fail;
+
+  JS_SetOpaque(obj, ap);
+  return obj;
+
+fail:
+  JS_FreeValue(ctx, obj);
+  return JS_EXCEPTION;
+}
+
+static JSValue
+js_audioparam_wrap(JSContext* ctx,  AudioParamPtr& aparam) {
+  return js_audioparam_wrap(ctx, audioparam_proto, aparam);
+}
+
+enum {
+  AUDIOPARAM_SET_VALUE_AT_TIME,
+};
+
+static JSValue
+js_audioparam_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+  AudioParamPtr* ap;
+  JSValue ret = JS_UNDEFINED;
+
+  if(!(ap = js_audioparam_class_id.opaque<AudioParamPtr>(ctx, this_val)))
+    return JS_EXCEPTION;
+
+  switch(magic) {
+    case AUDIOPARAM_SET_VALUE_AT_TIME: {
+      double value, time;
+      JS_ToFloat64(ctx, &value, argv[0]);
+      JS_ToFloat64(ctx, &time, argv[1]);
+
+      (*ap)->setValueAtTime(value, time);
+
+      ret = JS_DupValue(ctx, this_val);
+      break;
+    }
+  }
+
+  return ret;
+}
+
+enum {
+  AUDIOPARAM_DEFAULT_VALUE,
+  AUDIOPARAM_MAX_VALUE,
+  AUDIOPARAM_MIN_VALUE,
+  AUDIOPARAM_VALUE,
+  AUDIOPARAM_SMOOTHED_VALUE,
+};
+
+static JSValue
+js_audioparam_get(JSContext* ctx, JSValueConst this_val, int magic) {
+  AudioParamPtr* ap;
+  JSValue ret = JS_UNDEFINED;
+
+  if(!(ap = js_audioparam_class_id.opaque<AudioParamPtr>(ctx, this_val)))
+    return JS_EXCEPTION;
+
+  switch(magic) {
+    case AUDIOPARAM_DEFAULT_VALUE: {
+      ret = JS_NewFloat64(ctx, (*ap)->defaultValue());
+      break;
+    }
+    case AUDIOPARAM_MAX_VALUE: {
+      ret = JS_NewFloat64(ctx, (*ap)->maxValue());
+      break;
+    }
+    case AUDIOPARAM_MIN_VALUE: {
+      ret = JS_NewFloat64(ctx, (*ap)->minValue());
+      break;
+    }
+    case AUDIOPARAM_VALUE: {
+      ret = JS_NewFloat64(ctx, (*ap)->value());
+      break;
+    }
+    case AUDIOPARAM_SMOOTHED_VALUE: {
+      ret = JS_NewFloat64(ctx, (*ap)->smoothedValue());
+      break;
+    }
+  }
+
+  return ret;
+}
+
+static JSValue
+js_audioparam_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
+  AudioParamPtr* ap;
+  JSValue ret = JS_UNDEFINED;
+
+  if(!(ap = js_audioparam_class_id.opaque<AudioParamPtr>(ctx, this_val)))
+    return JS_EXCEPTION;
+
+  switch(magic) {
+    case AUDIOPARAM_VALUE: {
+      double d;
+      JS_ToFloat64(ctx, &d, value);
+      (*ap)->setValue(d);
+      break;
+    }
+  }
+
+  return ret;
+}
+
+static void
+js_audioparam_finalizer(JSRuntime* rt, JSValue this_val) {
+  AudioParamPtr* ap;
+
+  if(!(ap = js_audioparam_class_id.opaque<AudioParamPtr>(this_val))) {
+    ap->~AudioParamPtr();
+    js_free_rt(rt, ap);
+  }
+}
+
+static JSClassDef js_audioparam_class = {
+    .class_name = "AudioParam",
+    .finalizer = js_audioparam_finalizer,
+};
+
+static const JSCFunctionListEntry js_audioparam_methods[] = {
+    JS_CGETSET_MAGIC_DEF("defaultValue", js_audioparam_get, 0, AUDIOPARAM_DEFAULT_VALUE),
+    JS_CGETSET_MAGIC_DEF("maxValue", js_audioparam_get, 0, AUDIOPARAM_MAX_VALUE),
+    JS_CGETSET_MAGIC_DEF("minValue", js_audioparam_get, 0, AUDIOPARAM_MIN_VALUE),
+    JS_CGETSET_MAGIC_DEF("value", js_audioparam_get, js_audioparam_set, AUDIOPARAM_VALUE),
+    JS_CGETSET_MAGIC_DEF("smoothedValue", js_audioparam_get, 0, AUDIOPARAM_SMOOTHED_VALUE),
+    JS_CFUNC_MAGIC_DEF("setValueAtTime", 2, js_audioparam_method, AUDIOPARAM_SET_VALUE_AT_TIME),
+    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioParam", JS_PROP_CONFIGURABLE),
+};
+
+
+static JSValue
 js_audiocontext_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
   JSValue proto, obj = JS_UNDEFINED;
   bool isOffline = false, autoDispatchEvents = true;
@@ -1840,10 +1991,16 @@ js_audiobuffersourcenode_set(JSContext* ctx, JSValueConst this_val, JSValueConst
     case AUDIOBUFFERSOURCENODE_BUFFER: {
       AudioBufferPtr* ab;
 
-      if(!(ab = js_audiobuffer_class_id.opaque<AudioBufferPtr>(value)))
-        return JS_ThrowTypeError(ctx, "property .buffer must be an AudioBuffer");
+      if(!JS_IsObject(value)) {
+        (*absn)->setBus(AudioBufferPtr());
 
-      (*absn)->setBus(*ab);
+      } else {
+        if(!(ab = js_audiobuffer_class_id.opaque<AudioBufferPtr>(value)))
+          return JS_ThrowTypeError(ctx, "property .buffer must be an AudioBuffer");
+
+        (*absn)->setBus(*ab);
+      }
+
       break;
     }
     case AUDIOBUFFERSOURCENODE_DETUNE: {
@@ -1892,116 +2049,6 @@ static const JSCFunctionListEntry js_audiobuffersourcenode_methods[] = {
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioBufferSourceNode", JS_PROP_CONFIGURABLE),
 };
 
-static JSValue
-js_audioparam_wrap(JSContext* ctx, JSValueConst new_target, AudioParamPtr& anode) {
-  JSValue proto, obj = JS_UNDEFINED;
-  AudioParamPtr* an = js_malloc<AudioParamPtr>(ctx);
-
-  new(an) AudioParamPtr(anode);
-
-  /* using new_target to get the prototype is necessary when the class is extended. */
-  proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
-    goto fail;
-
-  if(!JS_IsObject(proto))
-    proto = audioparam_proto;
-
-  /* using new_target to get the prototype is necessary when the class is extended. */
-  obj = JS_NewObjectProtoClass(ctx, proto, js_audioparam_class_id);
-  JS_FreeValue(ctx, proto);
-
-  if(JS_IsException(obj))
-    goto fail;
-
-  JS_SetOpaque(obj, an);
-  return obj;
-
-fail:
-  JS_FreeValue(ctx, obj);
-  return JS_EXCEPTION;
-}
-
-enum {
-  AUDIOPARAM_VALUE,
-  AUDIOPARAM_SETVALUE,
-  AUDIOPARAM_SETVALUEATTIME,
-};
-
-static JSValue
-js_audioparam_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
-  AudioParamPtr* ap;
-  JSValue ret = JS_UNDEFINED;
-
-  if(!(ap = js_audioparam_class_id.opaque<AudioParamPtr>(ctx, this_val)))
-    return JS_EXCEPTION;
-
-  switch(magic) {
-    case AUDIOPARAM_VALUE: {
-      break;
-    }
-    case AUDIOPARAM_SETVALUE: {
-      break;
-    }
-    case AUDIOPARAM_SETVALUEATTIME: {
-      break;
-    }
-  }
-
-  return ret;
-}
-
-enum {
-
-};
-
-static JSValue
-js_audioparam_get(JSContext* ctx, JSValueConst this_val, int magic) {
-  AudioParamPtr* ap;
-  JSValue ret = JS_UNDEFINED;
-
-  if(!(ap = js_audioparam_class_id.opaque<AudioParamPtr>(ctx, this_val)))
-    return JS_EXCEPTION;
-
-  switch(magic) {}
-
-  return ret;
-}
-
-static JSValue
-js_audioparam_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
-  AudioParamPtr* ap;
-  JSValue ret = JS_UNDEFINED;
-
-  if(!(ap = js_audioparam_class_id.opaque<AudioParamPtr>(ctx, this_val)))
-    return JS_EXCEPTION;
-
-  switch(magic) {}
-
-  return ret;
-}
-
-static void
-js_audioparam_finalizer(JSRuntime* rt, JSValue this_val) {
-  AudioParamPtr* ap;
-
-  if(!(ap = js_audioparam_class_id.opaque<AudioParamPtr>(this_val))) {
-    ap->~AudioParamPtr();
-    js_free_rt(rt, ap);
-  }
-}
-
-static JSClassDef js_audioparam_class = {
-    .class_name = "AudioParam",
-    .finalizer = js_audioparam_finalizer,
-};
-
-static const JSCFunctionListEntry js_audioparam_methods[] = {
-    JS_CFUNC_MAGIC_DEF("value", 0, js_audioparam_method, AUDIOPARAM_VALUE),
-    JS_CFUNC_MAGIC_DEF("setValue", 1, js_audioparam_method, AUDIOPARAM_SETVALUE),
-    JS_CFUNC_MAGIC_DEF("setValueAtTime", 2, js_audioparam_method, AUDIOPARAM_SETVALUEATTIME),
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioParam", JS_PROP_CONFIGURABLE),
-};
 
 int
 js_labsound_init(JSContext* ctx, JSModuleDef* m) {
