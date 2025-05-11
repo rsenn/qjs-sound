@@ -665,12 +665,14 @@ fail:
 }
 
 static JSValue
-js_audioparam_wrap(JSContext* ctx,  AudioParamPtr& aparam) {
+js_audioparam_wrap(JSContext* ctx, AudioParamPtr& aparam) {
   return js_audioparam_wrap(ctx, audioparam_proto, aparam);
 }
 
 enum {
   AUDIOPARAM_SET_VALUE_AT_TIME,
+  AUDIOPARAM_CANCEL_SCHEDULED_VALUES,
+  AUDIOPARAM_SET_VALUE_CURVE_AT_TIME,
 };
 
 static JSValue
@@ -683,11 +685,32 @@ js_audioparam_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
 
   switch(magic) {
     case AUDIOPARAM_SET_VALUE_AT_TIME: {
-      double value, time;
-      JS_ToFloat64(ctx, &value, argv[0]);
-      JS_ToFloat64(ctx, &time, argv[1]);
+      double v, t;
+      JS_ToFloat64(ctx, &v, argv[0]);
+      JS_ToFloat64(ctx, &t, argv[1]);
 
-      (*ap)->setValueAtTime(value, time);
+      (*ap)->setValueAtTime(v, t);
+
+      ret = JS_DupValue(ctx, this_val);
+      break;
+    }
+    case AUDIOPARAM_CANCEL_SCHEDULED_VALUES: {
+      double t;
+      JS_ToFloat64(ctx, &t, argv[0]);
+
+      (*ap)->cancelScheduledValues(t);
+
+      ret = JS_DupValue(ctx, this_val);
+      break;
+    }
+    case AUDIOPARAM_SET_VALUE_CURVE_AT_TIME: {
+      double t, d;
+      std::vector<float> curve=from_js<std::vector, float>(ctx, argv[0]); 
+
+          JS_ToFloat64(ctx, &t, argv[1]);
+      JS_ToFloat64(ctx, &d, argv[2]);
+
+      (*ap)->setValueCurveAtTime(curve, t, d);
 
       ret = JS_DupValue(ctx, this_val);
       break;
@@ -780,10 +803,12 @@ static const JSCFunctionListEntry js_audioparam_methods[] = {
     JS_CGETSET_MAGIC_DEF("minValue", js_audioparam_get, 0, AUDIOPARAM_MIN_VALUE),
     JS_CGETSET_MAGIC_DEF("value", js_audioparam_get, js_audioparam_set, AUDIOPARAM_VALUE),
     JS_CGETSET_MAGIC_DEF("smoothedValue", js_audioparam_get, 0, AUDIOPARAM_SMOOTHED_VALUE),
+
     JS_CFUNC_MAGIC_DEF("setValueAtTime", 2, js_audioparam_method, AUDIOPARAM_SET_VALUE_AT_TIME),
+    JS_CFUNC_MAGIC_DEF("cancelScheduledValues", 1, js_audioparam_method, AUDIOPARAM_CANCEL_SCHEDULED_VALUES),
+
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioParam", JS_PROP_CONFIGURABLE),
 };
-
 
 static JSValue
 js_audiocontext_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
@@ -2048,7 +2073,6 @@ static const JSCFunctionListEntry js_audiobuffersourcenode_methods[] = {
     JS_CGETSET_MAGIC_DEF("playbackRate", js_audiobuffersourcenode_get, 0, AUDIOBUFFERSOURCENODE_PLAYBACK_RATE),
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioBufferSourceNode", JS_PROP_CONFIGURABLE),
 };
-
 
 int
 js_labsound_init(JSContext* ctx, JSModuleDef* m) {

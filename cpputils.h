@@ -65,6 +65,25 @@ from_js(JSValueConst val) {
   throw std::exception();
 }
 
+template<template<class> class Container, class Input>
+inline Container<Input> 
+from_js(JSContext* ctx, JSValueConst val) {
+  JSValue lprop = JS_GetPropertyStr(ctx, val, "length");
+  uint32_t i, len = from_js<uint32_t>(lprop);
+  JS_FreeValue(ctx, lprop);
+  Container<Input> ret(len);
+
+  for(i = 0; i < len; ++i) {
+    JSValue elem = JS_GetPropertyUint32(ctx, val, i);
+
+    ret[i] = from_js<Input>(ctx, elem);
+
+    JS_FreeValue(ctx, elem);
+  }
+
+  return ret;
+}
+
 template<>
 inline JSObject*
 from_js<JSObject*>(JSValueConst val) {
