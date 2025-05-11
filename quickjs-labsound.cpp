@@ -671,8 +671,9 @@ js_audioparam_wrap(JSContext* ctx, AudioParamPtr& aparam) {
 
 enum {
   AUDIOPARAM_SET_VALUE_AT_TIME,
-  AUDIOPARAM_CANCEL_SCHEDULED_VALUES,
+  AUDIOPARAM_SET_TARGET_AT_TIME,
   AUDIOPARAM_SET_VALUE_CURVE_AT_TIME,
+  AUDIOPARAM_CANCEL_SCHEDULED_VALUES,
 };
 
 static JSValue
@@ -694,11 +695,8 @@ js_audioparam_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
       ret = JS_DupValue(ctx, this_val);
       break;
     }
-    case AUDIOPARAM_CANCEL_SCHEDULED_VALUES: {
-      double t;
-      JS_ToFloat64(ctx, &t, argv[0]);
-
-      (*ap)->cancelScheduledValues(t);
+    case AUDIOPARAM_SET_TARGET_AT_TIME: {
+      (*ap)->setTargetAtTime(from_js<double>(ctx, argv[0]), from_js<double>(ctx, argv[1]), from_js<double>(ctx, argv[2]));
 
       ret = JS_DupValue(ctx, this_val);
       break;
@@ -711,6 +709,15 @@ js_audioparam_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
       JS_ToFloat64(ctx, &d, argv[2]);
 
       (*ap)->setValueCurveAtTime(curve, t, d);
+
+      ret = JS_DupValue(ctx, this_val);
+      break;
+    }
+    case AUDIOPARAM_CANCEL_SCHEDULED_VALUES: {
+      double t;
+      JS_ToFloat64(ctx, &t, argv[0]);
+
+      (*ap)->cancelScheduledValues(t);
 
       ret = JS_DupValue(ctx, this_val);
       break;
@@ -805,6 +812,8 @@ static const JSCFunctionListEntry js_audioparam_methods[] = {
     JS_CGETSET_MAGIC_DEF("smoothedValue", js_audioparam_get, 0, AUDIOPARAM_SMOOTHED_VALUE),
 
     JS_CFUNC_MAGIC_DEF("setValueAtTime", 2, js_audioparam_method, AUDIOPARAM_SET_VALUE_AT_TIME),
+    JS_CFUNC_MAGIC_DEF("setTargetAtTime", 3, js_audioparam_method, AUDIOPARAM_SET_TARGET_AT_TIME),
+    JS_CFUNC_MAGIC_DEF("setValueCurveAtTime", 3, js_audioparam_method, AUDIOPARAM_SET_VALUE_CURVE_AT_TIME),
     JS_CFUNC_MAGIC_DEF("cancelScheduledValues", 1, js_audioparam_method, AUDIOPARAM_CANCEL_SCHEDULED_VALUES),
 
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioParam", JS_PROP_CONFIGURABLE),
