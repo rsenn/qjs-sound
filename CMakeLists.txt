@@ -178,6 +178,8 @@ if(USE_LABSOUND)
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/src/internal/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/src/internal/src/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/src/core/*.cpp)]]
+  list(APPEND labsound_SOURCES  cpputils.h defines.h)
+  dump(labsound_SOURCES)
 
   make_module(labsound cpp)
   include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include")

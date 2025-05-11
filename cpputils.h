@@ -9,7 +9,8 @@
 
 #include "LabSound/LabSound.h"
 
-template<class T> using PointerRange = std::pair<T*, T*>;
+// template<class T> using PointerRange = std::pair<T*, T*>;
+template<class T> using PointerRange = std::ranges::subrange<T*, T*>;
 
 /**
  * \defgroup from_js<Output> shims
@@ -396,17 +397,36 @@ protected:
   JSObject* m_obj;
 };
 
-class ArrayBufferView : public ObjectRef, public std::ranges::view_interface<ArrayBufferView> {
+class ArrayBufferView : public PointerRange<uint8_t> /*,  public std::ranges::view_interface<ArrayBufferView>*/, protected ObjectRef {
 public:
+  typedef PointerRange<uint8_t> pointer_range;
+
   ArrayBufferView() = delete;
-  ArrayBufferView(JSContext* ctx, JSValueConst buf) : ObjectRef(ctx, buf), m_range(from_js<PointerRange<uint8_t>>(ctx, buf)) {}
+  ArrayBufferView(JSContext* ctx, JSValueConst buf) : pointer_range(from_js<pointer_range>(ctx, buf)), ObjectRef(ctx, buf) {}
 
-  /* clang-format off */ 
-  uint8_t* begin() const { return m_range.first; }
-  uint8_t* end() const { return m_range.second; }
+  /* clang-format off */
+ /* uint8_t* begin() const { return std::ranges::begin(*this); }
+  uint8_t* end() const { return std::ranges::end(*this); }*/
   /* clang-format on */
-
-private:
-  PointerRange<uint8_t> m_range;
 };
+
+struct TypedArray {
+  TypedArray(JSContext* ctx, JSValueConst obj) : buffer(ctx, JS_GetTypedArrayBuffer(ctx, obj, &byte_offset, &byte_length, &bytes_per_element)) {}
+
+  size_t byte_offset, byte_length, bytes_per_element;
+  ArrayBufferView buffer;
+
+  auto
+  range() const {
+    return PointerRange<uint8_t>(buffer.begin() + byte_offset, buffer.begin() + byte_offset + byte_length);
+  }
+};
+
+template<class T> class TypedArrayView : public PointerRange<T>, protected TypedArray {
+  typedef PointerRange<T> pointer_range;
+
+  TypedArrayView() = delete;
+  TypedArrayView(JSContext* ctx, JSValueConst buf) : TypedArray(ctx, buf), pointer_range(range()) {}
+};
+
 #endif /* defined(CPPUTILS_H) */
