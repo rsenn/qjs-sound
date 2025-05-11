@@ -410,20 +410,20 @@ public:
   /* clang-format on */
 };
 
-struct TypedArray {
-  TypedArray(JSContext* ctx, JSValueConst obj) : buffer(ctx, JS_GetTypedArrayBuffer(ctx, obj, &byte_offset, &byte_length, &bytes_per_element)) {}
-
-  size_t byte_offset, byte_length, bytes_per_element;
-  ArrayBufferView buffer;
-
-  auto
-  range() const {
-    return PointerRange<uint8_t>(buffer.begin() + byte_offset, buffer.begin() + byte_offset + byte_length);
-  }
-};
-
 template<class T> class TypedArrayView : public PointerRange<T>, protected TypedArray {
   typedef PointerRange<T> pointer_range;
+
+  struct TypedArray {
+    TypedArray(JSContext* ctx, JSValueConst obj) : buffer(ctx, JS_GetTypedArrayBuffer(ctx, obj, &byte_offset, &byte_length, &bytes_per_element)) {}
+
+    size_t byte_offset, byte_length, bytes_per_element;
+    ArrayBufferView buffer;
+
+    auto
+    range() const {
+      return PointerRange<uint8_t>(buffer.begin() + byte_offset, buffer.begin() + byte_offset + byte_length);
+    }
+  };
 
   TypedArrayView() = delete;
   TypedArrayView(JSContext* ctx, JSValueConst buf) : TypedArray(ctx, buf), pointer_range(range()) {}
