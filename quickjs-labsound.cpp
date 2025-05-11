@@ -135,9 +135,12 @@ js_audiochannel_new(JSContext* ctx, const AudioChannelPtr& ac) {
 
   lab::AudioChannel& ch = *(*ptr)->channel(ptr->value);
 
+  uint8_t* buf = reinterpret_cast<uint8_t*>(ch.mutableData());
+  size_t len = ch.length() * sizeof(float);
+
   JSValue f32arr = js_float32array_ctor(ctx);
   JSValue args[] = {
-      JS_NewArrayBuffer(ctx, (uint8_t*)ch.mutableData(), ch.length() * sizeof(float), &js_audiochannel_free, ptr, FALSE),
+      JS_NewArrayBuffer(ctx, buf, len, &js_audiochannel_free, ptr, FALSE),
       JS_NewUint32(ctx, 0),
       JS_NewUint32(ctx, ch.length()),
   };

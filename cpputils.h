@@ -92,6 +92,13 @@ from_js<JSObject*>(JSValueConst val) {
 }
 
 template<>
+inline JSObject*
+from_js<JSObject*>(JSContext* ctx, JSValueConst val) {
+  JS_DupValue(ctx, val);
+  return from_js<JSObject*>(val);
+}
+
+template<>
 inline lab::Channel
 from_js<lab::Channel>(JSContext* ctx, JSValueConst value) {
   int32_t ret = -1;
@@ -323,16 +330,6 @@ template<class T, class U = std::shared_ptr<lab::AudioContext>> struct ClassPtr 
   value_type value;
 };
 
-/*template<class T> struct ClassPtr : std::shared_ptr<T> {
-  typedef std::shared_ptr<T> base_type;
-  typedef std::shared_ptr<lab::AudioContext> context_type;
-
-  ClassPtr(const base_type& an, const context_type& ac) : base_type(an), context(ac) {}
-
-  context_type context;
-};
-*/
-
 template<class T>
 static inline T*
 js_malloc(JSContext* ctx) {
@@ -343,18 +340,11 @@ class ObjectRef {
 public:
   ObjectRef() = delete;
 
-  ObjectRef(const ObjectRef& other) : m_ctx(other.m_ctx), m_obj(other.m_obj) {
-    JS_DupContext(m_ctx);
-    JS_DupValue(m_ctx, constValue());
-  }
+  ObjectRef(const ObjectRef& other) : m_ctx(other.m_ctx), m_obj(other.m_obj) { reference(); }
 
-  ObjectRef(JSContext* ctx, JSValueConst buf) : m_ctx(JS_DupContext(ctx)), m_obj(from_js<JSObject*>(ctx, buf)) {}
+  ObjectRef(JSContext* ctx, JSValueConst buf) : m_ctx(ctx), m_obj(from_js<JSObject*>(buf)) { reference(); }
 
-  ~ObjectRef() {
-    release();
-
-    JS_FreeContext(m_ctx);
-  }
+  ~ObjectRef() { release(); }
 
   operator bool() const { return bool(m_obj); }
 
@@ -364,13 +354,19 @@ protected:
   JSValueConst constValue() const { return to_js(m_obj); }
   /* clang-format on */
 
-private:
+  void
+  reference() const {
+    JS_DupContext(m_ctx);
+    JS_DupValue(m_ctx, constValue());
+  }
+
   void
   release() {
     if(m_obj) {
-      JS_FreeValue(m_ctx, to_js(m_obj));
+      JS_FreeValue(m_ctx, constValue());
       m_obj = nullptr;
     }
+    JS_FreeContext(m_ctx);
   }
 
   JSContext* m_ctx;
