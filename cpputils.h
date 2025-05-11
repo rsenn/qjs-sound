@@ -363,9 +363,7 @@ js_malloc(JSContext* ctx) {
 class NonOwningObjectRef {
 public:
   NonOwningObjectRef() = delete;
-
   NonOwningObjectRef(const NonOwningObjectRef& other) : m_obj(other.m_obj) {}
-
   NonOwningObjectRef(JSContext* ctx, JSValueConst buf) : m_obj(from_js<JSObject*>(buf)) {}
 
   operator bool() const { return bool(m_obj); }
@@ -383,11 +381,8 @@ protected:
 class ObjectRef : public NonOwningObjectRef {
 public:
   ObjectRef() = delete;
-
   ObjectRef(const ObjectRef& other) : m_ctx(other.m_ctx), NonOwningObjectRef(other.m_obj) { reference(); }
-
   ObjectRef(JSContext* ctx, JSValueConst buf) : m_ctx(ctx), NonOwningObjectRef(from_js<JSObject*>(buf)) { reference(); }
-
   ~ObjectRef() { release(); }
 
 protected:
@@ -426,7 +421,7 @@ public:
   }
   uint8_t*
   end() const {
-    auto range = from_js<pointer_range>(R::m_ctx, R::constValue());
+    pointer_range range(from_js(R::m_ctx, R::constValue()));
     return range.end();
   }
 };
