@@ -360,22 +360,39 @@ js_malloc(JSContext* ctx) {
   return static_cast<T*>(js_malloc(ctx, sizeof(T)));
 }
 
-class ObjectRef {
+class NonOwningObjectRef {
 public:
-  ObjectRef() = delete;
+  NonOwningObjectRef() = delete;
 
-  ObjectRef(const ObjectRef& other) : m_ctx(other.m_ctx), m_obj(other.m_obj) { reference(); }
+  NonOwningObjectRef(const NonOwningObjectRef& other) : m_obj(other.m_obj) {}
 
-  ObjectRef(JSContext* ctx, JSValueConst buf) : m_ctx(ctx), m_obj(from_js<JSObject*>(buf)) { reference(); }
-
-  ~ObjectRef() { release(); }
+  NonOwningObjectRef(JSContext* ctx, JSValueConst buf) : m_obj(from_js<JSObject*>(buf)) {}
 
   operator bool() const { return bool(m_obj); }
 
 protected:
+  NonOwningObjectRef(JSObject* obj) : m_obj(obj) {}
+
+  /* clang-format off */
+  JSValueConst constValue() const { return to_js(m_obj); }
+  /* clang-format on */
+
+  JSObject* m_obj;
+};
+
+class ObjectRef : public NonOwningObjectRef {
+public:
+  ObjectRef() = delete;
+
+  ObjectRef(const ObjectRef& other) : m_ctx(other.m_ctx), NonOwningObjectRef(other.m_obj) { reference(); }
+
+  ObjectRef(JSContext* ctx, JSValueConst buf) : m_ctx(ctx), NonOwningObjectRef(from_js<JSObject*>(buf)) { reference(); }
+
+  ~ObjectRef() { release(); }
+
+protected:
   /* clang-format off */
   JSValue value() const { return to_js(m_ctx, m_obj); }
-  JSValueConst constValue() const { return to_js(m_obj); }
   /* clang-format on */
 
   void
@@ -394,39 +411,47 @@ protected:
   }
 
   JSContext* m_ctx;
-  JSObject* m_obj;
 };
 
-class ArrayBufferView : public PointerRange<uint8_t> /*,  public std::ranges::view_interface<ArrayBufferView>*/, protected ObjectRef {
+template<class R = ObjectRef> class ArrayBufferView : protected R, public std::ranges::view_interface<ArrayBufferView<R>> {
 public:
   typedef PointerRange<uint8_t> pointer_range;
 
   ArrayBufferView() = delete;
-  ArrayBufferView(JSContext* ctx, JSValueConst buf) : pointer_range(from_js<pointer_range>(ctx, buf)), ObjectRef(ctx, buf) {}
+  ArrayBufferView(JSContext* ctx, JSValueConst buf) : R(ctx, buf) {}
 
-  /* clang-format off */
- /* uint8_t* begin() const { return std::ranges::begin(*this); }
-  uint8_t* end() const { return std::ranges::end(*this); }*/
-  /* clang-format on */
+  uint8_t*
+  begin() const {
+    return from_js<uint8_t*>(R::m_ctx, R::constValue());
+  }
+  uint8_t*
+  end() const {
+    auto range = from_js<pointer_range>(R::m_ctx, R::constValue());
+    return range.end();
+  }
 };
 
-template<class T> class TypedArrayView : public PointerRange<T>, protected TypedArray {
-  typedef PointerRange<T> pointer_range;
+struct TypedArray {
+  TypedArray(JSContext* ctx, JSValueConst obj) : buffer(ctx, JS_GetTypedArrayBuffer(ctx, obj, &byte_offset, &byte_length, &bytes_per_element)) {}
 
-  struct TypedArray {
-    TypedArray(JSContext* ctx, JSValueConst obj) : buffer(ctx, JS_GetTypedArrayBuffer(ctx, obj, &byte_offset, &byte_length, &bytes_per_element)) {}
+  size_t byte_offset, byte_length, bytes_per_element;
+  ArrayBufferView<ObjectRef> buffer;
+};
 
-    size_t byte_offset, byte_length, bytes_per_element;
-    ArrayBufferView buffer;
-
-    auto
-    range() const {
-      return PointerRange<uint8_t>(buffer.begin() + byte_offset, buffer.begin() + byte_offset + byte_length);
-    }
-  };
+template<class T> class TypedArrayView : public std::ranges::view_interface<TypedArrayView<T>>, protected TypedArray {
 
   TypedArrayView() = delete;
-  TypedArrayView(JSContext* ctx, JSValueConst buf) : TypedArray(ctx, buf), pointer_range(range()) {}
+  TypedArrayView(JSContext* ctx, JSValueConst buf) : TypedArray(ctx, buf) {}
+
+  T*
+  begin() const {
+    return reinterpret_cast<T*>(buffer.begin() + byte_offset);
+  }
+
+  T*
+  end() const {
+    return reinterpret_cast<T*>(buffer.begin() + byte_offset + byte_length);
+  }
 };
 
 #endif /* defined(CPPUTILS_H) */
