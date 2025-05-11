@@ -671,6 +671,8 @@ js_audioparam_wrap(JSContext* ctx, AudioParamPtr& aparam) {
 
 enum {
   AUDIOPARAM_SET_VALUE_AT_TIME,
+  AUDIOPARAM_LINEAR_RAMP_TO_VALUE_AT_TIME,
+  AUDIOPARAM_EXPONENTIAL_RAMP_TO_VALUE_AT_TIME,
   AUDIOPARAM_SET_TARGET_AT_TIME,
   AUDIOPARAM_SET_VALUE_CURVE_AT_TIME,
   AUDIOPARAM_CANCEL_SCHEDULED_VALUES,
@@ -691,6 +693,18 @@ js_audioparam_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
       JS_ToFloat64(ctx, &t, argv[1]);
 
       (*ap)->setValueAtTime(v, t);
+
+      ret = JS_DupValue(ctx, this_val);
+      break;
+    }
+    case AUDIOPARAM_LINEAR_RAMP_TO_VALUE_AT_TIME: {
+      (*ap)->linearRampToValueAtTime(from_js<double>(ctx, argv[0]), from_js<double>(ctx, argv[1]));
+
+      ret = JS_DupValue(ctx, this_val);
+      break;
+    }
+    case AUDIOPARAM_EXPONENTIAL_RAMP_TO_VALUE_AT_TIME: {
+      (*ap)->exponentialRampToValueAtTime(from_js<double>(ctx, argv[0]), from_js<double>(ctx, argv[1]));
 
       ret = JS_DupValue(ctx, this_val);
       break;
@@ -728,6 +742,8 @@ js_audioparam_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
 }
 
 enum {
+  AUDIOPARAM_NAME,
+  AUDIOPARAM_SHORT_NAME,
   AUDIOPARAM_DEFAULT_VALUE,
   AUDIOPARAM_MAX_VALUE,
   AUDIOPARAM_MIN_VALUE,
@@ -744,6 +760,14 @@ js_audioparam_get(JSContext* ctx, JSValueConst this_val, int magic) {
     return JS_EXCEPTION;
 
   switch(magic) {
+    case AUDIOPARAM_NAME: {
+      ret = to_js(ctx, (*ap)->name());
+      break;
+    }
+    case AUDIOPARAM_SHORT_NAME: {
+      ret = to_js(ctx, (*ap)->shortName());
+      break;
+    }
     case AUDIOPARAM_DEFAULT_VALUE: {
       ret = JS_NewFloat64(ctx, (*ap)->defaultValue());
       break;
@@ -805,6 +829,8 @@ static JSClassDef js_audioparam_class = {
 };
 
 static const JSCFunctionListEntry js_audioparam_methods[] = {
+    JS_CGETSET_MAGIC_DEF("name", js_audioparam_get, 0, AUDIOPARAM_NAME),
+    JS_CGETSET_MAGIC_DEF("shortName", js_audioparam_get, 0, AUDIOPARAM_SHORT_NAME),
     JS_CGETSET_MAGIC_DEF("defaultValue", js_audioparam_get, 0, AUDIOPARAM_DEFAULT_VALUE),
     JS_CGETSET_MAGIC_DEF("maxValue", js_audioparam_get, 0, AUDIOPARAM_MAX_VALUE),
     JS_CGETSET_MAGIC_DEF("minValue", js_audioparam_get, 0, AUDIOPARAM_MIN_VALUE),
@@ -812,6 +838,9 @@ static const JSCFunctionListEntry js_audioparam_methods[] = {
     JS_CGETSET_MAGIC_DEF("smoothedValue", js_audioparam_get, 0, AUDIOPARAM_SMOOTHED_VALUE),
 
     JS_CFUNC_MAGIC_DEF("setValueAtTime", 2, js_audioparam_method, AUDIOPARAM_SET_VALUE_AT_TIME),
+    JS_CFUNC_MAGIC_DEF("linearRampToValueAtTime", 2, js_audioparam_method, AUDIOPARAM_LINEAR_RAMP_TO_VALUE_AT_TIME),
+    JS_CFUNC_MAGIC_DEF("exponentialRampToValueAtTime", 2, js_audioparam_method, AUDIOPARAM_EXPONENTIAL_RAMP_TO_VALUE_AT_TIME),
+
     JS_CFUNC_MAGIC_DEF("setTargetAtTime", 3, js_audioparam_method, AUDIOPARAM_SET_TARGET_AT_TIME),
     JS_CFUNC_MAGIC_DEF("setValueCurveAtTime", 3, js_audioparam_method, AUDIOPARAM_SET_VALUE_CURVE_AT_TIME),
     JS_CFUNC_MAGIC_DEF("cancelScheduledValues", 1, js_audioparam_method, AUDIOPARAM_CANCEL_SCHEDULED_VALUES),
@@ -854,6 +883,33 @@ js_audiocontext_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
 fail:
   JS_FreeValue(ctx, obj);
   return JS_EXCEPTION;
+}
+
+enum {
+  CONTEXT_DECODE_AUDIO_DATA,
+};
+
+static JSValue
+js_audiocontext_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+  AudioContextPtr* ac;
+  JSValue ret = JS_UNDEFINED;
+
+  if(!(ac = js_audiocontext_class_id.opaque<AudioContextPtr>(ctx, this_val)))
+    return JS_EXCEPTION;
+
+  switch(magic) {
+    case CONTEXT_DECODE_AUDIO_DATA: {
+      AudioBufferPtr ab = lab::MakeBusFromFile(from_js<std::string>(ctx, argv[0]), argc > 1 ? from_js<bool>(ctx, argv[1]) : false);
+
+      if(!bool(ab))
+        return JS_ThrowInternalError(ctx, "Failed reading sample.");
+
+      ret = js_audiobuffer_wrap(ctx, ab);
+      break;
+    }
+  }
+
+  return ret;
 }
 
 enum {
@@ -945,6 +1001,7 @@ static JSClassDef js_audiocontext_class = {
 };
 
 static const JSCFunctionListEntry js_audiocontext_methods[] = {
+    JS_CFUNC_MAGIC_DEF("decodeAudioData", 1, js_audiocontext_method, CONTEXT_DECODE_AUDIO_DATA),
     JS_CGETSET_MAGIC_DEF("sampleRate", js_audiocontext_get, 0, CONTEXT_SAMPLERATE),
     JS_CGETSET_MAGIC_DEF("destination", js_audiocontext_get, js_audiocontext_set, CONTEXT_DESTINATION),
     JS_CGETSET_MAGIC_DEF("listener", js_audiocontext_get, 0, CONTEXT_LISTENER),

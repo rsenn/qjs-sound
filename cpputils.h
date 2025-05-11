@@ -5,6 +5,7 @@
 #include <cutils.h>
 #include <vector>
 #include <string>
+#include <ranges>
 
 #include "LabSound/LabSound.h"
 
@@ -211,9 +212,15 @@ to_js(Input num) {
 }
 
 template<>
-inline JSValue
+inline JSValueConst
 to_js<JSObject*>(JSObject* obj) {
-  return JS_MKPTR(JS_TAG_OBJECT, obj);
+  return obj ? JS_MKPTR(JS_TAG_OBJECT, obj) : JS_NULL;
+}
+
+template<>
+inline JSValueConst
+to_js<JSObject*>(JSContext* ctx, JSObject* obj) {
+  return JS_DupValue(ctx, to_js<JSObject*>(obj));
 }
 
 /**
@@ -332,4 +339,54 @@ js_malloc(JSContext* ctx) {
   return static_cast<T*>(js_malloc(ctx, sizeof(T)));
 }
 
+class ObjectRef {
+public:
+  ObjectRef() = default;
+  ObjectRef(JSContext* ctx, JSValueConst buf) : m_ctx(JS_DupContext(ctx)), m_obj(from_js<JSObject*>(ctx, buf)) {}
+
+  ~ObjectRef() {
+    release();
+
+    JS_FreeContext(m_ctx);
+  }
+
+  operator bool() const { return bool(m_obj); }
+
+protected:
+  /* clang-format off */
+  JSValue value() const { return to_js(m_ctx, m_obj); }
+  JSValueConst constValue() const { return to_js(m_obj); }
+  /* clang-format on */
+
+private:
+  void
+  release() {
+    if(m_obj) {
+      JS_FreeValue(m_ctx, to_js(m_obj));
+      m_obj = nullptr;
+    }
+  }
+
+  JSContext* m_ctx;
+  JSObject* m_obj;
+};
+
+class ArrayBufferView : public ObjectRef, public std::ranges::view_interface<ArrayBufferView> {
+public:
+  ArrayBufferView() = default;
+  ArrayBufferView(JSContext* ctx, JSValueConst buf) : ObjectRef(ctx, buf) {
+    size_t size;
+
+    if((m_begin = JS_GetArrayBuffer(ctx, &size, buf)))
+      m_end = m_begin + size;
+  }
+
+  /* clang-format off */ 
+  uint8_t* begin() const { return m_begin; }
+  uint8_t* end() const { return m_end; }
+  /* clang-format on */
+
+private:
+  uint8_t *m_begin, *m_end;
+};
 #endif /* defined(CPPUTILS_H) */
