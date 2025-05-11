@@ -1803,6 +1803,47 @@ js_audiobuffersourcenode_get(JSContext* ctx, JSValueConst this_val, int magic) {
 
   switch(magic) {
     case AUDIOBUFFERSOURCENODE_BUFFER: {
+      AudioBufferPtr ab = (*absn)->getBus();
+
+      ret = bool(ab) ? js_audiobuffer_wrap(ctx, ab) : JS_NULL;
+      break;
+    }
+    case AUDIOBUFFERSOURCENODE_DETUNE: {
+      break;
+    }
+    case AUDIOBUFFERSOURCENODE_LOOP: {
+      break;
+    }
+    case AUDIOBUFFERSOURCENODE_LOOP_END: {
+      break;
+    }
+    case AUDIOBUFFERSOURCENODE_LOOP_START: {
+      break;
+    }
+    case AUDIOBUFFERSOURCENODE_PLAYBACK_RATE: {
+      break;
+    }
+  }
+
+  return ret;
+}
+
+static JSValue
+js_audiobuffersourcenode_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
+  AudioBufferSourceNodePtr* absn;
+  JSValue ret = JS_UNDEFINED;
+
+  if(!(absn = js_audiobuffersourcenode_class_id.opaque<AudioBufferSourceNodePtr>(ctx, this_val)))
+    return JS_EXCEPTION;
+
+  switch(magic) {
+    case AUDIOBUFFERSOURCENODE_BUFFER: {
+      AudioBufferPtr* ab;
+
+      if(!(ab = js_audiobuffer_class_id.opaque<AudioBufferPtr>(value)))
+        return JS_ThrowTypeError(ctx, "property .buffer must be an AudioBuffer");
+
+      (*absn)->setBus(*ab);
       break;
     }
     case AUDIOBUFFERSOURCENODE_DETUNE: {
@@ -1842,7 +1883,7 @@ static JSClassDef js_audiobuffersourcenode_class = {
 
 static const JSCFunctionListEntry js_audiobuffersourcenode_methods[] = {
     JS_CFUNC_MAGIC_DEF("start", 1, js_audiobuffersourcenode_method, AUDIOBUFFERSOURCENODE_START),
-    JS_CGETSET_MAGIC_DEF("buffer", js_audiobuffersourcenode_get, 0, AUDIOBUFFERSOURCENODE_BUFFER),
+    JS_CGETSET_MAGIC_DEF("buffer", js_audiobuffersourcenode_get, js_audiobuffersourcenode_set, AUDIOBUFFERSOURCENODE_BUFFER),
     JS_CGETSET_MAGIC_DEF("detune", js_audiobuffersourcenode_get, 0, AUDIOBUFFERSOURCENODE_DETUNE),
     JS_CGETSET_MAGIC_DEF("loop", js_audiobuffersourcenode_get, 0, AUDIOBUFFERSOURCENODE_LOOP),
     JS_CGETSET_MAGIC_DEF("loopEnd", js_audiobuffersourcenode_get, 0, AUDIOBUFFERSOURCENODE_LOOP_END),
