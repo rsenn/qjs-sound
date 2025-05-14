@@ -24,7 +24,7 @@ static JSValue audiobuffer_proto, audiobuffer_ctor, audiocontext_proto, audiocon
 
 typedef shared_ptr<lab::AudioBus> AudioBufferPtr;
 typedef ClassPtr<lab::AudioContext, void> AudioContextPtr;
-typedef shared_ptr<lab::AudioDestinationNode> AudioDestinationNodePtr;
+typedef ClassPtr<lab::AudioDestinationNode, std::shared_ptr<lab::AudioContext>> AudioDestinationNodePtr;
 typedef shared_ptr<lab::AudioListener> AudioListenerPtr;
 typedef shared_ptr<lab::AudioDevice> AudioDevicePtr;
 typedef shared_ptr<lab::AudioParam> AudioParamPtr;
@@ -80,6 +80,7 @@ template<class T> struct std::less<weak_ptr<T>> {
 // template<> std::map<weak_ptr<lab::AudioContext>, JSObject*> ClassObjectMap<lab::AudioContext>::object_map;
 template<> map<weak_ptr<lab::AudioContext>, JSObject*> ClassObjectMap<lab::AudioContext>::object_map{};
 template<> map<weak_ptr<lab::AudioParam>, JSObject*> ClassObjectMap<lab::AudioParam>::object_map{};
+template<> map<weak_ptr<lab::AudioSetting>, JSObject*> ClassObjectMap<lab::AudioSetting>::object_map{};
 
 typedef map<weak_ptr<lab::AudioBus>, JSObjectArray> ChannelMap;
 
@@ -217,7 +218,7 @@ js_audiobuffer_wrap(JSContext* ctx, JSValueConst proto, AudioBufferPtr& ptr) {
   if(!(ab = js_malloc<AudioBufferPtr>(ctx)))
     return JS_EXCEPTION;
 
-  *ab = std::move(ptr);
+  new(ab) AudioBufferPtr(ptr);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   JSValue obj = JS_NewObjectProtoClass(ctx, proto, js_audiobuffer_class_id);
@@ -712,7 +713,7 @@ js_audioparam_wrap(JSContext* ctx, AudioParamPtr& aparam) {
   if((obj = ClassObjectMap<lab::AudioParam>::get(aparam)))
     return JS_DupValue(ctx, to_js(obj));
 
-  return js_audioparam_new(ctx, audioparam_proto, aparam);
+  return js_audioparam_new(ctx, audioparam_ctor, aparam);
 }
 
 enum {
@@ -807,31 +808,31 @@ js_audioparam_get(JSContext* ctx, JSValueConst this_val, int magic) {
 
   switch(magic) {
     case AUDIOPARAM_NAME: {
-      ret = to_js(ctx, (*ap)->name());
+      ret = to_js<std::string>(ctx, (*ap)->name());
       break;
     }
     case AUDIOPARAM_SHORT_NAME: {
-      ret = to_js(ctx, (*ap)->shortName());
+      ret = to_js<std::string>(ctx, (*ap)->shortName());
       break;
     }
     case AUDIOPARAM_DEFAULT_VALUE: {
-      ret = JS_NewFloat64(ctx, (*ap)->defaultValue());
+      ret = to_js<double>(ctx, (*ap)->defaultValue());
       break;
     }
     case AUDIOPARAM_MAX_VALUE: {
-      ret = JS_NewFloat64(ctx, (*ap)->maxValue());
+      ret = to_js<double>(ctx, (*ap)->maxValue());
       break;
     }
     case AUDIOPARAM_MIN_VALUE: {
-      ret = JS_NewFloat64(ctx, (*ap)->minValue());
+      ret = to_js<double>(ctx, (*ap)->minValue());
       break;
     }
     case AUDIOPARAM_VALUE: {
-      ret = JS_NewFloat64(ctx, (*ap)->value());
+      ret = to_js<double>(ctx, (*ap)->value());
       break;
     }
     case AUDIOPARAM_SMOOTHED_VALUE: {
-      ret = JS_NewFloat64(ctx, (*ap)->smoothedValue());
+      ret = to_js<double>(ctx, (*ap)->smoothedValue());
       break;
     }
   }
@@ -896,6 +897,16 @@ static const JSCFunctionListEntry js_audioparam_methods[] = {
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioParam", JS_PROP_CONFIGURABLE),
 };
 
+static const char* js_audiosetting_types[] = {
+    "None",
+    "Bool",
+    "Integer",
+    "Float",
+    "Enum",
+    "Bus",
+    nullptr,
+};
+
 static JSValue
 js_audiosetting_new(JSContext* ctx, JSValueConst new_target, AudioSettingPtr& setting) {
   JSValue proto, obj = JS_UNDEFINED;
@@ -934,7 +945,7 @@ js_audiosetting_wrap(JSContext* ctx, AudioSettingPtr& setting) {
   if((obj = ClassObjectMap<lab::AudioSetting>::get(setting)))
     return JS_DupValue(ctx, to_js(obj));
 
-  return js_audiosetting_new(ctx, audiosetting_proto, setting);
+  return js_audiosetting_new(ctx, audiosetting_ctor, setting);
 }
 
 enum {
@@ -957,6 +968,8 @@ js_audiosetting_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
 enum {
   AUDIOSETTING_NAME,
   AUDIOSETTING_SHORT_NAME,
+  AUDIOSETTING_TYPE,
+  AUDIOSETTING_VALUE,
 };
 
 static JSValue
@@ -969,11 +982,46 @@ js_audiosetting_get(JSContext* ctx, JSValueConst this_val, int magic) {
 
   switch(magic) {
     case AUDIOSETTING_NAME: {
-      ret = to_js(ctx, (*as)->name());
+      ret = to_js<std::string>(ctx, (*as)->name());
       break;
     }
     case AUDIOSETTING_SHORT_NAME: {
-      ret = to_js(ctx, (*as)->shortName());
+      ret = to_js<std::string>(ctx, (*as)->shortName());
+      break;
+    }
+    case AUDIOSETTING_TYPE: {
+      ret = JS_NewString(ctx, js_audiosetting_types[int((*as)->type())]);
+      break;
+    }
+    case AUDIOSETTING_VALUE: {
+      switch((*as)->type()) {
+        case lab::SettingType::None: {
+          break;
+        }
+        case lab::SettingType::Bool: {
+          ret = JS_NewBool(ctx, (*as)->valueBool());
+          break;
+        }
+        case lab::SettingType::Integer: {
+          ret = JS_NewUint32(ctx, (*as)->valueUint32());
+          break;
+        }
+        case lab::SettingType::Float: {
+          ret = JS_NewFloat64(ctx, (*as)->valueFloat());
+          break;
+        }
+        case lab::SettingType::Enum: {
+          ret = JS_NewString(ctx, (*as)->enums()[(*as)->valueUint32()]);
+          break;
+        }
+        case lab::SettingType::Bus: {
+          AudioBufferPtr ab((*as)->valueBus());
+
+          ret = !!ab ? js_audiobuffer_wrap(ctx, ab) : JS_NULL;
+          break;
+        }
+      }
+
       break;
     }
   }
@@ -989,7 +1037,48 @@ js_audiosetting_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, i
   if(!(as = js_audiosetting_class_id.opaque<AudioSettingPtr>(ctx, this_val)))
     return JS_EXCEPTION;
 
-  switch(magic) {}
+  switch(magic) {
+    case AUDIOSETTING_VALUE: {
+      switch((*as)->type()) {
+        case lab::SettingType::None: {
+          break;
+        }
+        case lab::SettingType::Bool: {
+          (*as)->setBool(from_js<BOOL>(ctx, value));
+          break;
+        }
+        case lab::SettingType::Integer: {
+          (*as)->setUint32(from_js<uint32_t>(ctx, value));
+          break;
+        }
+        case lab::SettingType::Float: {
+          (*as)->setFloat(from_js<double>(ctx, value));
+          break;
+        }
+        case lab::SettingType::Enum: {
+          const char* str;
+
+          if(JS_IsNumber(value)) {
+            (*as)->setUint32(from_js<uint32_t>(ctx, value));
+          } else if((str = JS_ToCString(ctx, value))) {
+            (*as)->setUint32((*as)->enumFromName(str));
+          }
+          break;
+        }
+        case lab::SettingType::Bus: {
+          AudioBufferPtr* ab;
+
+          if(!(ab = js_audiobuffer_class_id.opaque<AudioBufferPtr>(ctx, value)))
+            return JS_ThrowTypeError(ctx, "must be an AudioBuffer");
+
+          (*as)->setBus(ab->get());
+          break;
+        }
+      }
+
+      break;
+    }
+  }
 
   return ret;
 }
@@ -1014,6 +1103,8 @@ static JSClassDef js_audiosetting_class = {
 static const JSCFunctionListEntry js_audiosetting_methods[] = {
     JS_CGETSET_MAGIC_DEF("name", js_audiosetting_get, 0, AUDIOSETTING_NAME),
     JS_CGETSET_MAGIC_DEF("shortName", js_audiosetting_get, 0, AUDIOSETTING_SHORT_NAME),
+    JS_CGETSET_MAGIC_DEF("type", js_audiosetting_get, 0, AUDIOSETTING_TYPE),
+    JS_CGETSET_MAGIC_DEF("value", js_audiosetting_get, js_audiosetting_set, AUDIOSETTING_VALUE),
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioSetting", JS_PROP_CONFIGURABLE),
 };
 
@@ -1064,7 +1155,7 @@ js_audiocontext_new(JSContext* ctx, JSValueConst proto, AudioContextPtr& context
   if(!(ac = js_malloc<AudioContextPtr>(ctx)))
     return JS_EXCEPTION;
 
-  *ac = std::move(context);
+  new(ac) AudioContextPtr(context);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   JSValue obj = JS_NewObjectProtoClass(ctx, proto, js_audiocontext_class_id);
@@ -1144,7 +1235,7 @@ js_audiocontext_get(JSContext* ctx, JSValueConst this_val, int magic) {
       break;
     }
     case CONTEXT_DESTINATION: {
-      AudioDestinationNodePtr adnptr = (*ac)->destinationNode();
+      AudioDestinationNodePtr adnptr((*ac)->destinationNode(), *ac);
       ret = !!adnptr ? js_audiodestinationnode_wrap(ctx, adnptr) : JS_NULL;
       break;
     }
@@ -1229,7 +1320,7 @@ js_audiolistener_wrap(JSContext* ctx, JSValueConst proto, AudioListenerPtr& list
   if(!(al = js_malloc<AudioListenerPtr>(ctx)))
     return JS_EXCEPTION;
 
-  *al = std::move(listener);
+  new (al) AudioListenerPtr(listener);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   JSValue obj = JS_NewObjectProtoClass(ctx, proto, js_audiolistener_class_id);
@@ -1493,6 +1584,9 @@ fail:
 }
 
 enum {
+  AUDIONODE_CONNECT,
+  AUDIONODE_DISCONNECT,
+  AUDIONODE_ISCONNECTED,
   AUDIONODE_ISSCHEDULEDNODE,
   AUDIONODE_INITIALIZE,
   AUDIONODE_UNINITIALIZE,
@@ -1511,6 +1605,39 @@ js_audionode_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
     return JS_EXCEPTION;
 
   switch(magic) {
+
+    case AUDIONODE_CONNECT: {
+      AudioNodePtr* other;
+
+      if(!(other = js_audionode_class_id.opaque<AudioNodePtr>(ctx, argv[0])))
+        return JS_EXCEPTION;
+
+      an->value->connect(*other, *an);
+      break;
+    }
+    case AUDIONODE_DISCONNECT: {
+
+      if(argc > 0) {
+        AudioNodePtr* other;
+
+        if(!(other = js_audionode_class_id.opaque<AudioNodePtr>(ctx, argv[0])))
+          return JS_EXCEPTION;
+
+        an->value->disconnect(*other, *an);
+      } else {
+        an->value->disconnect(*an);
+      }
+      break;
+    }
+    case AUDIONODE_ISCONNECTED: {
+      AudioNodePtr* other;
+
+      if(!(other = js_audionode_class_id.opaque<AudioNodePtr>(ctx, argv[0])))
+        return JS_EXCEPTION;
+
+      ret = JS_NewBool(ctx, an->value->isConnected(*other, *an));
+      break;
+    }
     case AUDIONODE_ISSCHEDULEDNODE: {
       ret = JS_NewBool(ctx, (*an)->isScheduledNode());
       break;
@@ -1528,17 +1655,25 @@ js_audionode_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
       const char* str;
 
       if((str = JS_ToCString(ctx, argv[0]))) {
-        ret = to_js(ctx, (*an)->param_index(str));
+        ret = to_js<int32_t>(ctx, (*an)->param_index(str));
         JS_FreeCString(ctx, str);
       }
 
       break;
     }
     case AUDIONODE_PARAM: {
-      int32_t index = -1;
-      JS_ToInt32(ctx, &index, argv[0]);
+      AudioParamPtr ap;
+      const char* str;
 
-      AudioParamPtr ap = (*an)->param(index);
+      if(JS_IsNumber(argv[0])) {
+        int32_t index = -1;
+        JS_ToInt32(ctx, &index, argv[0]);
+
+        ap = (*an)->param(index);
+      } else if((str = JS_ToCString(ctx, argv[0]))) {
+        ap = (*an)->param(str);
+        JS_FreeCString(ctx, str);
+      }
 
       ret = !!ap ? js_audioparam_wrap(ctx, ap) : JS_NULL;
       break;
@@ -1548,17 +1683,25 @@ js_audionode_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
       const char* str;
 
       if((str = JS_ToCString(ctx, argv[0]))) {
-        ret = to_js(ctx, (*an)->setting_index(str));
+        ret = to_js<int32_t>(ctx, (*an)->setting_index(str));
         JS_FreeCString(ctx, str);
       }
 
       break;
     }
     case AUDIONODE_SETTING: {
-      int32_t index = -1;
-      JS_ToInt32(ctx, &index, argv[0]);
+      AudioSettingPtr as;
+      const char* str;
 
-      AudioSettingPtr as = (*an)->setting(index);
+      if(JS_IsNumber(argv[0])) {
+        int32_t index = -1;
+        JS_ToInt32(ctx, &index, argv[0]);
+
+        as = (*an)->setting(index);
+      } else if((str = JS_ToCString(ctx, argv[0]))) {
+        as = (*an)->setting(str);
+        JS_FreeCString(ctx, str);
+      }
 
       ret = !!as ? js_audiosetting_wrap(ctx, as) : JS_NULL;
       break;
@@ -1733,6 +1876,9 @@ static JSClassDef js_audionode_class = {
 };
 
 static const JSCFunctionListEntry js_audionode_methods[] = {
+    JS_CFUNC_MAGIC_DEF("connect", 1, js_audionode_method, AUDIONODE_CONNECT),
+    JS_CFUNC_MAGIC_DEF("disconnect", 1, js_audionode_method, AUDIONODE_DISCONNECT),
+    JS_CFUNC_MAGIC_DEF("isConnected", 1, js_audionode_method, AUDIONODE_ISCONNECTED),
     JS_CFUNC_MAGIC_DEF("isScheduledNode", 0, js_audionode_method, AUDIONODE_ISSCHEDULEDNODE),
     JS_CFUNC_MAGIC_DEF("initialize", 0, js_audionode_method, AUDIONODE_INITIALIZE),
     JS_CFUNC_MAGIC_DEF("uninitialize", 0, js_audionode_method, AUDIONODE_UNINITIALIZE),
@@ -1756,13 +1902,51 @@ static const JSCFunctionListEntry js_audionode_methods[] = {
 };
 
 static JSValue
+js_audiodestinationnode_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+  JSValue proto, obj = JS_UNDEFINED;
+  AudioDestinationNodePtr* adn = js_malloc<AudioDestinationNodePtr>(ctx);
+  AudioContextPtr* ac;
+  AudioDevicePtr* ad;
+
+  if(!(ac = js_audiocontext_class_id.opaque<AudioContextPtr>(ctx, argv[0])))
+    return JS_ThrowTypeError(ctx, "argument 1 must be AudioContext");
+
+  if(!(ad = js_audiodevice_class_id.opaque<AudioDevicePtr>(ctx, argv[1])))
+    return JS_ThrowTypeError(ctx, "argument 2 must be AudioDevice");
+
+  new(adn) AudioDestinationNodePtr(make_shared<lab::AudioDestinationNode>(*ac->get(), *ad), *ac);
+
+  /* using new_target to get the prototype is necessary when the class is extended. */
+  proto = JS_GetPropertyStr(ctx, new_target, "prototype");
+  if(JS_IsException(proto))
+    goto fail;
+
+  if(!JS_IsObject(proto))
+    proto = audiodestinationnode_proto;
+
+  /* using new_target to get the prototype is necessary when the class is extended. */
+  obj = JS_NewObjectProtoClass(ctx, proto, js_audiodestinationnode_class_id);
+  JS_FreeValue(ctx, proto);
+
+  if(JS_IsException(obj))
+    goto fail;
+
+  JS_SetOpaque(obj, adn);
+  return obj;
+
+fail:
+  JS_FreeValue(ctx, obj);
+  return JS_EXCEPTION;
+}
+
+static JSValue
 js_audiodestinationnode_wrap(JSContext* ctx, JSValueConst proto, AudioDestinationNodePtr& adnptr) {
   AudioDestinationNodePtr* adn;
 
   if(!(adn = js_malloc<AudioDestinationNodePtr>(ctx)))
     return JS_EXCEPTION;
 
-  *adn = std::move(adnptr);
+  new(adn) AudioDestinationNodePtr(adnptr, adnptr.value);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   JSValue obj = JS_NewObjectProtoClass(ctx, proto, js_audiodestinationnode_class_id);
@@ -1784,9 +1968,7 @@ js_audiodestinationnode_wrap(JSContext* ctx, AudioDestinationNodePtr& adnptr) {
   return js_audiodestinationnode_wrap(ctx, audiodestinationnode_proto, adnptr);
 }
 
-enum {
-  AUDIODESTINATIONNODE_NAME,
-};
+enum {};
 
 static JSValue
 js_audiodestinationnode_get(JSContext* ctx, JSValueConst this_val, int magic) {
@@ -1799,12 +1981,7 @@ js_audiodestinationnode_get(JSContext* ctx, JSValueConst this_val, int magic) {
   if(adn->get() == nullptr)
     return JS_UNDEFINED;
 
-  switch(magic) {
-    case AUDIODESTINATIONNODE_NAME: {
-      ret = JS_NewString(ctx, (*adn)->name());
-      break;
-    }
-  }
+  switch(magic) {}
 
   return ret;
 }
@@ -1847,7 +2024,6 @@ static JSClassDef js_audiodestinationnode_class = {
 };
 
 static const JSCFunctionListEntry js_audiodestinationnode_methods[] = {
-    JS_CGETSET_MAGIC_DEF("name", js_audiodestinationnode_get, 0, AUDIODESTINATIONNODE_NAME),
     JS_CFUNC_MAGIC_DEF("reset", 0, js_audiodestinationnode_method, AUDIODESTINATION_RESET),
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioDestinationNode", JS_PROP_CONFIGURABLE),
 };
@@ -2017,15 +2193,6 @@ js_oscillatornode_method(JSContext* ctx, JSValueConst this_val, int argc, JSValu
       JS_ToFloat64(ctx, &when, argv[0]);
 
       (*on)->stop(when);
-      break;
-    }
-    case OSCILLATORNODE_CONNECT: {
-      AudioNodePtr* an;
-
-      if(!(an = js_audionode_class_id.opaque<AudioNodePtr>(ctx, this_val)))
-        return JS_EXCEPTION;
-
-      on->value->connect(*an, *on);
       break;
     }
   }
@@ -2502,7 +2669,7 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   js_audiodestinationnode_class_id.inherit(js_audionode_class_id);
   JS_NewClass(JS_GetRuntime(ctx), js_audiodestinationnode_class_id, &js_audiodestinationnode_class);
 
-  audiodestinationnode_ctor = JS_NewObjectProto(ctx, JS_NULL);
+  audiodestinationnode_ctor = JS_NewCFunction2(ctx, js_audiodestinationnode_constructor, "AudioDestinationNode", 2, JS_CFUNC_constructor, 0);
   audiodestinationnode_proto = JS_NewObjectProto(ctx, audionode_proto);
 
   JS_SetPropertyFunctionList(ctx, audiodestinationnode_proto, js_audiodestinationnode_methods, countof(js_audiodestinationnode_methods));

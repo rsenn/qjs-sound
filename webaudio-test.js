@@ -1,14 +1,18 @@
-import { AudioContext, OscillatorNode } from 'labsound';
+import { AudioDevice, AudioDestinationNode, AudioContext, OscillatorNode } from 'labsound';
 import { setTimeout } from 'os';
 import { startInteractive } from 'util';
 
-let context = new AudioContext();
+const device = new AudioDevice();
 
-let { destination } = context;
+const context = new AudioContext();
+
+context.destination = new AudioDestinationNode(context, device);
+
+const { destination } = context;
 
 console.log(typeof context.destination == 'object' ? true : context.destination);
 
-let oscillator = new OscillatorNode(context, { type: 'sawtooth', frequency: 1000, channelCount: 2 });
+const oscillator = new OscillatorNode(context, { type: 'sawtooth', frequency: 1000, channelCount: 2 });
 
 Object.assign(globalThis, { context, destination, oscillator });
 
