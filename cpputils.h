@@ -291,13 +291,19 @@ struct ClassId {
 
   /* clang-format on */
 
-  template<class Fn>
-  void
-  recurse(const Fn& fn) const {
-    fn(cid);
+  template<class RetType>
+  auto
+  recurse(const std::function<RetType(const ClassId&)>& fn) const -> RetType {
+    RetType r;
+
+    if((r = fn(*this)))
+      return r;
 
     for(ClassId* cidp : descendants)
-      cidp->recurse(fn);
+      if((r = cidp->recurse(fn)))
+        return r;
+
+    return r;
   }
 
   template<class T = void>
@@ -309,7 +315,7 @@ struct ClassId {
       return ptr;
 
     for(ClassId* cidp : descendants)
-      if((ptr = cidp->opaque<T>(val)))
+      if((ptr = static_cast<T*>(JS_GetOpaque(val, *cidp))))
         return ptr;
 
     return nullptr;
@@ -318,20 +324,31 @@ struct ClassId {
   template<class T = void>
   T*
   opaque(JSContext* ctx, JSValueConst val) const {
-    T* ptr = opaque<T>(val);
+    T* ptr;
+    std::string ids;
 
-    if(ptr == nullptr) {
-      std::string ids = "";
+    if((ptr = static_cast<T*>(JS_GetOpaque2(ctx, val, cid))))
+      return ptr;
 
-      recurse([&ids](JSClassID id) {
-        ids.append(",");
-        ids.append(std::to_string(id));
-      });
+    if(!JS_IsObject(JS_GetException(ctx)))
+      return nullptr;
 
-      JS_ThrowTypeError(ctx, "Object is not of class id %s", ids.c_str() + 1);
+    ids.append(std::to_string(cid));
+
+    for(ClassId* cidp : descendants) {
+      if((ptr = static_cast<T*>(JS_GetOpaque2(ctx, val, *cidp))))
+        return ptr;
+
+      if(!JS_IsObject(JS_GetException(ctx)))
+        return nullptr;
+
+      ids.append(",");
+      ids.append(std::to_string(cidp->cid));
     }
 
-    return ptr;
+    JS_ThrowTypeError(ctx, "Object is not of class id %s", ids.c_str());
+
+    return nullptr;
   }
 
 private:
@@ -340,18 +357,60 @@ private:
   std::vector<ClassId*> descendants;
 };
 
-template<class T, class U = std::shared_ptr<lab::AudioContext>> struct ClassPtr : std::shared_ptr<T> {
+template<class T> struct ClassObjectMap {
+  typedef std::shared_ptr<T> base_type;
+  typedef std::weak_ptr<T> weak_type;
+  typedef JSObject* jsobject_ptr;
+
+  static void
+  set(const base_type& ptr, JSObject* obj) {
+    weak_type weak(ptr);
+    object_map[weak] = obj;
+  }
+
+  static jsobject_ptr
+  get(const base_type& ptr) {
+    std::erase_if(object_map, [](const auto& item) -> bool {
+      auto const& [key, value] = item;
+      return key.expired();
+    });
+
+    weak_type weak(ptr);
+    auto const it = object_map.find(weak);
+
+    if(it != object_map.end())
+      return it->second;
+
+    return nullptr;
+  }
+
+private:
+  static std::map<weak_type, jsobject_ptr> object_map;
+};
+
+template<class T, class U = std::shared_ptr<lab::AudioContext>> struct ClassPtr : public std::shared_ptr<T> {
   typedef std::shared_ptr<T> base_type;
   typedef U value_type;
 
   ClassPtr(const base_type& b, const value_type& v) : base_type(b), value(v) {}
 
-  std::shared_ptr<T>
+  auto
   get() const {
     return base_type::get();
   }
 
   value_type value;
+};
+
+template<class T> struct ClassPtr<T, void> : public std::shared_ptr<T> {
+  typedef std::shared_ptr<T> base_type;
+
+  ClassPtr(const base_type& b) : base_type(b) {}
+
+  auto
+  get() const {
+    return base_type::get();
+  }
 };
 
 template<class T>

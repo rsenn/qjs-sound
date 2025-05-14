@@ -23,7 +23,7 @@ static JSValue audiobuffer_proto, audiobuffer_ctor, audiocontext_proto, audiocon
     audiosummingjunction_proto, audiosummingjunction_ctor, audiobuffersourcenode_proto, audiobuffersourcenode_ctor, audioparam_proto, audioparam_ctor;
 
 typedef shared_ptr<lab::AudioBus> AudioBufferPtr;
-typedef shared_ptr<lab::AudioContext> AudioContextPtr;
+typedef ClassPtr<lab::AudioContext, void> AudioContextPtr;
 typedef shared_ptr<lab::AudioDestinationNode> AudioDestinationNodePtr;
 typedef shared_ptr<lab::AudioListener> AudioListenerPtr;
 typedef shared_ptr<lab::AudioDevice> AudioDevicePtr;
@@ -35,7 +35,6 @@ typedef ClassPtr<lab::OscillatorNode> OscillatorNodePtr;
 typedef shared_ptr<lab::SampledAudioNode> AudioBufferSourceNodePtr;
 
 typedef ClassPtr<lab::AudioBus, int> AudioChannelPtr;
-typedef weak_ptr<lab::AudioBus> AudioBufferIndex;
 
 typedef JSObject* JSObjectPtr;
 typedef vector<JSObjectPtr> JSObjectArray;
@@ -45,6 +44,8 @@ static JSObjectArray* js_audiobuffer_channels(JSContext*, const AudioBufferPtr&)
 static JSValue js_audiolistener_wrap(JSContext*, AudioListenerPtr&);
 static JSValue js_audiodestinationnode_wrap(JSContext*, AudioDestinationNodePtr&);
 
+/*typedef weak_ptr<lab::AudioBus> AudioBufferIndex;
+
 template<> struct std::less<AudioBufferIndex> {
   bool
   operator()(const AudioBufferIndex& p1, const AudioBufferIndex& p2) const {
@@ -53,11 +54,42 @@ template<> struct std::less<AudioBufferIndex> {
 
     return b1.get() < b2.get();
   }
+};*/
+
+/*template<> struct std::less<weak_ptr<lab::AudioContext>> {
+  bool
+  operator()(const weak_ptr<lab::AudioContext>& p1, const weak_ptr<lab::AudioContext>& p2) const {
+    shared_ptr<lab::AudioContext> b1(p1);
+    shared_ptr<lab::AudioContext> b2(p2);
+
+    return b1.get() < b2.get();
+  }
+};*/
+
+template<class T> struct std::less<weak_ptr<T>> {
+  bool
+  operator()(const weak_ptr<T>& p1, const weak_ptr<T>& p2) const {
+    std::shared_ptr<T> b1(p1);
+    std::shared_ptr<T> b2(p2);
+
+    return b1.get() < b2.get();
+  }
 };
 
-typedef map<AudioBufferIndex, JSObjectArray> ChannelMap;
+typedef map<weak_ptr<lab::AudioBus>, JSObjectArray> ChannelMap;
 
 static ChannelMap channel_map;
+
+static int
+js_enum_value(JSContext* ctx, JSValueConst value, const char* values[], int offset = 1) {
+  int i;
+  const char* str = JS_ToCString(ctx, value);
+  for(i = 0; values[i]; ++i)
+    if(!strcasecmp(values[i], str))
+      return i + offset;
+
+  return -1;
+}
 
 static JSValue
 js_float32array_ctor(JSContext* ctx) {
@@ -109,7 +141,7 @@ js_audiochannel_object(JSContext* ctx, const AudioChannelPtr& ac) {
   JSObjectArray* obj;
 
   if(!(obj = js_audiobuffer_channels(ctx, ac))) {
-    AudioBufferIndex key(ac);
+    weak_ptr<lab::AudioBus> key(ac);
 
     channel_map.emplace(make_pair(key, JSObjectArray(ac->length(), nullptr)));
 
@@ -364,7 +396,7 @@ js_audiobuffer_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
     case BUFFER_TOPOLOGY_MATCHES: {
       AudioBufferPtr* other;
 
-      if(!(other = js_audiobuffer_class_id.opaque<AudioBufferPtr>(this_val)))
+      if(!(other = js_audiobuffer_class_id.opaque<AudioBufferPtr>(ctx, this_val)))
         return JS_ThrowTypeError(ctx, "argument 1 must be an AudioBuffer");
 
       (*ab)->topologyMatches(*(*other));
@@ -384,7 +416,7 @@ js_audiobuffer_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
       AudioBufferPtr* source;
       lab::ChannelInterpretation interp = argc > 1 ? from_js<lab::ChannelInterpretation>(ctx, argv[1]) : lab::ChannelInterpretation::Speakers;
 
-      if(!(source = js_audiobuffer_class_id.opaque<AudioBufferPtr>(argv[0])))
+      if(!(source = js_audiobuffer_class_id.opaque<AudioBufferPtr>(ctx, argv[0])))
         return JS_ThrowTypeError(ctx, "argument 1 must be an AudioBuffer");
 
       (*ab)->copyFrom(*(*source), interp);
@@ -394,7 +426,7 @@ js_audiobuffer_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
       AudioBufferPtr* source;
       lab::ChannelInterpretation interp = argc > 1 ? from_js<lab::ChannelInterpretation>(ctx, argv[1]) : lab::ChannelInterpretation::Speakers;
 
-      if(!(source = js_audiobuffer_class_id.opaque<AudioBufferPtr>(argv[0])))
+      if(!(source = js_audiobuffer_class_id.opaque<AudioBufferPtr>(ctx, argv[0])))
         return JS_ThrowTypeError(ctx, "argument 1 must be an AudioBuffer");
 
       (*ab)->sumFrom(*(*source), interp);
@@ -405,7 +437,7 @@ js_audiobuffer_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
       double targetGain = from_js<double>(ctx, argv[2]);
       float lastMixGain;
 
-      if(!(source = js_audiobuffer_class_id.opaque<AudioBufferPtr>(argv[0])))
+      if(!(source = js_audiobuffer_class_id.opaque<AudioBufferPtr>(ctx, argv[0])))
         return JS_ThrowTypeError(ctx, "argument 1 must be an AudioBuffer");
 
       (*ab)->copyWithGainFrom(*(*source), &lastMixGain, targetGain);
@@ -419,7 +451,7 @@ js_audiobuffer_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
       if(ptr == nullptr)
         return JS_ThrowTypeError(ctx, "argument 2 must be a Float32Array");
 
-      if(!(source = js_audiobuffer_class_id.opaque<AudioBufferPtr>(argv[0])))
+      if(!(source = js_audiobuffer_class_id.opaque<AudioBufferPtr>(ctx, argv[0])))
         return JS_ThrowTypeError(ctx, "argument 1 must be an AudioBuffer");
 
       (*ab)->copyWithSampleAccurateGainValuesFrom(*(*source), ptr, std::min(numberOfGainValues, len));
@@ -445,7 +477,7 @@ static JSValue
 js_audiobuffer_function(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
   AudioBufferPtr *source, ret;
 
-  if(!(source = js_audiobuffer_class_id.opaque<AudioBufferPtr>(argv[0])))
+  if(!(source = js_audiobuffer_class_id.opaque<AudioBufferPtr>(ctx, argv[0])))
     return JS_ThrowTypeError(ctx, "argument 1 must be an AudioBuffer");
 
   switch(magic) {
@@ -881,11 +913,51 @@ js_audiocontext_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
     goto fail;
 
   JS_SetOpaque(obj, ac);
+
+  ClassObjectMap<lab::AudioContext>::set(*ac, JS_VALUE_GET_OBJ(obj));
+
   return obj;
 
 fail:
   JS_FreeValue(ctx, obj);
   return JS_EXCEPTION;
+}
+
+static JSValue
+js_audiocontext_wrap(JSContext* ctx, JSValueConst proto, AudioContextPtr& context) {
+  AudioContextPtr* ac;
+
+  if(!(ac = js_malloc<AudioContextPtr>(ctx)))
+    return JS_EXCEPTION;
+
+  *ac = std::move(context);
+
+  /* using new_target to get the prototype is necessary when the class is extended. */
+  JSValue obj = JS_NewObjectProtoClass(ctx, proto, js_audiocontext_class_id);
+  JS_FreeValue(ctx, proto);
+
+  if(JS_IsException(obj))
+    goto fail;
+
+  JS_SetOpaque(obj, ac);
+
+  ClassObjectMap<lab::AudioContext>::set(*ac, JS_VALUE_GET_OBJ(obj));
+
+  return obj;
+
+fail:
+  JS_FreeValue(ctx, obj);
+  return JS_EXCEPTION;
+}
+
+static JSValue
+js_audiocontext_wrap(JSContext* ctx, AudioContextPtr& context) {
+  JSObject* obj;
+
+  if((obj = ClassObjectMap<lab::AudioContext>::get(context)))
+    return JS_MKPTR(JS_TAG_OBJECT, obj);
+
+  return js_audiocontext_wrap(ctx, audiocontext_proto, context);
 }
 
 enum {
@@ -939,12 +1011,12 @@ js_audiocontext_get(JSContext* ctx, JSValueConst this_val, int magic) {
     }
     case CONTEXT_DESTINATION: {
       AudioDestinationNodePtr adnptr = (*ac)->destinationNode();
-      ret = js_audiodestinationnode_wrap(ctx, adnptr);
+      ret = !!adnptr ? js_audiodestinationnode_wrap(ctx, adnptr) : JS_NULL;
       break;
     }
     case CONTEXT_LISTENER: {
       AudioListenerPtr alptr = (*ac)->listener();
-      ret = js_audiolistener_wrap(ctx, alptr);
+      ret = !!alptr ? js_audiolistener_wrap(ctx, alptr) : JS_NULL;
       break;
     }
     case CONTEXT_CURRENTTIME: {
@@ -1288,9 +1360,6 @@ enum {
   AUDIONODE_ISSCHEDULEDNODE,
   AUDIONODE_INITIALIZE,
   AUDIONODE_UNINITIALIZE,
-  AUDIONODE_ISINITIALIZED,
-  AUDIONODE_NUMBEROFINPUTS,
-  AUDIONODE_NUMBEROFOUTPUTS,
   AUDIONODE_PARAMNAMES,
   AUDIONODE_PARAMSHORTNAMES,
   AUDIONODE_PARAMINDEX,
@@ -1318,18 +1387,6 @@ js_audionode_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
     }
     case AUDIONODE_UNINITIALIZE: {
       (*an)->uninitialize();
-      break;
-    }
-    case AUDIONODE_ISINITIALIZED: {
-      ret = JS_NewBool(ctx, (*an)->isInitialized());
-      break;
-    }
-    case AUDIONODE_NUMBEROFINPUTS: {
-      ret = JS_NewInt32(ctx, (*an)->numberOfInputs());
-      break;
-    }
-    case AUDIONODE_NUMBEROFOUTPUTS: {
-      ret = JS_NewInt32(ctx, (*an)->numberOfOutputs());
       break;
     }
     case AUDIONODE_PARAMNAMES: {
@@ -1376,6 +1433,18 @@ js_audionode_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
 enum {
   AUDIONODE_NAME,
   AUDIONODE_CHANNELCOUNT,
+  AUDIONODE_CHANNELCOUNTMODE,
+  AUDIONODE_INITIALIZED,
+  AUDIONODE_CONTEXT,
+  AUDIONODE_NUMBEROFINPUTS,
+  AUDIONODE_NUMBEROFOUTPUTS,
+};
+
+static const char* js_audionode_channelcountmodes[] = {
+    "max",
+    "clamped-max",
+    "explicit",
+    nullptr,
 };
 
 static JSValue
@@ -1393,6 +1462,29 @@ js_audionode_get(JSContext* ctx, JSValueConst this_val, int magic) {
     }
     case AUDIONODE_CHANNELCOUNT: {
       ret = JS_NewInt32(ctx, (*an)->channelCount());
+      break;
+    }
+    case AUDIONODE_CHANNELCOUNTMODE: {
+      ret = JS_NewString(ctx, js_audionode_channelcountmodes[int32_t((*an)->channelCountMode()) - 1]);
+      break;
+    }
+    case AUDIONODE_CONTEXT: {
+      AudioContextPtr acptr(an->value);
+
+      ret = !!acptr ? js_audiocontext_wrap(ctx, acptr) : JS_NULL;
+      break;
+    }
+
+    case AUDIONODE_INITIALIZED: {
+      ret = JS_NewBool(ctx, (*an)->isInitialized());
+      break;
+    }
+    case AUDIONODE_NUMBEROFINPUTS: {
+      ret = JS_NewInt32(ctx, (*an)->numberOfInputs());
+      break;
+    }
+    case AUDIONODE_NUMBEROFOUTPUTS: {
+      ret = JS_NewInt32(ctx, (*an)->numberOfOutputs());
       break;
     }
   }
@@ -1416,8 +1508,22 @@ js_audionode_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int 
       int32_t n = -1;
       JS_ToInt32(ctx, &n, value);
 
-      /*ContextGraphLock gLock(this, "AudioContext::handlePreRenderTasks()");
-      (*an)->setChannelCount();*/
+      /*ContextGraphLock g(this, __func__);
+      (*an)->setChannelCount(g);*/
+      break;
+    }
+
+    case AUDIONODE_CHANNELCOUNTMODE: {
+      int32_t ccm = -1;
+
+      if(JS_IsNumber(value))
+        JS_ToInt32(ctx, &ccm, value);
+      else
+        ccm = js_enum_value(ctx, value, js_audionode_channelcountmodes);
+
+      /*lab::ContextGraphLock g(this, __func__);
+
+      (*an)->setChannelCountMode(g, lab::ChannelCountMode(ccm));*/
       break;
     }
   }
@@ -1444,9 +1550,10 @@ static const JSCFunctionListEntry js_audionode_methods[] = {
     JS_CFUNC_MAGIC_DEF("isScheduledNode", 0, js_audionode_method, AUDIONODE_ISSCHEDULEDNODE),
     JS_CFUNC_MAGIC_DEF("initialize", 0, js_audionode_method, AUDIONODE_INITIALIZE),
     JS_CFUNC_MAGIC_DEF("uninitialize", 0, js_audionode_method, AUDIONODE_UNINITIALIZE),
-    JS_CFUNC_MAGIC_DEF("isInitialized", 0, js_audionode_method, AUDIONODE_ISINITIALIZED),
-    JS_CFUNC_MAGIC_DEF("numberOfInputs", 0, js_audionode_method, AUDIONODE_NUMBEROFINPUTS),
-    JS_CFUNC_MAGIC_DEF("numberOfOutputs", 0, js_audionode_method, AUDIONODE_NUMBEROFOUTPUTS),
+    JS_CGETSET_MAGIC_DEF("context", js_audionode_get, 0, AUDIONODE_CONTEXT),
+    JS_CGETSET_MAGIC_DEF("initialized", js_audionode_get, 0, AUDIONODE_INITIALIZED),
+    JS_CGETSET_MAGIC_DEF("numberOfInputs", js_audionode_get, 0, AUDIONODE_NUMBEROFINPUTS),
+    JS_CGETSET_MAGIC_DEF("numberOfOutputs", js_audionode_get, 0, AUDIONODE_NUMBEROFOUTPUTS),
     JS_CFUNC_MAGIC_DEF("paramNames", 0, js_audionode_method, AUDIONODE_PARAMNAMES),
     JS_CFUNC_MAGIC_DEF("paramShortNames", 0, js_audionode_method, AUDIONODE_PARAMSHORTNAMES),
     JS_CFUNC_MAGIC_DEF("param_index", 1, js_audionode_method, AUDIONODE_PARAMINDEX),
@@ -2089,7 +2196,7 @@ js_audiobuffersourcenode_set(JSContext* ctx, JSValueConst this_val, JSValueConst
         (*absn)->setBus(AudioBufferPtr());
 
       } else {
-        if(!(ab = js_audiobuffer_class_id.opaque<AudioBufferPtr>(value)))
+        if(!(ab = js_audiobuffer_class_id.opaque<AudioBufferPtr>(ctx, value)))
           return JS_ThrowTypeError(ctx, "property .buffer must be an AudioBuffer");
 
         (*absn)->setBus(*ab);
