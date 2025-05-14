@@ -17,10 +17,10 @@ using std::vector;
 using std::weak_ptr;
 
 static ClassId js_audiobuffer_class_id, js_audiocontext_class_id, js_audiolistener_class_id, js_audiodevice_class_id, js_audionode_class_id, js_audiodestinationnode_class_id,
-    js_audioscheduledsourcenode_class_id, js_oscillatornode_class_id, js_audiosummingjunction_class_id, js_audiobuffersourcenode_class_id, js_audioparam_class_id;
+    js_audioscheduledsourcenode_class_id, js_oscillatornode_class_id, js_audiosummingjunction_class_id, js_audiobuffersourcenode_class_id, js_audioparam_class_id, js_audiosetting_class_id;
 static JSValue audiobuffer_proto, audiobuffer_ctor, audiocontext_proto, audiocontext_ctor, audiolistener_proto, audiolistener_ctor, audiodevice_proto, audiodevice_ctor, audionode_proto,
     audionode_ctor, audiodestinationnode_proto, audiodestinationnode_ctor, audioscheduledsourcenode_proto, audioscheduledsourcenode_ctor, oscillatornode_proto, oscillatornode_ctor,
-    audiosummingjunction_proto, audiosummingjunction_ctor, audiobuffersourcenode_proto, audiobuffersourcenode_ctor, audioparam_proto, audioparam_ctor;
+    audiosummingjunction_proto, audiosummingjunction_ctor, audiobuffersourcenode_proto, audiobuffersourcenode_ctor, audioparam_proto, audioparam_ctor, audiosetting_proto, audiosetting_ctor;
 
 typedef shared_ptr<lab::AudioBus> AudioBufferPtr;
 typedef ClassPtr<lab::AudioContext, void> AudioContextPtr;
@@ -28,6 +28,7 @@ typedef shared_ptr<lab::AudioDestinationNode> AudioDestinationNodePtr;
 typedef shared_ptr<lab::AudioListener> AudioListenerPtr;
 typedef shared_ptr<lab::AudioDevice> AudioDevicePtr;
 typedef shared_ptr<lab::AudioParam> AudioParamPtr;
+typedef shared_ptr<lab::AudioSetting> AudioSettingPtr;
 typedef shared_ptr<lab::AudioSummingJunction> AudioSummingJunctionPtr;
 typedef ClassPtr<lab::AudioNode> AudioNodePtr;
 typedef ClassPtr<lab::AudioScheduledSourceNode> AudioScheduledSourceNodePtr;
@@ -75,6 +76,10 @@ template<class T> struct std::less<weak_ptr<T>> {
     return b1.get() < b2.get();
   }
 };
+
+// template<> std::map<weak_ptr<lab::AudioContext>, JSObject*> ClassObjectMap<lab::AudioContext>::object_map;
+template<> map<weak_ptr<lab::AudioContext>, JSObject*> ClassObjectMap<lab::AudioContext>::object_map{};
+template<> map<weak_ptr<lab::AudioParam>, JSObject*> ClassObjectMap<lab::AudioParam>::object_map{};
 
 typedef map<weak_ptr<lab::AudioBus>, JSObjectArray> ChannelMap;
 
@@ -670,7 +675,7 @@ static const JSCFunctionListEntry js_audiobuffer_functions[] = {
 };
 
 static JSValue
-js_audioparam_wrap(JSContext* ctx, JSValueConst new_target, AudioParamPtr& aparam) {
+js_audioparam_new(JSContext* ctx, JSValueConst new_target, AudioParamPtr& aparam) {
   JSValue proto, obj = JS_UNDEFINED;
   AudioParamPtr* ap = js_malloc<AudioParamPtr>(ctx);
 
@@ -692,6 +697,7 @@ js_audioparam_wrap(JSContext* ctx, JSValueConst new_target, AudioParamPtr& apara
     goto fail;
 
   JS_SetOpaque(obj, ap);
+  ClassObjectMap<lab::AudioParam>::set(*ap, from_js<JSObject*>(obj));
   return obj;
 
 fail:
@@ -701,7 +707,12 @@ fail:
 
 static JSValue
 js_audioparam_wrap(JSContext* ctx, AudioParamPtr& aparam) {
-  return js_audioparam_wrap(ctx, audioparam_proto, aparam);
+  JSObject* obj;
+
+  if((obj = ClassObjectMap<lab::AudioParam>::get(aparam)))
+    return JS_DupValue(ctx, to_js(obj));
+
+  return js_audioparam_new(ctx, audioparam_proto, aparam);
 }
 
 enum {
@@ -851,6 +862,8 @@ js_audioparam_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int
 static void
 js_audioparam_finalizer(JSRuntime* rt, JSValue this_val) {
   AudioParamPtr* ap;
+  
+  ClassObjectMap<lab::AudioParam>::remove(from_js<JSObject*>(this_val));
 
   if(!(ap = js_audioparam_class_id.opaque<AudioParamPtr>(this_val))) {
     ap->~AudioParamPtr();
@@ -881,6 +894,127 @@ static const JSCFunctionListEntry js_audioparam_methods[] = {
     JS_CFUNC_MAGIC_DEF("cancelScheduledValues", 1, js_audioparam_method, AUDIOPARAM_CANCEL_SCHEDULED_VALUES),
 
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioParam", JS_PROP_CONFIGURABLE),
+};
+
+static JSValue
+js_audiosetting_new(JSContext* ctx, JSValueConst new_target, AudioSettingPtr& setting) {
+  JSValue proto, obj = JS_UNDEFINED;
+  AudioSettingPtr* as = js_malloc<AudioSettingPtr>(ctx);
+
+  new(as) AudioSettingPtr(setting);
+
+  /* using new_target to get the prototype is necessary when the class is extended. */
+  proto = JS_GetPropertyStr(ctx, new_target, "prototype");
+  if(JS_IsException(proto))
+    goto fail;
+
+  if(!JS_IsObject(proto))
+    proto = audiosetting_proto;
+
+  /* using new_target to get the prototype is necessary when the class is extended. */
+  obj = JS_NewObjectProtoClass(ctx, proto, js_audiosetting_class_id);
+  JS_FreeValue(ctx, proto);
+
+  if(JS_IsException(obj))
+    goto fail;
+
+  JS_SetOpaque(obj, as);
+  ClassObjectMap<lab::AudioSetting>::set(*as, from_js<JSObject*>(obj));
+  return obj;
+
+fail:
+  JS_FreeValue(ctx, obj);
+  return JS_EXCEPTION;
+}
+
+static JSValue
+js_audiosetting_wrap(JSContext* ctx, AudioSettingPtr& setting) {
+  JSObject* obj;
+
+  if((obj = ClassObjectMap<lab::AudioSetting>::get(setting)))
+    return JS_DupValue(ctx, to_js(obj));
+
+  return js_audiosetting_new(ctx, audiosetting_proto, setting);
+}
+
+enum {
+
+};
+
+static JSValue
+js_audiosetting_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+  AudioSettingPtr* as;
+  JSValue ret = JS_UNDEFINED;
+
+  if(!(as = js_audiosetting_class_id.opaque<AudioSettingPtr>(ctx, this_val)))
+    return JS_EXCEPTION;
+
+  switch(magic) {}
+
+  return ret;
+}
+
+enum {
+  AUDIOSETTING_NAME,
+  AUDIOSETTING_SHORT_NAME,
+};
+
+static JSValue
+js_audiosetting_get(JSContext* ctx, JSValueConst this_val, int magic) {
+  AudioSettingPtr* as;
+  JSValue ret = JS_UNDEFINED;
+
+  if(!(as = js_audiosetting_class_id.opaque<AudioSettingPtr>(ctx, this_val)))
+    return JS_EXCEPTION;
+
+  switch(magic) {
+    case AUDIOSETTING_NAME: {
+      ret = to_js(ctx, (*as)->name());
+      break;
+    }
+    case AUDIOSETTING_SHORT_NAME: {
+      ret = to_js(ctx, (*as)->shortName());
+      break;
+    }
+  }
+
+  return ret;
+}
+
+static JSValue
+js_audiosetting_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
+  AudioSettingPtr* as;
+  JSValue ret = JS_UNDEFINED;
+
+  if(!(as = js_audiosetting_class_id.opaque<AudioSettingPtr>(ctx, this_val)))
+    return JS_EXCEPTION;
+
+  switch(magic) {}
+
+  return ret;
+}
+
+static void
+js_audiosetting_finalizer(JSRuntime* rt, JSValue this_val) {
+  AudioSettingPtr* as;
+
+  ClassObjectMap<lab::AudioSetting>::remove(from_js<JSObject*>(this_val));
+
+  if(!(as = js_audiosetting_class_id.opaque<AudioSettingPtr>(this_val))) {
+    as->~AudioSettingPtr();
+    js_free_rt(rt, as);
+  }
+}
+
+static JSClassDef js_audiosetting_class = {
+    .class_name = "AudioSetting",
+    .finalizer = js_audiosetting_finalizer,
+};
+
+static const JSCFunctionListEntry js_audiosetting_methods[] = {
+    JS_CGETSET_MAGIC_DEF("name", js_audiosetting_get, 0, AUDIOSETTING_NAME),
+    JS_CGETSET_MAGIC_DEF("shortName", js_audiosetting_get, 0, AUDIOSETTING_SHORT_NAME),
+    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioSetting", JS_PROP_CONFIGURABLE),
 };
 
 static JSValue
@@ -924,7 +1058,7 @@ fail:
 }
 
 static JSValue
-js_audiocontext_wrap(JSContext* ctx, JSValueConst proto, AudioContextPtr& context) {
+js_audiocontext_new(JSContext* ctx, JSValueConst proto, AudioContextPtr& context) {
   AudioContextPtr* ac;
 
   if(!(ac = js_malloc<AudioContextPtr>(ctx)))
@@ -941,7 +1075,7 @@ js_audiocontext_wrap(JSContext* ctx, JSValueConst proto, AudioContextPtr& contex
 
   JS_SetOpaque(obj, ac);
 
-  ClassObjectMap<lab::AudioContext>::set(*ac, JS_VALUE_GET_OBJ(obj));
+  ClassObjectMap<lab::AudioContext>::set(*ac, from_js<JSObject*>(obj));
 
   return obj;
 
@@ -955,9 +1089,9 @@ js_audiocontext_wrap(JSContext* ctx, AudioContextPtr& context) {
   JSObject* obj;
 
   if((obj = ClassObjectMap<lab::AudioContext>::get(context)))
-    return JS_MKPTR(JS_TAG_OBJECT, obj);
+    return JS_DupValue(ctx, to_js(obj));
 
-  return js_audiocontext_wrap(ctx, audiocontext_proto, context);
+  return js_audiocontext_new(ctx, audiocontext_proto, context);
 }
 
 enum {
@@ -1063,6 +1197,8 @@ js_audiocontext_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, i
 static void
 js_audiocontext_finalizer(JSRuntime* rt, JSValue this_val) {
   AudioContextPtr* ac;
+
+  ClassObjectMap<lab::AudioContext>::remove(from_js<JSObject*>(this_val));
 
   if(!(ac = js_audiocontext_class_id.opaque<AudioContextPtr>(this_val))) {
     ac->~AudioContextPtr();
@@ -1360,11 +1496,8 @@ enum {
   AUDIONODE_ISSCHEDULEDNODE,
   AUDIONODE_INITIALIZE,
   AUDIONODE_UNINITIALIZE,
-  AUDIONODE_PARAMNAMES,
-  AUDIONODE_PARAMSHORTNAMES,
   AUDIONODE_PARAMINDEX,
-  AUDIONODE_SETTINGNAMES,
-  AUDIONODE_SETTINGSHORTNAMES,
+  AUDIONODE_PARAM,
   AUDIONODE_SETTINGINDEX,
 };
 
@@ -1389,14 +1522,7 @@ js_audionode_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
       (*an)->uninitialize();
       break;
     }
-    case AUDIONODE_PARAMNAMES: {
-      ret = to_js(ctx, (*an)->paramNames());
-      break;
-    }
-    case AUDIONODE_PARAMSHORTNAMES: {
-      ret = to_js(ctx, (*an)->paramShortNames());
-      break;
-    }
+
     case AUDIONODE_PARAMINDEX: {
       const char* str;
 
@@ -1407,14 +1533,16 @@ js_audionode_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
 
       break;
     }
-    case AUDIONODE_SETTINGNAMES: {
-      ret = to_js(ctx, (*an)->settingNames());
+    case AUDIONODE_PARAM: {
+      int32_t index = -1;
+      JS_ToInt32(ctx, &index, argv[0]);
+
+      AudioParamPtr ap = (*an)->param(index);
+
+      ret = !!ap ? js_audioparam_wrap(ctx, ap) : JS_NULL;
       break;
     }
-    case AUDIONODE_SETTINGSHORTNAMES: {
-      ret = to_js(ctx, (*an)->settingShortNames());
-      break;
-    }
+
     case AUDIONODE_SETTINGINDEX: {
       const char* str;
 
@@ -1434,16 +1562,27 @@ enum {
   AUDIONODE_NAME,
   AUDIONODE_CHANNELCOUNT,
   AUDIONODE_CHANNELCOUNTMODE,
+  AUDIONODE_CHANNELINTERPRETATION,
   AUDIONODE_INITIALIZED,
   AUDIONODE_CONTEXT,
   AUDIONODE_NUMBEROFINPUTS,
   AUDIONODE_NUMBEROFOUTPUTS,
+  AUDIONODE_PARAMNAMES,
+  AUDIONODE_PARAMSHORTNAMES,
+  AUDIONODE_SETTINGNAMES,
+  AUDIONODE_SETTINGSHORTNAMES,
 };
 
 static const char* js_audionode_channelcountmodes[] = {
     "max",
     "clamped-max",
     "explicit",
+    nullptr,
+};
+
+static const char* js_audionode_channelinterpretations[] = {
+    "speakers",
+    "discrete",
     nullptr,
 };
 
@@ -1465,7 +1604,11 @@ js_audionode_get(JSContext* ctx, JSValueConst this_val, int magic) {
       break;
     }
     case AUDIONODE_CHANNELCOUNTMODE: {
-      ret = JS_NewString(ctx, js_audionode_channelcountmodes[int32_t((*an)->channelCountMode()) - 1]);
+      ret = JS_NewString(ctx, js_audionode_channelcountmodes[int32_t((*an)->channelCountMode())]);
+      break;
+    }
+    case AUDIONODE_CHANNELINTERPRETATION: {
+      ret = JS_NewString(ctx, js_audionode_channelinterpretations[int32_t((*an)->channelCountMode())]);
       break;
     }
     case AUDIONODE_CONTEXT: {
@@ -1485,6 +1628,27 @@ js_audionode_get(JSContext* ctx, JSValueConst this_val, int magic) {
     }
     case AUDIONODE_NUMBEROFOUTPUTS: {
       ret = JS_NewInt32(ctx, (*an)->numberOfOutputs());
+      break;
+    }
+
+    case AUDIONODE_PARAMNAMES: {
+      std::vector<std::string> names((*an)->paramNames());
+
+      ret = to_js<std::vector, std::string>(ctx, names);
+      break;
+    }
+    case AUDIONODE_PARAMSHORTNAMES: {
+      std::vector<std::string> names((*an)->paramShortNames());
+
+      ret = to_js<std::vector, std::string>(ctx, names);
+      break;
+    }
+    case AUDIONODE_SETTINGNAMES: {
+      ret = to_js(ctx, (*an)->settingNames());
+      break;
+    }
+    case AUDIONODE_SETTINGSHORTNAMES: {
+      ret = to_js(ctx, (*an)->settingShortNames());
       break;
     }
   }
@@ -1519,11 +1683,23 @@ js_audionode_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int 
       if(JS_IsNumber(value))
         JS_ToInt32(ctx, &ccm, value);
       else
-        ccm = js_enum_value(ctx, value, js_audionode_channelcountmodes);
+        ccm = js_enum_value(ctx, value, js_audionode_channelcountmodes, 0);
 
-      /*lab::ContextGraphLock g(this, __func__);
+      lab::ContextGraphLock g(an->value.get(), __func__);
 
-      (*an)->setChannelCountMode(g, lab::ChannelCountMode(ccm));*/
+      (*an)->setChannelCountMode(g, lab::ChannelCountMode(ccm));
+      break;
+    }
+
+    case AUDIONODE_CHANNELINTERPRETATION: {
+      int32_t ci = -1;
+
+      if(JS_IsNumber(value))
+        JS_ToInt32(ctx, &ci, value);
+      else
+        ci = js_enum_value(ctx, value, js_audionode_channelinterpretations, 0);
+
+      (*an)->setChannelInterpretation(lab::ChannelInterpretation(ci));
       break;
     }
   }
@@ -1554,14 +1730,17 @@ static const JSCFunctionListEntry js_audionode_methods[] = {
     JS_CGETSET_MAGIC_DEF("initialized", js_audionode_get, 0, AUDIONODE_INITIALIZED),
     JS_CGETSET_MAGIC_DEF("numberOfInputs", js_audionode_get, 0, AUDIONODE_NUMBEROFINPUTS),
     JS_CGETSET_MAGIC_DEF("numberOfOutputs", js_audionode_get, 0, AUDIONODE_NUMBEROFOUTPUTS),
-    JS_CFUNC_MAGIC_DEF("paramNames", 0, js_audionode_method, AUDIONODE_PARAMNAMES),
-    JS_CFUNC_MAGIC_DEF("paramShortNames", 0, js_audionode_method, AUDIONODE_PARAMSHORTNAMES),
+    JS_CGETSET_MAGIC_DEF("paramNames", js_audionode_get, 0, AUDIONODE_PARAMNAMES),
+    JS_CGETSET_MAGIC_DEF("paramShortNames", js_audionode_get, 0, AUDIONODE_PARAMSHORTNAMES),
     JS_CFUNC_MAGIC_DEF("param_index", 1, js_audionode_method, AUDIONODE_PARAMINDEX),
-    JS_CFUNC_MAGIC_DEF("settingNames", 0, js_audionode_method, AUDIONODE_SETTINGNAMES),
-    JS_CFUNC_MAGIC_DEF("settingShortNames", 0, js_audionode_method, AUDIONODE_SETTINGSHORTNAMES),
+    JS_CFUNC_MAGIC_DEF("param", 1, js_audionode_method, AUDIONODE_PARAM),
+    JS_CGETSET_MAGIC_DEF("settingNames", js_audionode_get, 0, AUDIONODE_SETTINGNAMES),
+    JS_CGETSET_MAGIC_DEF("settingShortNames", js_audionode_get, 0, AUDIONODE_SETTINGSHORTNAMES),
     JS_CFUNC_MAGIC_DEF("setting_index", 1, js_audionode_method, AUDIONODE_SETTINGINDEX),
     JS_CGETSET_MAGIC_DEF("name", js_audionode_get, 0, AUDIONODE_NAME),
-    JS_CGETSET_MAGIC_FLAGS_DEF("channelCount", js_audionode_get, js_audionode_set, AUDIONODE_CHANNELCOUNT, JS_PROP_ENUMERABLE),
+    JS_CGETSET_MAGIC_DEF("channelCount", js_audionode_get, js_audionode_set, AUDIONODE_CHANNELCOUNT),
+    JS_CGETSET_MAGIC_DEF("channelCountMode", js_audionode_get, js_audionode_set, AUDIONODE_CHANNELCOUNTMODE),
+    JS_CGETSET_MAGIC_DEF("channelInterpretation", js_audionode_get, js_audionode_set, AUDIONODE_CHANNELINTERPRETATION),
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioNode", JS_PROP_CONFIGURABLE),
 };
 
@@ -2375,6 +2554,17 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
 
   JS_SetClassProto(ctx, js_audioparam_class_id, audioparam_proto);
 
+  js_audiosetting_class_id.init();
+  js_audiosetting_class_id.inherit(js_audiosummingjunction_class_id);
+  JS_NewClass(JS_GetRuntime(ctx), js_audiosetting_class_id, &js_audiosetting_class);
+
+  audiosetting_ctor = JS_NewObjectProto(ctx, JS_NULL);
+  audiosetting_proto = JS_NewObjectProto(ctx, audioscheduledsourcenode_proto);
+
+  JS_SetPropertyFunctionList(ctx, audiosetting_proto, js_audiosetting_methods, countof(js_audiosetting_methods));
+
+  JS_SetClassProto(ctx, js_audiosetting_class_id, audiosetting_proto);
+
   if(m) {
     JS_SetModuleExport(ctx, m, "AudioBuffer", audiobuffer_ctor);
     JS_SetModuleExport(ctx, m, "AudioContext", audiocontext_ctor);
@@ -2387,6 +2577,7 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
     JS_SetModuleExport(ctx, m, "AudioSummingJunction", audiosummingjunction_ctor);
     JS_SetModuleExport(ctx, m, "AudioBufferSourceNode", audiobuffersourcenode_ctor);
     JS_SetModuleExport(ctx, m, "AudioParam", audioparam_ctor);
+    JS_SetModuleExport(ctx, m, "AudioSetting", audiosetting_ctor);
   }
 
   return 0;
@@ -2405,6 +2596,7 @@ js_init_module_labsound(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "AudioSummingJunction");
   JS_AddModuleExport(ctx, m, "AudioBufferSourceNode");
   JS_AddModuleExport(ctx, m, "AudioParam");
+  JS_AddModuleExport(ctx, m, "AudioSetting");
 }
 
 extern "C" VISIBLE JSModuleDef*

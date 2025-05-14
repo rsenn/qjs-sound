@@ -11,6 +11,7 @@
 
 // template<class T> using PointerRange = std::pair<T*, T*>;
 template<class T> using PointerRange = std::ranges::subrange<T*, T*>;
+typedef JSObject* jsobject_ptr;
 
 /**
  * \defgroup from_js<Output> shims
@@ -196,31 +197,31 @@ from_js<lab::ChannelCountMode>(JSContext* ctx, JSValueConst value) {
  */
 template<class Input>
 inline JSValue
-to_js(JSContext* ctx, Input num) {
+to_js(JSContext* ctx, const Input& num) {
   return JS_EXCEPTION;
 }
 
 template<>
 inline JSValue
-to_js<const std::string&>(JSContext* ctx, const std::string& str) {
+to_js<std::string>(JSContext* ctx, const std::string& str) {
   return JS_NewString(ctx, str.c_str());
 }
 
 template<>
 inline JSValue
-to_js<int64_t>(JSContext* ctx, int64_t num) {
+to_js<int64_t>(JSContext* ctx, const int64_t& num) {
   return JS_NewInt64(ctx, num);
 }
 
 template<>
 inline JSValue
-to_js<int32_t>(JSContext* ctx, int32_t num) {
+to_js<int32_t>(JSContext* ctx, const int32_t& num) {
   return JS_NewInt32(ctx, num);
 }
 
 template<>
 inline JSValue
-to_js<uint32_t>(JSContext* ctx, uint32_t num) {
+to_js<uint32_t>(JSContext* ctx, const uint32_t& num) {
   return JS_NewUint32(ctx, num);
 }
 
@@ -231,7 +232,7 @@ to_js(JSContext* ctx, const Container<Input>& container) {
   JSValue ret = JS_NewArray(ctx);
 
   for(const Input& val : container)
-    JS_SetPropertyUint32(ctx, ret, i++, to_js(ctx, val));
+    JS_SetPropertyUint32(ctx, ret, i++, to_js<Input>(ctx, val));
 
   return ret;
 }
@@ -244,13 +245,13 @@ to_js(Input num) {
 
 template<>
 inline JSValueConst
-to_js<JSObject*>(JSObject* obj) {
+to_js<jsobject_ptr>(jsobject_ptr obj) {
   return obj ? JS_MKPTR(JS_TAG_OBJECT, obj) : JS_NULL;
 }
 
 template<>
 inline JSValueConst
-to_js<JSObject*>(JSContext* ctx, JSObject* obj) {
+to_js<jsobject_ptr>(JSContext* ctx, const jsobject_ptr& obj) {
   return JS_DupValue(ctx, to_js<JSObject*>(obj));
 }
 
@@ -360,10 +361,9 @@ private:
 template<class T> struct ClassObjectMap {
   typedef std::shared_ptr<T> base_type;
   typedef std::weak_ptr<T> weak_type;
-  typedef JSObject* jsobject_ptr;
 
   static void
-  set(const base_type& ptr, JSObject* obj) {
+  set(const base_type& ptr, jsobject_ptr obj) {
     weak_type weak(ptr);
     object_map[weak] = obj;
   }
@@ -382,6 +382,14 @@ template<class T> struct ClassObjectMap {
       return it->second;
 
     return nullptr;
+  }
+
+  static void
+  remove(jsobject_ptr obj) {
+    std::erase_if(object_map, [obj](const auto& item) -> bool {
+      auto const& [key, value] = item;
+      return value == obj;
+    });
   }
 
 private:
