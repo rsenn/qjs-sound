@@ -862,7 +862,7 @@ js_audioparam_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int
 static void
 js_audioparam_finalizer(JSRuntime* rt, JSValue this_val) {
   AudioParamPtr* ap;
-  
+
   ClassObjectMap<lab::AudioParam>::remove(from_js<JSObject*>(this_val));
 
   if(!(ap = js_audioparam_class_id.opaque<AudioParamPtr>(this_val))) {
@@ -1499,6 +1499,7 @@ enum {
   AUDIONODE_PARAMINDEX,
   AUDIONODE_PARAM,
   AUDIONODE_SETTINGINDEX,
+  AUDIONODE_SETTING,
 };
 
 static JSValue
@@ -1551,6 +1552,15 @@ js_audionode_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
         JS_FreeCString(ctx, str);
       }
 
+      break;
+    }
+    case AUDIONODE_SETTING: {
+      int32_t index = -1;
+      JS_ToInt32(ctx, &index, argv[0]);
+
+      AudioSettingPtr as = (*an)->setting(index);
+
+      ret = !!as ? js_audiosetting_wrap(ctx, as) : JS_NULL;
       break;
     }
   }
@@ -1737,6 +1747,7 @@ static const JSCFunctionListEntry js_audionode_methods[] = {
     JS_CGETSET_MAGIC_DEF("settingNames", js_audionode_get, 0, AUDIONODE_SETTINGNAMES),
     JS_CGETSET_MAGIC_DEF("settingShortNames", js_audionode_get, 0, AUDIONODE_SETTINGSHORTNAMES),
     JS_CFUNC_MAGIC_DEF("setting_index", 1, js_audionode_method, AUDIONODE_SETTINGINDEX),
+    JS_CFUNC_MAGIC_DEF("setting", 1, js_audionode_method, AUDIONODE_SETTING),
     JS_CGETSET_MAGIC_DEF("name", js_audionode_get, 0, AUDIONODE_NAME),
     JS_CGETSET_MAGIC_DEF("channelCount", js_audionode_get, js_audionode_set, AUDIONODE_CHANNELCOUNT),
     JS_CGETSET_MAGIC_DEF("channelCountMode", js_audionode_get, js_audionode_set, AUDIONODE_CHANNELCOUNTMODE),
