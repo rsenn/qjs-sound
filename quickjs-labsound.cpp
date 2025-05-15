@@ -1919,11 +1919,11 @@ js_audionode_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
 
     case AUDIONODE_CONNECT: {
       AudioNodePtr* other;
-
+ 
       if(!(other = js_audionode_class_id.opaque<AudioNodePtr>(ctx, argv[0])))
-        return JS_EXCEPTION;
-
-      an->value->connect(*other, *an);
+        return JS_ThrowTypeError(ctx, "argument 1 must be an AudioNode");
+ 
+      an->value->connect(*other, *an, argc > 1 ? from_js<int32_t>(ctx, argv[1]) : 0, argc > 2 ? from_js<int32_t>(ctx, argv[2]) : 0);
       break;
     }
     case AUDIONODE_DISCONNECT: {
@@ -1932,9 +1932,9 @@ js_audionode_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
         AudioNodePtr* other;
 
         if(!(other = js_audionode_class_id.opaque<AudioNodePtr>(ctx, argv[0])))
-          return JS_EXCEPTION;
+        return JS_ThrowTypeError(ctx, "argument 1 must be an AudioNode");
 
-        an->value->disconnect(*other, *an);
+        an->value->disconnect(*other, *an, argc > 1 ? from_js<int32_t>(ctx, argv[1]) : 0, argc > 2 ? from_js<int32_t>(ctx, argv[2]) : 0);
       } else {
         an->value->disconnect(*an);
       }
@@ -1944,7 +1944,7 @@ js_audionode_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
       AudioNodePtr* other;
 
       if(!(other = js_audionode_class_id.opaque<AudioNodePtr>(ctx, argv[0])))
-        return JS_EXCEPTION;
+        return JS_ThrowTypeError(ctx, "argument 1 must be an AudioNode");
 
       ret = JS_NewBool(ctx, an->value->isConnected(*other, *an));
       break;
@@ -2400,6 +2400,18 @@ static const JSCFunctionListEntry js_audiodestinationnode_methods[] = {
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioDestinationNode", JS_PROP_CONFIGURABLE),
 };
 
+static const char* js_audioscheduledsourcenode_states[] = {
+    "unscheduled",
+    "scheduled",
+    "fade-in",
+    "playing",
+    "stopping",
+    "resetting",
+    "finishing",
+    "finished",
+    nullptr,
+};
+
 static JSValue
 js_audioscheduledsourcenode_wrap(JSContext* ctx, JSValueConst proto, AudioScheduledSourceNodePtr& anode) {
   AudioScheduledSourceNodePtr* assn;
@@ -2465,6 +2477,29 @@ js_audioscheduledsourcenode_method(JSContext* ctx, JSValueConst this_val, int ar
   return ret;
 }
 
+enum {
+  AUDIOSCHEDULEDSOURCENODE_PLAYBACKSTATE,
+};
+
+static JSValue
+js_audioscheduledsourcenode_get(JSContext* ctx, JSValueConst this_val, int magic) {
+  AudioScheduledSourceNodePtr* assn;
+  JSValue ret = JS_UNDEFINED;
+
+  if(!(assn = js_audioscheduledsourcenode_class_id.opaque<AudioScheduledSourceNodePtr>(ctx, this_val)))
+    return JS_EXCEPTION;
+
+  switch(magic) {
+    case AUDIOSCHEDULEDSOURCENODE_PLAYBACKSTATE: {
+      const auto state = int32_t((*assn)->playbackState());
+      ret = to_js<std::string>(ctx, js_audioscheduledsourcenode_states[state]);
+      break;
+    }
+  }
+
+  return ret;
+}
+
 static void
 js_audioscheduledsourcenode_finalizer(JSRuntime* rt, JSValue this_val) {
   AudioScheduledSourceNodePtr* assn;
@@ -2483,6 +2518,7 @@ static JSClassDef js_audioscheduledsourcenode_class = {
 static const JSCFunctionListEntry js_audioscheduledsourcenode_methods[] = {
     JS_CFUNC_MAGIC_DEF("start", 0, js_audioscheduledsourcenode_method, AUDIOSCHEDULEDSOURCENODE_START),
     JS_CFUNC_MAGIC_DEF("stop", 0, js_audioscheduledsourcenode_method, AUDIOSCHEDULEDSOURCENODE_STOP),
+    JS_CGETSET_MAGIC_DEF("playbackState", js_audioscheduledsourcenode_get, 0, AUDIOSCHEDULEDSOURCENODE_PLAYBACKSTATE),
     JS_CFUNC_MAGIC_DEF("isPlayingOrScheduled", 0, js_audioscheduledsourcenode_method, AUDIOSCHEDULEDSOURCENODE_IS_PLAYING_OR_SCHEDULED),
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioScheduledSourceNode", JS_PROP_CONFIGURABLE),
 };
