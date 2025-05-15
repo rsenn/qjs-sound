@@ -6,11 +6,12 @@ const device = new AudioDevice();
 
 const context = new AudioContext();
 
-context.destination = new AudioDestinationNode(context, device);
+const destination = new AudioDestinationNode(context, device);
+context.destination = destination;
 
-const { destination } = context;
+//const { destination } = context;
 
-console.log(typeof context.destination == 'object' ? true : context.destination);
+console.log(typeof destination == 'object' ? true : destination);
 
 const oscillator = new OscillatorNode(context, { type: 'sawtooth', frequency: 1000, channelCount: 2 });
 

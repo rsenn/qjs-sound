@@ -370,10 +370,10 @@ template<class T> struct ClassObjectMap {
 
   static jsobject_ptr
   get(const base_type& ptr) {
-    std::erase_if(object_map, [](const auto& item) -> bool {
+    /*std::erase_if(object_map, [](const auto& item) -> bool {
       auto const& [key, value] = item;
       return key.expired();
-    });
+    });*/
 
     weak_type weak(ptr);
     auto const it = object_map.find(weak);
@@ -392,6 +392,20 @@ template<class T> struct ClassObjectMap {
     });
   }
 
+  static void
+  remove(JSContext* ctx) {
+    std::erase_if(object_map, [ctx](const auto& item) -> bool {
+      auto const& [key, value] = item;
+
+      if(key.expired()) {
+        JS_FreeValue(ctx, to_js<JSObject*>(value));
+        return true;
+      }
+
+      return false;
+    });
+  }
+
 private:
   static std::map<weak_type, jsobject_ptr> object_map;
 };
@@ -402,7 +416,7 @@ template<class T, class U = std::shared_ptr<lab::AudioContext>> struct ClassPtr 
 
   ClassPtr(const base_type& b, const value_type& v) : base_type(b), value(v) {}
 
-  auto
+  T*
   get() const {
     return base_type::get();
   }
@@ -415,7 +429,7 @@ template<class T> struct ClassPtr<T, void> : public std::shared_ptr<T> {
 
   ClassPtr(const base_type& b) : base_type(b) {}
 
-  auto
+  T*
   get() const {
     return base_type::get();
   }
