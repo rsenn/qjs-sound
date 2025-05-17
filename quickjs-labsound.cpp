@@ -196,7 +196,7 @@ js_audiochannel_new(JSContext* ctx, const AudioChannelPtr& ac) {
   if(obj)
     return JS_DupValue(ctx, to_js(obj));
 
-  if(!(ptr = js_malloc<AudioChannelPtr>(ctx)))
+  if(!(ptr = js_alloc<AudioChannelPtr>(ctx)))
     return JS_ThrowOutOfMemory(ctx);
 
   new(ptr) AudioChannelPtr(ac);
@@ -245,7 +245,7 @@ static JSValue
 js_audiobuffer_wrap(JSContext* ctx, JSValueConst proto, AudioBufferPtr& ptr) {
   AudioBufferPtr* ab;
 
-  if(!(ab = js_malloc<AudioBufferPtr>(ctx)))
+  if(!(ab = js_alloc<AudioBufferPtr>(ctx)))
     return JS_EXCEPTION;
 
   new(ab) AudioBufferPtr(ptr);
@@ -276,7 +276,7 @@ js_audiobuffer_constructor(JSContext* ctx, JSValueConst new_target, int argc, JS
   uint64_t length = 0, numberOfChannels = 1;
   double sampleRate = 44100;
 
-  if(!(ab = js_malloc<AudioBufferPtr>(ctx)))
+  if(!(ab = js_alloc<AudioBufferPtr>(ctx)))
     return JS_EXCEPTION;
 
   if(argc > 0) {
@@ -366,7 +366,7 @@ js_audiobuffer_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
   AudioBufferPtr* ab;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(ab = audiobuffer_class.opaque<AudioBufferPtr>(ctx, this_val)))
+  if(!audiobuffer_class.opaque(ctx, this_val, ab))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -432,7 +432,7 @@ js_audiobuffer_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
     case BUFFER_TOPOLOGY_MATCHES: {
       AudioBufferPtr* other;
 
-      if(!(other = audiobuffer_class.opaque<AudioBufferPtr>(ctx, this_val)))
+      if(!audiobuffer_class.opaque(ctx, this_val, other))
         return JS_ThrowTypeError(ctx, "argument 1 must be an AudioBuffer");
 
       (*ab)->topologyMatches(*(*other));
@@ -452,7 +452,7 @@ js_audiobuffer_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
       AudioBufferPtr* source;
       lab::ChannelInterpretation interp = argc > 1 ? from_js<lab::ChannelInterpretation>(ctx, argv[1]) : lab::ChannelInterpretation::Speakers;
 
-      if(!(source = audiobuffer_class.opaque<AudioBufferPtr>(ctx, argv[0])))
+      if(!audiobuffer_class.opaque(ctx, argv[0], source))
         return JS_ThrowTypeError(ctx, "argument 1 must be an AudioBuffer");
 
       (*ab)->copyFrom(*(*source), interp);
@@ -462,7 +462,7 @@ js_audiobuffer_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
       AudioBufferPtr* source;
       lab::ChannelInterpretation interp = argc > 1 ? from_js<lab::ChannelInterpretation>(ctx, argv[1]) : lab::ChannelInterpretation::Speakers;
 
-      if(!(source = audiobuffer_class.opaque<AudioBufferPtr>(ctx, argv[0])))
+      if(!audiobuffer_class.opaque(ctx, argv[0], source))
         return JS_ThrowTypeError(ctx, "argument 1 must be an AudioBuffer");
 
       (*ab)->sumFrom(*(*source), interp);
@@ -473,7 +473,7 @@ js_audiobuffer_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
       double targetGain = from_js<double>(ctx, argv[2]);
       float lastMixGain;
 
-      if(!(source = audiobuffer_class.opaque<AudioBufferPtr>(ctx, argv[0])))
+      if(!audiobuffer_class.opaque(ctx, argv[0], source))
         return JS_ThrowTypeError(ctx, "argument 1 must be an AudioBuffer");
 
       (*ab)->copyWithGainFrom(*(*source), &lastMixGain, targetGain);
@@ -487,7 +487,7 @@ js_audiobuffer_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
       if(ptr == nullptr)
         return JS_ThrowTypeError(ctx, "argument 2 must be a Float32Array");
 
-      if(!(source = audiobuffer_class.opaque<AudioBufferPtr>(ctx, argv[0])))
+      if(!audiobuffer_class.opaque(ctx, argv[0], source))
         return JS_ThrowTypeError(ctx, "argument 1 must be an AudioBuffer");
 
       (*ab)->copyWithSampleAccurateGainValuesFrom(*(*source), ptr, std::min(numberOfGainValues, len));
@@ -513,7 +513,7 @@ static JSValue
 js_audiobuffer_function(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
   AudioBufferPtr *source, ret;
 
-  if(!(source = audiobuffer_class.opaque<AudioBufferPtr>(ctx, argv[0])))
+  if(!audiobuffer_class.opaque(ctx, argv[0], source))
     return JS_ThrowTypeError(ctx, "argument 1 must be an AudioBuffer");
 
   switch(magic) {
@@ -559,7 +559,7 @@ js_audiobuffer_get(JSContext* ctx, JSValueConst this_val, int magic) {
   AudioBufferPtr* ab;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(ab = audiobuffer_class.opaque<AudioBufferPtr>(ctx, this_val)))
+  if(!audiobuffer_class.opaque(ctx, this_val, ab))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -614,7 +614,7 @@ js_audiobuffer_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, in
   AudioBufferPtr* ab;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(ab = audiobuffer_class.opaque<AudioBufferPtr>(ctx, this_val)))
+  if(!audiobuffer_class.opaque(ctx, this_val, ab))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -664,7 +664,7 @@ static void
 js_audiobuffer_finalizer(JSRuntime* rt, JSValue this_val) {
   AudioBufferPtr* ab;
 
-  if((ab = audiobuffer_class.opaque<AudioBufferPtr>(this_val))) {
+  if(audiobuffer_class.opaque(this_val, ab)) {
     ab->~AudioBufferPtr();
     js_free_rt(rt, ab);
   }
@@ -710,7 +710,7 @@ js_audioparam_new(JSContext* ctx, JSValueConst new_target, AudioParamPtr& aparam
   JSValue proto, obj = JS_UNDEFINED;
   AudioParamPtr* ap;
 
-  if(!(ap = js_malloc<AudioParamPtr>(ctx)))
+  if(!(ap = js_alloc<AudioParamPtr>(ctx)))
     return JS_EXCEPTION;
 
   new(ap) AudioParamPtr(aparam);
@@ -764,7 +764,7 @@ js_audioparam_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
   AudioParamPtr* ap;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(ap = audioparam_class.opaque<AudioParamPtr>(ctx, this_val)))
+  if(!audioparam_class.opaque(ctx, this_val, ap))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -842,7 +842,7 @@ js_audioparam_get(JSContext* ctx, JSValueConst this_val, int magic) {
   AudioParamPtr* ap;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(ap = audioparam_class.opaque<AudioParamPtr>(ctx, this_val)))
+  if(!audioparam_class.opaque(ctx, this_val, ap))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -884,7 +884,7 @@ js_audioparam_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int
   AudioParamPtr* ap;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(ap = audioparam_class.opaque<AudioParamPtr>(ctx, this_val)))
+  if(!audioparam_class.opaque(ctx, this_val, ap))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -905,7 +905,7 @@ js_audioparam_finalizer(JSRuntime* rt, JSValue this_val) {
 
   ClassObjectMap<lab::AudioParam>::remove(from_js<JSObject*>(this_val));
 
-  if((ap = audioparam_class.opaque<AudioParamPtr>(this_val))) {
+  if(audioparam_class.opaque(this_val, ap)) {
     ap->~AudioParamPtr();
     js_free_rt(rt, ap);
   }
@@ -947,7 +947,7 @@ static const char* js_audiosetting_types[] = {
 static JSValue
 js_audiosetting_new(JSContext* ctx, JSValueConst new_target, AudioSettingPtr& setting) {
   JSValue proto, obj = JS_UNDEFINED;
-  AudioSettingPtr* as = js_malloc<AudioSettingPtr>(ctx);
+  AudioSettingPtr* as = js_alloc<AudioSettingPtr>(ctx);
 
   new(as) AudioSettingPtr(setting);
 
@@ -994,7 +994,7 @@ js_audiosetting_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
   AudioSettingPtr* as;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(as = audiosetting_class.opaque<AudioSettingPtr>(ctx, this_val)))
+  if(!audiosetting_class.opaque(ctx, this_val, as))
     return JS_EXCEPTION;
 
   switch(magic) {}
@@ -1014,7 +1014,7 @@ js_audiosetting_get(JSContext* ctx, JSValueConst this_val, int magic) {
   AudioSettingPtr* as;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(as = audiosetting_class.opaque<AudioSettingPtr>(ctx, this_val)))
+  if(!audiosetting_class.opaque(ctx, this_val, as))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -1071,7 +1071,7 @@ js_audiosetting_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, i
   AudioSettingPtr* as;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(as = audiosetting_class.opaque<AudioSettingPtr>(ctx, this_val)))
+  if(!audiosetting_class.opaque(ctx, this_val, as))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -1105,7 +1105,7 @@ js_audiosetting_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, i
         case lab::SettingType::Bus: {
           AudioBufferPtr* ab;
 
-          if(!(ab = audiobuffer_class.opaque<AudioBufferPtr>(ctx, value)))
+          if(!audiobuffer_class.opaque(ctx, value, ab))
             return JS_ThrowTypeError(ctx, "must be an AudioBuffer");
 
           (*as)->setBus(ab->get());
@@ -1126,7 +1126,7 @@ js_audiosetting_finalizer(JSRuntime* rt, JSValue this_val) {
 
   ClassObjectMap<lab::AudioSetting>::remove(from_js<JSObject*>(this_val));
 
-  if((as = audiosetting_class.opaque<AudioSettingPtr>(this_val))) {
+  if(audiosetting_class.opaque(this_val, as)) {
     as->~AudioSettingPtr();
     js_free_rt(rt, as);
   }
@@ -1155,7 +1155,7 @@ js_audiocontext_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
   if(argc > 1)
     autoDispatchEvents = JS_ToBool(ctx, argv[1]);
 
-  AudioContextPtr* ac = js_malloc<AudioContextPtr>(ctx);
+  AudioContextPtr* ac = js_alloc<AudioContextPtr>(ctx);
 
   new(ac) AudioContextPtr(make_shared<lab::AudioContext>(isOffline, autoDispatchEvents));
 
@@ -1214,7 +1214,7 @@ static JSValue
 js_audiocontext_new(JSContext* ctx, JSValueConst proto, AudioContextPtr& context) {
   AudioContextPtr* ac;
 
-  if(!(ac = js_malloc<AudioContextPtr>(ctx)))
+  if(!(ac = js_alloc<AudioContextPtr>(ctx)))
     return JS_EXCEPTION;
 
   new(ac) AudioContextPtr(context);
@@ -1258,7 +1258,7 @@ js_audiocontext_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
   AudioContextPtr* ac;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(ac = audiocontext_class.opaque<AudioContextPtr>(ctx, this_val)))
+  if(!audiocontext_class.opaque(ctx, this_val, ac))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -1309,13 +1309,15 @@ js_audiocontext_create(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
   AudioContextPtr* ac;
   shared_ptr<lab::AudioNode> node;
 
-  if(!(ac = audiocontext_class.opaque<AudioContextPtr>(ctx, this_val)))
+  if(!audiocontext_class.opaque(ctx, this_val, ac))
     return JS_EXCEPTION;
+
+  lab::AudioContext& context=*ac->get();
 
   switch(magic) {
 
     case AUDIOCONTEXT_CREATEANALYSER: {
-      node = std::make_shared<lab::AnalyserNode>(*ac->get(), from_js<int32_t>(ctx, argv[0]));
+      node = std::make_shared<lab::AnalyserNode>(context, from_js<int32_t>(ctx, argv[0]));
       break;
     }
     case AUDIOCONTEXT_CREATEBIQUADFILTER: {
@@ -1373,8 +1375,12 @@ js_audiocontext_create(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
     }
   }
 
+if(bool(node)) {
   AudioNodePtr anodeptr(node, *ac);
   return js_audionode_wrap(ctx, anodeptr);
+}
+
+return JS_ThrowTypeError(ctx, "create");
 }
 
 enum {
@@ -1391,7 +1397,7 @@ js_audiocontext_get(JSContext* ctx, JSValueConst this_val, int magic) {
   AudioContextPtr* ac;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(ac = audiocontext_class.opaque<AudioContextPtr>(ctx, this_val)))
+  if(!audiocontext_class.opaque(ctx, this_val, ac))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -1431,14 +1437,14 @@ js_audiocontext_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, i
   AudioContextPtr* ac;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(ac = audiocontext_class.opaque<AudioContextPtr>(ctx, this_val)))
+  if(!audiocontext_class.opaque(ctx, this_val, ac))
     return JS_EXCEPTION;
 
   switch(magic) {
     case AUDIOCONTEXT_DESTINATION: {
       AudioDestinationNodePtr* sadn;
 
-      if(!(sadn = audiodestinationnode_class.opaque<AudioDestinationNodePtr>(ctx, value)))
+      if(!audiodestinationnode_class.opaque(ctx, value, sadn))
         return JS_ThrowInternalError(ctx, "value must be AudioDestinationNode");
 
       (*ac)->setDestinationNode(*sadn);
@@ -1456,7 +1462,7 @@ js_audiocontext_finalizer(JSRuntime* rt, JSValue this_val) {
 
   ClassObjectMap<lab::AudioContext>::remove(from_js<JSObject*>(this_val));
 
-  if((ac = audiocontext_class.opaque<AudioContextPtr>(this_val))) {
+  if(audiocontext_class.opaque(this_val, ac)) {
     ac->~AudioContextPtr();
     js_free_rt(rt, ac);
   }
@@ -1498,7 +1504,7 @@ static JSValue
 js_audiolistener_wrap(JSContext* ctx, JSValueConst proto, AudioListenerPtr& listener) {
   AudioListenerPtr* al;
 
-  if(!(al = js_malloc<AudioListenerPtr>(ctx)))
+  if(!(al = js_alloc<AudioListenerPtr>(ctx)))
     return JS_EXCEPTION;
 
   new(al) AudioListenerPtr(listener);
@@ -1527,7 +1533,7 @@ static JSValue
 js_audiolistener_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
   JSValue proto, obj = JS_UNDEFINED;
 
-  AudioListenerPtr* al = js_malloc<AudioListenerPtr>(ctx);
+  AudioListenerPtr* al = js_alloc<AudioListenerPtr>(ctx);
 
   new(al) AudioListenerPtr(make_shared<lab::AudioListener>());
 
@@ -1565,7 +1571,7 @@ js_audiolistener_get(JSContext* ctx, JSValueConst this_val, int magic) {
   AudioListenerPtr* al;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(al = audiolistener_class.opaque<AudioListenerPtr>(ctx, this_val)))
+  if(!audiolistener_class.opaque(ctx, this_val, al))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -1590,7 +1596,7 @@ js_audiolistener_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, 
   AudioListenerPtr* al;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(al = audiolistener_class.opaque<AudioListenerPtr>(ctx, this_val)))
+  if(!audiolistener_class.opaque(ctx, this_val, al))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -1615,7 +1621,7 @@ static void
 js_audiolistener_finalizer(JSRuntime* rt, JSValue this_val) {
   AudioListenerPtr* al;
 
-  if((al = audiolistener_class.opaque<AudioListenerPtr>(this_val))) {
+  if(audiolistener_class.opaque(this_val, al)) {
     al->~AudioListenerPtr();
     js_free_rt(rt, al);
   }
@@ -1638,7 +1644,7 @@ js_audiodevice_constructor(JSContext* ctx, JSValueConst new_target, int argc, JS
   JSValue proto, obj = JS_UNDEFINED;
 
   lab::AudioStreamConfig in_config = {.device_index = 0, .desired_channels = 2, .desired_samplerate = 44100}, out_config = {.device_index = 0, .desired_channels = 2, .desired_samplerate = 44100};
-  AudioDevicePtr* ad = js_malloc<AudioDevicePtr>(ctx);
+  AudioDevicePtr* ad = js_alloc<AudioDevicePtr>(ctx);
 
   new(ad) AudioDevicePtr(make_shared<lab::AudioDevice_RtAudio>(in_config, out_config));
 
@@ -1675,7 +1681,7 @@ static JSValue
 js_audiodevice_wrap(JSContext* ctx, JSValueConst proto, AudioDevicePtr& device) {
   AudioDevicePtr* ad;
 
-  if(!(ad = js_malloc<AudioDevicePtr>(ctx)))
+  if(!(ad = js_alloc<AudioDevicePtr>(ctx)))
     return JS_EXCEPTION;
 
   new(ad) AudioDevicePtr(device);
@@ -1705,7 +1711,7 @@ js_audiodevice_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
   AudioDevicePtr* ad;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(ad = audiodevice_class.opaque<AudioDevicePtr>(ctx, this_val)))
+  if(!audiodevice_class.opaque(ctx, this_val, ad))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -1736,7 +1742,7 @@ js_audiodevice_get(JSContext* ctx, JSValueConst this_val, int magic) {
   AudioDevicePtr* ad;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(ad = audiodevice_class.opaque<AudioDevicePtr>(ctx, this_val)))
+  if(!audiodevice_class.opaque(ctx, this_val, ad))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -1767,14 +1773,14 @@ js_audiodevice_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, in
   AudioDevicePtr* ad;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(ad = audiodevice_class.opaque<AudioDevicePtr>(ctx, this_val)))
+  if(!audiodevice_class.opaque(ctx, this_val, ad))
     return JS_EXCEPTION;
 
   switch(magic) {
     case AUDIODEVICE_DESTINATION: {
       AudioDestinationNodePtr* sadn;
 
-      if(!(sadn = audiodestinationnode_class.opaque<AudioDestinationNodePtr>(ctx, value)))
+      if(!audiodestinationnode_class.opaque(ctx, value, sadn))
         return JS_ThrowInternalError(ctx, "value must be AudioDestinationNode");
 
       (*ad)->setDestinationNode(*sadn);
@@ -1790,7 +1796,7 @@ static void
 js_audiodevice_finalizer(JSRuntime* rt, JSValue this_val) {
   AudioDevicePtr* ad;
 
-  if((ad = audiodevice_class.opaque<AudioDevicePtr>(this_val))) {
+  if(audiodevice_class.opaque(this_val, ad)) {
     ad->~AudioDevicePtr();
     js_free_rt(rt, ad);
   }
@@ -1814,7 +1820,7 @@ static JSValue
 js_audionodeinput_wrap(JSContext* ctx, JSValueConst proto, AudioNodeInputPtr& nodeinput) {
   AudioNodeInputPtr* ani;
 
-  if(!(ani = js_malloc<AudioNodeInputPtr>(ctx)))
+  if(!(ani = js_alloc<AudioNodeInputPtr>(ctx)))
     return JS_EXCEPTION;
 
   new(ani) AudioNodeInputPtr(nodeinput);
@@ -1846,10 +1852,10 @@ js_audionodeinput_constructor(JSContext* ctx, JSValueConst new_target, int argc,
   AudioNodePtr* an;
   uint32_t processingSizeInFrames = lab::AudioNode::ProcessingSizeInFrames;
 
-  if(!(ani = js_malloc<AudioNodeInputPtr>(ctx)))
+  if(!(ani = js_alloc<AudioNodeInputPtr>(ctx)))
     return JS_EXCEPTION;
 
-  if(!(an = audionode_class.opaque<AudioNodePtr>(ctx, argv[0])))
+  if(!audionode_class.opaque(ctx, argv[0], an))
     return JS_ThrowTypeError(ctx, "argument 1 must be an AudioNode");
 
   if(argc > 1)
@@ -1890,7 +1896,7 @@ js_audionodeinput_get(JSContext* ctx, JSValueConst this_val, int magic) {
   AudioNodeInputPtr* ani;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(ani = audionodeinput_class.opaque<AudioNodeInputPtr>(ctx, this_val)))
+  if(!audionodeinput_class.opaque(ctx, this_val, ani))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -1914,7 +1920,7 @@ js_audionodeinput_set(JSContext* ctx, JSValueConst this_val, JSValueConst value,
   AudioNodeInputPtr* ani;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(ani = audionodeinput_class.opaque<AudioNodeInputPtr>(ctx, this_val)))
+  if(!audionodeinput_class.opaque(ctx, this_val, ani))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -1931,7 +1937,7 @@ static void
 js_audionodeinput_finalizer(JSRuntime* rt, JSValue this_val) {
   AudioNodeInputPtr* ani;
 
-  if((ani = audionodeinput_class.opaque<AudioNodeInputPtr>(this_val))) {
+  if(audionodeinput_class.opaque(this_val, ani)) {
     ani->~AudioNodeInputPtr();
     js_free_rt(rt, ani);
   }
@@ -1952,7 +1958,7 @@ static JSValue
 js_audionodeoutput_wrap(JSContext* ctx, JSValueConst proto, AudioNodeOutputPtr& nodeoutput) {
   AudioNodeOutputPtr* ano;
 
-  if(!(ano = js_malloc<AudioNodeOutputPtr>(ctx)))
+  if(!(ano = js_alloc<AudioNodeOutputPtr>(ctx)))
     return JS_EXCEPTION;
 
   new(ano) AudioNodeOutputPtr(nodeoutput);
@@ -1985,10 +1991,10 @@ js_audionodeoutput_constructor(JSContext* ctx, JSValueConst new_target, int argc
   const char* name = nullptr;
   uint32_t numberOfChannels = 0, processingSizeInFrames = lab::AudioNode::ProcessingSizeInFrames;
 
-  if(!(ano = js_malloc<AudioNodeOutputPtr>(ctx)))
+  if(!(ano = js_alloc<AudioNodeOutputPtr>(ctx)))
     return JS_EXCEPTION;
 
-  if(!(an = audionode_class.opaque<AudioNodePtr>(ctx, argv[0])))
+  if(!audionode_class.opaque(ctx, argv[0], an))
     return JS_ThrowTypeError(ctx, "argument 1 must be an AudioNode");
 
   if(argc > 1) {
@@ -2046,7 +2052,7 @@ js_audionodeoutput_get(JSContext* ctx, JSValueConst this_val, int magic) {
   AudioNodeOutputPtr* ano;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(ano = audionodeoutput_class.opaque<AudioNodeOutputPtr>(ctx, this_val)))
+  if(!audionodeoutput_class.opaque(ctx, this_val, ano))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -2080,7 +2086,7 @@ js_audionodeoutput_set(JSContext* ctx, JSValueConst this_val, JSValueConst value
   AudioNodeOutputPtr* ano;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(ano = audionodeoutput_class.opaque<AudioNodeOutputPtr>(ctx, this_val)))
+  if(!audionodeoutput_class.opaque(ctx, this_val, ano))
     return JS_EXCEPTION;
 
   switch(magic) {}
@@ -2092,7 +2098,7 @@ static void
 js_audionodeoutput_finalizer(JSRuntime* rt, JSValue this_val) {
   AudioNodeOutputPtr* ano;
 
-  if((ano = audionodeoutput_class.opaque<AudioNodeOutputPtr>(this_val))) {
+  if(audionodeoutput_class.opaque(this_val, ano)) {
     ano->~AudioNodeOutputPtr();
     js_free_rt(rt, ano);
   }
@@ -2115,7 +2121,7 @@ static const JSCFunctionListEntry js_audionodeoutput_methods[] = {
 static JSValue
 js_audionode_wrap(JSContext* ctx, JSValueConst new_target, AudioNodePtr& anode) {
   JSValue proto, obj = JS_UNDEFINED;
-  AudioNodePtr* an = js_malloc<AudioNodePtr>(ctx);
+  AudioNodePtr* an = js_alloc<AudioNodePtr>(ctx);
 
   new(an) AudioNodePtr(anode, anode.value);
 
@@ -2177,7 +2183,7 @@ js_audionode_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
     case AUDIONODE_CONNECT: {
       AudioNodePtr* other;
 
-      if(!(other = audionode_class.opaque<AudioNodePtr>(ctx, argv[0])))
+      if(!audionode_class.opaque(ctx, argv[0], other))
         return JS_ThrowTypeError(ctx, "argument 1 must be an AudioNode");
 
       ac->connect(*other, *an, argc > 1 ? from_js<int32_t>(ctx, argv[1]) : 0, argc > 2 ? from_js<int32_t>(ctx, argv[2]) : 0);
@@ -2187,7 +2193,7 @@ js_audionode_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
       if(argc > 0) {
         AudioNodePtr* other;
 
-        if(!(other = audionode_class.opaque<AudioNodePtr>(ctx, argv[0])))
+        if(!audionode_class.opaque(ctx, argv[0], other))
           return JS_ThrowTypeError(ctx, "argument 1 must be an AudioNode");
 
         ac->disconnect(*other, *an, argc > 1 ? from_js<int32_t>(ctx, argv[1]) : 0, argc > 2 ? from_js<int32_t>(ctx, argv[2]) : 0);
@@ -2199,7 +2205,7 @@ js_audionode_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
     case AUDIONODE_ISCONNECTED: {
       AudioNodePtr* other;
 
-      if(!(other = audionode_class.opaque<AudioNodePtr>(ctx, argv[0])))
+      if(!audionode_class.opaque(ctx, argv[0], other))
         return JS_ThrowTypeError(ctx, "argument 1 must be an AudioNode");
 
       ret = JS_NewBool(ctx, ac->isConnected(*other, *an));
@@ -2693,13 +2699,13 @@ js_audiodestinationnode_constructor(JSContext* ctx, JSValueConst new_target, int
   AudioContextPtr* ac;
   AudioDevicePtr* ad;
 
-  if(!(ac = audiocontext_class.opaque<AudioContextPtr>(ctx, argv[0])))
+  if(!audiocontext_class.opaque(ctx, argv[0], ac))
     return JS_ThrowTypeError(ctx, "argument 1 must be AudioContext");
 
-  if(!(ad = audiodevice_class.opaque<AudioDevicePtr>(ctx, argv[1])))
+  if(!audiodevice_class.opaque(ctx, argv[1], ad))
     return JS_ThrowTypeError(ctx, "argument 2 must be AudioDevice");
 
-  if(!(adn = js_malloc<AudioDestinationNodePtr>(ctx)))
+  if(!(adn = js_alloc<AudioDestinationNodePtr>(ctx)))
     return JS_EXCEPTION;
 
   new(adn) AudioDestinationNodePtr(make_shared<lab::AudioDestinationNode>(*ac->get(), *ad), *ac);
@@ -2731,7 +2737,7 @@ static JSValue
 js_audiodestinationnode_wrap(JSContext* ctx, JSValueConst proto, AudioDestinationNodePtr& adnptr) {
   AudioDestinationNodePtr* adn;
 
-  if(!(adn = js_malloc<AudioDestinationNodePtr>(ctx)))
+  if(!(adn = js_alloc<AudioDestinationNodePtr>(ctx)))
     return JS_EXCEPTION;
 
   new(adn) AudioDestinationNodePtr(adnptr, adnptr.value);
@@ -2765,7 +2771,7 @@ js_audiodestinationnode_get(JSContext* ctx, JSValueConst this_val, int magic) {
   AudioDestinationNodePtr* adn;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(adn = audiodestinationnode_class.opaque<AudioDestinationNodePtr>(ctx, this_val)))
+  if(!audiodestinationnode_class.opaque(ctx, this_val, adn))
     return JS_EXCEPTION;
 
   if(adn->get() == nullptr)
@@ -2795,7 +2801,7 @@ js_audiodestinationnode_method(JSContext* ctx, JSValueConst this_val, int argc, 
   AudioDestinationNodePtr* adn;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(adn = audiodestinationnode_class.opaque<AudioDestinationNodePtr>(ctx, this_val)))
+  if(!audiodestinationnode_class.opaque(ctx, this_val, adn))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -2812,7 +2818,7 @@ static void
 js_audiodestinationnode_finalizer(JSRuntime* rt, JSValue this_val) {
   AudioDestinationNodePtr* adn;
 
-  if((adn = audiodestinationnode_class.opaque<AudioDestinationNodePtr>(this_val))) {
+  if(audiodestinationnode_class.opaque(this_val, adn)) {
     adn->~AudioDestinationNodePtr();
     js_free_rt(rt, adn);
   }
@@ -2845,7 +2851,7 @@ static JSValue
 js_audioscheduledsourcenode_wrap(JSContext* ctx, JSValueConst proto, AudioScheduledSourceNodePtr& anode) {
   AudioScheduledSourceNodePtr* assn;
 
-  if(!(assn = js_malloc<AudioScheduledSourceNodePtr>(ctx)))
+  if(!(assn = js_alloc<AudioScheduledSourceNodePtr>(ctx)))
     return JS_EXCEPTION;
 
   new(assn) AudioScheduledSourceNodePtr(anode, anode.value);
@@ -2881,7 +2887,7 @@ js_audioscheduledsourcenode_method(JSContext* ctx, JSValueConst this_val, int ar
   AudioScheduledSourceNodePtr* assn;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(assn = audioscheduledsourcenode_class.opaque<AudioScheduledSourceNodePtr>(ctx, this_val)))
+  if(!audioscheduledsourcenode_class.opaque(ctx, this_val, assn))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -2915,7 +2921,7 @@ js_audioscheduledsourcenode_get(JSContext* ctx, JSValueConst this_val, int magic
   AudioScheduledSourceNodePtr* assn;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(assn = audioscheduledsourcenode_class.opaque<AudioScheduledSourceNodePtr>(ctx, this_val)))
+  if(!audioscheduledsourcenode_class.opaque(ctx, this_val, assn))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -2933,7 +2939,7 @@ static void
 js_audioscheduledsourcenode_finalizer(JSRuntime* rt, JSValue this_val) {
   AudioScheduledSourceNodePtr* assn;
 
-  if((assn = audioscheduledsourcenode_class.opaque<AudioScheduledSourceNodePtr>(this_val))) {
+  if(audioscheduledsourcenode_class.opaque(this_val, assn)) {
     assn->~AudioScheduledSourceNodePtr();
     js_free_rt(rt, assn);
   }
@@ -2969,14 +2975,14 @@ js_oscillatornode_constructor(JSContext* ctx, JSValueConst new_target, int argc,
 
   AudioContextPtr* acptr;
 
-  if(!(acptr = audiocontext_class.opaque<AudioContextPtr>(ctx, argv[0])))
+  if(!audiocontext_class.opaque(ctx, argv[0], acptr))
     return JS_ThrowTypeError(ctx, "argument 1 must be AudioContext");
 
   lab::AudioContext& ac = *acptr->get();
 
   OscillatorNodePtr* on;
 
-  if(!(on = js_malloc<OscillatorNodePtr>(ctx)))
+  if(!(on = js_alloc<OscillatorNodePtr>(ctx)))
     return JS_EXCEPTION;
 
   new(on) OscillatorNodePtr(make_shared<lab::OscillatorNode>(ac), *acptr);
@@ -3016,7 +3022,7 @@ js_oscillatornode_method(JSContext* ctx, JSValueConst this_val, int argc, JSValu
   OscillatorNodePtr* on;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(on = oscillatornode_class.opaque<OscillatorNodePtr>(ctx, this_val)))
+  if(!oscillatornode_class.opaque(ctx, this_val, on))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -3056,7 +3062,7 @@ js_oscillatornode_get(JSContext* ctx, JSValueConst this_val, int magic) {
   OscillatorNodePtr* on;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(on = oscillatornode_class.opaque<OscillatorNodePtr>(ctx, this_val)))
+  if(!oscillatornode_class.opaque(ctx, this_val, on))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -3091,7 +3097,7 @@ js_oscillatornode_set(JSContext* ctx, JSValueConst this_val, JSValueConst value,
   JSValue ret = JS_UNDEFINED;
   double d;
 
-  if(!(on = oscillatornode_class.opaque<OscillatorNodePtr>(ctx, this_val)))
+  if(!oscillatornode_class.opaque(ctx, this_val, on))
     return JS_EXCEPTION;
 
   JS_ToFloat64(ctx, &d, value);
@@ -3142,7 +3148,7 @@ static void
 js_oscillatornode_finalizer(JSRuntime* rt, JSValue this_val) {
   OscillatorNodePtr* on;
 
-  if((on = oscillatornode_class.opaque<OscillatorNodePtr>(this_val))) {
+  if(oscillatornode_class.opaque(this_val, on)) {
     on->~OscillatorNodePtr();
     js_free_rt(rt, on);
   }
@@ -3170,14 +3176,14 @@ js_audiosummingjunction_constructor(JSContext* ctx, JSValueConst new_target, int
   JSValue proto, obj = JS_UNDEFINED;
   AudioContextPtr* acptr;
 
-  if(!(acptr = audiocontext_class.opaque<AudioContextPtr>(ctx, argv[0])))
+  if(!audiocontext_class.opaque(ctx, argv[0], acptr))
     return JS_ThrowTypeError(ctx, "argument 1 must be AudioContext");
 
   lab::AudioContext& ac = *acptr->get();
 
   AudioSummingJunctionPtr* asj;
 
-  if(!(asj = js_malloc<AudioSummingJunctionPtr>(ctx)))
+  if(!(asj = js_alloc<AudioSummingJunctionPtr>(ctx)))
     return JS_EXCEPTION;
 
   new(asj) AudioSummingJunctionPtr(make_shared<lab::AudioSummingJunction>());
@@ -3214,7 +3220,7 @@ js_audiosummingjunction_method(JSContext* ctx, JSValueConst this_val, int argc, 
   AudioSummingJunctionPtr* asj;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(asj = audiosummingjunction_class.opaque<AudioSummingJunctionPtr>(ctx, this_val)))
+  if(!audiosummingjunction_class.opaque(ctx, this_val, asj))
     return JS_EXCEPTION;
 
   switch(magic) {}
@@ -3231,7 +3237,7 @@ js_audiosummingjunction_get(JSContext* ctx, JSValueConst this_val, int magic) {
   AudioSummingJunctionPtr* asj;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(asj = audiosummingjunction_class.opaque<AudioSummingJunctionPtr>(ctx, this_val)))
+  if(!audiosummingjunction_class.opaque(ctx, this_val, asj))
     return JS_EXCEPTION;
 
   switch(magic) {}
@@ -3244,7 +3250,7 @@ js_audiosummingjunction_set(JSContext* ctx, JSValueConst this_val, JSValueConst 
   AudioSummingJunctionPtr* asj;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(asj = audiosummingjunction_class.opaque<AudioSummingJunctionPtr>(ctx, this_val)))
+  if(!audiosummingjunction_class.opaque(ctx, this_val, asj))
     return JS_EXCEPTION;
 
   switch(magic) {}
@@ -3256,7 +3262,7 @@ static void
 js_audiosummingjunction_finalizer(JSRuntime* rt, JSValue this_val) {
   AudioSummingJunctionPtr* asj;
 
-  if((asj = audiosummingjunction_class.opaque<AudioSummingJunctionPtr>(this_val))) {
+  if(audiosummingjunction_class.opaque(this_val, asj)) {
     asj->~AudioSummingJunctionPtr();
     js_free_rt(rt, asj);
   }
@@ -3276,14 +3282,14 @@ js_audiobuffersourcenode_constructor(JSContext* ctx, JSValueConst new_target, in
   JSValue proto, obj = JS_UNDEFINED;
   AudioContextPtr* acptr;
 
-  if(!(acptr = audiocontext_class.opaque<AudioContextPtr>(ctx, argv[0])))
+  if(!audiocontext_class.opaque(ctx, argv[0], acptr))
     return JS_ThrowTypeError(ctx, "argument 1 must be AudioContext");
 
   lab::AudioContext& ac = *acptr->get();
 
   AudioBufferSourceNodePtr* absn;
 
-  if(!(absn = js_malloc<AudioBufferSourceNodePtr>(ctx)))
+  if(!(absn = js_alloc<AudioBufferSourceNodePtr>(ctx)))
     return JS_EXCEPTION;
 
   new(absn) AudioBufferSourceNodePtr(make_shared<lab::SampledAudioNode>(ac));
@@ -3320,7 +3326,7 @@ js_audiobuffersourcenode_method(JSContext* ctx, JSValueConst this_val, int argc,
   AudioBufferSourceNodePtr* absn;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(absn = audiobuffersourcenode_class.opaque<AudioBufferSourceNodePtr>(ctx, this_val)))
+  if(!audiobuffersourcenode_class.opaque(ctx, this_val, absn))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -3355,7 +3361,7 @@ js_audiobuffersourcenode_get(JSContext* ctx, JSValueConst this_val, int magic) {
   AudioBufferSourceNodePtr* absn;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(absn = audiobuffersourcenode_class.opaque<AudioBufferSourceNodePtr>(ctx, this_val)))
+  if(!audiobuffersourcenode_class.opaque(ctx, this_val, absn))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -3390,7 +3396,7 @@ js_audiobuffersourcenode_set(JSContext* ctx, JSValueConst this_val, JSValueConst
   AudioBufferSourceNodePtr* absn;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(absn = audiobuffersourcenode_class.opaque<AudioBufferSourceNodePtr>(ctx, this_val)))
+  if(!audiobuffersourcenode_class.opaque(ctx, this_val, absn))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -3401,7 +3407,7 @@ js_audiobuffersourcenode_set(JSContext* ctx, JSValueConst this_val, JSValueConst
         (*absn)->setBus(AudioBufferPtr());
 
       } else {
-        if(!(ab = audiobuffer_class.opaque<AudioBufferPtr>(ctx, value)))
+        if(!audiobuffer_class.opaque(ctx, value, ab))
           return JS_ThrowTypeError(ctx, "property .buffer must be an AudioBuffer");
 
         (*absn)->setBus(*ab);
@@ -3433,7 +3439,7 @@ static void
 js_audiobuffersourcenode_finalizer(JSRuntime* rt, JSValue this_val) {
   AudioBufferSourceNodePtr* absn;
 
-  if((absn = audiobuffersourcenode_class.opaque<AudioBufferSourceNodePtr>(this_val))) {
+  if(audiobuffersourcenode_class.opaque(this_val, absn)) {
     absn->~AudioBufferSourceNodePtr();
     js_free_rt(rt, absn);
   }
@@ -3602,7 +3608,7 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   JS_SetClassProto(ctx, audiosetting_class, audiosetting_class.proto);
 
   if(m) {
-    JS_SetModuleExport(ctx, m, "AudioBuffer", audiobuffer_class.ctor);
+    audiobuffer_class.setModuleExport(ctx, m);
     JS_SetModuleExport(ctx, m, "AudioContext", audiocontext_class.ctor);
     JS_SetModuleExport(ctx, m, "AudioListener", audiolistener_class.ctor);
     JS_SetModuleExport(ctx, m, "AudioDevice", audiodevice_class.ctor);

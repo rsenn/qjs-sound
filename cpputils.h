@@ -345,6 +345,11 @@ public:
     }
   }
 
+  void
+  setModuleExport(JSContext* ctx, JSModuleDef* m) const {
+    JS_SetModuleExport(ctx, m, name(), ctor);
+  }
+
   static ClassWrapper*
   get(JSClassID cid) {
     auto const it = ClassWrapper::ids.find(cid);
@@ -529,7 +534,7 @@ template<class T> struct ClassPtr<T, void> : public std::shared_ptr<T> {
 
 template<class T>
 static inline T*
-js_malloc(JSContext* ctx) {
+js_alloc(JSContext* ctx) {
   return static_cast<T*>(js_malloc(ctx, sizeof(T)));
 }
 
