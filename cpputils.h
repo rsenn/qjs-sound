@@ -17,7 +17,7 @@ typedef JSObject* JSObjectPtr;
  * \defgroup from_js<Output> shims
  * @{
  */
-template<class Output> inline Output from_js(JSContext* ctx, JSValueConst val);
+template<class T> T from_js(JSContext* ctx, JSValueConst val);
 
 template<>
 inline int32_t
@@ -34,6 +34,12 @@ from_js<uint32_t>(JSContext* ctx, JSValueConst val) {
   JS_ToUint32(ctx, &u, val);
   return u;
 }
+
+/*template<>
+inline unsigned int
+from_js<unsigned int>(JSContext* ctx, JSValueConst val) {
+  return from_js<uint32_t>(ctx, val);
+}*/
 
 template<>
 inline int64_t
@@ -52,10 +58,25 @@ from_js<double>(JSContext* ctx, JSValueConst val) {
 }
 
 template<>
+inline float
+from_js<float>(JSContext* ctx, JSValueConst val) {
+  return from_js<double>(ctx, val);
+}
+
+template<>
 inline std::string
 from_js<std::string>(JSContext* ctx, JSValueConst val) {
   const char* s = JS_ToCString(ctx, val);
   std::string ret(s);
+  JS_FreeCString(ctx, s);
+  return ret;
+}
+
+template<>
+inline char*
+from_js<char*>(JSContext* ctx, JSValueConst val) {
+  const char* s = JS_ToCString(ctx, val);
+  char* ret = js_strdup(ctx, s);
   JS_FreeCString(ctx, s);
   return ret;
 }
@@ -69,13 +90,13 @@ from_js(JSContext* ctx, JSAtom atom) {
   return ret;
 }
 
-template<class Output> inline Output from_js(JSValueConst val);
+template<class T> T from_js(JSValueConst val);
 
 template<template<class> class Container, class Input>
 inline Container<Input>
 from_js(JSContext* ctx, JSValueConst val) {
   JSValue lprop = JS_GetPropertyStr(ctx, val, "length");
-  uint32_t len = from_js<uint32_t>(lprop);
+  uint32_t len = from_js<uint32_t>(ctx, lprop);
   JS_FreeValue(ctx, lprop);
   Container<Input> ret(len);
 
@@ -124,6 +145,79 @@ from_js<PointerRange<uint8_t>>(JSContext* ctx, JSValueConst val) {
  * @}
  */
 
+template<>
+inline lab::Channel
+from_js<lab::Channel>(JSContext* ctx, JSValueConst value) {
+  int32_t ret = -1;
+  const char* s;
+  static const char* const names[] = {"Left", "Right", "Center", "LFE", "SurroundLeft", "SurroundRight", "BackLeft", "BackRight"};
+
+  if((s = JS_ToCString(ctx, value))) {
+    if(!strcasecmp(s, "first")) {
+      ret = 0;
+    } else if(!strcasecmp(s, "mono")) {
+      ret = 2;
+    } else
+      for(size_t i = 0; i < countof(names); ++i)
+        if(!strcasecmp(s, names[i])) {
+          ret = i;
+          break;
+        }
+    JS_FreeCString(ctx, s);
+  }
+  if(ret == -1)
+    JS_ToInt32(ctx, &ret, value);
+  return lab::Channel(ret + int(lab::Channel::Left));
+}
+
+template<>
+inline lab::ChannelInterpretation
+from_js<lab::ChannelInterpretation>(JSContext* ctx, JSValueConst value) {
+  int32_t ret = -1;
+  const char* s;
+  static const char* const names[] = {"Speakers", "Discrete"};
+
+  if((s = JS_ToCString(ctx, value))) {
+    for(size_t i = 0; i < countof(names); ++i)
+      if(!strcasecmp(s, names[i])) {
+        ret = i;
+        break;
+      }
+    JS_FreeCString(ctx, s);
+  }
+  if(ret == -1)
+    JS_ToInt32(ctx, &ret, value);
+  return lab::ChannelInterpretation(ret + int(lab::ChannelInterpretation::Speakers));
+}
+
+template<>
+inline lab::ChannelCountMode
+from_js<lab::ChannelCountMode>(JSContext* ctx, JSValueConst value) {
+  int32_t ret = -1;
+  const char* s;
+  static const char* const names[] = {"Max", "ClampedMax", "Explicit", "End"};
+
+  if((s = JS_ToCString(ctx, value))) {
+    for(size_t i = 0; i < countof(names); ++i)
+      if(!strcasecmp(s, names[i])) {
+        ret = i;
+        break;
+      }
+    JS_FreeCString(ctx, s);
+  }
+  if(ret == -1)
+    JS_ToInt32(ctx, &ret, value);
+  return lab::ChannelCountMode(ret + int(lab::ChannelCountMode::Max));
+}
+
+template<class T>
+inline T
+from_js_free(JSContext* ctx, JSValue val) {
+  T v = from_js<T>(ctx, val);
+  JS_FreeValue(ctx, val);
+  return v;
+}
+
 /**
  * \defgroup to_js<Input> shims
  * @{
@@ -132,8 +226,14 @@ template<class Input> inline JSValue to_js(JSContext* ctx, const Input& num);
 
 template<>
 inline JSValue
+to_js<const char*>(JSContext* ctx, const char* const& str) {
+  return JS_NewString(ctx, str);
+}
+
+template<>
+inline JSValue
 to_js<std::string>(JSContext* ctx, const std::string& str) {
-  return JS_NewString(ctx, str.c_str());
+  return to_js<const char*>(ctx, str.c_str());
 }
 
 template<>
@@ -152,6 +252,18 @@ template<>
 inline JSValue
 to_js<uint32_t>(JSContext* ctx, const uint32_t& num) {
   return JS_NewUint32(ctx, num);
+}
+
+template<>
+inline JSValue
+to_js<double>(JSContext* ctx, const double& d) {
+  return JS_NewFloat64(ctx, d);
+}
+
+template<>
+inline JSValue
+to_js<float>(JSContext* ctx, const float& f) {
+  return JS_NewFloat64(ctx, f);
 }
 
 template<template<class> class Container, class Input>
@@ -287,7 +399,7 @@ public:
   constructor(JSContext* ctx, JSCFunction& func, int length, int magic) {
     ctor = JS_NewCFunction2(ctx, func, name(), length, JS_CFUNC_constructor, magic);
   }
-  
+
   /*template<class RetType>
   auto
   recurse(const std::function<RetType(const ClassWrapper&)>& fn) const -> RetType {
@@ -428,6 +540,7 @@ template<class T, class U = std::shared_ptr<lab::AudioContext>> struct ClassPtr 
   typedef std::shared_ptr<T> base_type;
   typedef U value_type;
 
+  ClassPtr() : base_type(), value() {}
   ClassPtr(const base_type& b, const value_type& v) : base_type(b), value(v) {}
 
   T*
