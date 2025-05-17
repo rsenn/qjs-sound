@@ -287,19 +287,16 @@ public:
   constructor(JSContext* ctx, JSCFunction& func, int length, int magic) {
     ctor = JS_NewCFunction2(ctx, func, name(), length, JS_CFUNC_constructor, magic);
   }
-
+  
   /*template<class RetType>
   auto
   recurse(const std::function<RetType(const ClassWrapper&)>& fn) const -> RetType {
     RetType r;
-
     if((r = fn(*this)))
       return r;
-
     for(ClassWrapper* cidp : descendants)
       if((r = cidp->recurse(fn)))
         return r;
-
     return r;
   }*/
 
