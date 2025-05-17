@@ -82,6 +82,22 @@ from_js<char*>(JSContext* ctx, JSValueConst val) {
   return ret;
 }
 
+template<>
+inline const char* const*
+from_js<const char* const*>(JSContext* ctx, JSValueConst val) {
+  JSValue lprop = JS_GetPropertyStr(ctx, val, "length");
+  uint32_t len = from_js<uint32_t>(ctx, lprop);
+  JS_FreeValue(ctx, lprop);
+
+  const char** ret = static_cast<const char**>(js_malloc(ctx, sizeof(const char*) * (len + 1)));
+
+  for(uint32_t i = 0; i < len; ++i)
+    ret[i] = from_js<char*>(ctx, JS_GetPropertyUint32(ctx, val, i));
+
+  ret[len] = nullptr;
+  return ret;
+}
+
 template<class T>
 inline T
 from_js(JSContext* ctx, JSAtom atom) {
@@ -747,9 +763,33 @@ template<class T>
 ptrdiff_t
 size(T* const* ptr) {
   T* const* start = ptr;
-  while(*ptr)
-    ++ptr;
+  if(start)
+    while(*ptr)
+      ++ptr;
   return ptr - start;
+}
+
+template<class Range>
+static inline int32_t
+find_enumeration(const Range& range, const char* str) {
+  auto it = std::ranges::find_if(range, [str](const char* enval) -> bool { return !strcasecmp(str, enval); });
+
+  if(it != range.end())
+    return std::distance(range.begin(), it);
+
+  return -1;
+}
+
+template<class T>
+static auto
+range_from(const T* const* ptr) {
+  return std::ranges::subrange<decltype(ptr)>{ptr, ptr + size(ptr)};
+}
+
+template<class T>
+static auto
+range_from(const std::vector<T>& vec) {
+  return std::ranges::subrange<typename std::vector<T>::iterator>{vec.begin(), vec.end()};
 }
 
 namespace std {
