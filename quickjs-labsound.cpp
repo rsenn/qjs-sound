@@ -55,7 +55,6 @@ typedef shared_ptr<lab::SampledAudioNode> AudioBufferSourceNodePtr;
 
 typedef ClassPtr<lab::AudioBus, int> AudioChannelPtr;
 
-typedef JSObject* JSObjectPtr;
 typedef vector<JSObjectPtr> JSObjectArray;
 
 static JSObjectArray* js_audiobuffer_channels(JSContext*, const AudioBufferPtr&);
@@ -126,9 +125,9 @@ get_class_id(JSClassID cid) {
 
 static int
 js_enum_value(JSContext* ctx, JSValueConst value, const char* values[], int offset = 1) {
-  int i;
   const char* str = JS_ToCString(ctx, value);
-  for(i = 0; values[i]; ++i)
+
+  for(int i = 0; values[i]; ++i)
     if(!strcasecmp(values[i], str))
       return i + offset;
 

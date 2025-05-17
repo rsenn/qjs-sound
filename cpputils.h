@@ -11,17 +11,13 @@
 
 // template<class T> using PointerRange = std::pair<T*, T*>;
 template<class T> using PointerRange = std::ranges::subrange<T*, T*>;
-typedef JSObject* jsobject_ptr;
+typedef JSObject* JSObjectPtr;
 
 /**
  * \defgroup from_js<Output> shims
  * @{
  */
-template<class Output>
-inline Output
-from_js(JSContext* ctx, JSValueConst val) {
-  throw std::exception();
-}
+template<class Output> inline Output from_js(JSContext* ctx, JSValueConst val);
 
 template<>
 inline int32_t
@@ -73,21 +69,17 @@ from_js(JSContext* ctx, JSAtom atom) {
   return ret;
 }
 
-template<class Output>
-inline Output
-from_js(JSValueConst val) {
-  throw std::exception();
-}
+template<class Output> inline Output from_js(JSValueConst val);
 
 template<template<class> class Container, class Input>
 inline Container<Input>
 from_js(JSContext* ctx, JSValueConst val) {
   JSValue lprop = JS_GetPropertyStr(ctx, val, "length");
-  uint32_t i, len = from_js<uint32_t>(lprop);
+  uint32_t len = from_js<uint32_t>(lprop);
   JS_FreeValue(ctx, lprop);
   Container<Input> ret(len);
 
-  for(i = 0; i < len; ++i) {
+  for(uint32_t i = 0; i < len; ++i) {
     JSValue elem = JS_GetPropertyUint32(ctx, val, i);
 
     ret[i] = from_js<Input>(ctx, elem);
@@ -111,11 +103,7 @@ from_js<JSObject*>(JSContext* ctx, JSValueConst val) {
   return from_js<JSObject*>(val);
 }
 
-template<class Output, class T>
-inline Output
-from_js(JSContext* ctx, JSValueConst val, T arg) {
-  throw std::exception();
-}
+template<class Output, class T> inline Output from_js(JSContext* ctx, JSValueConst val, T arg);
 
 template<>
 inline uint8_t*
@@ -132,70 +120,6 @@ from_js<PointerRange<uint8_t>>(JSContext* ctx, JSValueConst val) {
   return PointerRange<uint8_t>(ptr, ptr ? ptr + len : nullptr);
 }
 
-template<>
-inline lab::Channel
-from_js<lab::Channel>(JSContext* ctx, JSValueConst value) {
-  int32_t ret = -1;
-  const char* s;
-  static const char* const names[] = {"Left", "Right", "Center", "LFE", "SurroundLeft", "SurroundRight", "BackLeft", "BackRight"};
-
-  if((s = JS_ToCString(ctx, value))) {
-    if(!strcasecmp(s, "first")) {
-      ret = 0;
-    } else if(!strcasecmp(s, "mono")) {
-      ret = 2;
-    } else
-      for(size_t i = 0; i < countof(names); ++i)
-        if(!strcasecmp(s, names[i])) {
-          ret = i;
-          break;
-        }
-    JS_FreeCString(ctx, s);
-  }
-  if(ret == -1)
-    JS_ToInt32(ctx, &ret, value);
-  return lab::Channel(ret + int(lab::Channel::Left));
-}
-
-template<>
-inline lab::ChannelInterpretation
-from_js<lab::ChannelInterpretation>(JSContext* ctx, JSValueConst value) {
-  int32_t ret = -1;
-  const char* s;
-  static const char* const names[] = {"Speakers", "Discrete"};
-
-  if((s = JS_ToCString(ctx, value))) {
-    for(size_t i = 0; i < countof(names); ++i)
-      if(!strcasecmp(s, names[i])) {
-        ret = i;
-        break;
-      }
-    JS_FreeCString(ctx, s);
-  }
-  if(ret == -1)
-    JS_ToInt32(ctx, &ret, value);
-  return lab::ChannelInterpretation(ret + int(lab::ChannelInterpretation::Speakers));
-}
-
-template<>
-inline lab::ChannelCountMode
-from_js<lab::ChannelCountMode>(JSContext* ctx, JSValueConst value) {
-  int32_t ret = -1;
-  const char* s;
-  static const char* const names[] = {"Max", "ClampedMax", "Explicit", "End"};
-
-  if((s = JS_ToCString(ctx, value))) {
-    for(size_t i = 0; i < countof(names); ++i)
-      if(!strcasecmp(s, names[i])) {
-        ret = i;
-        break;
-      }
-    JS_FreeCString(ctx, s);
-  }
-  if(ret == -1)
-    JS_ToInt32(ctx, &ret, value);
-  return lab::ChannelCountMode(ret + int(lab::ChannelCountMode::Max));
-}
 /**
  * @}
  */
@@ -204,11 +128,7 @@ from_js<lab::ChannelCountMode>(JSContext* ctx, JSValueConst value) {
  * \defgroup to_js<Input> shims
  * @{
  */
-template<class Input>
-inline JSValue
-to_js(JSContext* ctx, const Input& num) {
-  return JS_EXCEPTION;
-}
+template<class Input> inline JSValue to_js(JSContext* ctx, const Input& num);
 
 template<>
 inline JSValue
@@ -246,21 +166,17 @@ to_js(JSContext* ctx, const Container<Input>& container) {
   return ret;
 }
 
-template<class Input>
-inline JSValue
-to_js(Input num) {
-  return JS_EXCEPTION;
-}
+template<class Input> inline JSValue to_js(Input num);
 
 template<>
 inline JSValueConst
-to_js<jsobject_ptr>(jsobject_ptr obj) {
+to_js<JSObjectPtr>(JSObjectPtr obj) {
   return obj ? JS_MKPTR(JS_TAG_OBJECT, obj) : JS_NULL;
 }
 
 template<>
 inline JSValueConst
-to_js<jsobject_ptr>(JSContext* ctx, const jsobject_ptr& obj) {
+to_js<JSObjectPtr>(JSContext* ctx, const JSObjectPtr& obj) {
   return JS_DupValue(ctx, to_js<JSObject*>(obj));
 }
 
@@ -301,15 +217,16 @@ public:
     return class_def ? class_def->class_name : nullptr;
   }
 
+  ClassWrapper() {
+    *wrapper_ptr = this;
+    wrapper_ptr = &next;
+  }
   ~ClassWrapper() {}
 
   ClassWrapper&
   init() {
     if(!initialized()) {
       JS_NewClassID(&cid);
-
-      *wrapper_ptr = this;
-      wrapper_ptr = &next;
     }
 
     return *this;
@@ -323,6 +240,7 @@ public:
       if((class_def = cdef))
         JS_NewClass(JS_GetRuntime(ctx), cid, class_def);
     }
+
     return *this;
   }
 
@@ -454,15 +372,15 @@ public:
 template<class T> struct ClassObjectMap {
   typedef std::shared_ptr<T> base_type;
   typedef std::weak_ptr<T> weak_type;
-  typedef std::map<weak_type, jsobject_ptr> map_type;
+  typedef std::map<weak_type, JSObjectPtr> map_type;
 
   static void
-  set(const base_type& ptr, jsobject_ptr obj) {
+  set(const base_type& ptr, JSObjectPtr obj) {
     weak_type weak(ptr);
     object_map[weak] = obj;
   }
 
-  static jsobject_ptr
+  static JSObjectPtr
   get(const base_type& ptr) {
     weak_type weak(ptr);
     auto const it = object_map.find(weak);
@@ -484,7 +402,7 @@ template<class T> struct ClassObjectMap {
   }
 
   static void
-  remove(jsobject_ptr obj) {
+  remove(JSObjectPtr obj) {
     std::erase_if(object_map, [obj](const auto& item) -> bool {
       auto const& [key, value] = item;
       return value == obj;
@@ -506,7 +424,7 @@ template<class T> struct ClassObjectMap {
   }
 
 private:
-  static std::map<weak_type, jsobject_ptr> object_map;
+  static std::map<weak_type, JSObjectPtr> object_map;
 };
 
 template<class T, class U = std::shared_ptr<lab::AudioContext>> struct ClassPtr : public std::shared_ptr<T> {
