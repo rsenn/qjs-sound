@@ -7,6 +7,7 @@
 #include <string>
 #include <ranges>
 #include <iterator>
+#include <type_traits>
 
 #include "LabSound/LabSound.h"
 
@@ -19,6 +20,27 @@ typedef JSObject* JSObjectPtr;
  * @{
  */
 template<class T> T from_js(JSContext* ctx, JSValueConst val);
+
+/*template<class T>
+inline std::enable_if< std::is_enum<T>::value, T >
+from_js(JSContext* ctx, JSValueConst value) {
+  int32_t ret = -1;
+  static const char* const* names = enumeration_type<T>::enums;
+  const char* s;
+
+  if((s = JS_ToCString(ctx, value))) {
+    for(size_t i = 0; i < countof(names); ++i)
+      if(!strcasecmp(s, names[i])) {
+        ret = i;
+        break;
+      }
+    JS_FreeCString(ctx, s);
+  }
+  if(ret == -1)
+    JS_ToInt32(ctx, &ret, value);
+
+  return T(ret);
+}*/
 
 template<>
 inline int32_t
@@ -162,52 +184,7 @@ from_js<PointerRange<uint8_t>>(JSContext* ctx, JSValueConst val) {
  * @}
  */
 
-template<>
-inline lab::Channel
-from_js<lab::Channel>(JSContext* ctx, JSValueConst value) {
-  int32_t ret = -1;
-  const char* s;
-  static const char* const names[] = {"Left", "Right", "Center", "LFE", "SurroundLeft", "SurroundRight", "BackLeft", "BackRight"};
-
-  if((s = JS_ToCString(ctx, value))) {
-    if(!strcasecmp(s, "first")) {
-      ret = 0;
-    } else if(!strcasecmp(s, "mono")) {
-      ret = 2;
-    } else
-      for(size_t i = 0; i < countof(names); ++i)
-        if(!strcasecmp(s, names[i])) {
-          ret = i;
-          break;
-        }
-    JS_FreeCString(ctx, s);
-  }
-  if(ret == -1)
-    JS_ToInt32(ctx, &ret, value);
-  return lab::Channel(ret + int(lab::Channel::Left));
-}
-
-template<>
-inline lab::ChannelInterpretation
-from_js<lab::ChannelInterpretation>(JSContext* ctx, JSValueConst value) {
-  int32_t ret = -1;
-  const char* s;
-  static const char* const names[] = {"Speakers", "Discrete"};
-
-  if((s = JS_ToCString(ctx, value))) {
-    for(size_t i = 0; i < countof(names); ++i)
-      if(!strcasecmp(s, names[i])) {
-        ret = i;
-        break;
-      }
-    JS_FreeCString(ctx, s);
-  }
-  if(ret == -1)
-    JS_ToInt32(ctx, &ret, value);
-  return lab::ChannelInterpretation(ret + int(lab::ChannelInterpretation::Speakers));
-}
-
-template<>
+/*template<>
 inline lab::ChannelCountMode
 from_js<lab::ChannelCountMode>(JSContext* ctx, JSValueConst value) {
   int32_t ret = -1;
@@ -225,7 +202,7 @@ from_js<lab::ChannelCountMode>(JSContext* ctx, JSValueConst value) {
   if(ret == -1)
     JS_ToInt32(ctx, &ret, value);
   return lab::ChannelCountMode(ret + int(lab::ChannelCountMode::Max));
-}
+}*/
 
 template<class T>
 inline T
@@ -769,6 +746,81 @@ size(T* const* ptr) {
   return ptr - start;
 }
 
+template<class T>
+static auto
+range_from(const T* const* ptr) {
+  return std::ranges::subrange<decltype(ptr)>{ptr, ptr + size(ptr)};
+}
+
+template<class T>
+static auto
+range_from(const std::vector<T>& vec) {
+  return std::ranges::subrange<typename std::vector<T>::iterator>{vec.begin(), vec.end()};
+}
+
+template<class T> struct enumeration_type {
+  typedef T type;
+  // static constexpr const char* enums[] = { nullptr };
+};
+
+template<> struct enumeration_type<lab::SettingType> {
+  static constexpr const char* enums[] = {
+      "None",
+      "Bool",
+      "Integer",
+      "Float",
+      "Enum",
+      "Bus",
+      nullptr,
+  };
+};
+
+template<> struct enumeration_type<lab::ChannelInterpretation> {
+  static constexpr const char* enums[] = {
+      "Speakers",
+      "Discrete",
+      nullptr,
+  };
+};
+
+template<> struct enumeration_type<lab::Channel> {
+  static constexpr const char* enums[] = {
+      "Left",
+      "Right",
+      "Center",
+      "LFE",
+      "SurroundLeft",
+      "SurroundRight",
+      "BackLeft",
+      "BackRight",
+      nullptr,
+  };
+};
+
+template<> struct enumeration_type<lab::ChannelCountMode> {
+  static constexpr const char* enums[] = {
+      "Max",
+      "ClampedMax",
+      "Explicit",
+      "End",
+      nullptr,
+  };
+};
+
+template<> struct enumeration_type<lab::OscillatorType> {
+  static constexpr const char* enums[] = {
+      "OSCILLATOR_NONE",
+      "SINE",
+      "FAST_SINE",
+      "SQUARE",
+      "SAWTOOTH",
+      "FALLING_SAWTOOTH",
+      "TRIANGLE",
+      "CUSTOM",
+      nullptr,
+  };
+};
+
 template<class Range>
 static inline int32_t
 find_enumeration(const Range& range, const char* str) {
@@ -780,16 +832,10 @@ find_enumeration(const Range& range, const char* str) {
   return -1;
 }
 
-template<class T>
-static auto
-range_from(const T* const* ptr) {
-  return std::ranges::subrange<decltype(ptr)>{ptr, ptr + size(ptr)};
-}
-
-template<class T>
-static auto
-range_from(const std::vector<T>& vec) {
-  return std::ranges::subrange<typename std::vector<T>::iterator>{vec.begin(), vec.end()};
+template<class Enum>
+static inline Enum
+find_enumeration(const char* str) {
+  return Enum(find_enumeration(range_from(enumeration_type<Enum>::enums), str));
 }
 
 namespace std {

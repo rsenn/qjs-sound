@@ -19,7 +19,7 @@ using std::vector;
 using std::weak_ptr;
 
 ClassWrapper audiobuffer_class, audiocontext_class, audiolistener_class, audiodevice_class, audionodeinput_class, audionodeoutput_class, audionode_class, audiodestinationnode_class,
-    audioscheduledsourcenode_class, oscillatornode_class, audiosummingjunction_class, audiobuffersourcenode_class, audioparam_class, audiosetting_class;
+    audioscheduledsourcenode_class, oscillatornode_class, audiosummingjunction_class, audiobuffersourcenode_class, audioparam_class, audiosetting_class, periodicwave_class;
 
 class DestinationNode : public lab::AudioDestinationNode {
 public:
@@ -53,6 +53,7 @@ typedef ClassPtr<lab::AudioNode> AudioNodePtr;
 typedef ClassPtr<lab::AudioScheduledSourceNode> AudioScheduledSourceNodePtr;
 typedef ClassPtr<lab::OscillatorNode> OscillatorNodePtr;
 typedef shared_ptr<lab::SampledAudioNode> AudioBufferSourceNodePtr;
+typedef shared_ptr<lab::PeriodicWave> PeriodicWavePtr;
 
 typedef ClassPtr<lab::AudioBus, int> AudioChannelPtr;
 
@@ -714,23 +715,23 @@ static const JSCFunctionListEntry js_audiobuffer_functions[] = {
 
 static lab::AudioParamDescriptor
 js_audioparam_descriptor(JSContext* ctx, JSValueConst obj) {
-  return (lab::AudioParamDescriptor){
-      from_js_free<char*>(ctx, JS_GetPropertyStr(ctx, obj, "name")),
-      from_js_free<char*>(ctx, JS_GetPropertyStr(ctx, obj, "shortName")),
-      from_js_free<double>(ctx, JS_GetPropertyStr(ctx, obj, "defaultValue")),
-      from_js_free<double>(ctx, JS_GetPropertyStr(ctx, obj, "minValue")),
-      from_js_free<double>(ctx, JS_GetPropertyStr(ctx, obj, "maxValue")),
+  return lab::AudioParamDescriptor{
+      .name = from_js_free<char*>(ctx, JS_GetPropertyStr(ctx, obj, "name")),
+      .shortName = from_js_free<char*>(ctx, JS_GetPropertyStr(ctx, obj, "shortName")),
+      .defaultValue = from_js_free<double>(ctx, JS_GetPropertyStr(ctx, obj, "defaultValue")),
+      .minValue = from_js_free<double>(ctx, JS_GetPropertyStr(ctx, obj, "minValue")),
+      .maxValue = from_js_free<double>(ctx, JS_GetPropertyStr(ctx, obj, "maxValue")),
   };
 }
 
 static lab::AudioParamDescriptor
 js_audioparam_descriptor(JSContext* ctx, int argc, JSValueConst argv[]) {
-  return (lab::AudioParamDescriptor){
-      from_js<char*>(ctx, argv[0]),
-      from_js<char*>(ctx, argv[1]),
-      from_js<double>(ctx, argv[2]),
-      from_js<double>(ctx, argv[3]),
-      from_js<double>(ctx, argv[4]),
+  return lab::AudioParamDescriptor{
+      .name = from_js<char*>(ctx, argv[0]),
+      .shortName = from_js<char*>(ctx, argv[1]),
+      .defaultValue = from_js<double>(ctx, argv[2]),
+      .minValue = from_js<double>(ctx, argv[3]),
+      .maxValue = from_js<double>(ctx, argv[4]),
   };
 }
 
@@ -1000,20 +1001,20 @@ static const char* js_audiosetting_types[] = {
 static lab::AudioSettingDescriptor
 js_audiosetting_descriptor(JSContext* ctx, JSValueConst obj) {
   return (lab::AudioSettingDescriptor){
-      from_js_free<char*>(ctx, JS_GetPropertyStr(ctx, obj, "name")),
-      from_js_free<char*>(ctx, JS_GetPropertyStr(ctx, obj, "shortName")),
-      from_js_free<lab::SettingType>(ctx, JS_GetPropertyStr(ctx, obj, "type")),
-      from_js_free<const char* const*>(ctx, JS_GetPropertyStr(ctx, obj, "enums")),
+      .name = from_js_free<char*>(ctx, JS_GetPropertyStr(ctx, obj, "name")),
+      .shortName = from_js_free<char*>(ctx, JS_GetPropertyStr(ctx, obj, "shortName")),
+      .type = from_js_free<lab::SettingType>(ctx, JS_GetPropertyStr(ctx, obj, "type")),
+      .enums = from_js_free<const char* const*>(ctx, JS_GetPropertyStr(ctx, obj, "enums")),
   };
 }
 
 static lab::AudioSettingDescriptor
 js_audiosetting_descriptor(JSContext* ctx, int argc, JSValueConst argv[]) {
   return (lab::AudioSettingDescriptor){
-      from_js_free<char*>(ctx, argv[0]),
-      from_js_free<char*>(ctx, argv[1]),
-      from_js_free<lab::SettingType>(ctx, argv[2]),
-      from_js_free<const char* const*>(ctx, argv[3]),
+      .name = from_js_free<char*>(ctx, argv[0]),
+      .shortName = from_js_free<char*>(ctx, argv[1]),
+      .type = from_js_free<lab::SettingType>(ctx, argv[2]),
+      .enums = from_js_free<const char* const*>(ctx, argv[3]),
   };
 }
 
@@ -1051,8 +1052,6 @@ fail:
   JS_FreeValue(ctx, obj);
   return JS_EXCEPTION;
 }
-
-
 
 static JSValue
 js_audiosetting_wrap(JSContext* ctx, JSValueConst proto, AudioSettingPtr& setting) {
@@ -1322,22 +1321,22 @@ js_audiocontext_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
 
   JS_SetOpaque(obj, ac);
 
-  /* {
-     JSValue args[] = {
-         obj,
-         js_audiodevice_constructor(ctx, audiodevice_class.ctor, 0, nullptr),
-     };
+  {
+    JSValue args[] = {
+        obj,
+        js_audiodevice_constructor(ctx, audiodevice_class.ctor, 0, nullptr),
+    };
 
-     JSValue adn = js_audiodestinationnode_constructor(ctx, audiodestinationnode_class.ctor, countof(args), args);
+    JSValue adn = js_audiodestinationnode_constructor(ctx, audiodestinationnode_class.ctor, countof(args), args);
 
-     JS_FreeValue(ctx, args[1]);
+    JS_FreeValue(ctx, args[1]);
 
-     AudioDestinationNodePtr* dn = audiodestinationnode_class.opaque<AudioDestinationNodePtr>(adn);
+    AudioDestinationNodePtr* dn = audiodestinationnode_class.opaque<AudioDestinationNodePtr>(adn);
 
-     (*ac)->setDestinationNode(*dn);
+    (*ac)->setDestinationNode(*dn);
 
-     JS_FreeValue(ctx, adn);
-   }*/
+    JS_FreeValue(ctx, adn);
+  }
 
   {
     lab::AudioStreamConfig in_config{.device_index = 0, .desired_channels = 2, .desired_samplerate = 44100}, out_config{.device_index = 0, .desired_channels = 2, .desired_samplerate = 44100};
@@ -3568,6 +3567,125 @@ static const JSCFunctionListEntry js_audiobuffersourcenode_methods[] = {
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioBufferSourceNode", JS_PROP_CONFIGURABLE),
 };
 
+static JSValue
+js_periodicwave_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+  PeriodicWavePtr* pw;
+
+  if(!js_alloc(ctx, pw))
+    return JS_EXCEPTION;
+
+  double sampleRate = from_js<double>(ctx, argv[0]);
+  auto oscillatorType = from_js<lab::OscillatorType>(ctx, argv[1]);
+
+  if(argc >= 4) {
+    auto re = from_js<std::vector<float>>(ctx, argv[2]);
+    auto im = from_js<std::vector<float>>(ctx, argv[3]);
+    new(pw) PeriodicWavePtr(make_shared<lab::PeriodicWave>(sampleRate, oscillatorType, re, im));
+  } else {
+    new(pw) PeriodicWavePtr(make_shared<lab::PeriodicWave>(sampleRate, oscillatorType));
+  }
+  /* using new_target to get the prototype is necessary when the class is extended. */
+  JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
+  if(JS_IsException(proto))
+    goto fail;
+
+  if(!JS_IsObject(proto))
+    proto = JS_DupValue(ctx, periodicwave_class.proto);
+
+  /* using new_target to get the prototype is necessary when the class is extended. */
+  obj = JS_NewObjectProtoClass(ctx, proto, periodicwave_class);
+  JS_FreeValue(ctx, proto);
+
+  if(JS_IsException(obj))
+    goto fail;
+
+  JS_SetOpaque(obj, pw);
+  return obj;
+
+fail:
+  JS_FreeValue(ctx, obj);
+  return JS_EXCEPTION;
+}
+
+enum {
+
+};
+
+static JSValue
+js_periodicwave_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+  PeriodicWavePtr* pw;
+  JSValue ret = JS_UNDEFINED;
+
+  if(!periodicwave_class.opaque(ctx, this_val, pw))
+    return JS_EXCEPTION;
+
+  switch(magic) {}
+
+  return ret;
+}
+
+enum {
+  PERIODICWAVE_SIZE,
+  PERIODICWAVE_RATESCALE,
+};
+
+static JSValue
+js_periodicwave_get(JSContext* ctx, JSValueConst this_val, int magic) {
+  PeriodicWavePtr* pw;
+  JSValue ret = JS_UNDEFINED;
+
+  if(!periodicwave_class.opaque(ctx, this_val, pw))
+    return JS_EXCEPTION;
+
+  switch(magic) {
+    case PERIODICWAVE_SIZE: {
+      ret = to_js<uint32_t>(ctx, (*pw)->periodicWaveSize());
+      break;
+    }
+    case PERIODICWAVE_RATESCALE: {
+      ret = to_js<double>(ctx, (*pw)->rateScale());
+      break;
+    }
+  }
+
+  return ret;
+}
+
+static JSValue
+js_periodicwave_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
+  PeriodicWavePtr* pw;
+  JSValue ret = JS_UNDEFINED;
+
+  if(!periodicwave_class.opaque(ctx, this_val, pw))
+    return JS_EXCEPTION;
+
+  switch(magic) {}
+
+  return ret;
+}
+
+static void
+js_periodicwave_finalizer(JSRuntime* rt, JSValue this_val) {
+  PeriodicWavePtr* pw;
+
+  if(periodicwave_class.opaque(this_val, pw)) {
+    pw->~PeriodicWavePtr();
+    js_free_rt(rt, pw);
+  }
+}
+
+static JSClassDef js_periodicwave_class = {
+    .class_name = "PeriodicWave",
+    .finalizer = js_periodicwave_finalizer,
+};
+
+static const JSCFunctionListEntry js_periodicwave_methods[] = {
+    JS_CGETSET_MAGIC_DEF("size", js_periodicwave_get, 0, PERIODICWAVE_SIZE),
+    JS_CGETSET_MAGIC_DEF("rateScale", js_periodicwave_get, 0, PERIODICWAVE_RATESCALE),
+
+    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "PeriodicWave", JS_PROP_CONFIGURABLE),
+};
+
 int
 js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   audiobuffer_class.init(ctx, &js_audiobuffer_class);
@@ -3706,12 +3824,21 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
 
   audiosetting_class.init(ctx, &js_audiosetting_class);
 
-  audiosetting_class.ctor = JS_NewObjectProto(ctx, JS_NULL);
+  audiosetting_class.constructor(ctx, js_audiosetting_constructor, 1, 0);
   audiosetting_class.proto = JS_NewObjectProto(ctx, JS_NULL);
 
   JS_SetPropertyFunctionList(ctx, audiosetting_class.proto, js_audiosetting_methods, countof(js_audiosetting_methods));
 
   JS_SetClassProto(ctx, audiosetting_class, audiosetting_class.proto);
+
+  periodicwave_class.init(ctx, &js_periodicwave_class);
+
+  periodicwave_class.constructor(ctx, js_periodicwave_constructor, 1, 0);
+  periodicwave_class.proto = JS_NewObjectProto(ctx, JS_NULL);
+
+  JS_SetPropertyFunctionList(ctx, periodicwave_class.proto, js_periodicwave_methods, countof(js_periodicwave_methods));
+
+  JS_SetClassProto(ctx, periodicwave_class, periodicwave_class.proto);
 
   if(m) {
     audiobuffer_class.setModuleExport(ctx, m);
@@ -3728,6 +3855,7 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
     JS_SetModuleExport(ctx, m, "AudioBufferSourceNode", audiobuffersourcenode_class.ctor);
     JS_SetModuleExport(ctx, m, "AudioParam", audioparam_class.ctor);
     JS_SetModuleExport(ctx, m, "AudioSetting", audiosetting_class.ctor);
+    JS_SetModuleExport(ctx, m, "PeriodicWave", periodicwave_class.ctor);
   }
 
   get_class_id(audionode_class);
@@ -3751,6 +3879,7 @@ js_init_module_labsound(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "AudioBufferSourceNode");
   JS_AddModuleExport(ctx, m, "AudioParam");
   JS_AddModuleExport(ctx, m, "AudioSetting");
+  JS_AddModuleExport(ctx, m, "PeriodicWave");
 }
 
 extern "C" VISIBLE JSModuleDef*
