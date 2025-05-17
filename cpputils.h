@@ -857,6 +857,24 @@ find_enumeration_free(JSContext* ctx, JSValue value) {
   return r;
 }
 
+static inline int
+js_copy(JSContext* ctx, JSValueConst dest, JSValueConst src) {
+  JSPropertyEnum* ptab;
+  uint32_t i, len;
+
+  if(JS_GetOwnPropertyNames(ctx, &ptab, &len, src, JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY))
+    return FALSE;
+
+  for(i = 0; i < len; i++) {
+    JSValue prop = JS_GetProperty(ctx, src, ptab[i].atom);
+    JS_SetProperty(ctx, dest, ptab[i].atom, prop);
+  }
+
+  js_free(ctx, ptab);
+
+  return i;
+}
+
 namespace std {
 namespace ranges {
 

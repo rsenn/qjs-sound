@@ -145,10 +145,10 @@ js_float32array_constructor(JSContext* ctx) {
 }
 
 static JSValue
-js_float32array_new(JSContext* ctx,   uint8_t* buf, size_t len,  JSFreeArrayBufferDataFunc* free_func=nullptr, void*opaque=nullptr) {
+js_float32array_new(JSContext* ctx, uint8_t* buf, size_t len, JSFreeArrayBufferDataFunc* free_func = nullptr, void* opaque = nullptr) {
   JSValue f32arr = js_float32array_constructor(ctx);
   JSValue args[] = {
-     free_func ?   JS_NewArrayBuffer(ctx, buf, len, free_func, opaque, FALSE) :    JS_NewArrayBufferCopy(ctx, buf, len),
+      free_func ? JS_NewArrayBuffer(ctx, buf, len, free_func, opaque, FALSE) : JS_NewArrayBufferCopy(ctx, buf, len),
       JS_NewUint32(ctx, 0),
       JS_NewUint32(ctx, len / sizeof(float)),
   };
@@ -1348,22 +1348,23 @@ js_audiocontext_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
 
     JSValue adn = js_audiodestinationnode_constructor(ctx, audiodestinationnode_class.ctor, countof(args), args);
 
-    JS_FreeValue(ctx, args[1]);
+    // auto* ad = audiodevice_class.opaque<AudioDevicePtr>(ctx, args[1]);
+    auto* dn = audiodestinationnode_class.opaque<AudioDestinationNodePtr>(adn);
 
-    AudioDestinationNodePtr* dn = audiodestinationnode_class.opaque<AudioDestinationNodePtr>(adn);
-
+    //(*ad)->setDestinationNode(*dn);
     (*ac)->setDestinationNode(*dn);
 
+    JS_FreeValue(ctx, args[1]);
     JS_FreeValue(ctx, adn);
   }
 
-  {
+  /*{
     lab::AudioStreamConfig in_config{.device_index = 0, .desired_channels = 2, .desired_samplerate = 44100}, out_config{.device_index = 0, .desired_channels = 2, .desired_samplerate = 44100};
     auto ad = make_shared<lab::AudioDevice_RtAudio>(in_config, out_config);
     auto adn = make_shared<lab::AudioDestinationNode>(*ac->get(), ad);
 
     (*ac)->setDestinationNode(adn);
-  }
+  }*/
 
   ClassObjectMap<lab::AudioContext>::set(*ac, from_js<JSObject*>(JS_DupValue(ctx, obj)));
 
@@ -2833,6 +2834,8 @@ js_audiodestinationnode_constructor(JSContext* ctx, JSValueConst new_target, int
 
   new(adn) AudioDestinationNodePtr(make_shared<lab::AudioDestinationNode>(*ac->get(), *ad), *ac);
 
+  (*ad)->setDestinationNode(*adn);
+
   /* using new_target to get the prototype is necessary when the class is extended. */
   JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
   if(JS_IsException(proto))
@@ -3411,7 +3414,6 @@ js_audiobuffersourcenode_constructor(JSContext* ctx, JSValueConst new_target, in
     return JS_ThrowTypeError(ctx, "argument 1 must be AudioContext");
 
   lab::AudioContext& ac = *acptr->get();
-
   AudioBufferSourceNodePtr* absn;
 
   if(!js_alloc(ctx, absn))
@@ -3435,6 +3437,10 @@ js_audiobuffersourcenode_constructor(JSContext* ctx, JSValueConst new_target, in
     goto fail;
 
   JS_SetOpaque(obj, absn);
+
+  if(argc > 1)
+    js_copy(ctx, obj, argv[1]);
+
   return obj;
 
 fail:
@@ -3597,14 +3603,14 @@ js_periodicwave_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
   auto oscillatorType = find_enumeration<lab::OscillatorType>(ctx, argv[1]);
 
   if(argc >= 4) {
-    auto re = from_js<std::vector<double>>(ctx, argv[2]);
-    auto im = from_js<std::vector<double>>(ctx, argv[3]);
-    vector<float> re_f, im_f;
+    /*    auto re = from_js<std::vector<double>>(ctx, argv[2]);
+        auto im = from_js<std::vector<double>>(ctx, argv[3]);
+        vector<float> re_f, im_f;
 
-    std::copy(re.begin(), re.end(), std::back_inserter(re_f));
-    std::copy(im.begin(), im.end(), std::back_inserter(im_f));
+        std::copy(re.begin(), re.end(), std::back_inserter(re_f));
+        std::copy(im.begin(), im.end(), std::back_inserter(im_f));
 
-    new(pw) PeriodicWavePtr(make_shared<lab::PeriodicWave>(sampleRate, oscillatorType, re_f, im_f));
+        new(pw) PeriodicWavePtr(make_shared<lab::PeriodicWave>(sampleRate, oscillatorType, re_f, im_f));*/
   } else {
     new(pw) PeriodicWavePtr(make_shared<lab::PeriodicWave>(sampleRate, oscillatorType));
   }
@@ -3651,7 +3657,7 @@ js_periodicwave_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
 
       ret = JS_NewObjectProto(ctx, JS_NULL);
 
-      //JS_SetPropertyStr(ctx, ret, "lowerWaveData", ) 
+      // JS_SetPropertyStr(ctx, ret, "lowerWaveData", )
       break;
     }
   }
