@@ -279,9 +279,15 @@ js_has_property(JSContext* ctx, JSValueConst obj, const char* name) {
 /*! \class ClassWrapper
  *  \brief JSClassID container
  */
-struct ClassWrapper {
-  JSValue ctor, proto;
-  JSClassDef* def;
+class ClassWrapper {
+private:
+  JSClassID cid{0};
+  ClassWrapper* parent;
+  std::vector<ClassWrapper*> descendants;
+
+public:
+  mutable JSValue ctor{JS_UNDEFINED}, proto{JS_UNDEFINED};
+  JSClassDef* class_def{nullptr};
 
   bool
   initialized() const {
@@ -290,7 +296,7 @@ struct ClassWrapper {
 
   const char*
   name() const {
-    return def ? def->class_name : nullptr;
+    return class_def ? class_def->class_name : nullptr;
   }
 
   ~ClassWrapper() {
@@ -315,8 +321,8 @@ struct ClassWrapper {
     if(!initialized()) {
       init();
 
-      if((def = cdef))
-        JS_NewClass(JS_GetRuntime(ctx), cid, def);
+      if((class_def = cdef))
+        JS_NewClass(JS_GetRuntime(ctx), cid, class_def);
     }
     return *this;
   }
@@ -327,6 +333,18 @@ struct ClassWrapper {
       ptr->descendants.push_back(this);
 
     return *this;
+  }
+
+  void
+  setProtoConstructor(JSContext* ctx) const {
+    if(JS_IsUndefined(ctor))
+      ctor = JS_NewObjectProto(ctx, JS_NULL);
+
+    if(JS_IsUndefined(proto))
+      ctor = JS_NewObjectProto(ctx, JS_NULL);
+
+    JS_SetClassProto(ctx, cid, proto);
+    JS_SetConstructor(ctx, ctor, proto);
   }
 
   static ClassWrapper*
@@ -347,6 +365,11 @@ struct ClassWrapper {
   operator JSClassID const&() const { return cid; };
 
   /* clang-format on */
+
+  void
+  constructor(JSContext* ctx, JSCFunction& func, int length, int magic) {
+    ctor = JS_NewCFunction2(ctx, func, name(), length, JS_CFUNC_constructor, magic);
+  }
 
   /*template<class RetType>
   auto
@@ -390,8 +413,8 @@ struct ClassWrapper {
     if(!JS_IsObject(JS_GetException(ctx)))
       return nullptr;
 
-    if(def && def->class_name)
-      ids.append(def->class_name);
+    if(class_def && class_def->class_name)
+      ids.append(class_def->class_name);
     else
       ids.append(std::to_string(cid));
 
@@ -427,11 +450,6 @@ struct ClassWrapper {
     ref = opaque<T>(val);
     return ref != nullptr;
   }
-
-private:
-  JSClassID cid{0};
-  ClassWrapper* parent;
-  std::vector<ClassWrapper*> descendants;
 };
 
 template<class T> struct ClassObjectMap {

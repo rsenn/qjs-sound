@@ -3458,21 +3458,20 @@ static const JSCFunctionListEntry js_audiobuffersourcenode_methods[] = {
 int
 js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   audiobuffer_class.init(ctx, &js_audiobuffer_class);
-  // JS_NewClass(JS_GetRuntime(ctx), audiobuffer_class, &js_audiobuffer_class);
 
-  audiobuffer_class.ctor = JS_NewCFunction2(ctx, js_audiobuffer_constructor, "AudioBuffer", 1, JS_CFUNC_constructor, 0);
+  audiobuffer_class.constructor(ctx, js_audiobuffer_constructor, 1, 0);
   audiobuffer_class.proto = JS_NewObjectProto(ctx, JS_NULL);
 
   JS_SetPropertyFunctionList(ctx, audiobuffer_class.proto, js_audiobuffer_methods, countof(js_audiobuffer_methods));
   JS_SetPropertyFunctionList(ctx, audiobuffer_class.ctor, js_audiobuffer_functions, countof(js_audiobuffer_functions));
 
-  JS_SetClassProto(ctx, audiobuffer_class, audiobuffer_class.proto);
-  JS_SetConstructor(ctx, audiobuffer_class.ctor, audiobuffer_class.proto);
+  audiobuffer_class.setProtoConstructor(ctx);
+  /*JS_SetClassProto(ctx, audiobuffer_class, audiobuffer_class.proto);
+  JS_SetConstructor(ctx, audiobuffer_class.ctor, audiobuffer_class.proto);*/
 
   audiocontext_class.init(ctx, &js_audiocontext_class);
-  // JS_NewClass(JS_GetRuntime(ctx), audiocontext_class, &js_audiocontext_class);
 
-  audiocontext_class.ctor = JS_NewCFunction2(ctx, js_audiocontext_constructor, "AudioContext", 1, JS_CFUNC_constructor, 0);
+  audiocontext_class.constructor(ctx, js_audiocontext_constructor, 1, 0);
   audiocontext_class.proto = JS_NewObjectProto(ctx, JS_NULL);
 
   JS_SetPropertyFunctionList(ctx, audiocontext_class.proto, js_audiocontext_methods, countof(js_audiocontext_methods));
@@ -3481,9 +3480,8 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   JS_SetConstructor(ctx, audiocontext_class.ctor, audiocontext_class.proto);
 
   audiolistener_class.init(ctx, &js_audiolistener_class);
-  // JS_NewClass(JS_GetRuntime(ctx), audiolistener_class, &js_audiolistener_class);
 
-  audiolistener_class.ctor = JS_NewCFunction2(ctx, js_audiolistener_constructor, "AudioListener", 1, JS_CFUNC_constructor, 0);
+  audiolistener_class.constructor(ctx, js_audiolistener_constructor, 1, 0);
   audiolistener_class.proto = JS_NewObjectProto(ctx, JS_NULL);
 
   JS_SetPropertyFunctionList(ctx, audiolistener_class.proto, js_audiolistener_methods, countof(js_audiolistener_methods));
@@ -3492,9 +3490,8 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   JS_SetConstructor(ctx, audiolistener_class.ctor, audiolistener_class.proto);
 
   audiodevice_class.init(ctx, &js_audiodevice_class);
-  // JS_NewClass(JS_GetRuntime(ctx), audiodevice_class, &js_audiodevice_class);
 
-  audiodevice_class.ctor = JS_NewCFunction2(ctx, js_audiodevice_constructor, "AudioDevice", 1, JS_CFUNC_constructor, 0);
+  audiodevice_class.constructor(ctx, js_audiodevice_constructor, 1, 0);
   audiodevice_class.proto = JS_NewObjectProto(ctx, JS_NULL);
 
   JS_SetPropertyFunctionList(ctx, audiodevice_class.proto, js_audiodevice_methods, countof(js_audiodevice_methods));
@@ -3503,9 +3500,8 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   JS_SetConstructor(ctx, audiodevice_class.ctor, audiodevice_class.proto);
 
   audionodeinput_class.init(ctx, &js_audionodeinput_class);
-  // JS_NewClass(JS_GetRuntime(ctx), audionodeinput_class, &js_audionodeinput_class);
 
-  audionodeinput_class.ctor = JS_NewCFunction2(ctx, js_audionodeinput_constructor, "AudioNodeInput", 1, JS_CFUNC_constructor, 0);
+  audionodeinput_class.constructor(ctx, js_audionodeinput_constructor, 1, 0);
   audionodeinput_class.proto = JS_NewObjectProto(ctx, JS_NULL);
 
   JS_SetPropertyFunctionList(ctx, audionodeinput_class.proto, js_audionodeinput_methods, countof(js_audionodeinput_methods));
@@ -3514,9 +3510,8 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   JS_SetConstructor(ctx, audionodeinput_class.ctor, audionodeinput_class.proto);
 
   audionodeoutput_class.init(ctx, &js_audionodeoutput_class);
-  // JS_NewClass(JS_GetRuntime(ctx), audionodeoutput_class, &js_audionodeoutput_class);
 
-  audionodeoutput_class.ctor = JS_NewCFunction2(ctx, js_audionodeoutput_constructor, "AudioNodeOutput", 1, JS_CFUNC_constructor, 0);
+  audionodeoutput_class.constructor(ctx, js_audionodeoutput_constructor, 1, 0);
   audionodeoutput_class.proto = JS_NewObjectProto(ctx, JS_NULL);
 
   JS_SetPropertyFunctionList(ctx, audionodeoutput_class.proto, js_audionodeoutput_methods, countof(js_audionodeoutput_methods));
@@ -3525,7 +3520,6 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   JS_SetConstructor(ctx, audionodeoutput_class.ctor, audionodeoutput_class.proto);
 
   audionode_class.init(ctx, &js_audionode_class);
-  // JS_NewClass(JS_GetRuntime(ctx), audionode_class, &js_audionode_class);
 
   audionode_class.ctor = JS_NewObjectProto(ctx, JS_NULL);
   audionode_class.proto = JS_NewObjectProto(ctx, JS_NULL);
@@ -3538,9 +3532,8 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
 
   audiodestinationnode_class.init(ctx, &js_audiodestinationnode_class);
   audiodestinationnode_class.inherit(audionode_class);
-  // JS_NewClass(JS_GetRuntime(ctx), audiodestinationnode_class, &js_audiodestinationnode_class);
 
-  audiodestinationnode_class.ctor = JS_NewCFunction2(ctx, js_audiodestinationnode_constructor, "AudioDestinationNode", 2, JS_CFUNC_constructor, 0);
+  audiodestinationnode_class.constructor(ctx, js_audiodestinationnode_constructor, 2, 0);
   audiodestinationnode_class.proto = JS_NewObjectProto(ctx, audionode_class.proto);
 
   JS_SetPropertyFunctionList(ctx, audiodestinationnode_class.proto, js_audiodestinationnode_methods, countof(js_audiodestinationnode_methods));
@@ -3550,7 +3543,6 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
 
   audioscheduledsourcenode_class.init(ctx, &js_audioscheduledsourcenode_class);
   audioscheduledsourcenode_class.inherit(audionode_class);
-  // JS_NewClass(JS_GetRuntime(ctx), audioscheduledsourcenode_class, &js_audioscheduledsourcenode_class);
 
   audioscheduledsourcenode_class.ctor = JS_NewObjectProto(ctx, JS_NULL);
   audioscheduledsourcenode_class.proto = JS_NewObjectProto(ctx, audionode_class.proto);
@@ -3562,9 +3554,8 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
 
   oscillatornode_class.init(ctx, &js_oscillatornode_class);
   oscillatornode_class.inherit(audioscheduledsourcenode_class);
-  // JS_NewClass(JS_GetRuntime(ctx), oscillatornode_class, &js_oscillatornode_class);
 
-  oscillatornode_class.ctor = JS_NewCFunction2(ctx, js_oscillatornode_constructor, "OscillatorNode", 1, JS_CFUNC_constructor, 0);
+  oscillatornode_class.constructor(ctx, js_oscillatornode_constructor, 1, 0);
   oscillatornode_class.proto = JS_NewObjectProto(ctx, audioscheduledsourcenode_class.proto);
 
   JS_SetPropertyFunctionList(ctx, oscillatornode_class.proto, js_oscillatornode_methods, countof(js_oscillatornode_methods));
@@ -3572,9 +3563,8 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   JS_SetClassProto(ctx, oscillatornode_class, oscillatornode_class.proto);
 
   audiosummingjunction_class.init(ctx, &js_audiosummingjunction_class);
-  // JS_NewClass(JS_GetRuntime(ctx), audiosummingjunction_class, &js_audiosummingjunction_class);
 
-  audiosummingjunction_class.ctor = JS_NewCFunction2(ctx, js_audiosummingjunction_constructor, "AudioSummingJunction", 1, JS_CFUNC_constructor, 0);
+  audiosummingjunction_class.constructor(ctx, js_audiosummingjunction_constructor, 1, 0);
   audiosummingjunction_class.proto = JS_NewObjectProto(ctx, audioscheduledsourcenode_class.proto);
 
   JS_SetPropertyFunctionList(ctx, audiosummingjunction_class.proto, js_audiosummingjunction_methods, countof(js_audiosummingjunction_methods));
@@ -3583,9 +3573,8 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
 
   audiobuffersourcenode_class.init(ctx, &js_audiobuffersourcenode_class);
   audiobuffersourcenode_class.inherit(audioscheduledsourcenode_class);
-  // JS_NewClass(JS_GetRuntime(ctx), audiobuffersourcenode_class, &js_audiobuffersourcenode_class);
 
-  audiobuffersourcenode_class.ctor = JS_NewCFunction2(ctx, js_audiobuffersourcenode_constructor, "AudioBufferSourceNode", 1, JS_CFUNC_constructor, 0);
+  audiobuffersourcenode_class.constructor(ctx, js_audiobuffersourcenode_constructor, 1, 0);
   audiobuffersourcenode_class.proto = JS_NewObjectProto(ctx, audioscheduledsourcenode_class.proto);
 
   JS_SetPropertyFunctionList(ctx, audiobuffersourcenode_class.proto, js_audiobuffersourcenode_methods, countof(js_audiobuffersourcenode_methods));
@@ -3594,7 +3583,6 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
 
   audioparam_class.init(ctx, &js_audioparam_class);
   audioparam_class.inherit(audiosummingjunction_class);
-  // JS_NewClass(JS_GetRuntime(ctx), audioparam_class, &js_audioparam_class);
 
   audioparam_class.ctor = JS_NewObjectProto(ctx, JS_NULL);
   audioparam_class.proto = JS_NewObjectProto(ctx, audioscheduledsourcenode_class.proto);
@@ -3605,7 +3593,6 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
 
   audiosetting_class.init(ctx, &js_audiosetting_class);
   audiosetting_class.inherit(audiosummingjunction_class);
-  // JS_NewClass(JS_GetRuntime(ctx), audiosetting_class, &js_audiosetting_class);
 
   audiosetting_class.ctor = JS_NewObjectProto(ctx, JS_NULL);
   audiosetting_class.proto = JS_NewObjectProto(ctx, audioscheduledsourcenode_class.proto);
