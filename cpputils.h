@@ -280,12 +280,17 @@ js_has_property(JSContext* ctx, JSValueConst obj, const char* name) {
  *  \brief JSClassID container
  */
 struct ClassWrapper {
-  const char* name;
   JSValue ctor, proto;
+  JSClassDef* def;
 
   bool
   initialized() const {
-    return cid != -1;
+    return cid != 0;
+  }
+
+  const char*
+  name() const {
+    return def ? def->class_name : nullptr;
   }
 
   ~ClassWrapper() {
@@ -306,11 +311,12 @@ struct ClassWrapper {
   }
 
   ClassWrapper&
-  init(JSContext* ctx, const JSClassDef* def) {
+  init(JSContext* ctx, JSClassDef* cdef) {
     if(!initialized()) {
-      name = def->class_name;
       init();
-      JS_NewClass(JS_GetRuntime(ctx), cid, def);
+
+      if((def = cdef))
+        JS_NewClass(JS_GetRuntime(ctx), cid, def);
     }
     return *this;
   }
@@ -384,8 +390,8 @@ struct ClassWrapper {
     if(!JS_IsObject(JS_GetException(ctx)))
       return nullptr;
 
-    if(name)
-      ids.append(name);
+    if(def && def->class_name)
+      ids.append(def->class_name);
     else
       ids.append(std::to_string(cid));
 
@@ -398,8 +404,8 @@ struct ClassWrapper {
 
       ids.append(", ");
 
-      if(cidp->name)
-        ids.append(cidp->name);
+      if(cidp->name())
+        ids.append(cidp->name());
       else
         ids.append(std::to_string(cidp->cid));
     }
@@ -423,7 +429,7 @@ struct ClassWrapper {
   }
 
 private:
-  JSClassID cid{-1};
+  JSClassID cid{0};
   ClassWrapper* parent;
   std::vector<ClassWrapper*> descendants;
 };
