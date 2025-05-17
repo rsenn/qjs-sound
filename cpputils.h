@@ -458,6 +458,7 @@ public:
 template<class T> struct ClassObjectMap {
   typedef std::shared_ptr<T> base_type;
   typedef std::weak_ptr<T> weak_type;
+  typedef std::map<weak_type, jsobject_ptr> map_type;
 
   static void
   set(const base_type& ptr, jsobject_ptr obj) {
@@ -467,11 +468,6 @@ template<class T> struct ClassObjectMap {
 
   static jsobject_ptr
   get(const base_type& ptr) {
-    /*std::erase_if(object_map, [](const auto& item) -> bool {
-      auto const& [key, value] = item;
-      return key.expired();
-    });*/
-
     weak_type weak(ptr);
     auto const it = object_map.find(weak);
 
@@ -479,6 +475,16 @@ template<class T> struct ClassObjectMap {
       return it->second;
 
     return nullptr;
+  }
+
+  static JSValueConst
+  getValue(const base_type& ptr) {
+    JSObject* obj;
+
+    if((obj = get(ptr)))
+      return to_js(obj);
+
+    return JS_NULL;
   }
 
   static void
@@ -536,6 +542,13 @@ template<class T>
 static inline T*
 js_alloc(JSContext* ctx) {
   return static_cast<T*>(js_malloc(ctx, sizeof(T)));
+}
+
+template<class T>
+static inline bool
+js_alloc(JSContext* ctx, T*& ref) {
+  ref = js_alloc<T>(ctx);
+  return ref != nullptr;
 }
 
 class NonOwningObjectRef {
@@ -664,6 +677,32 @@ template<class T>
 T*
 to_pointer(const std::shared_ptr<T>& ptr) {
   return ptr.get();
+}
+
+template<class T>
+JSObject*
+get_object(const std::shared_ptr<T>& ptr) {
+  return ClassObjectMap<T>::get(ptr);
+}
+
+template<class T>
+JSObject*
+get_object(const std::weak_ptr<T>& ptr) {
+  std::shared_ptr<T> sh(ptr);
+  return ClassObjectMap<T>::get(sh);
+}
+
+template<class T>
+JSObject*
+get_object(T* ptr) {
+  std::shared_ptr<T> sh(ptr);
+  return get_object(sh);
+}
+
+template<class T>
+JSValueConst
+get_value(const T& ptr) {
+  return to_js(get_object(ptr));
 }
 
 #endif /* defined(CPPUTILS_H) */
