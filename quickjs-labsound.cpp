@@ -12,6 +12,7 @@ using std::make_pair;
 using std::make_shared;
 using std::map;
 using std::min;
+using std::pair;
 using std::shared_ptr;
 using std::vector;
 using std::weak_ptr;
@@ -42,7 +43,7 @@ public:
 
 typedef shared_ptr<lab::AudioBus> AudioBufferPtr;
 typedef ClassPtr<lab::AudioContext, void> AudioContextPtr;
-typedef ClassPtr<lab::AudioDestinationNode, std::shared_ptr<lab::AudioContext>> AudioDestinationNodePtr;
+typedef ClassPtr<lab::AudioDestinationNode, shared_ptr<lab::AudioContext>> AudioDestinationNodePtr;
 typedef shared_ptr<lab::AudioListener> AudioListenerPtr;
 typedef shared_ptr<lab::AudioDevice> AudioDevicePtr;
 typedef shared_ptr<lab::AudioParam> AudioParamPtr;
@@ -93,8 +94,8 @@ template<> struct std::less<AudioBufferIndex> {
 template<class T> struct std::less<weak_ptr<T>> {
   bool
   operator()(const weak_ptr<T>& p1, const weak_ptr<T>& p2) const {
-    std::shared_ptr<T> b1(p1);
-    std::shared_ptr<T> b2(p2);
+    shared_ptr<T> b1(p1);
+    shared_ptr<T> b2(p2);
 
     return b1.get() < b2.get();
   }
@@ -107,7 +108,7 @@ template<> map<weak_ptr<lab::AudioSetting>, JSObject*> ClassObjectMap<lab::Audio
 
 typedef map<weak_ptr<lab::AudioBus>, JSObjectArray> ChannelMap;
 
-std::map<JSClassID, ClassWrapper*> ClassWrapper::ids{};
+map<JSClassID, ClassWrapper*> ClassWrapper::ids{};
 
 static ChannelMap channel_map;
 
@@ -144,7 +145,7 @@ js_audiochannel_free(JSRuntime* rt, void* opaque, void* ptr) {
   js_free_rt(rt, ac);
 }
 
-static std::pair<float*, int>
+static pair<float*, int>
 js_audiochannel_buffer(JSContext* ctx, JSValueConst value) {
   size_t size, byte_offset, byte_length, bytes_per_element;
   JSValue buffer = JS_GetTypedArrayBuffer(ctx, value, &byte_offset, &byte_length, &bytes_per_element);
@@ -490,7 +491,7 @@ js_audiobuffer_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
       if(!audiobuffer_class.opaque(ctx, argv[0], source))
         return JS_ThrowTypeError(ctx, "argument 1 must be an AudioBuffer");
 
-      (*ab)->copyWithSampleAccurateGainValuesFrom(*(*source), ptr, std::min(numberOfGainValues, len));
+      (*ab)->copyWithSampleAccurateGainValuesFrom(*(*source), ptr, min(numberOfGainValues, len));
       break;
     }
     case BUFFER_NORMALIZE: {
@@ -798,7 +799,7 @@ js_audioparam_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
     }
     case AUDIOPARAM_VALUECURVEATTIME: {
       double t, d;
-      auto curve = from_js<std::vector, float>(ctx, argv[0]);
+      auto curve = from_js<vector, float>(ctx, argv[0]);
 
       JS_ToFloat64(ctx, &t, argv[1]);
       JS_ToFloat64(ctx, &d, argv[2]);
@@ -1273,7 +1274,7 @@ js_audiocontext_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
     }
 
     case AUDIOCONTEXT_CREATEBUFFER: {
-      AudioBufferPtr ab = std::make_shared<lab::AudioBus>(from_js<int32_t>(ctx, argv[0]), from_js<int32_t>(ctx, argv[1]));
+      AudioBufferPtr ab = make_shared<lab::AudioBus>(from_js<int32_t>(ctx, argv[0]), from_js<int32_t>(ctx, argv[1]));
 
       ab->setSampleRate(argc > 2 ? from_js<double>(ctx, argv[2]) : (*ac)->sampleRate());
 
@@ -1312,75 +1313,74 @@ js_audiocontext_create(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
   if(!audiocontext_class.opaque(ctx, this_val, ac))
     return JS_EXCEPTION;
 
-  lab::AudioContext& context=*ac->get();
+  lab::AudioContext& context = *ac->get();
 
   switch(magic) {
-
     case AUDIOCONTEXT_CREATEANALYSER: {
-      node = std::make_shared<lab::AnalyserNode>(context, from_js<int32_t>(ctx, argv[0]));
+      node = make_shared<lab::AnalyserNode>(context, from_js<int32_t>(ctx, argv[0]));
       break;
     }
     case AUDIOCONTEXT_CREATEBIQUADFILTER: {
-      node = std::make_shared<lab::BiquadFilterNode>(*ac->get());
+      node = make_shared<lab::BiquadFilterNode>(*ac->get());
       break;
     }
     case AUDIOCONTEXT_CREATEBUFFERSOURCE: {
-      node = std::make_shared<lab::SampledAudioNode>(*ac->get());
+      node = make_shared<lab::SampledAudioNode>(*ac->get());
       break;
     }
     case AUDIOCONTEXT_CREATECHANNELMERGER: {
-      node = std::make_shared<lab::ChannelMergerNode>(*ac->get(), argc > 0 ? from_js<int32_t>(ctx, argv[0]) : 1);
+      node = make_shared<lab::ChannelMergerNode>(*ac->get(), argc > 0 ? from_js<int32_t>(ctx, argv[0]) : 1);
       break;
     }
     case AUDIOCONTEXT_CREATECHANNELSPLITTER: {
-      node = std::make_shared<lab::ChannelSplitterNode>(*ac->get(), argc > 0 ? from_js<int32_t>(ctx, argv[0]) : 1);
+      node = make_shared<lab::ChannelSplitterNode>(*ac->get(), argc > 0 ? from_js<int32_t>(ctx, argv[0]) : 1);
       break;
     }
     case AUDIOCONTEXT_CREATECONSTANTSOURCE: {
-      node = std::make_shared<lab::ConstantSourceNode>(*ac->get());
+      node = make_shared<lab::ConstantSourceNode>(*ac->get());
       break;
     }
     case AUDIOCONTEXT_CREATECONVOLVER: {
-      node = std::make_shared<lab::ConvolverNode>(*ac->get());
+      node = make_shared<lab::ConvolverNode>(*ac->get());
       break;
     }
     case AUDIOCONTEXT_CREATEDELAY: {
-      node = std::make_shared<lab::DelayNode>(*ac->get(), argc > 0 ? from_js<double>(ctx, argv[0]) : 2.0);
+      node = make_shared<lab::DelayNode>(*ac->get(), argc > 0 ? from_js<double>(ctx, argv[0]) : 2.0);
       break;
     }
     case AUDIOCONTEXT_CREATEDYNAMICSCOMPRESSOR: {
-      node = std::make_shared<lab::DynamicsCompressorNode>(*ac->get());
+      node = make_shared<lab::DynamicsCompressorNode>(*ac->get());
       break;
     }
     case AUDIOCONTEXT_CREATEGAIN: {
-      node = std::make_shared<lab::GainNode>(*ac->get());
+      node = make_shared<lab::GainNode>(*ac->get());
       break;
     }
     case AUDIOCONTEXT_CREATEOSCILLATOR: {
-      node = std::make_shared<lab::OscillatorNode>(*ac->get());
+      node = make_shared<lab::OscillatorNode>(*ac->get());
       break;
     }
     case AUDIOCONTEXT_CREATEPANNER: {
-      node = std::make_shared<lab::PannerNode>(*ac->get());
+      node = make_shared<lab::PannerNode>(*ac->get());
       break;
     }
 
     case AUDIOCONTEXT_CREATESTEREOPANNER: {
-      node = std::make_shared<lab::StereoPannerNode>(*ac->get());
+      node = make_shared<lab::StereoPannerNode>(*ac->get());
       break;
     }
     case AUDIOCONTEXT_CREATEWAVESHAPER: {
-      node = std::make_shared<lab::WaveShaperNode>(*ac->get());
+      node = make_shared<lab::WaveShaperNode>(*ac->get());
       break;
     }
   }
 
-if(bool(node)) {
-  AudioNodePtr anodeptr(node, *ac);
-  return js_audionode_wrap(ctx, anodeptr);
-}
+  if(bool(node)) {
+    AudioNodePtr anodeptr(node, *ac);
+    return js_audionode_wrap(ctx, anodeptr);
+  }
 
-return JS_ThrowTypeError(ctx, "create");
+  return JS_ThrowTypeError(ctx, "create");
 }
 
 enum {
@@ -2176,7 +2176,7 @@ js_audionode_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
   if(!audionode_class.opaque(ctx, this_val, an))
     return JS_EXCEPTION;
 
-  std::shared_ptr<lab::AudioContext> ac(an->value);
+  shared_ptr<lab::AudioContext> ac(an->value);
 
   switch(magic) {
 
@@ -2412,15 +2412,15 @@ js_audionode_get(JSContext* ctx, JSValueConst this_val, int magic) {
       break;
     }
     case AUDIONODE_PARAMNAMES: {
-      std::vector<std::string> names((*an)->paramNames());
+      vector<std::string> names((*an)->paramNames());
 
-      ret = to_js<std::vector, std::string>(ctx, names);
+      ret = to_js<vector, std::string>(ctx, names);
       break;
     }
     case AUDIONODE_PARAMSHORTNAMES: {
-      std::vector<std::string> names((*an)->paramShortNames());
+      vector<std::string> names((*an)->paramShortNames());
 
-      ret = to_js<std::vector, std::string>(ctx, names);
+      ret = to_js<vector, std::string>(ctx, names);
       break;
     }
     case AUDIONODE_SETTINGNAMES: {
