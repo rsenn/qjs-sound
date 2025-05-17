@@ -1084,18 +1084,20 @@ enum {
   AUDIOSETTING_ENUMS,
 };
 
+static auto
+audiosetting_enums(lab::AudioSetting& as) {
+  const char* const* ptr = as.enums();
+
+  return std::ranges::subrange<decltype(ptr)>{ptr, ptr + size(ptr)};
+}
+
 static int32_t
 audiosetting_enumeration(lab::AudioSetting& as, const char* str) {
-  const char* const* ptr;
+  auto range = audiosetting_enums(as);
+  auto it = std::ranges::find_if(range, [str](const char* enval) -> bool { return !strcasecmp(str, enval); });
 
-  if((ptr = as.enums())) {
-    const std::ranges::subrange<decltype(ptr)> rv{ptr, ptr + size(ptr)};
-
-    auto it = std::ranges::find_if(rv, [str](const char* enval) -> bool { return !strcasecmp(str, enval); });
-
-    if(it != rv.end())
-      return std::distance(rv.begin(), it);
-  }
+  if(it != range.end())
+    return std::distance(range.begin(), it);
 
   return -1;
 }
