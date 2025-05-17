@@ -10,6 +10,7 @@
 
 using std::make_pair;
 using std::make_shared;
+using std::make_unique;
 using std::map;
 using std::min;
 using std::pair;
@@ -43,7 +44,7 @@ typedef ClassPtr<lab::AudioContext, void> AudioContextPtr;
 typedef ClassPtr<lab::AudioDestinationNode, shared_ptr<lab::AudioContext>> AudioDestinationNodePtr;
 typedef shared_ptr<lab::AudioListener> AudioListenerPtr;
 typedef shared_ptr<lab::AudioDevice> AudioDevicePtr;
-typedef ClassPtr<lab::AudioParam, lab::AudioParamDescriptor*> AudioParamPtr;
+typedef ClassPtr<lab::AudioParam, shared_ptr<lab::AudioParamDescriptor>> AudioParamPtr;
 typedef shared_ptr<lab::AudioSetting> AudioSettingPtr;
 typedef shared_ptr<lab::AudioSummingJunction> AudioSummingJunctionPtr;
 typedef shared_ptr<lab::AudioNodeInput> AudioNodeInputPtr;
@@ -722,6 +723,17 @@ js_audioparam_descriptor(JSContext* ctx, JSValueConst obj) {
   };
 }
 
+static lab::AudioParamDescriptor
+js_audioparam_descriptor(JSContext* ctx, int argc, JSValueConst argv[]) {
+  return (lab::AudioParamDescriptor){
+      from_js<char*>(ctx, argv[0]),
+      from_js<char*>(ctx, argv[1]),
+      from_js<double>(ctx, argv[2]),
+      from_js<double>(ctx, argv[3]),
+      from_js<double>(ctx, argv[4]),
+  };
+}
+
 static JSValue
 js_audioparam_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
   AudioParamPtr* ap;
@@ -729,21 +741,9 @@ js_audioparam_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSV
   if(!js_alloc(ctx, ap))
     return JS_EXCEPTION;
 
-  lab::AudioParamDescriptor* desc;
+  auto desc = make_shared<lab::AudioParamDescriptor>(argc >= 5 ? js_audioparam_descriptor(ctx, argc, argv) : js_audioparam_descriptor(ctx, argv[0]));
 
-  if(argc >= 5) {
-    desc = new lab::AudioParamDescriptor(lab::AudioParamDescriptor{
-        from_js<char*>(ctx, argv[0]),
-        from_js<char*>(ctx, argv[1]),
-        from_js<double>(ctx, argv[2]),
-        from_js<double>(ctx, argv[3]),
-        from_js<double>(ctx, argv[4]),
-    });
-  } else {
-    desc = new lab::AudioParamDescriptor(js_audioparam_descriptor(ctx, argv[0]));
-  }
-
-  new(ap) AudioParamPtr(make_shared<lab::AudioParam>(desc), desc);
+  new(ap) AudioParamPtr(make_shared<lab::AudioParam>(desc.get()), desc);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
@@ -770,7 +770,7 @@ fail:
 }
 
 static JSValue
-js_audioparam_new(JSContext* ctx, JSValueConst new_target, AudioParamPtr& aparam) {
+js_audioparam_wrap(JSContext* ctx, JSValueConst proto, AudioParamPtr& aparam) {
   AudioParamPtr* ap;
 
   if(!js_alloc(ctx, ap))
@@ -779,16 +779,7 @@ js_audioparam_new(JSContext* ctx, JSValueConst new_target, AudioParamPtr& aparam
   new(ap) AudioParamPtr(aparam);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
-  JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
-    goto fail;
-
-  if(!JS_IsObject(proto))
-    proto = JS_DupValue(ctx, audioparam_class.proto);
-
-  /* using new_target to get the prototype is necessary when the class is extended. */
-  obj = JS_NewObjectProtoClass(ctx, proto, audioparam_class);
-  JS_FreeValue(ctx, proto);
+  JSValue obj = JS_NewObjectProtoClass(ctx, proto, audioparam_class);
 
   if(JS_IsException(obj))
     goto fail;
@@ -809,7 +800,7 @@ js_audioparam_wrap(JSContext* ctx, AudioParamPtr& aparam) {
   if((obj = ClassObjectMap<lab::AudioParam>::get(aparam)))
     return JS_DupValue(ctx, to_js(obj));
 
-  return js_audioparam_new(ctx, audioparam_class.ctor, aparam);
+  return js_audioparam_wrap(ctx, audioparam_class.proto, aparam);
 }
 
 enum {
@@ -880,7 +871,6 @@ js_audioparam_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
       ret = JS_DupValue(ctx, this_val);
       break;
     }
-
     case AUDIOPARAM_TOPRIMITIVE: {
       ret = to_js<double>(ctx, (*ap)->value());
       break;
@@ -892,11 +882,11 @@ js_audioparam_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
 
 enum {
   AUDIOPARAM_NAME,
-  AUDIOPARAM_VALUE,
   AUDIOPARAM_SHORTNAME,
   AUDIOPARAM_DEFAULTVALUE,
   AUDIOPARAM_MAXVALUE,
   AUDIOPARAM_MINVALUE,
+  AUDIOPARAM_VALUE,
   AUDIOPARAM_SMOOTHED,
 };
 
@@ -913,10 +903,7 @@ js_audioparam_get(JSContext* ctx, JSValueConst this_val, int magic) {
       ret = to_js<std::string>(ctx, (*ap)->name());
       break;
     }
-    case AUDIOPARAM_VALUE: {
-      ret = to_js<double>(ctx, (*ap)->value());
-      break;
-    }
+
     case AUDIOPARAM_SHORTNAME: {
       ret = to_js<std::string>(ctx, (*ap)->shortName());
       break;
@@ -933,6 +920,10 @@ js_audioparam_get(JSContext* ctx, JSValueConst this_val, int magic) {
       ret = to_js<double>(ctx, (*ap)->minValue());
       break;
     }
+    case AUDIOPARAM_VALUE: {
+      ret = to_js<double>(ctx, (*ap)->value());
+      break;
+    }
     case AUDIOPARAM_SMOOTHED: {
       ret = to_js<double>(ctx, (*ap)->smoothedValue());
       break;
@@ -945,7 +936,6 @@ js_audioparam_get(JSContext* ctx, JSValueConst this_val, int magic) {
 static JSValue
 js_audioparam_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
   AudioParamPtr* ap;
-  JSValue ret = JS_UNDEFINED;
 
   if(!audioparam_class.opaque(ctx, this_val, ap))
     return JS_EXCEPTION;
@@ -959,7 +949,7 @@ js_audioparam_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int
     }
   }
 
-  return ret;
+  return JS_UNDEFINED;
 }
 
 static void
@@ -1008,7 +998,7 @@ static const char* js_audiosetting_types[] = {
 };
 
 static JSValue
-js_audiosetting_new(JSContext* ctx, JSValueConst new_target, AudioSettingPtr& setting) {
+js_audiosetting_wrap(JSContext* ctx, JSValueConst proto, AudioSettingPtr& setting) {
   AudioSettingPtr* as;
 
   if(!js_alloc(ctx, as))
@@ -1017,16 +1007,7 @@ js_audiosetting_new(JSContext* ctx, JSValueConst new_target, AudioSettingPtr& se
   new(as) AudioSettingPtr(setting);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
-  JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
-    goto fail;
-
-  if(!JS_IsObject(proto))
-    proto = JS_DupValue(ctx, audiosetting_class.proto);
-
-  /* using new_target to get the prototype is necessary when the class is extended. */
-  obj = JS_NewObjectProtoClass(ctx, proto, audiosetting_class);
-  JS_FreeValue(ctx, proto);
+  JSValue obj = JS_NewObjectProtoClass(ctx, proto, audiosetting_class);
 
   if(JS_IsException(obj))
     goto fail;
@@ -1047,7 +1028,7 @@ js_audiosetting_wrap(JSContext* ctx, AudioSettingPtr& setting) {
   if((obj = ClassObjectMap<lab::AudioSetting>::get(setting)))
     return JS_DupValue(ctx, to_js(obj));
 
-  return js_audiosetting_new(ctx, audiosetting_class.ctor, setting);
+  return js_audiosetting_wrap(ctx, audiosetting_class.proto, setting);
 }
 
 enum {
@@ -1067,8 +1048,6 @@ js_audiosetting_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
     case AUDIOSETTING_TOPRIMITIVE: {
       auto hint = argc > 0 ? from_js<std::string>(ctx, argv[0]) : std::string();
       auto type = (*as)->type();
-
-      std::cout << "hint: " << hint << std::endl;
 
       if(hint != "number" && type == lab::SettingType::Enum) {
         ret = JS_NewString(ctx, (*as)->enums()[(*as)->valueUint32()]);
@@ -1104,6 +1083,22 @@ enum {
   AUDIOSETTING_VALUE,
   AUDIOSETTING_ENUMS,
 };
+
+static int32_t
+audiosetting_enumeration(lab::AudioSetting& as, const char* str) {
+  const char* const* ptr;
+
+  if((ptr = as.enums())) {
+    const std::ranges::subrange<decltype(ptr)> rv{ptr, ptr + size(ptr)};
+
+    auto it = std::ranges::find_if(rv, [str](const char* enval) -> bool { return !strcasecmp(str, enval); });
+
+    if(it != rv.end())
+      return std::distance(rv.begin(), it);
+  }
+
+  return -1;
+}
 
 static JSValue
 js_audiosetting_get(JSContext* ctx, JSValueConst this_val, int magic) {
@@ -1162,10 +1157,9 @@ js_audiosetting_get(JSContext* ctx, JSValueConst this_val, int magic) {
       const char* const* ptr;
 
       if((ptr = (*as)->enums())) {
-        ret = JS_NewArray(ctx);
+        const std::ranges::subrange<decltype(ptr)> rv{ptr, ptr + size(ptr)};
 
-        for(uint32_t i = 0; ptr[i]; ++i)
-          JS_SetPropertyUint32(ctx, ret, i, JS_NewString(ctx, ptr[i]));
+        ret = to_js(ctx, rv);
       }
 
       break;
@@ -1206,8 +1200,13 @@ js_audiosetting_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, i
 
           if(JS_IsNumber(value))
             (*as)->setEnumeration(from_js<uint32_t>(ctx, value));
-          else if((str = JS_ToCString(ctx, value)))
-            (*as)->setEnumeration(str);
+          else if((str = JS_ToCString(ctx, value))) {
+            int val = audiosetting_enumeration(*as->get(), str);
+            if(val >= 0)
+              (*as)->setEnumeration(val);
+            else
+              (*as)->setEnumeration(str);
+          }
 
           break;
         }
@@ -1324,7 +1323,7 @@ fail:
 }
 
 static JSValue
-js_audiocontext_new(JSContext* ctx, JSValueConst proto, AudioContextPtr& context) {
+js_audiocontext_wrap(JSContext* ctx, JSValueConst proto, AudioContextPtr& context) {
   AudioContextPtr* ac;
 
   if(!js_alloc(ctx, ac))
@@ -1334,7 +1333,6 @@ js_audiocontext_new(JSContext* ctx, JSValueConst proto, AudioContextPtr& context
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   JSValue obj = JS_NewObjectProtoClass(ctx, proto, audiocontext_class);
-  JS_FreeValue(ctx, proto);
 
   if(JS_IsException(obj))
     goto fail;
@@ -1357,7 +1355,7 @@ js_audiocontext_wrap(JSContext* ctx, AudioContextPtr& context) {
   if((obj = ClassObjectMap<lab::AudioContext>::get(context)))
     return JS_DupValue(ctx, to_js(obj));
 
-  return js_audiocontext_new(ctx, audiocontext_class.proto, context);
+  return js_audiocontext_wrap(ctx, audiocontext_class.proto, context);
 }
 
 enum {
@@ -1626,7 +1624,6 @@ js_audiolistener_wrap(JSContext* ctx, JSValueConst proto, AudioListenerPtr& list
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   JSValue obj = JS_NewObjectProtoClass(ctx, proto, audiolistener_class);
-  JS_FreeValue(ctx, proto);
 
   if(JS_IsException(obj))
     goto fail;
@@ -1805,7 +1802,6 @@ js_audiodevice_wrap(JSContext* ctx, JSValueConst proto, AudioDevicePtr& device) 
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   JSValue obj = JS_NewObjectProtoClass(ctx, proto, audiodevice_class);
-  JS_FreeValue(ctx, proto);
 
   if(JS_IsException(obj))
     goto fail;
@@ -1944,7 +1940,6 @@ js_audionodeinput_wrap(JSContext* ctx, JSValueConst proto, AudioNodeInputPtr& no
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   JSValue obj = JS_NewObjectProtoClass(ctx, proto, audionodeinput_class);
-  JS_FreeValue(ctx, proto);
 
   if(JS_IsException(obj))
     goto fail;
@@ -2081,7 +2076,6 @@ js_audionodeoutput_wrap(JSContext* ctx, JSValueConst proto, AudioNodeOutputPtr& 
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   JSValue obj = JS_NewObjectProtoClass(ctx, proto, audionodeoutput_class);
-  JS_FreeValue(ctx, proto);
 
   if(JS_IsException(obj))
     goto fail;
@@ -2234,7 +2228,7 @@ static const JSCFunctionListEntry js_audionodeoutput_methods[] = {
 };
 
 static JSValue
-js_audionode_wrap(JSContext* ctx, JSValueConst new_target, const AudioNodePtr& anode) {
+js_audionode_wrap(JSContext* ctx, JSValueConst proto, const AudioNodePtr& anode) {
   AudioNodePtr* an;
 
   if(!js_alloc(ctx, an))
@@ -2243,16 +2237,7 @@ js_audionode_wrap(JSContext* ctx, JSValueConst new_target, const AudioNodePtr& a
   new(an) AudioNodePtr(static_cast<const shared_ptr<lab::AudioNode>&>(anode), anode.value);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
-  JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
-    goto fail;
-
-  if(!JS_IsObject(proto))
-    proto = JS_DupValue(ctx, audionode_class.proto);
-
-  /* using new_target to get the prototype is necessary when the class is extended. */
-  obj = JS_NewObjectProtoClass(ctx, proto, audionode_class);
-  JS_FreeValue(ctx, proto);
+  JSValue obj = JS_NewObjectProtoClass(ctx, proto, audionode_class);
 
   if(JS_IsException(obj))
     goto fail;
@@ -2267,7 +2252,7 @@ fail:
 
 static JSValue
 js_audionode_wrap(JSContext* ctx, const AudioNodePtr& anode) {
-  return js_audionode_wrap(ctx, audionode_class.ctor, anode);
+  return js_audionode_wrap(ctx, audionode_class.proto, anode);
 }
 
 enum {
@@ -2645,9 +2630,7 @@ js_audionode_get_own_property(JSContext* ctx, JSPropertyDescriptor* pdesc, JSVal
   JSValue value = JS_UNDEFINED, proto = JS_GetPrototype(ctx, obj);
 
   if(JS_HasProperty(ctx, proto, prop)) {
-    // value = JS_GetProperty(ctx, obj, prop);
-
-    return FALSE;
+    ret = false;
 
   } else if((key = JS_AtomToCString(ctx, prop))) {
     int index;
@@ -2723,53 +2706,15 @@ js_audionode_set_property(JSContext* ctx, JSValueConst obj, JSAtom prop, JSValue
   JSValue proto = JS_GetPrototype(ctx, obj);
 
   if(JS_HasProperty(ctx, proto, prop)) {
-    return FALSE;
-    // JS_SetPropertyInternal(ctx, obj, prop, JS_DupValue(ctx, value), obj, 0);
-  } else if((key = JS_AtomToCString(ctx, prop))) {
-    int index;
-
-    if((index = (*an)->param_index(key)) >= 0) {
-      AudioParamPtr ap((*an)->param(index), nullptr);
-
-      if((ret = bool(ap)))
-        ap->setValue(from_js<double>(ctx, value));
-    } else if((index = (*an)->setting_index(key)) >= 0) {
-      AudioSettingPtr as((*an)->setting(index));
-
-      if((ret = bool(as))) {
-        switch(as->type()) {
-          case lab::SettingType::Bool: {
-            as->setBool(from_js<BOOL>(ctx, value));
-            break;
-          }
-          case lab::SettingType::Integer: {
-            as->setUint32(from_js<uint32_t>(ctx, value));
-            break;
-          }
-          case lab::SettingType::Float: {
-            as->setFloat(from_js<double>(ctx, value));
-            break;
-          }
-          case lab::SettingType::Enum: {
-            if(JS_IsString(value)) {
-              auto str = from_js<std::string>(ctx, value);
-              int en;
-
-              if((en = as->enumFromName(str.c_str())) >= 0)
-                as->setUint32(en);
-            } else {
-              as->setUint32(from_js<uint32_t>(ctx, value));
-            }
-
-            break;
-          }
-        }
-      }
-    }
-
-    JS_FreeCString(ctx, key);
+    ret = false;
+  } else if(js_audionode_has_property(ctx, obj, prop)) {
+    JSValue param = JS_GetProperty(ctx, obj, prop);
+    JS_SetPropertyStr(ctx, param, "value", JS_DupValue(ctx, value));
+    JS_FreeValue(ctx, param);
+    ret = true;
   }
 
+  JS_FreeValue(ctx, proto);
   return ret;
 }
 
@@ -2870,7 +2815,6 @@ js_audiodestinationnode_wrap(JSContext* ctx, JSValueConst proto, AudioDestinatio
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   JSValue obj = JS_NewObjectProtoClass(ctx, proto, audiodestinationnode_class);
-  JS_FreeValue(ctx, proto);
 
   if(JS_IsException(obj))
     goto fail;
@@ -2984,7 +2928,6 @@ js_audioscheduledsourcenode_wrap(JSContext* ctx, JSValueConst proto, AudioSchedu
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   JSValue obj = JS_NewObjectProtoClass(ctx, proto, audioscheduledsourcenode_class);
-  JS_FreeValue(ctx, proto);
 
   if(JS_IsException(obj))
     goto fail;

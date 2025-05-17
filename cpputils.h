@@ -6,6 +6,7 @@
 #include <vector>
 #include <string>
 #include <ranges>
+#include <iterator>
 
 #include "LabSound/LabSound.h"
 
@@ -266,9 +267,23 @@ to_js<float>(JSContext* ctx, const float& f) {
   return JS_NewFloat64(ctx, f);
 }
 
+template<class Range>
+inline JSValue
+to_js(JSContext* ctx, const Range& container) {
+
+  typedef std::iter_value_t<std::ranges::iterator_t<Range>> value_type;
+  uint32_t i = 0;
+  JSValue ret = JS_NewArray(ctx);
+
+  for(auto val : container)
+    JS_SetPropertyUint32(ctx, ret, i++, to_js<value_type>(ctx, val));
+
+  return ret;
+}
+
 template<template<class> class Container, class Input>
 inline JSValue
-to_js(JSContext* ctx, const Container<Input>& container) {
+to_js(JSContext* ctx, const Container<Input>& container, const typename Container<Input>::value_type* tn = 0) {
   uint32_t i = 0;
   JSValue ret = JS_NewArray(ctx);
 
@@ -728,5 +743,34 @@ JSValueConst
 get_value(const T& ptr) {
   return to_js(get_object(ptr));
 }
+template<class T>
+ptrdiff_t
+size(T* const* ptr) {
+  T* const* start = ptr;
+  while(*ptr)
+    ++ptr;
+  return ptr - start;
+}
+
+namespace std {
+namespace ranges {
+
+/*template<class T>
+auto
+begin(T* const* ptr) {
+  return ptr;
+}
+
+template<class T>
+auto
+end(T* const* ptr) {
+  while(*ptr)
+    ++ptr;
+
+  return ptr;
+}*/
+
+} // namespace ranges
+} // namespace std
 
 #endif /* defined(CPPUTILS_H) */
