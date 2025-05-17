@@ -17,7 +17,7 @@ using std::shared_ptr;
 using std::vector;
 using std::weak_ptr;
 
-static ClassWrapper audiobuffer_class, audiocontext_class, audiolistener_class, audiodevice_class, audionodeinput_class, audionodeoutput_class, audionode_class, audiodestinationnode_class,
+ClassWrapper audiobuffer_class, audiocontext_class, audiolistener_class, audiodevice_class, audionodeinput_class, audionodeoutput_class, audionode_class, audiodestinationnode_class,
     audioscheduledsourcenode_class, oscillatornode_class, audiosummingjunction_class, audiobuffersourcenode_class, audioparam_class, audiosetting_class;
 
 class DestinationNode : public lab::AudioDestinationNode {
@@ -60,7 +60,7 @@ typedef vector<JSObjectPtr> JSObjectArray;
 
 static JSObjectArray* js_audiobuffer_channels(JSContext*, const AudioBufferPtr&);
 
-static JSValue js_audionode_wrap(JSContext*, AudioNodePtr&);
+static JSValue js_audionode_wrap(JSContext*, const AudioNodePtr&);
 static JSValue js_audiolistener_wrap(JSContext*, AudioListenerPtr&);
 static JSValue js_audiodestinationnode_wrap(JSContext*, AudioDestinationNodePtr&);
 static JSValue js_audiodevice_constructor(JSContext*, JSValueConst, int, JSValueConst[]);
@@ -104,7 +104,9 @@ template<> ClassObjectMap<lab::AudioSetting>::map_type ClassObjectMap<lab::Audio
 
 typedef map<weak_ptr<lab::AudioBus>, JSObjectArray> ChannelMap;
 
-map<JSClassID, ClassWrapper*> ClassWrapper::ids{};
+// map<JSClassID, ClassWrapper*> ClassWrapper::ids{};
+ClassWrapper* ClassWrapper::wrappers{nullptr};
+ClassWrapper** ClassWrapper::wrapper_ptr{&ClassWrapper::wrappers};
 
 static ChannelMap channel_map;
 
@@ -336,7 +338,7 @@ js_audiobuffer_constructor(JSContext* ctx, JSValueConst new_target, int argc, JS
     goto fail;
 
   if(!JS_IsObject(proto))
-    proto = audiobuffer_class.proto;
+    proto = JS_DupValue(ctx, audiobuffer_class.proto);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   obj = JS_NewObjectProtoClass(ctx, proto, audiobuffer_class);
@@ -727,7 +729,7 @@ js_audioparam_new(JSContext* ctx, JSValueConst new_target, AudioParamPtr& aparam
     goto fail;
 
   if(!JS_IsObject(proto))
-    proto = audioparam_class.proto;
+    proto = JS_DupValue(ctx, audioparam_class.proto);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   obj = JS_NewObjectProtoClass(ctx, proto, audioparam_class);
@@ -966,7 +968,7 @@ js_audiosetting_new(JSContext* ctx, JSValueConst new_target, AudioSettingPtr& se
     goto fail;
 
   if(!JS_IsObject(proto))
-    proto = audiosetting_class.proto;
+    proto = JS_DupValue(ctx, audiosetting_class.proto);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   obj = JS_NewObjectProtoClass(ctx, proto, audiosetting_class);
@@ -1177,7 +1179,7 @@ js_audiocontext_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
     goto fail;
 
   if(!JS_IsObject(proto))
-    proto = audiocontext_class.proto;
+    proto = JS_DupValue(ctx, audiocontext_class.proto);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   obj = JS_NewObjectProtoClass(ctx, proto, audiocontext_class);
@@ -1559,7 +1561,7 @@ js_audiolistener_constructor(JSContext* ctx, JSValueConst new_target, int argc, 
     goto fail;
 
   if(!JS_IsObject(proto))
-    proto = audiolistener_class.proto;
+    proto = JS_DupValue(ctx, audiolistener_class.proto);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   obj = JS_NewObjectProtoClass(ctx, proto, audiolistener_class);
@@ -1673,7 +1675,7 @@ js_audiodevice_constructor(JSContext* ctx, JSValueConst new_target, int argc, JS
     goto fail;
 
   if(!JS_IsObject(proto))
-    proto = audiodevice_class.proto;
+    proto = JS_DupValue(ctx, audiodevice_class.proto);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   obj = JS_NewObjectProtoClass(ctx, proto, audiodevice_class);
@@ -1888,7 +1890,7 @@ js_audionodeinput_constructor(JSContext* ctx, JSValueConst new_target, int argc,
     goto fail;
 
   if(!JS_IsObject(proto))
-    proto = audionodeinput_class.proto;
+    proto = JS_DupValue(ctx, audionodeinput_class.proto);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   obj = JS_NewObjectProtoClass(ctx, proto, audionodeinput_class);
@@ -2041,7 +2043,7 @@ js_audionodeoutput_constructor(JSContext* ctx, JSValueConst new_target, int argc
     goto fail;
 
   if(!JS_IsObject(proto))
-    proto = audionodeoutput_class.proto;
+    proto = JS_DupValue(ctx, audionodeoutput_class.proto);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   obj = JS_NewObjectProtoClass(ctx, proto, audionodeoutput_class);
@@ -2138,14 +2140,14 @@ static const JSCFunctionListEntry js_audionodeoutput_methods[] = {
 };
 
 static JSValue
-js_audionode_wrap(JSContext* ctx, JSValueConst new_target, AudioNodePtr& anode) {
+js_audionode_wrap(JSContext* ctx, JSValueConst new_target, const AudioNodePtr& anode) {
   JSValue proto, obj = JS_UNDEFINED;
   AudioNodePtr* an;
 
   if(!js_alloc(ctx, an))
     return JS_EXCEPTION;
 
-  new(an) AudioNodePtr(anode, anode.value);
+  new(an) AudioNodePtr(static_cast<const shared_ptr<lab::AudioNode>&>(anode), anode.value);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   proto = JS_GetPropertyStr(ctx, new_target, "prototype");
@@ -2153,7 +2155,7 @@ js_audionode_wrap(JSContext* ctx, JSValueConst new_target, AudioNodePtr& anode) 
     goto fail;
 
   if(!JS_IsObject(proto))
-    proto = audionode_class.proto;
+    proto = JS_DupValue(ctx, audionode_class.proto);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   obj = JS_NewObjectProtoClass(ctx, proto, audionode_class);
@@ -2171,7 +2173,7 @@ fail:
 }
 
 static JSValue
-js_audionode_wrap(JSContext* ctx, AudioNodePtr& anode) {
+js_audionode_wrap(JSContext* ctx, const AudioNodePtr& anode) {
   return js_audionode_wrap(ctx, audionode_class.ctor, anode);
 }
 
@@ -2738,7 +2740,7 @@ js_audiodestinationnode_constructor(JSContext* ctx, JSValueConst new_target, int
     goto fail;
 
   if(!JS_IsObject(proto))
-    proto = audiodestinationnode_class.proto;
+    proto = JS_DupValue(ctx, audiodestinationnode_class.proto);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   obj = JS_NewObjectProtoClass(ctx, proto, audiodestinationnode_class);
@@ -3016,7 +3018,7 @@ js_oscillatornode_constructor(JSContext* ctx, JSValueConst new_target, int argc,
     goto fail;
 
   if(!JS_IsObject(proto))
-    proto = oscillatornode_class.proto;
+    proto = JS_DupValue(ctx, oscillatornode_class.proto);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   obj = JS_NewObjectProtoClass(ctx, proto, oscillatornode_class);
@@ -3218,7 +3220,7 @@ js_audiosummingjunction_constructor(JSContext* ctx, JSValueConst new_target, int
     goto fail;
 
   if(!JS_IsObject(proto))
-    proto = audiosummingjunction_class.proto;
+    proto = JS_DupValue(ctx, audiosummingjunction_class.proto);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   obj = JS_NewObjectProtoClass(ctx, proto, audiosummingjunction_class);
@@ -3336,7 +3338,7 @@ js_audiobuffersourcenode_constructor(JSContext* ctx, JSValueConst new_target, in
     goto fail;
 
   if(!JS_IsObject(proto))
-    proto = audiobuffersourcenode_class.proto;
+    proto = JS_DupValue(ctx, audiobuffersourcenode_class.proto);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   obj = JS_NewObjectProtoClass(ctx, proto, audiobuffersourcenode_class);

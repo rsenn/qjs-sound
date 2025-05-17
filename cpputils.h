@@ -282,8 +282,10 @@ js_has_property(JSContext* ctx, JSValueConst obj, const char* name) {
 class ClassWrapper {
 private:
   JSClassID cid{0};
-  ClassWrapper* parent;
+  ClassWrapper *next{nullptr}, *parent{nullptr};
   std::vector<ClassWrapper*> descendants;
+
+  static ClassWrapper *wrappers, **wrapper_ptr;
 
 public:
   mutable JSValue ctor{JS_UNDEFINED}, proto{JS_UNDEFINED};
@@ -299,20 +301,17 @@ public:
     return class_def ? class_def->class_name : nullptr;
   }
 
-  ~ClassWrapper() {
-    auto const it = ClassWrapper::ids.find(cid);
-
-    if(it != ClassWrapper::ids.end())
-      ClassWrapper::ids.erase(it);
-  }
+  ~ClassWrapper() {}
 
   ClassWrapper&
   init() {
     if(!initialized()) {
       JS_NewClassID(&cid);
 
-      ClassWrapper::ids[cid] = this;
+      *wrapper_ptr = this;
+      wrapper_ptr = &next;
     }
+
     return *this;
   }
 
@@ -352,15 +351,12 @@ public:
 
   static ClassWrapper*
   get(JSClassID cid) {
-    auto const it = ClassWrapper::ids.find(cid);
-
-    if(it != ClassWrapper::ids.end())
-      return it->second;
+    for(ClassWrapper* ptr = ClassWrapper::wrappers; ptr; ptr = ptr->next)
+      if(ptr->cid == cid)
+        return ptr;
 
     return nullptr;
   }
-
-  static std::map<JSClassID, ClassWrapper*> ids;
 
   /* clang-format off */
 
