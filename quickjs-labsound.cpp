@@ -729,7 +729,20 @@ js_audioparam_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSV
   if(!js_alloc(ctx, ap))
     return JS_EXCEPTION;
 
-  auto* desc = new lab::AudioParamDescriptor(js_audioparam_descriptor(ctx, argv[0]));
+  lab::AudioParamDescriptor* desc;
+
+  if(argc >= 5) {
+    lab::AudioParamDescriptor descriptor{
+        from_js<char*>(ctx, argv[0]),
+        from_js<char*>(ctx, argv[1]),
+        from_js<double>(ctx, argv[2]),
+        from_js<double>(ctx, argv[3]),
+        from_js<double>(ctx, argv[4]),
+    };
+    desc = new lab::AudioParamDescriptor(descriptor);
+  } else {
+    desc = new lab::AudioParamDescriptor(js_audioparam_descriptor(ctx, argv[0]));
+  }
 
   new(ap) AudioParamPtr(make_shared<lab::AudioParam>(desc), desc);
 
