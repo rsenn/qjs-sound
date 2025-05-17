@@ -1388,6 +1388,9 @@ js_audiocontext_create(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
 
   if(bool(node)) {
     AudioNodePtr anodeptr(node, *ac);
+
+    std::cout << "use_count = " << node.use_count() << std::endl;
+
     return js_audionode_wrap(ctx, anodeptr);
   }
 
