@@ -337,14 +337,12 @@ public:
 
   void
   setProtoConstructor(JSContext* ctx) const {
-    if(JS_IsUndefined(ctor))
-      ctor = JS_NewObjectProto(ctx, JS_NULL);
+    if(JS_IsObject(proto) || JS_IsNull(proto)) {
+      JS_SetClassProto(ctx, cid, proto);
 
-    if(JS_IsUndefined(proto))
-      ctor = JS_NewObjectProto(ctx, JS_NULL);
-
-    JS_SetClassProto(ctx, cid, proto);
-    JS_SetConstructor(ctx, ctor, proto);
+      if(JS_IsObject(ctor) && !JS_IsNull(proto))
+        JS_SetConstructor(ctx, ctor, proto);
+    }
   }
 
   static ClassWrapper*
