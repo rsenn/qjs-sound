@@ -64,6 +64,15 @@ from_js<std::string>(JSContext* ctx, JSValueConst val) {
   return ret;
 }
 
+template<class T>
+inline T
+from_js(JSContext* ctx, JSAtom atom) {
+  JSValue value = JS_AtomToValue(ctx, atom);
+  T ret = from_js<T>(ctx, value);
+  JS_FreeValue(ctx, value);
+  return ret;
+}
+
 template<class Output>
 inline Output
 from_js(JSValueConst val) {
@@ -267,23 +276,64 @@ js_has_property(JSContext* ctx, JSValueConst obj, const char* name) {
   return ret;
 }
 
-/*! \class ClassId
+/*! \class ClassWrapper
  *  \brief JSClassID container
  */
-struct ClassId {
-  ClassId&
+struct ClassWrapper {
+  const char* name;
+  JSValue ctor, proto;
+
+  bool
+  initialized() const {
+    return cid != -1;
+  }
+
+  ~ClassWrapper() {
+    auto const it = ClassWrapper::ids.find(cid);
+
+    if(it != ClassWrapper::ids.end())
+      ClassWrapper::ids.erase(it);
+  }
+
+  ClassWrapper&
   init() {
-    JS_NewClassID(&cid);
+    if(!initialized()) {
+      JS_NewClassID(&cid);
+
+      ClassWrapper::ids[cid] = this;
+    }
     return *this;
   }
 
-  ClassId&
-  inherit(ClassId& p) {
-    for(ClassId* ptr = parent = &p; ptr; ptr = ptr->parent)
+  ClassWrapper&
+  init(JSContext* ctx, const JSClassDef* def) {
+    if(!initialized()) {
+      name = def->class_name;
+      init();
+      JS_NewClass(JS_GetRuntime(ctx), cid, def);
+    }
+    return *this;
+  }
+
+  ClassWrapper&
+  inherit(ClassWrapper& p) {
+    for(ClassWrapper* ptr = parent = &p; ptr; ptr = ptr->parent)
       ptr->descendants.push_back(this);
 
     return *this;
   }
+
+  static ClassWrapper*
+  get(JSClassID cid) {
+    auto const it = ClassWrapper::ids.find(cid);
+
+    if(it != ClassWrapper::ids.end())
+      return it->second;
+
+    return nullptr;
+  }
+
+  static std::map<JSClassID, ClassWrapper*> ids;
 
   /* clang-format off */
 
@@ -292,20 +342,20 @@ struct ClassId {
 
   /* clang-format on */
 
-  template<class RetType>
+  /*template<class RetType>
   auto
-  recurse(const std::function<RetType(const ClassId&)>& fn) const -> RetType {
+  recurse(const std::function<RetType(const ClassWrapper&)>& fn) const -> RetType {
     RetType r;
 
     if((r = fn(*this)))
       return r;
 
-    for(ClassId* cidp : descendants)
+    for(ClassWrapper* cidp : descendants)
       if((r = cidp->recurse(fn)))
         return r;
 
     return r;
-  }
+  }*/
 
   template<class T = void>
   T*
@@ -315,7 +365,7 @@ struct ClassId {
     if((ptr = static_cast<T*>(JS_GetOpaque(val, cid))))
       return ptr;
 
-    for(ClassId* cidp : descendants)
+    for(ClassWrapper* cidp : descendants)
       if((ptr = static_cast<T*>(JS_GetOpaque(val, *cidp))))
         return ptr;
 
@@ -334,28 +384,48 @@ struct ClassId {
     if(!JS_IsObject(JS_GetException(ctx)))
       return nullptr;
 
-    ids.append(std::to_string(cid));
+    if(name)
+      ids.append(name);
+    else
+      ids.append(std::to_string(cid));
 
-    for(ClassId* cidp : descendants) {
+    for(ClassWrapper* cidp : descendants) {
       if((ptr = static_cast<T*>(JS_GetOpaque2(ctx, val, *cidp))))
         return ptr;
 
       if(!JS_IsObject(JS_GetException(ctx)))
         return nullptr;
 
-      ids.append(",");
-      ids.append(std::to_string(cidp->cid));
+      ids.append(", ");
+
+      if(cidp->name)
+        ids.append(cidp->name);
+      else
+        ids.append(std::to_string(cidp->cid));
     }
 
     JS_ThrowTypeError(ctx, "Object is not of class id %s", ids.c_str());
-
     return nullptr;
   }
 
+  template<class T = void>
+  bool
+  opaque(JSContext* ctx, JSValueConst val, T*& ref) {
+    ref = opaque<T>(ctx, val);
+    return ref != nullptr;
+  }
+
+  template<class T = void>
+  bool
+  opaque(JSValueConst val, T*& ref) {
+    ref = opaque<T>(val);
+    return ref != nullptr;
+  }
+
 private:
-  JSClassID cid;
-  ClassId* parent;
-  std::vector<ClassId*> descendants;
+  JSClassID cid{-1};
+  ClassWrapper* parent;
+  std::vector<ClassWrapper*> descendants;
 };
 
 template<class T> struct ClassObjectMap {
@@ -529,5 +599,44 @@ template<class T> class TypedArrayView : public std::ranges::view_interface<Type
     return reinterpret_cast<T*>(buffer.begin() + byte_offset + byte_length);
   }
 };
+
+template<class T>
+std::weak_ptr<T>
+to_weak(const std::shared_ptr<T>& ptr) {
+  return ptr;
+}
+
+template<class T>
+std::weak_ptr<T>
+to_weak(T* ptr) {
+  std::shared_ptr<T> shared(ptr);
+  return shared;
+}
+
+template<class T>
+std::shared_ptr<T>
+to_shared(T* ptr) {
+  std::shared_ptr<T> shared(ptr);
+  return shared;
+}
+
+template<class T>
+std::shared_ptr<T>
+to_shared(const std::weak_ptr<T>& ptr) {
+  return ptr;
+}
+
+template<class T>
+T*
+to_pointer(const std::weak_ptr<T>& ptr) {
+  std::shared_ptr<T> shared(ptr);
+  return shared.get();
+}
+
+template<class T>
+T*
+to_pointer(const std::shared_ptr<T>& ptr) {
+  return ptr.get();
+}
 
 #endif /* defined(CPPUTILS_H) */
