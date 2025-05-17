@@ -838,6 +838,25 @@ find_enumeration(const char* str) {
   return Enum(find_enumeration(range_from(enumeration_type<Enum>::enums), str));
 }
 
+template<class Enum>
+static inline Enum
+find_enumeration(JSContext* ctx, JSValueConst value) {
+  const char* str = JS_ToCString(ctx, value);
+  int32_t r = int32_t(find_enumeration<Enum>(str));
+  JS_FreeCString(ctx, str);
+  if(r == -1)
+    JS_ToInt32(ctx, &r, value);
+  return Enum(r);
+}
+
+template<class Enum>
+static inline Enum
+find_enumeration_free(JSContext* ctx, JSValue value) {
+  Enum r = find_enumeration<Enum>(ctx, value);
+  JS_FreeValue(ctx, value);
+  return r;
+}
+
 namespace std {
 namespace ranges {
 

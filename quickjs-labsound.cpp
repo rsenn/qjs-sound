@@ -458,7 +458,7 @@ js_audiobuffer_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
     }
     case BUFFER_COPY_FROM: {
       AudioBufferPtr* source;
-      lab::ChannelInterpretation interp = argc > 1 ? from_js<lab::ChannelInterpretation>(ctx, argv[1]) : lab::ChannelInterpretation::Speakers;
+      lab::ChannelInterpretation interp = argc > 1 ? find_enumeration<lab::ChannelInterpretation>(ctx, argv[1]) : lab::ChannelInterpretation::Speakers;
 
       if(!audiobuffer_class.opaque(ctx, argv[0], source))
         return JS_ThrowTypeError(ctx, "argument 1 must be an AudioBuffer");
@@ -468,7 +468,7 @@ js_audiobuffer_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
     }
     case BUFFER_SUM_FROM: {
       AudioBufferPtr* source;
-      lab::ChannelInterpretation interp = argc > 1 ? from_js<lab::ChannelInterpretation>(ctx, argv[1]) : lab::ChannelInterpretation::Speakers;
+      lab::ChannelInterpretation interp = argc > 1 ? find_enumeration<lab::ChannelInterpretation>(ctx, argv[1]) : lab::ChannelInterpretation::Speakers;
 
       if(!audiobuffer_class.opaque(ctx, argv[0], source))
         return JS_ThrowTypeError(ctx, "argument 1 must be an AudioBuffer");
@@ -1003,7 +1003,7 @@ js_audiosetting_descriptor(JSContext* ctx, JSValueConst obj) {
   return (lab::AudioSettingDescriptor){
       .name = from_js_free<char*>(ctx, JS_GetPropertyStr(ctx, obj, "name")),
       .shortName = from_js_free<char*>(ctx, JS_GetPropertyStr(ctx, obj, "shortName")),
-      .type = from_js_free<lab::SettingType>(ctx, JS_GetPropertyStr(ctx, obj, "type")),
+      .type = find_enumeration_free<lab::SettingType>(ctx, JS_GetPropertyStr(ctx, obj, "type")),
       .enums = from_js_free<const char* const*>(ctx, JS_GetPropertyStr(ctx, obj, "enums")),
   };
 }
@@ -1013,7 +1013,7 @@ js_audiosetting_descriptor(JSContext* ctx, int argc, JSValueConst argv[]) {
   return (lab::AudioSettingDescriptor){
       .name = from_js_free<char*>(ctx, argv[0]),
       .shortName = from_js_free<char*>(ctx, argv[1]),
-      .type = from_js_free<lab::SettingType>(ctx, argv[2]),
+      .type = find_enumeration_free<lab::SettingType>(ctx, argv[2]),
       .enums = from_js_free<const char* const*>(ctx, argv[3]),
   };
 }
@@ -3575,7 +3575,7 @@ js_periodicwave_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
     return JS_EXCEPTION;
 
   double sampleRate = from_js<double>(ctx, argv[0]);
-  auto oscillatorType = from_js<lab::OscillatorType>(ctx, argv[1]);
+  auto oscillatorType = find_enumeration<lab::OscillatorType>(ctx, argv[1]);
 
   if(argc >= 4) {
     auto re = from_js<std::vector<float>>(ctx, argv[2]);
