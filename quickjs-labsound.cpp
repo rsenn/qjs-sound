@@ -144,6 +144,25 @@ js_float32array_constructor(JSContext* ctx) {
   return f32arr;
 }
 
+static JSValue
+js_float32array_new(JSContext* ctx,   uint8_t* buf, size_t len,  JSFreeArrayBufferDataFunc* free_func=nullptr, void*opaque=nullptr) {
+  JSValue f32arr = js_float32array_constructor(ctx);
+  JSValue args[] = {
+     free_func ?   JS_NewArrayBuffer(ctx, buf, len, free_func, opaque, FALSE) :    JS_NewArrayBufferCopy(ctx, buf, len),
+      JS_NewUint32(ctx, 0),
+      JS_NewUint32(ctx, len / sizeof(float)),
+  };
+
+  JSValue ret = JS_CallConstructor(ctx, f32arr, countof(args), args);
+
+  JS_FreeValue(ctx, args[0]);
+  JS_FreeValue(ctx, args[1]);
+  JS_FreeValue(ctx, args[2]);
+  JS_FreeValue(ctx, f32arr);
+
+  return ret;
+}
+
 static void
 js_audiochannel_free(JSRuntime* rt, void* opaque, void* ptr) {
   AudioChannelPtr* ac = static_cast<AudioChannelPtr*>(opaque);
@@ -3578,9 +3597,14 @@ js_periodicwave_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
   auto oscillatorType = find_enumeration<lab::OscillatorType>(ctx, argv[1]);
 
   if(argc >= 4) {
-    auto re = from_js<std::vector<float>>(ctx, argv[2]);
-    auto im = from_js<std::vector<float>>(ctx, argv[3]);
-    new(pw) PeriodicWavePtr(make_shared<lab::PeriodicWave>(sampleRate, oscillatorType, re, im));
+    auto re = from_js<std::vector<double>>(ctx, argv[2]);
+    auto im = from_js<std::vector<double>>(ctx, argv[3]);
+    vector<float> re_f, im_f;
+
+    std::copy(re.begin(), re.end(), std::back_inserter(re_f));
+    std::copy(im.begin(), im.end(), std::back_inserter(im_f));
+
+    new(pw) PeriodicWavePtr(make_shared<lab::PeriodicWave>(sampleRate, oscillatorType, re_f, im_f));
   } else {
     new(pw) PeriodicWavePtr(make_shared<lab::PeriodicWave>(sampleRate, oscillatorType));
   }
@@ -3608,7 +3632,7 @@ fail:
 }
 
 enum {
-
+  PERIODICWAVE_WAVEDATAFORFUNDAMENTALFREQUENCY,
 };
 
 static JSValue
@@ -3619,7 +3643,18 @@ js_periodicwave_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
   if(!periodicwave_class.opaque(ctx, this_val, pw))
     return JS_EXCEPTION;
 
-  switch(magic) {}
+  switch(magic) {
+    case PERIODICWAVE_WAVEDATAFORFUNDAMENTALFREQUENCY: {
+      float *lower, *higher, tableInterpolationFactor;
+
+      (*pw)->waveDataForFundamentalFrequency(from_js<double>(ctx, argv[0]), lower, higher, tableInterpolationFactor);
+
+      ret = JS_NewObjectProto(ctx, JS_NULL);
+
+      //JS_SetPropertyStr(ctx, ret, "lowerWaveData", ) 
+      break;
+    }
+  }
 
   return ret;
 }
