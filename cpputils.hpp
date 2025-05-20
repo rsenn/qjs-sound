@@ -15,6 +15,57 @@
 template<class T> using PointerRange = std::ranges::subrange<T*, T*>;
 typedef JSObject* JSObjectPtr;
 
+template<class T>
+static inline T*
+js_alloc(JSContext* ctx, size_t n = 1) {
+  return static_cast<T*>(js_malloc(ctx, n * sizeof(T)));
+}
+
+template<class T>
+static inline bool
+js_alloc(JSContext* ctx, T*& ref, size_t n = 1) {
+  ref = js_alloc<T>(ctx, n);
+  return ref != nullptr;
+}
+
+struct ArrayBufferData {
+  size_t len;
+  uint8_t* ptr;
+};
+
+static inline int64_t
+js_array_length(JSContext* ctx, JSValueConst arr) {
+  int64_t len = -1;
+  JSValue lprop = JS_GetPropertyStr(ctx, arr, "length");
+
+  if(!JS_IsException(lprop))
+    JS_ToInt64(ctx, &len, lprop);
+
+  JS_FreeValue(ctx, lprop);
+  return len;
+}
+
+template<class R>
+inline R*
+js_array_get(JSContext* ctx, JSValueConst arr, R fn(JSContext*, JSValueConst), bool free = false) {
+  uint32_t i, len = js_array_length(ctx, arr);
+  R* ret;
+
+  if((ret = js_alloc<R>(ctx, len + 1))) {
+    for(i = 0; i < len; ++i) {
+      JSValue v = JS_GetPropertyUint32(ctx, arr, i);
+      new(&ret[i]) R(fn(ctx, v));
+      JS_FreeValue(ctx, v);
+    }
+    new(&ret[i]) R{nullptr, nullptr};
+  }
+
+  if(free)
+    JS_FreeValue(ctx, arr);
+
+  return ret;
+}
+
 /**
  * \defgroup from_js<Output> shims
  * @{
@@ -55,13 +106,13 @@ from_js<int64_t>(JSContext* ctx, JSValueConst val) {
   return i;
 }
 
-template<>
+/*template<>
 inline uint64_t
 from_js<uint64_t>(JSContext* ctx, JSValueConst val) {
   uint64_t i;
   JS_ToIndex(ctx, &i, val);
   return i;
-}
+}*/
 
 template<>
 inline double
@@ -113,10 +164,7 @@ from_js<const char*>(JSContext* ctx, JSValueConst val) {
 template<>
 inline const char* const*
 from_js<const char* const*>(JSContext* ctx, JSValueConst val) {
-  JSValue lprop = JS_GetPropertyStr(ctx, val, "length");
-  uint32_t len = from_js<uint32_t>(ctx, lprop);
-  JS_FreeValue(ctx, lprop);
-
+  uint32_t len = js_array_length(ctx, val);
   const char** ret = static_cast<const char**>(js_malloc(ctx, sizeof(const char*) * (len + 1)));
 
   for(uint32_t i = 0; i < len; ++i)
@@ -144,20 +192,24 @@ from_js(JSValueConst val) {
 template<template<class> class Container, class Input>
 inline Container<Input>
 from_js(JSContext* ctx, JSValueConst val) {
-  JSValue lprop = JS_GetPropertyStr(ctx, val, "length");
-  uint32_t len = from_js<uint32_t>(ctx, lprop);
-  JS_FreeValue(ctx, lprop);
-  Container<Input> ret(len);
+  uint32_t len = js_array_length(ctx, val);
+  Container<Input> ret;
+  // auto ins = std::back_inserter(ret);
 
   for(uint32_t i = 0; i < len; ++i) {
     JSValue elem = JS_GetPropertyUint32(ctx, val, i);
-
-    ret[i] = from_js<Input>(ctx, elem);
-
-    JS_FreeValue(ctx, elem);
+    Input value;
+    from_js_free(ctx, elem, value);
+    ret.push_back(value);
   }
 
   return ret;
+}
+
+template<>
+inline unsigned long
+from_js<unsigned long>(JSContext* ctx, JSValueConst val) {
+  return from_js<uint32_t>(ctx, val);
 }
 
 template<>
@@ -173,34 +225,121 @@ from_js<JSObject*>(JSContext* ctx, JSValueConst val) {
   return from_js<JSObject*>(val);
 }
 
-template<class Output, class T>
+template<class T, class Output = bool>
 inline Output
-from_js(JSContext* ctx, JSValueConst val, T arg) {
-  static_assert(false, "from_js<Output, T>(ctx, value)");
+from_js(JSContext* ctx, JSValueConst val, T& ref) {
+  static_assert(false, "from_js<Output, T>(ctx, val, ref)");
+}
+
+template<template<class> class Container, class Input>
+inline uint32_t
+from_js(JSContext* ctx, JSValueConst val, Container<Input>& ret) {
+  uint32_t i, len = js_array_length(ctx, val);
+
+  for(i = 0; i < len; ++i) {
+    JSValue elem = JS_GetPropertyUint32(ctx, val, i);
+    Input value = from_js_free<Input>(ctx, elem);
+    ret.push_back(value);
+  }
+
+  return i;
 }
 
 template<>
-inline uint8_t*
-from_js<uint8_t*>(JSContext* ctx, JSValueConst val, size_t* szptr) {
-  return JS_GetArrayBuffer(ctx, szptr, val);
+inline bool
+from_js<double>(JSContext* ctx, JSValueConst val, double& ref) {
+  return !JS_ToFloat64(ctx, &ref, val);
+}
+
+template<>
+inline bool
+from_js<int32_t>(JSContext* ctx, JSValueConst val, int32_t& ref) {
+  return !JS_ToInt32(ctx, &ref, val);
+}
+
+template<>
+inline bool
+from_js<uint32_t>(JSContext* ctx, JSValueConst val, uint32_t& ref) {
+  return !JS_ToUint32(ctx, &ref, val);
+}
+
+template<>
+inline bool
+from_js<int64_t>(JSContext* ctx, JSValueConst val, int64_t& ref) {
+  return !JS_ToInt64(ctx, &ref, val);
+}
+
+template<>
+inline bool
+from_js<uint64_t>(JSContext* ctx, JSValueConst val, uint64_t& ref) {
+  return !JS_ToIndex(ctx, &ref, val);
+}
+
+template<>
+inline void
+from_js<BOOL, void>(JSContext* ctx, JSValueConst val, BOOL& ref) {
+  ref = JS_ToBool(ctx, val);
+}
+
+template<>
+inline bool
+from_js<const char*, bool>(JSContext* ctx, JSValueConst val, const char*& ref) {
+  ref = JS_ToCString(ctx, val);
+  return ref != nullptr;
+}
+
+template<>
+inline bool
+from_js<char*, bool>(JSContext* ctx, JSValueConst val, char*& ref) {
+  const char* s;
+
+  if((s = JS_ToCString(ctx, val))) {
+    ref = js_strdup(ctx, s);
+    JS_FreeCString(ctx, s);
+    return true;
+  }
+
+  return false;
+}
+
+template<>
+inline uint32_t
+from_js<const char* const*, uint32_t>(JSContext* ctx, JSValueConst val, const char* const*& ref) {
+  uint32_t i, len = js_array_length(ctx, val);
+  const char** arr = js_alloc<const char*>(ctx, len + 1);
+
+  for(i = 0; i < len; ++i) {
+    JSValue item = JS_GetPropertyUint32(ctx, val, i);
+    from_js<const char*, bool>(ctx, item, *(const char**)&arr[i]);
+    JS_FreeValue(ctx, item);
+  }
+
+  arr[i] = nullptr;
+
+  return i;
+}
+
+template<>
+inline bool
+from_js<ArrayBufferData, bool>(JSContext* ctx, JSValueConst val, ArrayBufferData& data) {
+  return !!(data.ptr = JS_GetArrayBuffer(ctx, &data.len, val));
 }
 
 template<>
 inline PointerRange<uint8_t>
 from_js<PointerRange<uint8_t>>(JSContext* ctx, JSValueConst val) {
-  size_t len;
-  uint8_t* ptr = from_js<uint8_t*>(ctx, val, &len);
-
-  return PointerRange<uint8_t>(ptr, ptr ? ptr + len : nullptr);
+  ArrayBufferData data;
+  from_js<ArrayBufferData>(ctx, val, data);
+  return PointerRange<uint8_t>(data.ptr, data.ptr ? data.ptr + data.len : nullptr);
 }
 
 template<class T>
 inline T
 from_js_property(JSContext* ctx, JSValueConst obj, const char* prop) {
   JSValue value = JS_GetPropertyStr(ctx, obj, prop);
-  T ret = from_js<T>(ctx, value);
+  T v = from_js<T>(ctx, value);
   JS_FreeValue(ctx, value);
-  return ret;
+  return v;
 }
 
 template<class T>
@@ -213,7 +352,8 @@ from_js_property(JSContext* ctx, JSValueConst obj, const char* prop, T defaultVa
   }
   JSValue value = JS_GetProperty(ctx, obj, atom);
   JS_FreeAtom(ctx, atom);
-  T ret = from_js<T>(ctx, value);
+  T ret;
+  from_js<T>(ctx, value, ret);
   JS_FreeValue(ctx, value);
   return ret;
 }
@@ -222,11 +362,19 @@ from_js_property(JSContext* ctx, JSValueConst obj, const char* prop, T defaultVa
  * @}
  */
 
+template<class T, class R = bool>
+inline R
+from_js_free(JSContext* ctx, JSValue val, T& v) {
+  from_js<T, R>(ctx, val, v);
+  JS_FreeValue(ctx, val);
+  return v;
+}
+
 template<class T>
 inline T
 from_js_free(JSContext* ctx, JSValue val) {
-  T v = from_js<T>(ctx, val);
-  JS_FreeValue(ctx, val);
+  T v;
+  from_js_free<T>(ctx, val, v);
   return v;
 }
 
@@ -618,19 +766,6 @@ template<class T> struct ClassPtr<T, void> : public std::shared_ptr<T> {
   }
 };
 
-template<class T>
-static inline T*
-js_alloc(JSContext* ctx) {
-  return static_cast<T*>(js_malloc(ctx, sizeof(T)));
-}
-
-template<class T>
-static inline bool
-js_alloc(JSContext* ctx, T*& ref) {
-  ref = js_alloc<T>(ctx);
-  return ref != nullptr;
-}
-
 template<class T, class R = T> class NonOwningRef {
 public:
   NonOwningRef() = delete;
@@ -671,7 +806,9 @@ protected:
 
   JSValue
   replace(JSValue val) {
-    JSValue ret = constValue();
+    JSValue ret = m_obj ? constValue() : JS_UNDEFINED;
+
+    clear();
 
     if(!JS_IsObject(val))
       throw std::runtime_error("NonOwningRef<JSObject*, JSValue>::replace is not an object");
@@ -708,7 +845,7 @@ public:
 
   OwningRef&
   operator=(const R& val) {
-    replace(val);
+    setRef(val);
     return *this;
   }
 
@@ -718,7 +855,7 @@ public:
       if(m_ctx == nullptr)
         m_ctx = JS_DupContext(other.context());
 
-      replace(other.constValue());
+      setRef(other.constValue());
     }
     return *this;
   }
@@ -730,7 +867,7 @@ protected:
   }
 
   void
-  replace(JSValueConst val) {
+  setRef(JSValueConst val) {
     JSValue old = base_type::replace(JS_DupValue(m_ctx, val));
     JS_FreeValue(m_ctx, old);
   }

@@ -634,7 +634,7 @@ js_audioparam_descriptor(JSContext* ctx, JSValueConst obj) {
 }
 
 static lab::AudioParamDescriptor
-js_audioparam_descriptor(JSContext* ctx, int argc, JSValueConst argv[]) {
+js_audioparam_arguments(JSContext* ctx, int argc, JSValueConst argv[]) {
   return lab::AudioParamDescriptor{
       .name = from_js<char*>(ctx, argv[0]),
       .shortName = from_js<char*>(ctx, argv[1]),
@@ -651,7 +651,7 @@ js_audioparam_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSV
   if(!js_alloc(ctx, ap))
     return JS_EXCEPTION;
 
-  auto desc = make_shared<lab::AudioParamDescriptor>(argc >= 5 ? js_audioparam_descriptor(ctx, argc, argv) : js_audioparam_descriptor(ctx, argv[0]));
+  auto desc = make_shared<lab::AudioParamDescriptor>(argc >= 5 ? js_audioparam_arguments(ctx, argc, argv) : js_audioparam_descriptor(ctx, argv[0]));
 
   new(ap) AudioParamPtr(make_shared<lab::AudioParam>(desc.get()), desc);
 
@@ -762,10 +762,11 @@ js_audioparam_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
     }
     case AUDIOPARAM_VALUECURVEATTIME: {
       double t, d;
-      auto curve = from_js<vector, float>(ctx, argv[0]);
-
-      JS_ToFloat64(ctx, &t, argv[1]);
-      JS_ToFloat64(ctx, &d, argv[2]);
+      vector<float> curve;
+      vector<double> curve2 = from_js<vector, double>(ctx, argv[0]);
+      std::transform(curve2.begin(), curve2.end(), std::back_inserter(curve), [](double d) -> float { return d; });
+      from_js(ctx, argv[1], t);
+      from_js(ctx, argv[2], d);
 
       (*ap)->setValueCurveAtTime(curve, t, d);
 
@@ -774,7 +775,7 @@ js_audioparam_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
     }
     case AUDIOPARAM_CANCELSCHEDULED: {
       double t;
-      JS_ToFloat64(ctx, &t, argv[0]);
+      from_js(ctx, argv[0], t);
 
       (*ap)->cancelScheduledValues(t);
 
@@ -918,7 +919,7 @@ js_audiosetting_descriptor(JSContext* ctx, JSValueConst obj) {
 }
 
 static lab::AudioSettingDescriptor
-js_audiosetting_descriptor(JSContext* ctx, int argc, JSValueConst argv[]) {
+js_audiosetting_arguments(JSContext* ctx, int argc, JSValueConst argv[]) {
   return lab::AudioSettingDescriptor{
       .name = from_js<char*>(ctx, argv[0]),
       .shortName = from_js<char*>(ctx, argv[1]),
@@ -934,7 +935,7 @@ js_audiosetting_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
   if(!js_alloc(ctx, ap))
     return JS_EXCEPTION;
 
-  auto desc = make_shared<lab::AudioSettingDescriptor>(argc >= 3 ? js_audiosetting_descriptor(ctx, argc, argv) : js_audiosetting_descriptor(ctx, argv[0]));
+  auto desc = make_shared<lab::AudioSettingDescriptor>(argc >= 3 ? js_audiosetting_arguments(ctx, argc, argv) : js_audiosetting_descriptor(ctx, argv[0]));
 
   if(desc->type == lab::SettingType::None)
     return JS_ThrowTypeError(ctx, "AudioSetting descriptor .type can't be SettingType::None");
@@ -2343,6 +2344,15 @@ static const JSCFunctionListEntry js_audionodeoutput_methods[] = {
     JS_CGETSET_MAGIC_DEF("renderingParamFanOutCount", js_audionodeoutput_get, 0, AUDIONODEOUTPUT_RENDERINGPARAMFANOUTCOUNT),
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioNodeOutput", JS_PROP_CONFIGURABLE),
 };
+
+static lab::AudioNodeDescriptor
+js_audionode_descriptor(JSContext* ctx, JSValueConst obj) {
+  lab::AudioParamDescriptor* params = js_array_get(ctx, JS_GetPropertyStr(ctx, obj, "params"), js_audioparam_descriptor, true);
+  lab::AudioSettingDescriptor* settings = js_array_get(ctx, JS_GetPropertyStr(ctx, obj, "settings"), js_audiosetting_descriptor, true);
+  int initialChannelCount = 0;
+
+  return lab::AudioNodeDescriptor{params, settings, initialChannelCount};
+}
 
 static JSValue
 js_audionode_wrap(JSContext* ctx, JSValueConst proto, const AudioNodePtr& anode) {
@@ -4076,6 +4086,15 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
 
   JS_SetClassProto(ctx, periodicwave_class, periodicwave_class.proto);
 
+  audioprocessor_class.init(ctx, &js_audioprocessor_class);
+
+  audioprocessor_class.constructor(ctx, js_audioprocessor_constructor, 1, 0);
+  audioprocessor_class.proto = JS_NewObjectProto(ctx, JS_NULL);
+
+  JS_SetPropertyFunctionList(ctx, audioprocessor_class.proto, js_audioprocessor_methods, countof(js_audioprocessor_methods));
+
+  JS_SetClassProto(ctx, audioprocessor_class, audioprocessor_class.proto);
+
   if(m) {
     audiobuffer_class.setModuleExport(ctx, m);
     JS_SetModuleExport(ctx, m, "AudioContext", audiocontext_class.ctor);
@@ -4093,6 +4112,7 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
     JS_SetModuleExport(ctx, m, "AudioSetting", audiosetting_class.ctor);
     JS_SetModuleExport(ctx, m, "SettingType", settingtype_obj);
     JS_SetModuleExport(ctx, m, "PeriodicWave", periodicwave_class.ctor);
+    JS_SetModuleExport(ctx, m, "AudioProcessor", audioprocessor_class.ctor);
   }
 
   get_class_id(audionode_class);
@@ -4118,6 +4138,7 @@ js_init_module_labsound(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "AudioSetting");
   JS_AddModuleExport(ctx, m, "SettingType");
   JS_AddModuleExport(ctx, m, "PeriodicWave");
+  JS_AddModuleExport(ctx, m, "AudioProcessor");
 }
 
 extern "C" VISIBLE JSModuleDef*

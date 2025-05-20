@@ -5,6 +5,8 @@
 #include <memory>
 
 #include "defines.h"
+#include "cpputils.hpp"
+
 #include "Stk.h"
 #include "Generator.h"
 #include "Filter.h"
@@ -124,21 +126,9 @@ js_set_tostringtag(JSContext* ctx, JSValueConst obj, const char* name) {
   JS_FreeAtom(ctx, tst);
 }
 
-static int64_t
-array_length(JSContext* ctx, JSValueConst arr) {
-  int64_t len = -1;
-  JSValue lprop = JS_GetPropertyStr(ctx, arr, "length");
-
-  if(!JS_IsException(lprop))
-    JS_ToInt64(ctx, &len, lprop);
-
-  JS_FreeValue(ctx, lprop);
-  return len;
-}
-
-static void
+/*static void
 array_to_vector(JSContext* ctx, JSValueConst arr, std::vector<double>& vec) {
-  int64_t len = array_length(ctx, arr);
+  int64_t len = js_array_length(ctx, arr);
 
   for(int64_t i = 0; i < len; i++) {
     JSValue v = JS_GetPropertyUint32(ctx, arr, i);
@@ -152,7 +142,7 @@ array_to_vector(JSContext* ctx, JSValueConst arr, std::vector<double>& vec) {
 
 static void
 array_to_vector(JSContext* ctx, JSValueConst arr, std::vector<unsigned long>& vec) {
-  int64_t len = array_length(ctx, arr);
+  int64_t len = js_array_length(ctx, arr);
 
   for(int64_t i = 0; i < len; i++) {
     JSValue v = JS_GetPropertyUint32(ctx, arr, i);
@@ -162,7 +152,7 @@ array_to_vector(JSContext* ctx, JSValueConst arr, std::vector<unsigned long>& ve
 
     vec.push_back(u);
   }
-}
+}*/
 
 static JSValue
 js_stk_wrap(JSContext* ctx, Stk* s) {
@@ -755,8 +745,8 @@ js_stkfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
 
     case INSTANCE_FIR: {
       if(argc > 0) {
-        std::vector<double> coeff;
-        array_to_vector(ctx, argv[0], coeff);
+        std::vector<double> coeff = from_js<std::vector, double>(ctx, argv[0]);
+
         *f = std::make_shared<stk::Fir>(coeff);
       } else {
         *f = std::make_shared<stk::Fir>();
@@ -768,9 +758,10 @@ js_stkfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
       std::vector<double> acoeff, bcoeff;
 
       if(argc > 0) {
-        array_to_vector(ctx, argv[0], bcoeff);
+        from_js(ctx, argv[0], acoeff);
+
         if(argc > 1)
-          array_to_vector(ctx, argv[1], bcoeff);
+          from_js(ctx, argv[1], bcoeff);
 
         *f = std::make_shared<stk::Iir>(bcoeff, acoeff);
       } else {
@@ -780,14 +771,18 @@ js_stkfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
       break;
     }
     case INSTANCE_TAP_DELAY: {
-      std::vector<unsigned long> taps;
-
       if(argc > 0) {
         uint32_t maxDelay = 4095;
 
-        array_to_vector(ctx, argv[0], taps);
+        std::vector<uint32_t> taps2;
+        std::vector<unsigned long> taps;
+
+        from_js(ctx, argv[0], taps2);
+
+        std::transform(taps2.cbegin(), taps2.cend(), std::back_inserter(taps), [](uint32_t u) -> unsigned long { return u; });
+
         if(argc > 1)
-          JS_ToUint32(ctx, &maxDelay, argv[1]);
+          maxDelay = from_js<uint32_t>(ctx, argv[1]);
 
         *f = std::make_shared<stk::TapDelay>(taps, maxDelay);
       } else {
