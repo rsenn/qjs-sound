@@ -631,52 +631,143 @@ js_alloc(JSContext* ctx, T*& ref) {
   return ref != nullptr;
 }
 
-class NonOwningObjectRef {
+template<class T, class R = T> class NonOwningRef {
 public:
-  NonOwningObjectRef() = delete;
-  NonOwningObjectRef(const NonOwningObjectRef& other) : m_obj(other.m_obj) {}
-  NonOwningObjectRef(JSContext* ctx, JSValueConst buf) : m_obj(from_js<JSObject*>(buf)) {}
+  NonOwningRef() = delete;
+  NonOwningRef(const NonOwningRef& other) = delete;
 
-  operator bool() const { return bool(m_obj); }
+  operator bool() const { return m_ref.has_value(); }
 
 protected:
-  NonOwningObjectRef(JSObject* obj) : m_obj(obj) {}
+  NonOwningRef(T value) : m_ref(value) {}
 
   /* clang-format off */
-  JSValueConst constValue() const { return to_js(m_obj); }
+  void clear() { m_ref.reset(); }
+
+  R constValue() const { return m_ref.value_or(R()); }
   /* clang-format on */
 
-  JSObject* m_obj;
+  std::optional<T> m_ref{std::nullopt};
 };
 
-class ObjectRef : public NonOwningObjectRef {
+template<> class NonOwningRef<JSObject*, JSValue> {
 public:
-  ObjectRef() = delete;
-  ObjectRef(const ObjectRef& other) : m_ctx(other.m_ctx), NonOwningObjectRef(other.m_obj) { reference(); }
-  ObjectRef(JSContext* ctx, JSValueConst buf) : m_ctx(ctx), NonOwningObjectRef(from_js<JSObject*>(buf)) { reference(); }
-  ~ObjectRef() { release(); }
+  NonOwningRef() = delete;
+  NonOwningRef(const NonOwningRef& other) = delete;
+
+  operator bool() const { return m_obj != nullptr; }
+
+  JSValueConst
+  constValue() const {
+    return m_obj ? JS_MKPTR(JS_TAG_OBJECT, m_obj) : JS_UNDEFINED;
+  }
 
 protected:
+  NonOwningRef(JSValueConst value) : m_obj(JS_IsObject(value) ? JS_VALUE_GET_OBJ(value) : nullptr) {}
+
   /* clang-format off */
-  JSValue value() const { return to_js(m_ctx, m_obj); }
+  void clear() { m_obj = nullptr; }
   /* clang-format on */
 
+  JSValue
+  replace(JSValue val) {
+    JSValue ret = constValue();
+
+    if(!JS_IsObject(val))
+      throw std::runtime_error("NonOwningRef<JSObject*, JSValue>::replace is not an object");
+
+    m_obj = JS_VALUE_GET_OBJ(val);
+    return ret;
+  }
+
+  JSObject* m_obj{nullptr};
+};
+
+template<class T, class R = T> class OwningRef : public NonOwningRef<T, R> {
+public:
+  typedef NonOwningRef<T, R> base_type;
+
+  OwningRef() = delete;
+  OwningRef(const OwningRef& other) : m_ctx(other.m_ctx), NonOwningRef<T, R>(*other.m_val) { reference(); }
+  OwningRef(OwningRef&& other) : m_ctx(std::move(other.m_ctx)), NonOwningRef<T, R>(std::move(*other.m_val)) {}
+  OwningRef(JSContext* ctx, R val, bool dupValue = true) : m_ctx(ctx), NonOwningRef<T, R>(val) { reference(dupValue); }
+  ~OwningRef() { release(); }
+
+  JSContext*
+  context() const {
+    return m_ctx;
+  }
+
+  R
+  value() const {
+    if(!base_type::operator bool())
+      return JS_ThrowTypeError(m_ctx, "OwningRef member m_ref has no value");
+
+    return JS_DupValue(m_ctx, base_type::constValue());
+  }
+
+  OwningRef&
+  operator=(const R& val) {
+    replace(val);
+    return *this;
+  }
+
+  OwningRef&
+  operator=(const OwningRef& other) {
+    if(other) {
+      if(m_ctx == nullptr)
+        m_ctx = JS_DupContext(other.context());
+
+      replace(other.constValue());
+    }
+    return *this;
+  }
+
+protected:
+  static OwningRef<T, R>
+  property(JSContext* ctx, JSValueConst obj, const char* name) {
+    return OwningRef<T, R>(ctx, JS_GetPropertyStr(ctx, obj, name), false);
+  }
+
   void
-  reference() const {
+  replace(JSValueConst val) {
+    JSValue old = base_type::replace(JS_DupValue(m_ctx, val));
+    JS_FreeValue(m_ctx, old);
+  }
+
+  void
+  reference(bool dupValue = true) const {
     JS_DupContext(m_ctx);
-    JS_DupValue(m_ctx, constValue());
+
+    if(dupValue)
+      if(base_type::operator bool())
+        JS_DupValue(m_ctx, base_type::constValue());
   }
 
   void
   release() {
-    if(m_obj) {
-      JS_FreeValue(m_ctx, constValue());
-      m_obj = nullptr;
+    if(m_ctx == nullptr)
+      throw std::runtime_error("OwningRef no m_ctx");
+
+    if(base_type::operator bool()) {
+      JS_FreeValue(m_ctx, base_type::constValue());
+      base_type::clear();
     }
     JS_FreeContext(m_ctx);
   }
 
   JSContext* m_ctx;
+};
+
+// typedef OwningRef<JSObject*, JSValue> ObjectRef;
+
+class ObjectRef : public OwningRef<JSObject*, JSValue> {
+public:
+  typedef OwningRef<JSObject*, JSValue> base_type;
+
+  ObjectRef() = delete;
+  ObjectRef(JSContext* ctx, JSValueConst obj, const char* prop) : base_type(ctx, JS_GetPropertyStr(ctx, obj, prop), false) {}
+  ObjectRef(JSContext* ctx, JSValueConst val, bool dupValue = true) : base_type(ctx, val, dupValue) {}
 };
 
 template<class R = ObjectRef> class ArrayBufferView : protected R, public std::ranges::view_interface<ArrayBufferView<R>> {
