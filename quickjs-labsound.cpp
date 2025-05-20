@@ -622,14 +622,20 @@ static const JSCFunctionListEntry js_audiobuffer_functions[] = {
     JS_CFUNC_MAGIC_DEF("createByCloning", 1, js_audiobuffer_function, BUFFER_CREATE_BY_CLONING),
 };
 
+static void
+js_audioparam_descriptor_reset(JSContext* ctx, lab::AudioParamDescriptor* apd) {
+  js_delete(ctx, *const_cast<char**>(&apd->name));
+  js_delete(ctx, *const_cast<char**>(&apd->shortName));
+}
+
 static lab::AudioParamDescriptor
 js_audioparam_descriptor(JSContext* ctx, JSValueConst obj) {
   return lab::AudioParamDescriptor{
-      .name = from_js_free<char*>(ctx, JS_GetPropertyStr(ctx, obj, "name")),
-      .shortName = from_js_free<char*>(ctx, JS_GetPropertyStr(ctx, obj, "shortName")),
-      .defaultValue = from_js_free<double>(ctx, JS_GetPropertyStr(ctx, obj, "defaultValue")),
-      .minValue = from_js_free<double>(ctx, JS_GetPropertyStr(ctx, obj, "minValue")),
-      .maxValue = from_js_free<double>(ctx, JS_GetPropertyStr(ctx, obj, "maxValue")),
+      .name = from_js_property<char*>(ctx, obj, "name"),
+      .shortName = from_js_property<char*>(ctx, obj, "shortName"),
+      .defaultValue = from_js_property<double>(ctx, obj, "defaultValue"),
+      .minValue = from_js_property<double>(ctx, obj, "minValue"),
+      .maxValue = from_js_property<double>(ctx, obj, "maxValue"),
   };
 }
 
@@ -651,9 +657,14 @@ js_audioparam_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSV
   if(!js_alloc(ctx, ap))
     return JS_EXCEPTION;
 
-  auto desc = make_shared<lab::AudioParamDescriptor>(argc >= 5 ? js_audioparam_arguments(ctx, argc, argv) : js_audioparam_descriptor(ctx, argv[0]));
+  lab::AudioParamDescriptor desc(argc >= 5 ? js_audioparam_arguments(ctx, argc, argv) : js_audioparam_descriptor(ctx, argv[0]));
 
-  new(ap) AudioParamPtr(make_shared<lab::AudioParam>(desc.get()), desc);
+  shared_ptr<lab::AudioParamDescriptor> descPtr(new lab::AudioParamDescriptor(desc), [ctx](lab::AudioParamDescriptor* apd) {
+    js_audioparam_descriptor_reset(ctx, apd);
+    delete apd;
+  });
+
+  new(ap) AudioParamPtr(make_shared<lab::AudioParam>(descPtr.get()), descPtr);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
@@ -909,12 +920,19 @@ static const char* js_audiosetting_types[] = {
 };
 
 static lab::AudioSettingDescriptor
+js_audiosetting_descriptor_reset(JSContext* ctx, lab::AudioSettingDescriptor* desc) {
+  js_delete(ctx, *const_cast<char**>(&desc->name));
+  js_delete(ctx, *const_cast<char**>(&desc->shortName));
+  js_delete(ctx, *const_cast<char***>(&desc->enums));
+}
+
+static lab::AudioSettingDescriptor
 js_audiosetting_descriptor(JSContext* ctx, JSValueConst obj) {
   return lab::AudioSettingDescriptor{
       .name = from_js_property<char*>(ctx, obj, "name"),
       .shortName = from_js_property<char*>(ctx, obj, "shortName"),
       .type = find_enumeration_free<lab::SettingType>(ctx, JS_GetPropertyStr(ctx, obj, "type")),
-      .enums = from_js_property<const char* const*>(ctx, obj, "enums"),
+      .enums = from_js_property<char**>(ctx, obj, "enums"),
   };
 }
 
@@ -924,7 +942,7 @@ js_audiosetting_arguments(JSContext* ctx, int argc, JSValueConst argv[]) {
       .name = from_js<char*>(ctx, argv[0]),
       .shortName = from_js<char*>(ctx, argv[1]),
       .type = find_enumeration<lab::SettingType>(ctx, argv[2]),
-      .enums = argc > 3 ? from_js<const char* const*>(ctx, argv[3]) : nullptr,
+      .enums = argc > 3 ? from_js<char**>(ctx, argv[3]) : nullptr,
   };
 }
 
@@ -935,16 +953,21 @@ js_audiosetting_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
   if(!js_alloc(ctx, ap))
     return JS_EXCEPTION;
 
-  auto desc = make_shared<lab::AudioSettingDescriptor>(argc >= 3 ? js_audiosetting_arguments(ctx, argc, argv) : js_audiosetting_descriptor(ctx, argv[0]));
+  lab::AudioSettingDescriptor desc(argc >= 3 ? js_audiosetting_arguments(ctx, argc, argv) : js_audiosetting_descriptor(ctx, argv[0]));
 
-  if(desc->type == lab::SettingType::None)
+  shared_ptr<lab::AudioSettingDescriptor> descPtr(new lab::AudioSettingDescriptor(desc), [ctx](lab::AudioSettingDescriptor* dptr) {
+    js_audiosetting_descriptor_reset(ctx, dptr);
+    delete dptr;
+  });
+
+  if(descPtr->type == lab::SettingType::None)
     return JS_ThrowTypeError(ctx, "AudioSetting descriptor .type can't be SettingType::None");
 
-  if(desc->type == lab::SettingType::Enum)
-    if(desc->enums == nullptr)
+  if(descPtr->type == lab::SettingType::Enum)
+    if(descPtr->enums == nullptr)
       return JS_ThrowTypeError(ctx, "AudioSetting descriptor needs .enums array when type is SettingType::Enum");
 
-  new(ap) AudioSettingPtr(make_shared<lab::AudioSetting>(desc.get()), desc);
+  new(ap) AudioSettingPtr(make_shared<lab::AudioSetting>(descPtr.get()), descPtr);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
@@ -2349,7 +2372,7 @@ static lab::AudioNodeDescriptor
 js_audionode_descriptor(JSContext* ctx, JSValueConst obj) {
   lab::AudioParamDescriptor* params = js_array_get(ctx, JS_GetPropertyStr(ctx, obj, "params"), js_audioparam_descriptor, true);
   lab::AudioSettingDescriptor* settings = js_array_get(ctx, JS_GetPropertyStr(ctx, obj, "settings"), js_audiosetting_descriptor, true);
-  int initialChannelCount = 0;
+  int initialChannelCount = from_js_property<int32_t>(ctx,  obj, "initialChannelCount");
 
   return lab::AudioNodeDescriptor{params, settings, initialChannelCount};
 }
@@ -2361,7 +2384,7 @@ js_audionode_wrap(JSContext* ctx, JSValueConst proto, const AudioNodePtr& anode)
   if(!js_alloc(ctx, an))
     return JS_EXCEPTION;
 
-  new(an) AudioNodePtr(static_cast<const shared_ptr<lab::AudioNode>&>(anode), anode.value);
+  new(an) AudioNodePtr(anode, anode.value);
 
   /* using new_target to get the prototype is necessary when the class is extended. */
   JSValue obj = JS_NewObjectProtoClass(ctx, proto, audionode_class);

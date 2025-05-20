@@ -28,6 +28,44 @@ js_alloc(JSContext* ctx, T*& ref, size_t n = 1) {
   return ref != nullptr;
 }
 
+/*template<class T>
+static inline void
+js_delete(JSContext* ctx, T**& ref) {
+  for(size_t i=0; ref[i]; ++i)
+   js_delete<T*>(ctx, ref[i]);
+
+    js_free(ctx,  ref);
+  ref=nullptr;
+}*/
+
+template<class T>
+static inline void
+js_delete(JSContext* ctx, T*& ref) {
+  if(ref)
+    js_free(ctx, ref);
+  ref = nullptr;
+}
+
+template<class T>
+inline void
+js_delete(JSContext* ctx, T**& ref) {
+  for(size_t i = 0; ref[i]; ++i) {
+    js_free(ctx, ref[i]);
+    ref[i] = nullptr;
+  }
+
+  js_free(ctx, ref);
+  ref = nullptr;
+}
+
+template<>
+inline void
+js_delete<const char>(JSContext* ctx, const char*& ref) {
+  char*& ptr = *const_cast<char**>(&ref);
+
+  js_delete(ctx, ptr);
+}
+
 struct ArrayBufferData {
   size_t len;
   uint8_t* ptr;
@@ -73,6 +111,9 @@ js_array_get(JSContext* ctx, JSValueConst arr, R fn(JSContext*, JSValueConst), b
 template<class T>
 T
 from_js(JSContext* ctx, JSValueConst val) {
+  /*T v;
+  from_js(ctx, val, v);
+  return v;*/
   static_assert(false, "from_js template");
 }
 
@@ -152,6 +193,23 @@ from_js<char*>(JSContext* ctx, JSValueConst val) {
     ret = js_strdup(ctx, s);
     JS_FreeCString(ctx, s);
   }
+  return ret;
+}
+
+template<>
+inline char**
+from_js<char**>(JSContext* ctx, JSValueConst val) {
+  int64_t len = js_array_length(ctx, val);
+  char** ret;
+
+  if((ret = js_alloc<char*>(ctx, (len + 1)))) {
+
+    for(int64_t i = 0; i < len; ++i)
+      ret[i] = from_js<char*>(ctx, val);
+
+    ret[len] = nullptr;
+  }
+
   return ret;
 }
 
@@ -303,9 +361,9 @@ from_js<char*, bool>(JSContext* ctx, JSValueConst val, char*& ref) {
 }
 
 template<>
-inline uint32_t
-from_js<const char* const*, uint32_t>(JSContext* ctx, JSValueConst val, const char* const*& ref) {
-  uint32_t i, len = js_array_length(ctx, val);
+inline int64_t
+from_js<const char* const*, int64_t>(JSContext* ctx, JSValueConst val, const char* const*& ref) {
+  int64_t i, len = js_array_length(ctx, val);
   const char** arr = js_alloc<const char*>(ctx, len + 1);
 
   for(i = 0; i < len; ++i) {
@@ -315,7 +373,24 @@ from_js<const char* const*, uint32_t>(JSContext* ctx, JSValueConst val, const ch
   }
 
   arr[i] = nullptr;
+  return i;
+}
 
+template<>
+inline int64_t
+from_js<char**, int64_t>(JSContext* ctx, JSValueConst val, char**& ref) {
+  int64_t i, len = js_array_length(ctx, val);
+  ref = nullptr;
+
+  if((ref = js_alloc<char*>(ctx, len + 1))) {
+    for(i = 0; i < len; ++i) {
+      JSValue item = JS_GetPropertyUint32(ctx, val, i);
+      from_js(ctx, item, ref[i]);
+      JS_FreeValue(ctx, item);
+    }
+
+    ref[i] = nullptr;
+  }
   return i;
 }
 
