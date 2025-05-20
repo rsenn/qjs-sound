@@ -21,7 +21,8 @@
 // Returns input, output
 inline std::pair<lab::AudioStreamConfig, lab::AudioStreamConfig>
 GetDefaultAudioDeviceConfiguration(const bool with_input = true) {
-  const std::vector<lab::AudioDeviceInfo> audioDevices = lab::AudioDevice_RtAudio::MakeAudioDeviceList();
+  const std::vector<lab::AudioDeviceInfo> audioDevices =
+      lab::AudioDevice_RtAudio::MakeAudioDeviceList();
 
   lab::AudioDeviceInfo defaultOutputInfo, defaultInputInfo;
 
@@ -49,7 +50,8 @@ GetDefaultAudioDeviceConfiguration(const bool with_input = true) {
       inputConfig.desired_channels = std::min(uint32_t(1), defaultInputInfo.num_input_channels);
       inputConfig.desired_samplerate = defaultInputInfo.nominal_samplerate;
     } else {
-      throw std::invalid_argument("the default audio input device was requested but none were found");
+      throw std::invalid_argument(
+          "the default audio input device was requested but none were found");
     }
   }
 
@@ -57,12 +59,14 @@ GetDefaultAudioDeviceConfiguration(const bool with_input = true) {
   // this may be a pecularity of RtAudio, but for now, force an RtAudio
   // compatible configuration
   if(defaultOutputInfo.nominal_samplerate != defaultInputInfo.nominal_samplerate) {
-    float min_rate = std::min(defaultOutputInfo.nominal_samplerate, defaultInputInfo.nominal_samplerate);
+    float min_rate =
+        std::min(defaultOutputInfo.nominal_samplerate, defaultInputInfo.nominal_samplerate);
 
     inputConfig.desired_samplerate = min_rate;
     outputConfig.desired_samplerate = min_rate;
 
-    std::cout << "Warning ~ input and output sample rates don't match, attempting to set minimum" << std::endl;
+    std::cout << "Warning ~ input and output sample rates don't match, attempting to set minimum"
+              << std::endl;
   }
 
   return {inputConfig, outputConfig};

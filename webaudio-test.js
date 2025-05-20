@@ -12,8 +12,8 @@ context.destination = destination;*/
 const oscillator = new OscillatorNode(context, { type: 'sawtooth', frequency: 1000, channelCount: 2 });
 
 oscillator.connect(context.destination);
-oscillator.frequency=440;
-oscillator.type='Sine';
+oscillator.frequency = 440;
+oscillator.type = 'Sine';
 
 oscillator.start();
 
