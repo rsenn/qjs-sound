@@ -19,28 +19,11 @@ typedef JSObject* JSObjectPtr;
  * \defgroup from_js<Output> shims
  * @{
  */
-template<class T> T from_js(JSContext* ctx, JSValueConst val);
-
-/*template<class T>
-inline std::enable_if< std::is_enum<T>::value, T >
-from_js(JSContext* ctx, JSValueConst value) {
-  int32_t ret = -1;
-  static const char* const* names = enumeration_type<T>::enums;
-  const char* s;
-
-  if((s = JS_ToCString(ctx, value))) {
-    for(size_t i = 0; i < countof(names); ++i)
-      if(!strcasecmp(s, names[i])) {
-        ret = i;
-        break;
-      }
-    JS_FreeCString(ctx, s);
-  }
-  if(ret == -1)
-    JS_ToInt32(ctx, &ret, value);
-
-  return T(ret);
-}*/
+template<class T>
+T
+from_js(JSContext* ctx, JSValueConst val) {
+  static_assert(false, "from_js template");
+}
 
 template<>
 inline int32_t
@@ -73,6 +56,14 @@ from_js<int64_t>(JSContext* ctx, JSValueConst val) {
 }
 
 template<>
+inline uint64_t
+from_js<uint64_t>(JSContext* ctx, JSValueConst val) {
+  uint64_t i;
+  JS_ToIndex(ctx, &i, val);
+  return i;
+}
+
+template<>
 inline double
 from_js<double>(JSContext* ctx, JSValueConst val) {
   double d;
@@ -89,19 +80,34 @@ from_js<float>(JSContext* ctx, JSValueConst val) {
 template<>
 inline std::string
 from_js<std::string>(JSContext* ctx, JSValueConst val) {
-  const char* s = JS_ToCString(ctx, val);
-  std::string ret(s);
-  JS_FreeCString(ctx, s);
+  const char* s;
+  std::string ret;
+
+  if((s = JS_ToCString(ctx, val))) {
+    ret = s;
+    JS_FreeCString(ctx, s);
+  }
+
   return ret;
 }
 
 template<>
 inline char*
 from_js<char*>(JSContext* ctx, JSValueConst val) {
-  const char* s = JS_ToCString(ctx, val);
-  char* ret = js_strdup(ctx, s);
-  JS_FreeCString(ctx, s);
+  const char* s;
+  char* ret;
+
+  if((s = JS_ToCString(ctx, val))) {
+    ret = js_strdup(ctx, s);
+    JS_FreeCString(ctx, s);
+  }
   return ret;
+}
+
+template<>
+inline const char*
+from_js<const char*>(JSContext* ctx, JSValueConst val) {
+  return JS_ToCString(ctx, val);
 }
 
 template<>
@@ -129,7 +135,11 @@ from_js(JSContext* ctx, JSAtom atom) {
   return ret;
 }
 
-template<class T> T from_js(JSValueConst val);
+template<class T>
+T
+from_js(JSValueConst val) {
+  static_assert(false, "from_js<>(val)");
+}
 
 template<template<class> class Container, class Input>
 inline Container<Input>
@@ -163,7 +173,11 @@ from_js<JSObject*>(JSContext* ctx, JSValueConst val) {
   return from_js<JSObject*>(val);
 }
 
-template<class Output, class T> inline Output from_js(JSContext* ctx, JSValueConst val, T arg);
+template<class Output, class T>
+inline Output
+from_js(JSContext* ctx, JSValueConst val, T arg) {
+  static_assert(false, "from_js<Output, T>(ctx, value)");
+}
 
 template<>
 inline uint8_t*
@@ -208,26 +222,6 @@ from_js_property(JSContext* ctx, JSValueConst obj, const char* prop, T defaultVa
  * @}
  */
 
-/*template<>
-inline lab::ChannelCountMode
-from_js<lab::ChannelCountMode>(JSContext* ctx, JSValueConst value) {
-  int32_t ret = -1;
-  const char* s;
-  static const char* const names[] = {"Max", "ClampedMax", "Explicit", "End"};
-
-  if((s = JS_ToCString(ctx, value))) {
-    for(size_t i = 0; i < countof(names); ++i)
-      if(!strcasecmp(s, names[i])) {
-        ret = i;
-        break;
-      }
-    JS_FreeCString(ctx, s);
-  }
-  if(ret == -1)
-    JS_ToInt32(ctx, &ret, value);
-  return lab::ChannelCountMode(ret + int(lab::ChannelCountMode::Max));
-}*/
-
 template<class T>
 inline T
 from_js_free(JSContext* ctx, JSValue val) {
@@ -240,7 +234,11 @@ from_js_free(JSContext* ctx, JSValue val) {
  * \defgroup to_js<Input> shims
  * @{
  */
-template<class Input> inline JSValue to_js(JSContext* ctx, const Input& num);
+template<class T>
+inline JSValue
+to_js(JSContext* ctx, const T& num) {
+  static_assert(false, "to_js<T>(ctx, T arg)");
+}
 
 template<>
 inline JSValue
@@ -284,16 +282,38 @@ to_js<float>(JSContext* ctx, const float& f) {
   return JS_NewFloat64(ctx, f);
 }
 
-template<class Range>
+template<>
+inline JSValue
+to_js<const char* const*>(JSContext* ctx, const char* const* const& values) {
+  JSValue ret = JS_NewArray(ctx);
+
+  for(uint32_t i = 0; values[i]; ++i)
+    JS_SetPropertyUint32(ctx, ret, i, to_js<const char*>(ctx, values[i]));
+
+  return ret;
+}
+
+template<class Range, /*class V =*/typename std::indirectly_readable_traits<std::remove_cvref_t<std::ranges::iterator_t<Range>>>::value_type>
 inline JSValue
 to_js(JSContext* ctx, const Range& container) {
-
   typedef std::iter_value_t<std::ranges::iterator_t<Range>> value_type;
   uint32_t i = 0;
   JSValue ret = JS_NewArray(ctx);
 
   for(auto val : container)
     JS_SetPropertyUint32(ctx, ret, i++, to_js<value_type>(ctx, val));
+
+  return ret;
+}
+
+template<class Iterator>
+inline JSValue
+to_js(JSContext* ctx, const Iterator& start, const Iterator& end) {
+  uint32_t i = 0;
+  JSValue ret = JS_NewArray(ctx);
+
+  for(Iterator it = start; it != end; ++it)
+    JS_SetPropertyUint32(ctx, ret, i++, to_js(ctx, *it));
 
   return ret;
 }
@@ -310,7 +330,11 @@ to_js(JSContext* ctx, const Container<Input>& container, const typename Containe
   return ret;
 }
 
-template<class Input> inline JSValue to_js(Input num);
+template<class T>
+inline JSValue
+to_js(T arg) {
+  static_assert(false, "to_js<T>(T arg)");
+}
 
 template<>
 inline JSValueConst
@@ -568,7 +592,7 @@ private:
   static std::map<weak_type, JSObjectPtr> object_map;
 };
 
-template<class T, class U = std::shared_ptr<lab::AudioContext>> struct ClassPtr : public std::shared_ptr<T> {
+template<class T, class U> struct ClassPtr : public std::shared_ptr<T> {
   typedef std::shared_ptr<T> base_type;
   typedef U value_type;
 
@@ -760,6 +784,7 @@ JSValueConst
 get_value(const T& ptr) {
   return to_js(get_object(ptr));
 }
+
 template<class T>
 ptrdiff_t
 size(T* const* ptr) {
@@ -782,68 +807,7 @@ range_from(const std::vector<T>& vec) {
   return std::ranges::subrange<typename std::vector<T>::iterator>{vec.begin(), vec.end()};
 }
 
-template<class T> struct enumeration_type {
-  typedef T type;
-  // static constexpr const char* enums[] = { nullptr };
-};
-
-template<> struct enumeration_type<lab::SettingType> {
-  static constexpr const char* enums[] = {
-      "None",
-      "Bool",
-      "Integer",
-      "Float",
-      "Enum",
-      "Bus",
-      nullptr,
-  };
-};
-
-template<> struct enumeration_type<lab::ChannelInterpretation> {
-  static constexpr const char* enums[] = {
-      "Speakers",
-      "Discrete",
-      nullptr,
-  };
-};
-
-template<> struct enumeration_type<lab::Channel> {
-  static constexpr const char* enums[] = {
-      "Left",
-      "Right",
-      "Center",
-      "LFE",
-      "SurroundLeft",
-      "SurroundRight",
-      "BackLeft",
-      "BackRight",
-      nullptr,
-  };
-};
-
-template<> struct enumeration_type<lab::ChannelCountMode> {
-  static constexpr const char* enums[] = {
-      "Max",
-      "ClampedMax",
-      "Explicit",
-      "End",
-      nullptr,
-  };
-};
-
-template<> struct enumeration_type<lab::OscillatorType> {
-  static constexpr const char* enums[] = {
-      "OSCILLATOR_NONE",
-      "SINE",
-      "FAST_SINE",
-      "SQUARE",
-      "SAWTOOTH",
-      "FALLING_SAWTOOTH",
-      "TRIANGLE",
-      "CUSTOM",
-      nullptr,
-  };
-};
+template<class T> struct enumeration_type { static_assert(false, "struct enumeration_type<T>"); };
 
 template<class Range>
 static inline int32_t
@@ -865,11 +829,17 @@ find_enumeration(const char* str) {
 template<class Enum>
 static inline Enum
 find_enumeration(JSContext* ctx, JSValueConst value) {
-  const char* str = JS_ToCString(ctx, value);
-  int32_t r = int32_t(find_enumeration<Enum>(str));
-  JS_FreeCString(ctx, str);
+  const char* str;
+  int32_t r = -1;
+
+  if((str = JS_ToCString(ctx, value))) {
+    r = int32_t(find_enumeration<Enum>(str));
+    JS_FreeCString(ctx, str);
+  }
+
   if(r == -1)
     JS_ToInt32(ctx, &r, value);
+
   return Enum(r);
 }
 
@@ -879,6 +849,27 @@ find_enumeration_free(JSContext* ctx, JSValue value) {
   Enum r = find_enumeration<Enum>(ctx, value);
   JS_FreeValue(ctx, value);
   return r;
+}
+
+template<class T, typename = std::enable_if_t<std::is_enum<T>::value>>
+inline T
+from_js(JSContext* ctx, JSValueConst value) {
+  int32_t ret = -1;
+  static const char* const* names = enumeration_type<T>::enums;
+  const char* s;
+
+  if((s = JS_ToCString(ctx, value))) {
+    for(size_t i = 0; i < countof(names); ++i)
+      if(!strcasecmp(s, names[i])) {
+        ret = i;
+        break;
+      }
+    JS_FreeCString(ctx, s);
+  }
+  if(ret == -1)
+    JS_ToInt32(ctx, &ret, value);
+
+  return T(ret);
 }
 
 static inline int
@@ -899,25 +890,31 @@ js_copy(JSContext* ctx, JSValueConst dest, JSValueConst src) {
   return i;
 }
 
-namespace std {
-namespace ranges {
-
-/*template<class T>
-auto
-begin(T* const* ptr) {
-  return ptr;
+static JSValue
+js_float32array_constructor(JSContext* ctx) {
+  JSValue global = JS_GetGlobalObject(ctx);
+  JSValue f32arr = JS_GetPropertyStr(ctx, global, "Float32Array");
+  JS_FreeValue(ctx, global);
+  return f32arr;
 }
 
-template<class T>
-auto
-end(T* const* ptr) {
-  while(*ptr)
-    ++ptr;
+static JSValue
+js_float32array_new(JSContext* ctx, uint8_t* buf, size_t len, JSFreeArrayBufferDataFunc* free_func = nullptr, void* opaque = nullptr) {
+  JSValue f32arr = js_float32array_constructor(ctx);
+  JSValue args[] = {
+      free_func ? JS_NewArrayBuffer(ctx, buf, len, free_func, opaque, FALSE) : JS_NewArrayBufferCopy(ctx, buf, len),
+      JS_NewUint32(ctx, 0),
+      JS_NewUint32(ctx, len / sizeof(float)),
+  };
 
-  return ptr;
-}*/
+  JSValue ret = JS_CallConstructor(ctx, f32arr, countof(args), args);
 
-} // namespace ranges
-} // namespace std
+  JS_FreeValue(ctx, args[0]);
+  JS_FreeValue(ctx, args[1]);
+  JS_FreeValue(ctx, args[2]);
+  JS_FreeValue(ctx, f32arr);
+
+  return ret;
+}
 
 #endif // defined(CPPUTILS_HPP)

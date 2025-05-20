@@ -54,7 +54,7 @@ if(USE_LABSOUND)
   message("Binary dir of LabSound = ${LABSOUND_BINARY_DIR}")
 endif(USE_LABSOUND)
 
-if(USE_STK_XXX)
+if(USE_STK)
   ExternalProject_Add(
     stk
     SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk"
@@ -73,7 +73,7 @@ if(USE_STK_XXX)
 
   ExternalProject_Get_Property(stk BINARY_DIR)
   set(STK_LIBRARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/third_party/stk")
-  set(STK_LIBRARY stk)
+  set(STK_LIBRARY libstk)
   set(STK_BINARY_DIR "${BINARY_DIR}")
   add_library(libstk STATIC IMPORTED)
   file(GLOB STK_LIBRARY_PATH "${STK_LIBRARY_DIR}/*.a")
@@ -146,7 +146,9 @@ if(USE_STK)
   set(stk_LINK_DIRECTORIES "${STK_LIBRARY_DIR}")
   endif(STK_LIBRARY)
 
-  #dump(stk_LIBRARIES stk_LINK_DIRECTORIES)
+unset(stk_LIBRARIES)
+
+  dump(stk_LIBRARIES stk_LINK_DIRECTORIES)
 
   file(GLOB stk_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/stk/src/*.cpp)
   list(FILTER stk_SOURCES EXCLUDE REGEX "(Inet|Rt|Tcp|Udp|Messager|Thread|Mutex|Socket)")
@@ -166,6 +168,8 @@ if(USE_STK)
       INCLUDE_DIRECTORIES
       "${QUICKJS_INCLUDE_DIR};${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/include;${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/src/include"
   )
+  target_link_libraries(qjs-stk PRIVATE ${STK_LIBRARY})
+
 endif(USE_STK)
 
 if(USE_LABSOUND)

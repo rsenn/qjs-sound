@@ -27,7 +27,7 @@ function main() {
   setTimeout(() => {
     Object.assign(globalThis, { device, context, destinationNode, oscillator, gain });
     os.kill(os.getpid(), os.SIGUSR1);
-  }, 2000);
+  }, 1000);
 
   return 0;
 }

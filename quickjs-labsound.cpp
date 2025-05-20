@@ -1,9 +1,7 @@
-#include <quickjs.h>
 #include <cutils.h>
 #include "defines.h"
 #include "LabSound/backends/AudioDevice_RtAudio.h"
 #include "quickjs-labsound.hpp"
-#include "cpputils.h"
 #include <array>
 #include <map>
 #include <vector>
@@ -16,9 +14,6 @@ using std::make_unique;
 using std::map;
 using std::min;
 using std::pair;
-using std::shared_ptr;
-using std::vector;
-using std::weak_ptr;
 
 ClassWrapper audiobuffer_class, audiocontext_class, audiolistener_class, audiodevice_class, audionodeinput_class, audionodeoutput_class, audionode_class,
     audiodestinationnode_class, audioscheduledsourcenode_class, oscillatornode_class, audiosummingjunction_class, audiobuffersourcenode_class, audioparam_class, audiosetting_class,
@@ -34,6 +29,13 @@ ClassWrapper* ClassWrapper::wrappers{nullptr};
 ClassWrapper** ClassWrapper::wrapper_ptr{&ClassWrapper::wrappers};
 
 static ChannelMap channel_map;
+
+static JSObjectArray* js_audiobuffer_channels(JSContext*, const AudioBufferPtr&);
+static JSValue js_audionode_wrap(JSContext*, const AudioNodePtr&);
+static JSValue js_audiolistener_wrap(JSContext*, AudioListenerPtr&);
+static JSValue js_audiodestinationnode_wrap(JSContext*, AudioDestinationNodePtr&);
+static JSValue js_audiodevice_constructor(JSContext*, JSValueConst, int, JSValueConst[]);
+static JSValue js_audiodestinationnode_constructor(JSContext*, JSValueConst, int, JSValueConst[]);
 
 shared_ptr<lab::AudioContext>
 DestinationNode::getContext() const {
@@ -58,33 +60,6 @@ js_enum_value(JSContext* ctx, JSValueConst value, const char* values[], int offs
       return i + offset;
 
   return -1;
-}
-
-static JSValue
-js_float32array_constructor(JSContext* ctx) {
-  JSValue global = JS_GetGlobalObject(ctx);
-  JSValue f32arr = JS_GetPropertyStr(ctx, global, "Float32Array");
-  JS_FreeValue(ctx, global);
-  return f32arr;
-}
-
-static JSValue
-js_float32array_new(JSContext* ctx, uint8_t* buf, size_t len, JSFreeArrayBufferDataFunc* free_func = nullptr, void* opaque = nullptr) {
-  JSValue f32arr = js_float32array_constructor(ctx);
-  JSValue args[] = {
-      free_func ? JS_NewArrayBuffer(ctx, buf, len, free_func, opaque, FALSE) : JS_NewArrayBufferCopy(ctx, buf, len),
-      JS_NewUint32(ctx, 0),
-      JS_NewUint32(ctx, len / sizeof(float)),
-  };
-
-  JSValue ret = JS_CallConstructor(ctx, f32arr, countof(args), args);
-
-  JS_FreeValue(ctx, args[0]);
-  JS_FreeValue(ctx, args[1]);
-  JS_FreeValue(ctx, args[2]);
-  JS_FreeValue(ctx, f32arr);
-
-  return ret;
 }
 
 static void
@@ -142,7 +117,6 @@ js_audiochannel_object(JSContext* ctx, const AudioChannelPtr& ac) {
 static JSValue
 js_audiochannel_new(JSContext* ctx, const AudioChannelPtr& ac) {
   AudioChannelPtr* ptr;
-  JSValue ret = JS_UNDEFINED;
   JSObjectPtr& obj = js_audiochannel_object(ctx, ac);
 
   if(obj)
@@ -158,19 +132,21 @@ js_audiochannel_new(JSContext* ctx, const AudioChannelPtr& ac) {
   uint8_t* buf = reinterpret_cast<uint8_t*>(ch.mutableData());
   size_t len = ch.length() * sizeof(float);
 
-  JSValue f32arr = js_float32array_constructor(ctx);
-  JSValue args[] = {
-      JS_NewArrayBuffer(ctx, buf, len, &js_audiochannel_free, ptr, FALSE),
-      JS_NewUint32(ctx, 0),
-      JS_NewUint32(ctx, ch.length()),
-  };
+  JSValue ret = js_float32array_new(ctx, buf, len, &js_audiochannel_free, ptr);
 
-  ret = JS_CallConstructor(ctx, f32arr, countof(args), args);
+  /*JSValue f32arr = js_float32array_constructor(ctx);
+    JSValue args[] = {
+        JS_NewArrayBuffer(ctx, buf, len, &js_audiochannel_free, ptr, FALSE),
+        JS_NewUint32(ctx, 0),
+        JS_NewUint32(ctx, ch.length()),
+    };
 
-  JS_FreeValue(ctx, args[0]);
-  JS_FreeValue(ctx, args[1]);
-  JS_FreeValue(ctx, args[2]);
-  JS_FreeValue(ctx, f32arr);
+    ret = JS_CallConstructor(ctx, f32arr, countof(args), args);
+
+    JS_FreeValue(ctx, args[0]);
+    JS_FreeValue(ctx, args[1]);
+    JS_FreeValue(ctx, args[2]);
+    JS_FreeValue(ctx, f32arr);*/
 
   obj = from_js<JSObjectPtr>(JS_DupValue(ctx, ret));
 
@@ -246,7 +222,7 @@ js_audiobuffer_constructor(JSContext* ctx, JSValueConst new_target, int argc, JS
     } else {
       length = argc > 0 ? from_js<uint64_t>(ctx, argv[0]) : 0;
       numberOfChannels = argc > 1 ? from_js<uint32_t>(ctx, argv[1]) : 1;
-      sampleRate = argc > 2 ? from_js<double>(ctx, argv[0], "sampleRate") : 0;
+      sampleRate = argc > 2 ? from_js<double>(ctx, argv[0]) : 0;
     }
   }
 
@@ -921,21 +897,21 @@ static const char* js_audiosetting_types[] = {
 
 static lab::AudioSettingDescriptor
 js_audiosetting_descriptor(JSContext* ctx, JSValueConst obj) {
-  return (lab::AudioSettingDescriptor){
-      .name = from_js_free<char*>(ctx, JS_GetPropertyStr(ctx, obj, "name")),
-      .shortName = from_js_free<char*>(ctx, JS_GetPropertyStr(ctx, obj, "shortName")),
+  return lab::AudioSettingDescriptor{
+      .name = from_js_property<char*>(ctx, obj, "name"),
+      .shortName = from_js_property<char*>(ctx, obj, "shortName"),
       .type = find_enumeration_free<lab::SettingType>(ctx, JS_GetPropertyStr(ctx, obj, "type")),
-      .enums = from_js_free<const char* const*>(ctx, JS_GetPropertyStr(ctx, obj, "enums")),
+      .enums = from_js_property<const char* const*>(ctx, obj, "enums"),
   };
 }
 
 static lab::AudioSettingDescriptor
 js_audiosetting_descriptor(JSContext* ctx, int argc, JSValueConst argv[]) {
-  return (lab::AudioSettingDescriptor){
-      .name = from_js_free<char*>(ctx, argv[0]),
-      .shortName = from_js_free<char*>(ctx, argv[1]),
-      .type = find_enumeration_free<lab::SettingType>(ctx, argv[2]),
-      .enums = from_js_free<const char* const*>(ctx, argv[3]),
+  return lab::AudioSettingDescriptor{
+      .name = from_js<char*>(ctx, argv[0]),
+      .shortName = from_js<char*>(ctx, argv[1]),
+      .type = find_enumeration<lab::SettingType>(ctx, argv[2]),
+      .enums = argc > 3 ? from_js<const char* const*>(ctx, argv[3]) : nullptr,
   };
 }
 
@@ -946,7 +922,14 @@ js_audiosetting_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
   if(!js_alloc(ctx, ap))
     return JS_EXCEPTION;
 
-  auto desc = make_shared<lab::AudioSettingDescriptor>(argc >= 4 ? js_audiosetting_descriptor(ctx, argc, argv) : js_audiosetting_descriptor(ctx, argv[0]));
+  auto desc = make_shared<lab::AudioSettingDescriptor>(argc >= 3 ? js_audiosetting_descriptor(ctx, argc, argv) : js_audiosetting_descriptor(ctx, argv[0]));
+
+  if(desc->type == lab::SettingType::None)
+    return JS_ThrowTypeError(ctx, "AudioSetting descriptor .type can't be SettingType::None");
+
+  if(desc->type == lab::SettingType::Enum)
+    if(desc->enums == nullptr)
+      return JS_ThrowTypeError(ctx, "AudioSetting descriptor needs .enums array when type is SettingType::Enum");
 
   new(ap) AudioSettingPtr(make_shared<lab::AudioSetting>(desc.get()), desc);
 
@@ -1008,8 +991,105 @@ js_audiosetting_wrap(JSContext* ctx, AudioSettingPtr& setting) {
   return js_audiosetting_wrap(ctx, audiosetting_class.proto, setting);
 }
 
+static JSValue
+js_audiosetting_setvalue(JSContext* ctx, AudioSettingPtr& as, JSValueConst value, bool notify = true) {
+  switch(as->type()) {
+    case lab::SettingType::None: {
+      break;
+    }
+    case lab::SettingType::Bool: {
+      as->setBool(from_js<BOOL>(ctx, value), notify);
+      break;
+    }
+    case lab::SettingType::Integer: {
+      as->setUint32(from_js<uint32_t>(ctx, value), notify);
+      break;
+    }
+    case lab::SettingType::Float: {
+      as->setFloat(from_js<double>(ctx, value), notify);
+      break;
+    }
+    case lab::SettingType::Enum: {
+      auto enums = range_from(as->enums());
+      int size = std::ranges::size(enums);
+      int32_t val;
+      const char* str;
+
+      if(JS_IsNumber(value)) {
+        val = from_js<uint32_t>(ctx, value);
+      } else if((str = JS_ToCString(ctx, value))) {
+        val = find_enumeration(enums, str);
+        JS_FreeCString(ctx, str);
+      }
+
+      if(val < 0 || val >= size)
+        return JS_ThrowRangeError(ctx, "enumeration value not >= 0 and < %d", size);
+
+      as->setEnumeration(val, notify);
+      break;
+    }
+    case lab::SettingType::Bus: {
+      AudioBufferPtr* ab;
+
+      if(!audiobuffer_class.opaque(ctx, value, ab))
+        return JS_ThrowTypeError(ctx, "must be an AudioBuffer");
+
+      as->setBus(ab->get(), notify);
+      break;
+    }
+  }
+
+  return JS_UNDEFINED;
+}
+
+static JSValue
+js_audiosetting_getvalue(JSContext* ctx, AudioSettingPtr& as) {
+  JSValue ret = JS_UNDEFINED;
+
+  switch(as->type()) {
+    case lab::SettingType::None: {
+      ret = JS_ThrowInternalError(ctx, "AudioSetting has type None");
+      break;
+    }
+    case lab::SettingType::Bool: {
+      ret = to_js<BOOL>(ctx, !!as->valueBool());
+      break;
+    }
+    case lab::SettingType::Integer: {
+      ret = to_js<uint32_t>(ctx, as->valueUint32());
+      break;
+    }
+    case lab::SettingType::Float: {
+      ret = to_js<double>(ctx, as->valueFloat());
+      break;
+    }
+    case lab::SettingType::Enum: {
+      auto enums = range_from(as->enums());
+      uint32_t index = as->valueUint32();
+      int size = std::ranges::size(enums);
+
+      if(index >= size)
+        ret = JS_ThrowRangeError(ctx, "enumeration value not < %d", size);
+      else
+        ret = to_js<const char*>(ctx, enums[index]);
+      break;
+    }
+    case lab::SettingType::Bus: {
+      AudioBufferPtr ab(as->valueBus());
+
+      ret = !!ab ? js_audiobuffer_wrap(ctx, ab) : JS_NULL;
+      break;
+    }
+  }
+
+  return ret;
+}
+
 enum {
   AUDIOSETTING_TOPRIMITIVE,
+  AUDIOSETTING_SETVALUE,
+  AUDIOSETTING_SETVALUECHANGED,
+  AUDIOSETTING_ENUMFROMNAME,
 };
 
 static JSValue
@@ -1021,7 +1101,6 @@ js_audiosetting_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
     return JS_EXCEPTION;
 
   switch(magic) {
-
     case AUDIOSETTING_TOPRIMITIVE: {
       auto hint = argc > 0 ? from_js<std::string>(ctx, argv[0]) : std::string();
       auto type = (*as)->type();
@@ -1048,6 +1127,43 @@ js_audiosetting_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
 
       break;
     }
+
+    case AUDIOSETTING_SETVALUE: {
+      ret = js_audiosetting_setvalue(ctx, *as, argv[0], argc > 1 ? !!from_js<BOOL>(ctx, argv[1]) : true);
+      break;
+    }
+
+    case AUDIOSETTING_SETVALUECHANGED: {
+      std::function<void()> fn;
+
+      if(argc > 0)
+        fn = [ctx = JS_DupContext(ctx), callback = JS_DupValue(ctx, argv[0]), this_obj = JS_DupValue(ctx, this_val), as]() {
+          JSValue args[] = {js_audiosetting_getvalue(ctx, *as)};
+          JSValue ret = JS_Call(ctx, callback, this_obj, countof(args), args);
+          JS_FreeValue(ctx, ret);
+          JS_FreeValue(ctx, args[0]);
+          /*JS_FreeValue(ctx, callback);
+          JS_FreeContext(ctx);*/
+        };
+      else
+        fn = []() {};
+
+      (*as)->setValueChanged(fn);
+      break;
+    }
+
+    case AUDIOSETTING_ENUMFROMNAME: {
+      int32_t index = -1;
+      const char* name;
+
+      if((name = from_js<const char*>(ctx, argv[0]))) {
+        index = (*as)->enumFromName(name);
+        JS_FreeCString(ctx, name);
+      }
+
+      ret = to_js<int32_t>(ctx, index);
+      break;
+    }
   }
 
   return ret;
@@ -1069,6 +1185,11 @@ js_audiosetting_get(JSContext* ctx, JSValueConst this_val, int magic) {
   if(!audiosetting_class.opaque(ctx, this_val, as))
     return JS_EXCEPTION;
 
+  int type = int((*as)->type());
+
+  if(!(type >= 0 && type < countof(js_audiosetting_types) && js_audiosetting_types[type]))
+    return JS_ThrowInternalError(ctx, "AudioSetting has invalid type %d", type);
+
   switch(magic) {
     case AUDIOSETTING_NAME: {
       ret = to_js<std::string>(ctx, (*as)->name());
@@ -1079,43 +1200,24 @@ js_audiosetting_get(JSContext* ctx, JSValueConst this_val, int magic) {
       break;
     }
     case AUDIOSETTING_TYPE: {
-      ret = JS_NewString(ctx, js_audiosetting_types[int((*as)->type())]);
+      ret = JS_NewString(ctx, js_audiosetting_types[type]);
       break;
     }
     case AUDIOSETTING_VALUE: {
-      switch((*as)->type()) {
-        case lab::SettingType::None: {
-          break;
-        }
-        case lab::SettingType::Bool: {
-          ret = to_js<BOOL>(ctx, !!(*as)->valueBool());
-          break;
-        }
-        case lab::SettingType::Integer: {
-          ret = to_js<uint32_t>(ctx, (*as)->valueUint32());
-          break;
-        }
-        case lab::SettingType::Float: {
-          ret = to_js<double>(ctx, (*as)->valueFloat());
-          break;
-        }
-        case lab::SettingType::Enum: {
-          ret = to_js<const char*>(ctx, (*as)->enums()[(*as)->valueUint32()]);
-          break;
-        }
-        case lab::SettingType::Bus: {
-          AudioBufferPtr ab((*as)->valueBus());
-
-          ret = !!ab ? js_audiobuffer_wrap(ctx, ab) : JS_NULL;
-          break;
-        }
-      }
-
+      ret = js_audiosetting_getvalue(ctx, *as);
       break;
     }
 
     case AUDIOSETTING_ENUMS: {
-      ret = to_js(ctx, range_from((*as)->enums()));
+      if(lab::SettingType(type) == lab::SettingType::Enum) {
+        char const* const* enums;
+
+        if(!(enums = (*as)->enums()))
+          return JS_ThrowInternalError(ctx, "AudioSetting of type Enum has no enums()");
+
+        auto range = range_from(enums);
+        ret = to_js(ctx, range.begin(), range.end());
+      }
       break;
     }
   }
@@ -1133,48 +1235,7 @@ js_audiosetting_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, i
 
   switch(magic) {
     case AUDIOSETTING_VALUE: {
-      switch((*as)->type()) {
-        case lab::SettingType::None: {
-          break;
-        }
-        case lab::SettingType::Bool: {
-          (*as)->setBool(from_js<BOOL>(ctx, value));
-          break;
-        }
-        case lab::SettingType::Integer: {
-          (*as)->setUint32(from_js<uint32_t>(ctx, value));
-          break;
-        }
-        case lab::SettingType::Float: {
-          (*as)->setFloat(from_js<double>(ctx, value));
-          break;
-        }
-        case lab::SettingType::Enum: {
-          const char* str;
-
-          if(JS_IsNumber(value))
-            (*as)->setEnumeration(from_js<uint32_t>(ctx, value));
-          else if((str = JS_ToCString(ctx, value))) {
-            int val = find_enumeration(range_from((*as)->enums()), str);
-            if(val >= 0)
-              (*as)->setEnumeration(val);
-            else
-              (*as)->setEnumeration(str);
-          }
-
-          break;
-        }
-        case lab::SettingType::Bus: {
-          AudioBufferPtr* ab;
-
-          if(!audiobuffer_class.opaque(ctx, value, ab))
-            return JS_ThrowTypeError(ctx, "must be an AudioBuffer");
-
-          (*as)->setBus(ab->get());
-          break;
-        }
-      }
-
+      ret = js_audiosetting_setvalue(ctx, *as, value);
       break;
     }
   }
@@ -1205,6 +1266,9 @@ static const JSCFunctionListEntry js_audiosetting_methods[] = {
     JS_CGETSET_MAGIC_DEF("type", js_audiosetting_get, 0, AUDIOSETTING_TYPE),
     JS_CGETSET_MAGIC_FLAGS_DEF("value", js_audiosetting_get, js_audiosetting_set, AUDIOSETTING_VALUE, JS_PROP_ENUMERABLE),
     JS_CGETSET_MAGIC_DEF("enums", js_audiosetting_get, 0, AUDIOSETTING_ENUMS),
+    JS_CFUNC_MAGIC_DEF("setValue", 1, js_audiosetting_method, AUDIOSETTING_SETVALUE),
+    JS_CFUNC_MAGIC_DEF("setValueChanged", 1, js_audiosetting_method, AUDIOSETTING_SETVALUECHANGED),
+    JS_CFUNC_MAGIC_DEF("enumFromName", 1, js_audiosetting_method, AUDIOSETTING_ENUMFROMNAME),
     JS_CFUNC_MAGIC_DEF("[Symbol.toPrimitive]", 0, js_audiosetting_method, AUDIOSETTING_TOPRIMITIVE),
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioSetting", JS_PROP_CONFIGURABLE),
 };
@@ -3739,6 +3803,15 @@ static const JSCFunctionListEntry js_periodicwave_methods[] = {
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "PeriodicWave", JS_PROP_CONFIGURABLE),
 };
 
+static const JSCFunctionListEntry js_settingtype_values[] = {
+    JS_PROP_INT32_DEF("None", int32_t(lab::SettingType::None), JS_PROP_ENUMERABLE),
+    JS_PROP_INT32_DEF("Bool", int32_t(lab::SettingType::Bool), JS_PROP_ENUMERABLE),
+    JS_PROP_INT32_DEF("Integer", int32_t(lab::SettingType::Integer), JS_PROP_ENUMERABLE),
+    JS_PROP_INT32_DEF("Float", int32_t(lab::SettingType::Float), JS_PROP_ENUMERABLE),
+    JS_PROP_INT32_DEF("Enum", int32_t(lab::SettingType::Enum), JS_PROP_ENUMERABLE),
+    JS_PROP_INT32_DEF("Bus", int32_t(lab::SettingType::Bus), JS_PROP_ENUMERABLE),
+};
+
 int
 js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   audiobuffer_class.init(ctx, &js_audiobuffer_class);
@@ -3884,6 +3957,10 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
 
   JS_SetClassProto(ctx, audiosetting_class, audiosetting_class.proto);
 
+  JSValue settingtype_obj = JS_NewObjectProto(ctx, JS_NULL);
+
+  JS_SetPropertyFunctionList(ctx, settingtype_obj, js_settingtype_values, countof(js_settingtype_values));
+
   periodicwave_class.init(ctx, &js_periodicwave_class);
 
   periodicwave_class.constructor(ctx, js_periodicwave_constructor, 1, 0);
@@ -3908,6 +3985,7 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
     JS_SetModuleExport(ctx, m, "AudioBufferSourceNode", audiobuffersourcenode_class.ctor);
     JS_SetModuleExport(ctx, m, "AudioParam", audioparam_class.ctor);
     JS_SetModuleExport(ctx, m, "AudioSetting", audiosetting_class.ctor);
+    JS_SetModuleExport(ctx, m, "SettingType", settingtype_obj);
     JS_SetModuleExport(ctx, m, "PeriodicWave", periodicwave_class.ctor);
   }
 
@@ -3932,6 +4010,7 @@ js_init_module_labsound(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "AudioBufferSourceNode");
   JS_AddModuleExport(ctx, m, "AudioParam");
   JS_AddModuleExport(ctx, m, "AudioSetting");
+  JS_AddModuleExport(ctx, m, "SettingType");
   JS_AddModuleExport(ctx, m, "PeriodicWave");
 }
 

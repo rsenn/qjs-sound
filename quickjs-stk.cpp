@@ -375,6 +375,7 @@ enum {
   PROP_CHANNELS,
   PROP_FRAMES,
   PROP_DATA_RATE,
+  PROP_DURATION,
   PROP_BUFFER,
 };
 
@@ -412,6 +413,13 @@ js_stkframes_get(JSContext* ctx, JSValueConst this_val, int magic) {
     }
     case PROP_DATA_RATE: {
       ret = JS_NewFloat64(ctx, (*f)->dataRate());
+      break;
+    }
+    case PROP_DURATION: {
+      auto rate = (*f)->dataRate();
+
+      if(rate >= std::numeric_limits<decltype(rate)>::epsilon())
+        ret = JS_NewUint32(ctx, (*f)->frames() / rate);
       break;
     }
     case PROP_BUFFER: {
@@ -475,6 +483,7 @@ static const JSCFunctionListEntry js_stkframes_funcs[] = {
     JS_CGETSET_MAGIC_DEF("channels", js_stkframes_get, 0, PROP_CHANNELS),
     JS_CGETSET_MAGIC_DEF("frames", js_stkframes_get, 0, PROP_FRAMES),
     JS_CGETSET_MAGIC_DEF("dataRate", js_stkframes_get, js_stkframes_set, PROP_DATA_RATE),
+    JS_CGETSET_MAGIC_DEF("duration", js_stkframes_get, 0, PROP_DURATION),
     JS_CGETSET_MAGIC_DEF("buffer", js_stkframes_get, 0, PROP_BUFFER),
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "StkFrames", JS_PROP_CONFIGURABLE),
 };
