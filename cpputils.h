@@ -1,5 +1,5 @@
-#ifndef CPPUTILS_H
-#define CPPUTILS_H
+#ifndef CPPUTILS_HPP
+#define CPPUTILS_HPP
 
 #include <quickjs.h>
 #include <cutils.h>
@@ -300,9 +300,7 @@ to_js(JSContext* ctx, const Range& container) {
 
 template<template<class> class Container, class Input>
 inline JSValue
-to_js(JSContext* ctx,
-      const Container<Input>& container,
-      const typename Container<Input>::value_type* tn = 0) {
+to_js(JSContext* ctx, const Container<Input>& container, const typename Container<Input>::value_type* tn = 0) {
   uint32_t i = 0;
   JSValue ret = JS_NewArray(ctx);
 
@@ -570,8 +568,7 @@ private:
   static std::map<weak_type, JSObjectPtr> object_map;
 };
 
-template<class T, class U = std::shared_ptr<lab::AudioContext>>
-struct ClassPtr : public std::shared_ptr<T> {
+template<class T, class U = std::shared_ptr<lab::AudioContext>> struct ClassPtr : public std::shared_ptr<T> {
   typedef std::shared_ptr<T> base_type;
   typedef U value_type;
 
@@ -631,13 +628,8 @@ protected:
 class ObjectRef : public NonOwningObjectRef {
 public:
   ObjectRef() = delete;
-  ObjectRef(const ObjectRef& other) : m_ctx(other.m_ctx), NonOwningObjectRef(other.m_obj) {
-    reference();
-  }
-  ObjectRef(JSContext* ctx, JSValueConst buf)
-      : m_ctx(ctx), NonOwningObjectRef(from_js<JSObject*>(buf)) {
-    reference();
-  }
+  ObjectRef(const ObjectRef& other) : m_ctx(other.m_ctx), NonOwningObjectRef(other.m_obj) { reference(); }
+  ObjectRef(JSContext* ctx, JSValueConst buf) : m_ctx(ctx), NonOwningObjectRef(from_js<JSObject*>(buf)) { reference(); }
   ~ObjectRef() { release(); }
 
 protected:
@@ -663,8 +655,7 @@ protected:
   JSContext* m_ctx;
 };
 
-template<class R = ObjectRef>
-class ArrayBufferView : protected R, public std::ranges::view_interface<ArrayBufferView<R>> {
+template<class R = ObjectRef> class ArrayBufferView : protected R, public std::ranges::view_interface<ArrayBufferView<R>> {
 public:
   typedef PointerRange<uint8_t> pointer_range;
 
@@ -683,16 +674,13 @@ public:
 };
 
 struct TypedArray {
-  TypedArray(JSContext* ctx, JSValueConst obj)
-      : buffer(ctx,
-               JS_GetTypedArrayBuffer(ctx, obj, &byte_offset, &byte_length, &bytes_per_element)) {}
+  TypedArray(JSContext* ctx, JSValueConst obj) : buffer(ctx, JS_GetTypedArrayBuffer(ctx, obj, &byte_offset, &byte_length, &bytes_per_element)) {}
 
   size_t byte_offset, byte_length, bytes_per_element;
   ArrayBufferView<ObjectRef> buffer;
 };
 
-template<class T>
-class TypedArrayView : public std::ranges::view_interface<TypedArrayView<T>>, protected TypedArray {
+template<class T> class TypedArrayView : public std::ranges::view_interface<TypedArrayView<T>>, protected TypedArray {
 
   TypedArrayView() = delete;
   TypedArrayView(JSContext* ctx, JSValueConst buf) : TypedArray(ctx, buf) {}
@@ -860,9 +848,7 @@ template<> struct enumeration_type<lab::OscillatorType> {
 template<class Range>
 static inline int32_t
 find_enumeration(const Range& range, const char* str) {
-  auto it = std::ranges::find_if(range, [str](const char* enval) -> bool {
-    return !strcasecmp(str, enval);
-  });
+  auto it = std::ranges::find_if(range, [str](const char* enval) -> bool { return !strcasecmp(str, enval); });
 
   if(it != range.end())
     return std::distance(range.begin(), it);
@@ -934,4 +920,4 @@ end(T* const* ptr) {
 } // namespace ranges
 } // namespace std
 
-#endif /* defined(CPPUTILS_H) */
+#endif // defined(CPPUTILS_HPP)

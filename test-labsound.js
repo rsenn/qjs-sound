@@ -1,7 +1,7 @@
 import { AudioDevice, AudioContext, AudioDestinationNode, OscillatorNode } from 'labsound';
 
 function main() {
-  const device = new AudioDevice({}, { sampleRate: 48000, numberOfChannels: 2 });
+  const device = new AudioDevice({}, { deviceIndex: 0, desiredSampleRate: 44100, desiredChannels: 2 });
 
   const context = new AudioContext(false, true);
 

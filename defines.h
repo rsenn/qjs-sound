@@ -11,8 +11,7 @@
 
 #define JS_CGETSET_MAGIC_FLAGS_DEF(prop_name, fgetter, fsetter, magic_num, flags) \
   { \
-    .name = prop_name, .prop_flags = flags, .def_type = JS_DEF_CGETSET_MAGIC, .magic = magic_num, \
-    .u = { \
+    .name = prop_name, .prop_flags = flags, .def_type = JS_DEF_CGETSET_MAGIC, .magic = magic_num, .u = { \
       .getset = {.get = {.getter_magic = fgetter}, .set = {.setter_magic = fsetter}} \
     } \
   }
