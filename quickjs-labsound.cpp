@@ -629,7 +629,7 @@ js_audioparam_descriptor_reset(JSContext* ctx, lab::AudioParamDescriptor* apd) {
 }
 
 static lab::AudioParamDescriptor
-js_audioparam_descriptor(JSContext* ctx, JSValueConst obj) {
+js_audioparam_descriptor_get(JSContext* ctx, JSValueConst obj) {
   return lab::AudioParamDescriptor{
       .name = from_js_property<char*>(ctx, obj, "name"),
       .shortName = from_js_property<char*>(ctx, obj, "shortName"),
@@ -637,6 +637,17 @@ js_audioparam_descriptor(JSContext* ctx, JSValueConst obj) {
       .minValue = from_js_property<double>(ctx, obj, "minValue"),
       .maxValue = from_js_property<double>(ctx, obj, "maxValue"),
   };
+}
+
+static JSValue
+js_audioparam_descriptor(JSContext* ctx, lab::AudioParamDescriptor* pd) {
+  JSValue ret = JS_NewObjectProto(ctx, JS_NULL);
+  to_js_property(ctx, ret, "name", pd->name);
+  to_js_property(ctx, ret, "shortName", pd->shortName);
+  to_js_property<double>(ctx, ret, "defaultValue", pd->defaultValue);
+  to_js_property<double>(ctx, ret, "minValue", pd->minValue);
+  to_js_property<double>(ctx, ret, "maxValue", pd->maxValue);
+  return ret;
 }
 
 static lab::AudioParamDescriptor
@@ -657,7 +668,7 @@ js_audioparam_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSV
   if(!js_alloc(ctx, ap))
     return JS_EXCEPTION;
 
-  lab::AudioParamDescriptor desc(argc >= 5 ? js_audioparam_arguments(ctx, argc, argv) : js_audioparam_descriptor(ctx, argv[0]));
+  lab::AudioParamDescriptor desc(argc >= 5 ? js_audioparam_arguments(ctx, argc, argv) : js_audioparam_descriptor_get(ctx, argv[0]));
 
   shared_ptr<lab::AudioParamDescriptor> descPtr(new lab::AudioParamDescriptor(desc), [ctx](lab::AudioParamDescriptor* apd) {
     js_audioparam_descriptor_reset(ctx, apd);
@@ -1892,6 +1903,35 @@ js_audiostream_config(JSContext* ctx, JSValueConst obj) {
       .desired_samplerate = from_js_property<double>(ctx, obj, "desiredSampleRate", 0),
   };
 }
+struct AudioDeviceInfo {
+  int32_t index{-1};
+  std::string identifier;
+  uint32_t num_output_channels{0};
+  uint32_t num_input_channels{0};
+  std::vector<float> supported_samplerates;
+  float nominal_samplerate{0};
+  bool is_default_output{false};
+  bool is_default_input{false};
+};
+
+static JSValue
+js_audiodevice_info(JSContext* ctx, lab::AudioDeviceInfo* adi) {
+  JSValue ret = JS_NewObjectProto(ctx, JS_NULL);
+  to_js_property(ctx, ret, "index", adi->index);
+  to_js_property(ctx, ret, "identifier", adi->identifier.c_str());
+  to_js_property(ctx, ret, "numOutputChannels", adi->num_output_channels);
+  to_js_property(ctx, ret, "numInputChannels", adi->num_input_channels);
+
+  std::vector<double> samplerates;
+  std::transform(adi->supported_samplerates.begin(), adi->supported_samplerates.end(), std::back_inserter(samplerates), [](float f) -> double { return f; });
+
+  to_js_property(ctx, ret, "supportedSamplerates", samplerates);
+  to_js_property(ctx, ret, "nominalSamplerate", double(adi->nominal_samplerate));
+  to_js_property(ctx, ret, "isDefaultOutput", BOOL(adi->is_default_output));
+  to_js_property(ctx, ret, "isDefaultInput", double(adi->is_default_input));
+
+  return ret;
+}
 
 static JSValue
 js_audiodevice_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
@@ -1987,6 +2027,26 @@ js_audiodevice_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
 }
 
 enum {
+  AUDIODEVICE_DEVICELIST,
+};
+
+static JSValue
+js_audiodevice_function(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+  JSValue ret = JS_UNDEFINED;
+
+  switch(magic) {
+    case AUDIODEVICE_DEVICELIST: {
+      vector<lab::AudioDeviceInfo> audioDevices = lab::AudioDevice_RtAudio::MakeAudioDeviceList();
+
+      ret = js_array_build<lab::AudioDeviceInfo>(ctx, audioDevices.begin(), audioDevices.end(), js_audiodevice_info);
+      break;
+    }
+  }
+
+  return ret;
+}
+
+enum {
   AUDIODEVICE_RUNNING,
   AUDIODEVICE_DESTINATION,
 };
@@ -2068,6 +2128,10 @@ static const JSCFunctionListEntry js_audiodevice_methods[] = {
     JS_CGETSET_MAGIC_DEF("running", js_audiodevice_get, 0, AUDIODEVICE_RUNNING),
     JS_CGETSET_MAGIC_DEF("destination", js_audiodevice_get, js_audiodevice_set, AUDIODEVICE_DESTINATION),
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioDevice", JS_PROP_CONFIGURABLE),
+};
+
+static const JSCFunctionListEntry js_audiodevice_functions[] = {
+    JS_CFUNC_MAGIC_DEF("deviceList", 0, js_audiodevice_function, AUDIODEVICE_DEVICELIST),
 };
 
 static JSValue
@@ -2369,12 +2433,26 @@ static const JSCFunctionListEntry js_audionodeoutput_methods[] = {
 };
 
 static lab::AudioNodeDescriptor
-js_audionode_descriptor(JSContext* ctx, JSValueConst obj) {
-  lab::AudioParamDescriptor* params = js_array_get(ctx, JS_GetPropertyStr(ctx, obj, "params"), js_audioparam_descriptor, true);
+js_audionode_descriptor2(JSContext* ctx, JSValueConst obj) {
+  lab::AudioParamDescriptor* params = js_array_get(ctx, JS_GetPropertyStr(ctx, obj, "params"), js_audioparam_descriptor_get, true);
   lab::AudioSettingDescriptor* settings = js_array_get(ctx, JS_GetPropertyStr(ctx, obj, "settings"), js_audiosetting_descriptor, true);
-  int initialChannelCount = from_js_property<int32_t>(ctx,  obj, "initialChannelCount");
+  int initialChannelCount = from_js_property<int32_t>(ctx, obj, "initialChannelCount");
 
   return lab::AudioNodeDescriptor{params, settings, initialChannelCount};
+}
+
+static JSValue
+js_audionode_descriptor(JSContext* ctx, lab::AudioNodeDescriptor* nd) {
+  JSValue ret = JS_NewObjectProto(ctx, JS_NULL);
+
+  // auto r = range_from(const_cast<lab::AudioParamDescriptor* >(nd->params));
+  //
+  //
+  JS_SetPropertyStr(ctx, ret, "params", js_array_build<lab::AudioParamDescriptor>(ctx, nd->params, nd->params + size(nd->params), js_audioparam_descriptor));
+
+  to_js_property<int32_t>(ctx, ret, "initialChannelCount", nd->initialChannelCount);
+
+  return ret;
 }
 
 static JSValue
@@ -2617,6 +2695,7 @@ js_audionode_function(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
 
 enum {
   AUDIONODE_NAME,
+  AUDIONODE_DESC,
   AUDIONODE_CHANNELCOUNT,
   AUDIONODE_CHANNELCOUNTMODE,
   AUDIONODE_CHANNELINTERPRETATION,
@@ -3991,6 +4070,7 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   audiodevice_class.proto = JS_NewObjectProto(ctx, JS_NULL);
 
   JS_SetPropertyFunctionList(ctx, audiodevice_class.proto, js_audiodevice_methods, countof(js_audiodevice_methods));
+  JS_SetPropertyFunctionList(ctx, audiodevice_class.ctor, js_audiodevice_functions, countof(js_audiodevice_functions));
 
   JS_SetClassProto(ctx, audiodevice_class, audiodevice_class.proto);
   JS_SetConstructor(ctx, audiodevice_class.ctor, audiodevice_class.proto);

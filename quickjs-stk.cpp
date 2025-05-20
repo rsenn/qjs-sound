@@ -93,17 +93,20 @@
 
 using stk::Stk;
 
-static JSClassID js_stkframes_class_id, js_stk_class_id, js_stkfilter_class_id, js_stkgenerator_class_id, js_stkeffect_class_id, js_stkfm_class_id, js_stkinstrmnt_class_id;
-static JSValue stkframes_proto, stkframes_ctor, stk_proto, stk_ctor, stkfilter_proto, stkfilter_ctor, stkgenerator_proto, stkgenerator_ctor, stkeffect_proto, stkeffect_ctor,
-    stkfm_proto, stkfm_ctor, stkinstrmnt_proto, stkinstrmnt_ctor;
+static ClassWrapper stkframes_class, stk_class, stkfilter_class, stkgenerator_class, stkeffect_class, stkfm_class, stkinstrmnt_class;
+/*static JSValue stkframes_proto, stkframes_ctor, stk_proto, stk_ctor, stkfilter_proto, stkfilter_ctor, stkgenerator_proto, stkgenerator_ctor, stkeffect_proto, stkeffect_ctor,
+    stkfm_proto, stkfm_ctor, stkinstrmnt_proto, stkinstrmnt_ctor;*/
 
 typedef std::shared_ptr<stk::Stk> StkPtr;
 typedef std::shared_ptr<stk::StkFrames> StkFramesPtr;
-typedef std::shared_ptr<stk::Generator> StkGeneratorPtr;
-typedef std::shared_ptr<stk::Filter> StkFilterPtr;
-typedef std::shared_ptr<stk::Effect> StkEffectPtr;
-typedef std::shared_ptr<stk::FM> StkFMPtr;
-typedef std::shared_ptr<stk::Instrmnt> StkInstrmntPtr;
+typedef std::shared_ptr<stk::Generator> GeneratorPtr;
+typedef std::shared_ptr<stk::Filter> FilterPtr;
+typedef std::shared_ptr<stk::Effect> EffectPtr;
+typedef std::shared_ptr<stk::FM> FMPtr;
+typedef std::shared_ptr<stk::Instrmnt> InstrmntPtr;
+
+ClassWrapper* ClassWrapper::wrappers{nullptr};
+ClassWrapper** ClassWrapper::wrapper_ptr{&ClassWrapper::wrappers};
 
 static JSAtom
 js_symbol_tostringtag(JSContext* ctx) {
@@ -158,7 +161,7 @@ static JSValue
 js_stk_wrap(JSContext* ctx, Stk* s) {
   /* using new_target to get the prototype is necessary when the class is
    * extended. */
-  JSValue obj = JS_NewObjectProtoClass(ctx, stk_proto, js_stk_class_id);
+  JSValue obj = JS_NewObjectProtoClass(ctx, stk_class.proto, stk_class);
 
   if(JS_IsException(obj))
     goto fail;
@@ -180,7 +183,7 @@ js_stk_get(JSContext* ctx, JSValueConst this_val, int magic) {
   StkPtr* s;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(s = static_cast<StkPtr*>(JS_GetOpaque2(ctx, this_val, js_stk_class_id))))
+  if(!(s = static_cast<StkPtr*>(JS_GetOpaque2(ctx, this_val, stk_class))))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -198,7 +201,7 @@ js_stk_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic)
   StkPtr* s;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(s = static_cast<StkPtr*>(JS_GetOpaque2(ctx, this_val, js_stk_class_id))))
+  if(!(s = static_cast<StkPtr*>(JS_GetOpaque2(ctx, this_val, stk_class))))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -217,7 +220,7 @@ static void
 js_stk_finalizer(JSRuntime* rt, JSValue val) {
   StkPtr* s;
 
-  if((s = static_cast<StkPtr*>(JS_GetOpaque(val, js_stk_class_id)))) {
+  if((s = static_cast<StkPtr*>(JS_GetOpaque(val, stk_class)))) {
     s->~StkPtr();
     js_free_rt(rt, s);
   }
@@ -264,11 +267,11 @@ js_stkframes_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
     goto fail;
 
   if(!JS_IsObject(proto))
-    proto = stkframes_proto;
+    proto = stkframes_class.proto;
 
   /* using new_target to get the prototype is necessary when the class is
    * extended. */
-  obj = JS_NewObjectProtoClass(ctx, proto, js_stkframes_class_id);
+  obj = JS_NewObjectProtoClass(ctx, proto, stkframes_class);
   JS_FreeValue(ctx, proto);
 
   if(JS_IsException(obj))
@@ -294,7 +297,7 @@ js_stkframes_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
   StkFramesPtr* f;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(f = static_cast<StkFramesPtr*>(JS_GetOpaque2(ctx, this_val, js_stkframes_class_id))))
+  if(!(f = static_cast<StkFramesPtr*>(JS_GetOpaque2(ctx, this_val, stkframes_class))))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -331,7 +334,7 @@ js_stkframes_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
 
       JS_ToUint32(ctx, &channel, argv[0]);
 
-      if(!(a = static_cast<StkFramesPtr*>(JS_GetOpaque(argv[1], js_stkframes_class_id))))
+      if(!(a = static_cast<StkFramesPtr*>(JS_GetOpaque(argv[1], stkframes_class))))
         return JS_ThrowTypeError(ctx, "argument 2 must be StkFrames");
 
       JS_ToUint32(ctx, &dstChannel, argv[2]);
@@ -346,7 +349,7 @@ js_stkframes_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
 
       JS_ToUint32(ctx, &channel, argv[0]);
 
-      if(!(a = static_cast<StkFramesPtr*>(JS_GetOpaque(argv[1], js_stkframes_class_id))))
+      if(!(a = static_cast<StkFramesPtr*>(JS_GetOpaque(argv[1], stkframes_class))))
         return JS_ThrowTypeError(ctx, "argument 2 must be StkFrames");
 
       JS_ToUint32(ctx, &srcChannel, argv[2]);
@@ -381,7 +384,7 @@ js_stkframes_get(JSContext* ctx, JSValueConst this_val, int magic) {
   StkFramesPtr* f;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(f = static_cast<StkFramesPtr*>(JS_GetOpaque2(ctx, this_val, js_stkframes_class_id))))
+  if(!(f = static_cast<StkFramesPtr*>(JS_GetOpaque2(ctx, this_val, stkframes_class))))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -420,7 +423,8 @@ js_stkframes_get(JSContext* ctx, JSValueConst this_val, int magic) {
 
       new(opaque) StkFramesPtr(*f);
 
-      ret = JS_NewArrayBuffer(ctx, reinterpret_cast<uint8_t*>(ptr), sizeof(stk::StkFloat) * len, js_stkframes_free_buf, opaque, FALSE);
+      ret = js_float32array_new(ctx, reinterpret_cast<uint8_t*>(ptr), sizeof(stk::StkFloat) * len, js_stkframes_free_buf, opaque);
+      // ret = JS_NewArrayBuffer(ctx, reinterpret_cast<uint8_t*>(ptr), sizeof(stk::StkFloat) * len, js_stkframes_free_buf, opaque, FALSE);
       break;
     }
   }
@@ -433,7 +437,7 @@ js_stkframes_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int 
   StkFramesPtr* f;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(f = static_cast<StkFramesPtr*>(JS_GetOpaque2(ctx, this_val, js_stkframes_class_id))))
+  if(!(f = static_cast<StkFramesPtr*>(JS_GetOpaque2(ctx, this_val, stkframes_class))))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -452,7 +456,7 @@ static void
 js_stkframes_finalizer(JSRuntime* rt, JSValue val) {
   StkFramesPtr* f;
 
-  if((f = static_cast<StkFramesPtr*>(JS_GetOpaque(val, js_stkframes_class_id)))) {
+  if((f = static_cast<StkFramesPtr*>(JS_GetOpaque(val, stkframes_class)))) {
     f->~StkFramesPtr();
     js_free_rt(rt, f);
   }
@@ -494,7 +498,7 @@ enum {
 
 static JSValue
 js_stkgenerator_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {
-  StkGeneratorPtr* g = static_cast<StkGeneratorPtr*>(js_mallocz(ctx, sizeof(StkGeneratorPtr)));
+  GeneratorPtr* g = static_cast<GeneratorPtr*>(js_mallocz(ctx, sizeof(GeneratorPtr)));
   double arg = 0;
 
   if(argc > 0)
@@ -571,11 +575,11 @@ js_stkgenerator_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
     goto fail;
 
   if(!JS_IsObject(proto))
-    proto = stkgenerator_proto;
+    proto = stkgenerator_class.proto;
 
   /* using new_target to get the prototype is necessary when the class is
    * extended. */
-  obj = JS_NewObjectProtoClass(ctx, proto, js_stkgenerator_class_id);
+  obj = JS_NewObjectProtoClass(ctx, proto, stkgenerator_class);
   JS_FreeValue(ctx, proto);
 
   if(JS_IsException(obj))
@@ -586,17 +590,17 @@ js_stkgenerator_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
   js_set_tostringtag(ctx,
                      obj,
                      ((const char*[]){
-                         "StkADSR",
-                         "StkAsymp",
-                         "StkBlit",
-                         "StkBlitSaw",
-                         "StkBlitSquare",
-                         "StkEnvelope",
-                         "StkGranulate",
-                         "StkModulate",
-                         "StkNoise",
-                         "StkSineWave",
-                         "StkSingWave",
+                         "ADSR",
+                         "Asymp",
+                         "Blit",
+                         "BlitSaw",
+                         "BlitSquare",
+                         "Envelope",
+                         "Granulate",
+                         "Modulate",
+                         "Noise",
+                         "SineWave",
+                         "SingWave",
                      })[magic]);
 
   return obj;
@@ -612,10 +616,10 @@ enum {
 
 static JSValue
 js_stkgenerator_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
-  StkGeneratorPtr* f;
+  GeneratorPtr* f;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(f = static_cast<StkGeneratorPtr*>(JS_GetOpaque2(ctx, this_val, js_stkgenerator_class_id))))
+  if(!(f = static_cast<GeneratorPtr*>(JS_GetOpaque2(ctx, this_val, stkgenerator_class))))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -623,7 +627,7 @@ js_stkgenerator_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       StkFramesPtr* a;
       uint32_t channel = 0;
 
-      if(!(a = static_cast<StkFramesPtr*>(JS_GetOpaque(argv[0], js_stkframes_class_id))))
+      if(!(a = static_cast<StkFramesPtr*>(JS_GetOpaque(argv[0], stkframes_class))))
         return JS_ThrowTypeError(ctx, "argument 1 must be StkFrames");
 
       if(argc > 1)
@@ -645,10 +649,10 @@ enum {
 
 static JSValue
 js_stkgenerator_get(JSContext* ctx, JSValueConst this_val, int magic) {
-  StkGeneratorPtr* g;
+  GeneratorPtr* g;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(g = static_cast<StkGeneratorPtr*>(JS_GetOpaque2(ctx, this_val, js_stkgenerator_class_id))))
+  if(!(g = static_cast<GeneratorPtr*>(JS_GetOpaque2(ctx, this_val, stkgenerator_class))))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -663,10 +667,10 @@ js_stkgenerator_get(JSContext* ctx, JSValueConst this_val, int magic) {
 
 static JSValue
 js_stkgenerator_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
-  StkGeneratorPtr* g;
+  GeneratorPtr* g;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(g = static_cast<StkGeneratorPtr*>(JS_GetOpaque2(ctx, this_val, js_stkgenerator_class_id))))
+  if(!(g = static_cast<GeneratorPtr*>(JS_GetOpaque2(ctx, this_val, stkgenerator_class))))
     return JS_EXCEPTION;
 
   switch(magic) {}
@@ -676,23 +680,23 @@ js_stkgenerator_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, i
 
 static void
 js_stkgenerator_finalizer(JSRuntime* rt, JSValue val) {
-  StkGeneratorPtr* s;
+  GeneratorPtr* s;
 
-  if((s = static_cast<StkGeneratorPtr*>(JS_GetOpaque(val, js_stkgenerator_class_id)))) {
-    s->~StkGeneratorPtr();
+  if((s = static_cast<GeneratorPtr*>(JS_GetOpaque(val, stkgenerator_class)))) {
+    s->~GeneratorPtr();
     js_free_rt(rt, s);
   }
 }
 
 static JSClassDef js_stkgenerator_class = {
-    .class_name = "StkGenerator",
+    .class_name = "Generator",
     .finalizer = js_stkgenerator_finalizer,
 };
 
 static const JSCFunctionListEntry js_stkgenerator_funcs[] = {
     JS_CFUNC_MAGIC_DEF("tick", 1, js_stkgenerator_method, METHOD_TICK),
     JS_CGETSET_MAGIC_DEF("channelsOut", js_stkgenerator_get, js_stkgenerator_set, PROP_SAMPLERATE),
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "StkGenerator", JS_PROP_CONFIGURABLE),
+    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "Generator", JS_PROP_CONFIGURABLE),
 };
 
 enum {
@@ -713,7 +717,7 @@ enum {
 
 static JSValue
 js_stkfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {
-  StkFilterPtr* f = static_cast<StkFilterPtr*>(js_mallocz(ctx, sizeof(StkFilterPtr)));
+  FilterPtr* f = static_cast<FilterPtr*>(js_mallocz(ctx, sizeof(FilterPtr)));
 
   switch(magic) {
     case INSTANCE_DELAY:
@@ -839,11 +843,11 @@ js_stkfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
     goto fail;
 
   if(!JS_IsObject(proto))
-    proto = stkfilter_proto;
+    proto = stkfilter_class.proto;
 
   /* using new_target to get the prototype is necessary when the class is
    * extended. */
-  obj = JS_NewObjectProtoClass(ctx, proto, js_stkfilter_class_id);
+  obj = JS_NewObjectProtoClass(ctx, proto, stkfilter_class);
   JS_FreeValue(ctx, proto);
 
   if(JS_IsException(obj))
@@ -854,19 +858,19 @@ js_stkfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
   js_set_tostringtag(ctx,
                      obj,
                      ((const char*[]){
-                         "StkBiQuad",
-                         "StkDelay",
-                         "StkDelayA",
-                         "StkDelayL",
-                         "StkFir",
-                         "StkFormSwep",
-                         "StkIir",
-                         "StkOnePole",
-                         "StkOneZero",
-                         "StkPoleZero",
-                         "StkTapDelay",
-                         "StkTwoPole",
-                         "StkTwoZero",
+                         "BiQuad",
+                         "Delay",
+                         "DelayA",
+                         "DelayL",
+                         "Fir",
+                         "FormSwep",
+                         "Iir",
+                         "OnePole",
+                         "OneZero",
+                         "PoleZero",
+                         "TapDelay",
+                         "TwoPole",
+                         "TwoZero",
                      })[magic]);
 
   return obj;
@@ -878,21 +882,21 @@ fail:
 
 static void
 js_stkfilter_finalizer(JSRuntime* rt, JSValue val) {
-  StkFilterPtr* f;
+  FilterPtr* f;
 
-  if((f = static_cast<StkFilterPtr*>(JS_GetOpaque(val, js_stkfilter_class_id)))) {
-    f->~StkFilterPtr();
+  if((f = static_cast<FilterPtr*>(JS_GetOpaque(val, stkfilter_class)))) {
+    f->~FilterPtr();
     js_free_rt(rt, f);
   }
 }
 
 static JSClassDef js_stkfilter_class = {
-    .class_name = "StkFilter",
+    .class_name = "Filter",
     .finalizer = js_stkfilter_finalizer,
 };
 
 static const JSCFunctionListEntry js_stkfilter_funcs[] = {
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "StkFilter", JS_PROP_CONFIGURABLE),
+    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "Filter", JS_PROP_CONFIGURABLE),
 };
 
 enum {
@@ -908,7 +912,7 @@ enum {
 
 static JSValue
 js_stkeffect_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {
-  StkEffectPtr* e = static_cast<StkEffectPtr*>(js_mallocz(ctx, sizeof(StkEffectPtr)));
+  EffectPtr* e = static_cast<EffectPtr*>(js_mallocz(ctx, sizeof(EffectPtr)));
   double arg = 0;
   if(argc > 0)
     JS_ToFloat64(ctx, &arg, argv[0]);
@@ -958,11 +962,11 @@ js_stkeffect_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
     goto fail;
 
   if(!JS_IsObject(proto))
-    proto = stkeffect_proto;
+    proto = stkeffect_class.proto;
 
   /* using new_target to get the prototype is necessary when the class is
    * extended. */
-  obj = JS_NewObjectProtoClass(ctx, proto, js_stkeffect_class_id);
+  obj = JS_NewObjectProtoClass(ctx, proto, stkeffect_class);
   JS_FreeValue(ctx, proto);
 
   if(JS_IsException(obj))
@@ -973,14 +977,14 @@ js_stkeffect_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
   js_set_tostringtag(ctx,
                      obj,
                      ((const char*[]){
-                         "StkChorus",
-                         "StkEcho",
-                         "StkFreeVerb",
-                         "StkJCRev",
-                         "StkLentPitShift",
-                         "StkNRev",
-                         "StkPRCRev",
-                         "StkPitShift",
+                         "Chorus",
+                         "Echo",
+                         "FreeVerb",
+                         "JCRev",
+                         "LentPitShift",
+                         "NRev",
+                         "PRCRev",
+                         "PitShift",
                      })[magic]);
 
   return obj;
@@ -992,21 +996,21 @@ fail:
 
 static void
 js_stkeffect_finalizer(JSRuntime* rt, JSValue val) {
-  StkEffectPtr* e;
+  EffectPtr* e;
 
-  if((e = static_cast<StkEffectPtr*>(JS_GetOpaque(val, js_stkeffect_class_id)))) {
-    e->~StkEffectPtr();
+  if((e = static_cast<EffectPtr*>(JS_GetOpaque(val, stkeffect_class)))) {
+    e->~EffectPtr();
     js_free_rt(rt, e);
   }
 }
 
 static JSClassDef js_stkeffect_class = {
-    .class_name = "StkEffect",
+    .class_name = "Effect",
     .finalizer = js_stkeffect_finalizer,
 };
 
 static const JSCFunctionListEntry js_stkeffect_funcs[] = {
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "StkEffect", JS_PROP_CONFIGURABLE),
+    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "Effect", JS_PROP_CONFIGURABLE),
 };
 
 enum {
@@ -1021,7 +1025,7 @@ enum {
 
 static JSValue
 js_stkfm_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {
-  StkFMPtr* fm = static_cast<StkFMPtr*>(js_mallocz(ctx, sizeof(StkFMPtr)));
+  FMPtr* fm = static_cast<FMPtr*>(js_mallocz(ctx, sizeof(FMPtr)));
   double arg = 0;
   if(argc > 0)
     JS_ToFloat64(ctx, &arg, argv[0]);
@@ -1035,11 +1039,11 @@ js_stkfm_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueC
     goto fail;
 
   if(!JS_IsObject(proto))
-    proto = stkfm_proto;
+    proto = stkfm_class.proto;
 
   /* using new_target to get the prototype is necessary when the class is
    * extended. */
-  obj = JS_NewObjectProtoClass(ctx, proto, js_stkfm_class_id);
+  obj = JS_NewObjectProtoClass(ctx, proto, stkfm_class);
   JS_FreeValue(ctx, proto);
 
   if(JS_IsException(obj))
@@ -1055,21 +1059,21 @@ fail:
 
 static void
 js_stkfm_finalizer(JSRuntime* rt, JSValue val) {
-  StkFMPtr* fm;
+  FMPtr* fm;
 
-  if((fm = static_cast<StkFMPtr*>(JS_GetOpaque(val, js_stkfm_class_id)))) {
-    fm->~StkFMPtr();
+  if((fm = static_cast<FMPtr*>(JS_GetOpaque(val, stkfm_class)))) {
+    fm->~FMPtr();
     js_free_rt(rt, fm);
   }
 }
 
 static JSClassDef js_stkfm_class = {
-    .class_name = "StkFM",
+    .class_name = "FM",
     .finalizer = js_stkfm_finalizer,
 };
 
 static const JSCFunctionListEntry js_stkfm_funcs[] = {
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "StkFM", JS_PROP_CONFIGURABLE),
+    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "FM", JS_PROP_CONFIGURABLE),
 };
 
 enum {
@@ -1097,7 +1101,7 @@ enum {
 
 static JSValue
 js_stkinstrmnt_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {
-  StkInstrmntPtr* i = static_cast<StkInstrmntPtr*>(js_mallocz(ctx, sizeof(StkInstrmntPtr)));
+  InstrmntPtr* i = static_cast<InstrmntPtr*>(js_mallocz(ctx, sizeof(InstrmntPtr)));
   double arg = 0;
   if(argc > 0)
     JS_ToFloat64(ctx, &arg, argv[0]);
@@ -1198,11 +1202,11 @@ js_stkinstrmnt_constructor(JSContext* ctx, JSValueConst new_target, int argc, JS
     goto fail;
 
   if(!JS_IsObject(proto))
-    proto = stkinstrmnt_proto;
+    proto = stkinstrmnt_class.proto;
 
   /* using new_target to get the prototype is necessary when the class is
    * extended. */
-  obj = JS_NewObjectProtoClass(ctx, proto, js_stkinstrmnt_class_id);
+  obj = JS_NewObjectProtoClass(ctx, proto, stkinstrmnt_class);
   JS_FreeValue(ctx, proto);
 
   if(JS_IsException(obj))
@@ -1218,188 +1222,187 @@ fail:
 
 static void
 js_stkinstrmnt_finalizer(JSRuntime* rt, JSValue val) {
-  StkInstrmntPtr* i;
+  InstrmntPtr* i;
 
-  if((i = static_cast<StkInstrmntPtr*>(JS_GetOpaque(val, js_stkinstrmnt_class_id)))) {
-    i->~StkInstrmntPtr();
+  if((i = static_cast<InstrmntPtr*>(JS_GetOpaque(val, stkinstrmnt_class)))) {
+    i->~InstrmntPtr();
     js_free_rt(rt, i);
   }
 }
 
 static JSClassDef js_stkinstrmnt_class = {
-    .class_name = "StkInstrmnt",
+    .class_name = "Instrmnt",
     .finalizer = js_stkinstrmnt_finalizer,
 };
 
 static const JSCFunctionListEntry js_stkinstrmnt_funcs[] = {
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "StkInstrmnt", JS_PROP_CONFIGURABLE),
+    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "Instrmnt", JS_PROP_CONFIGURABLE),
 };
 
 int
 js_stk_init(JSContext* ctx, JSModuleDef* m) {
-  JS_NewClassID(&js_stk_class_id);
-  JS_NewClass(JS_GetRuntime(ctx), js_stk_class_id, &js_stk_class);
+  stk_class.init(ctx, &js_stk_class);
 
-  stk_ctor = JS_NewObject(ctx); // JS_NewCFunction2(ctx, js_stk_constructor,
-                                // "Stk", 1, JS_CFUNC_constructor, 0);
-  stk_proto = JS_NewObject(ctx);
+  stk_class.ctor = JS_NewObject(ctx); // JS_NewCFunction2(ctx, js_stk_constructor,
+                                      // "Stk", 1, JS_CFUNC_constructor, 0);
+  stk_class.proto = JS_NewObject(ctx);
 
-  JS_SetPropertyFunctionList(ctx, stk_proto, js_stk_funcs, countof(js_stk_funcs));
+  JS_SetPropertyFunctionList(ctx, stk_class.proto, js_stk_funcs, countof(js_stk_funcs));
 
-  JS_SetClassProto(ctx, js_stk_class_id, stk_proto);
+  JS_SetClassProto(ctx, stk_class, stk_class.proto);
 
-  JS_NewClassID(&js_stkframes_class_id);
-  JS_NewClass(JS_GetRuntime(ctx), js_stkframes_class_id, &js_stkframes_class);
+  stkframes_class.init(ctx, &js_stkframes_class);
+  // JS_NewClass(JS_GetRuntime(ctx), stkframes_class, &js_stkframes_class);
 
-  stkframes_ctor = JS_NewCFunction2(ctx, js_stkframes_constructor, "StkFrames", 1, JS_CFUNC_constructor, 0);
-  stkframes_proto = JS_NewObject(ctx);
+  stkframes_class.ctor = JS_NewCFunction2(ctx, js_stkframes_constructor, "StkFrames", 1, JS_CFUNC_constructor, 0);
+  stkframes_class.proto = JS_NewObject(ctx);
 
-  JS_SetPropertyFunctionList(ctx, stkframes_proto, js_stkframes_funcs, countof(js_stkframes_funcs));
+  JS_SetPropertyFunctionList(ctx, stkframes_class.proto, js_stkframes_funcs, countof(js_stkframes_funcs));
 
-  JS_SetClassProto(ctx, js_stkframes_class_id, stkframes_proto);
+  JS_SetClassProto(ctx, stkframes_class, stkframes_class.proto);
 
-  JS_NewClassID(&js_stkfilter_class_id);
-  JS_NewClass(JS_GetRuntime(ctx), js_stkfilter_class_id, &js_stkfilter_class);
+  stkfilter_class.init(ctx, &js_stkfilter_class);
+  stkfilter_class.inherit(stk_class);
 
-  stkfilter_ctor = JS_NewObject(ctx); // JS_NewCFunction2(ctx, js_stkfilter_constructor,
-                                      // "StkGenerator", 1, JS_CFUNC_constructor, 0);
-  stkfilter_proto = JS_NewObject(ctx);
+  stkfilter_class.ctor = JS_NewObject(ctx); // JS_NewCFunction2(ctx, js_stkfilter_constructor, "Generator", 1, JS_CFUNC_constructor, 0);
+  stkfilter_class.proto = JS_NewObject(ctx);
 
-  JS_SetPropertyFunctionList(ctx, stkfilter_proto, js_stkfilter_funcs, countof(js_stkfilter_funcs));
+  JS_SetPropertyFunctionList(ctx, stkfilter_class.proto, js_stkfilter_funcs, countof(js_stkfilter_funcs));
 
-  JS_SetClassProto(ctx, js_stkfilter_class_id, stkfilter_proto);
+  JS_SetClassProto(ctx, stkfilter_class, stkfilter_class.proto);
 
   JSValue ctor;
 
   if(m) {
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "BiQuad", 0, JS_CFUNC_constructor_magic, INSTANCE_BIQUAD);
-    JS_SetModuleExport(ctx, m, "StkBiQuad", ctor);
+    JS_SetModuleExport(ctx, m, "BiQuad", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "DelayA", 0, JS_CFUNC_constructor_magic, INSTANCE_DELAY_A);
-    JS_SetModuleExport(ctx, m, "StkDelayA", ctor);
+    JS_SetModuleExport(ctx, m, "DelayA", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "DelayL", 0, JS_CFUNC_constructor_magic, INSTANCE_DELAY_L);
-    JS_SetModuleExport(ctx, m, "StkDelayL", ctor);
+    JS_SetModuleExport(ctx, m, "DelayL", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "Delay", 0, JS_CFUNC_constructor_magic, INSTANCE_DELAY);
-    JS_SetModuleExport(ctx, m, "StkDelay", ctor);
+    JS_SetModuleExport(ctx, m, "Delay", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "Fir", 1, JS_CFUNC_constructor_magic, INSTANCE_FIR);
-    JS_SetModuleExport(ctx, m, "StkFir", ctor);
+    JS_SetModuleExport(ctx, m, "Fir", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "FormSwep", 0, JS_CFUNC_constructor_magic, INSTANCE_FORM_SWEP);
-    JS_SetModuleExport(ctx, m, "StkFormSwep", ctor);
+    JS_SetModuleExport(ctx, m, "FormSwep", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "Iir", 0, JS_CFUNC_constructor_magic, INSTANCE_IIR);
-    JS_SetModuleExport(ctx, m, "StkIir", ctor);
+    JS_SetModuleExport(ctx, m, "Iir", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "OnePole", 0, JS_CFUNC_constructor_magic, INSTANCE_ONE_POLE);
-    JS_SetModuleExport(ctx, m, "StkOnePole", ctor);
+    JS_SetModuleExport(ctx, m, "OnePole", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "OneZero", 0, JS_CFUNC_constructor_magic, INSTANCE_ONE_ZERO);
-    JS_SetModuleExport(ctx, m, "StkOneZero", ctor);
+    JS_SetModuleExport(ctx, m, "OneZero", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "PoleZero", 0, JS_CFUNC_constructor_magic, INSTANCE_POLE_ZERO);
-    JS_SetModuleExport(ctx, m, "StkPoleZero", ctor);
+    JS_SetModuleExport(ctx, m, "PoleZero", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "TapDelay", 0, JS_CFUNC_constructor_magic, INSTANCE_TAP_DELAY);
-    JS_SetModuleExport(ctx, m, "StkTapDelay", ctor);
+    JS_SetModuleExport(ctx, m, "TapDelay", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "TwoPole", 0, JS_CFUNC_constructor_magic, INSTANCE_TWO_POLE);
-    JS_SetModuleExport(ctx, m, "StkTwoPole", ctor);
+    JS_SetModuleExport(ctx, m, "TwoPole", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "TwoZero", 0, JS_CFUNC_constructor_magic, INSTANCE_TWO_ZERO);
-    JS_SetModuleExport(ctx, m, "StkTwoZero", ctor);
+    JS_SetModuleExport(ctx, m, "TwoZero", ctor);
   }
-  JS_NewClassID(&js_stkgenerator_class_id);
-  JS_NewClass(JS_GetRuntime(ctx), js_stkgenerator_class_id, &js_stkgenerator_class);
 
-  stkgenerator_ctor = JS_NewObject(ctx); // JS_NewCFunction2(ctx, js_stkgenerator_constructor,
-                                         // "StkFilter", 1, JS_CFUNC_constructor, 0);
-  stkgenerator_proto = JS_NewObject(ctx);
+  stkgenerator_class.init(ctx, &js_stkgenerator_class);
+  stkgenerator_class.inherit(stk_class);
 
-  JS_SetPropertyFunctionList(ctx, stkgenerator_proto, js_stkgenerator_funcs, countof(js_stkgenerator_funcs));
+  stkgenerator_class.ctor = JS_NewObject(ctx); // JS_NewCFunction2(ctx, js_stkgenerator_constructor, "Filter", 1, JS_CFUNC_constructor, 0);
+  stkgenerator_class.proto = JS_NewObject(ctx);
 
-  JS_SetClassProto(ctx, js_stkgenerator_class_id, stkgenerator_proto);
+  JS_SetPropertyFunctionList(ctx, stkgenerator_class.proto, js_stkgenerator_funcs, countof(js_stkgenerator_funcs));
+
+  JS_SetClassProto(ctx, stkgenerator_class, stkgenerator_class.proto);
 
   if(m) {
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "ADSR", 0, JS_CFUNC_constructor_magic, INSTANCE_ADSR);
-    JS_SetModuleExport(ctx, m, "StkADSR", ctor);
+    JS_SetModuleExport(ctx, m, "ADSR", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "Asymp", 0, JS_CFUNC_constructor_magic, INSTANCE_ASYMP);
-    JS_SetModuleExport(ctx, m, "StkAsymp", ctor);
+    JS_SetModuleExport(ctx, m, "Asymp", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "BlitSaw", 0, JS_CFUNC_constructor_magic, INSTANCE_BLIT_SAW);
-    JS_SetModuleExport(ctx, m, "StkBlitSaw", ctor);
+    JS_SetModuleExport(ctx, m, "BlitSaw", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "BlitSquare", 0, JS_CFUNC_constructor_magic, INSTANCE_BLIT_SQUARE);
-    JS_SetModuleExport(ctx, m, "StkBlitSquare", ctor);
+    JS_SetModuleExport(ctx, m, "BlitSquare", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "Blit", 0, JS_CFUNC_constructor_magic, INSTANCE_BLIT);
-    JS_SetModuleExport(ctx, m, "StkBlit", ctor);
+    JS_SetModuleExport(ctx, m, "Blit", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "Envelope", 0, JS_CFUNC_constructor_magic, INSTANCE_ENVELOPE);
-    JS_SetModuleExport(ctx, m, "StkEnvelope", ctor);
+    JS_SetModuleExport(ctx, m, "Envelope", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "Granulate", 0, JS_CFUNC_constructor_magic, INSTANCE_GRANULATE);
-    JS_SetModuleExport(ctx, m, "StkGranulate", ctor);
+    JS_SetModuleExport(ctx, m, "Granulate", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "Modulate", 0, JS_CFUNC_constructor_magic, INSTANCE_MODULATE);
-    JS_SetModuleExport(ctx, m, "StkModulate", ctor);
+    JS_SetModuleExport(ctx, m, "Modulate", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "Noise", 0, JS_CFUNC_constructor_magic, INSTANCE_NOISE);
-    JS_SetModuleExport(ctx, m, "StkNoise", ctor);
+    JS_SetModuleExport(ctx, m, "Noise", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "SineWave", 0, JS_CFUNC_constructor_magic, INSTANCE_SINE_WAVE);
-    JS_SetModuleExport(ctx, m, "StkSineWave", ctor);
+    JS_SetModuleExport(ctx, m, "SineWave", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "SingWave", 0, JS_CFUNC_constructor_magic, INSTANCE_SING_WAVE);
-    JS_SetModuleExport(ctx, m, "StkStkSingWave", ctor);
+    JS_SetModuleExport(ctx, m, "SingWave", ctor);
   }
 
-  JS_NewClassID(&js_stkeffect_class_id);
-  JS_NewClass(JS_GetRuntime(ctx), js_stkeffect_class_id, &js_stkeffect_class);
+  stkeffect_class.init(ctx, &js_stkeffect_class);
+  stkeffect_class.inherit(stk_class);
 
-  stkeffect_ctor = JS_NewObject(ctx); // JS_NewCFunction2(ctx, js_stkeffect_constructor,
-                                      // "StkGenerator", 1, JS_CFUNC_constructor, 0);
-  stkeffect_proto = JS_NewObject(ctx);
+  stkeffect_class.ctor = JS_NewObject(ctx); // JS_NewCFunction2(ctx, js_stkeffect_constructor, "Generator", 1, JS_CFUNC_constructor, 0);
+  stkeffect_class.proto = JS_NewObject(ctx);
 
-  JS_SetPropertyFunctionList(ctx, stkeffect_proto, js_stkeffect_funcs, countof(js_stkeffect_funcs));
+  JS_SetPropertyFunctionList(ctx, stkeffect_class.proto, js_stkeffect_funcs, countof(js_stkeffect_funcs));
 
-  JS_SetClassProto(ctx, js_stkeffect_class_id, stkeffect_proto);
+  JS_SetClassProto(ctx, stkeffect_class, stkeffect_class.proto);
 
-  stkinstrmnt_ctor = JS_NewObject(ctx); // JS_NewCFunction2(ctx, js_stkinstrmnt_constructor,
-                                        // "StkGenerator", 1, JS_CFUNC_constructor, 0);
-  stkinstrmnt_proto = JS_NewObject(ctx);
+  stkinstrmnt_class.init(ctx, &js_stkinstrmnt_class);
+  stkinstrmnt_class.inherit(stk_class);
 
-  JS_SetPropertyFunctionList(ctx, stkinstrmnt_proto, js_stkinstrmnt_funcs, countof(js_stkinstrmnt_funcs));
+  stkinstrmnt_class.ctor = JS_NewObject(ctx); // JS_NewCFunction2(ctx, js_stkinstrmnt_constructor, "Generator", 1, JS_CFUNC_constructor, 0);
+  stkinstrmnt_class.proto = JS_NewObject(ctx);
 
-  JS_SetClassProto(ctx, js_stkinstrmnt_class_id, stkinstrmnt_proto);
+  JS_SetPropertyFunctionList(ctx, stkinstrmnt_class.proto, js_stkinstrmnt_funcs, countof(js_stkinstrmnt_funcs));
+
+  JS_SetClassProto(ctx, stkinstrmnt_class, stkinstrmnt_class.proto);
 
   if(m) {
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "BandedWG", 0, JS_CFUNC_constructor_magic, INSTANCE_BANDEDWG);
-    JS_SetModuleExport(ctx, m, "StkBandedWG", ctor);
+    JS_SetModuleExport(ctx, m, "BandedWG", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "BlowBotl", 0, JS_CFUNC_constructor_magic, INSTANCE_BLOWBOTL);
-    JS_SetModuleExport(ctx, m, "StkBlowBotl", ctor);
+    JS_SetModuleExport(ctx, m, "BlowBotl", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "BlowHole", 0, JS_CFUNC_constructor_magic, INSTANCE_BLOWHOLE);
-    JS_SetModuleExport(ctx, m, "StkBlowHole", ctor);
+    JS_SetModuleExport(ctx, m, "BlowHole", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Bowed", 0, JS_CFUNC_constructor_magic, INSTANCE_BOWED);
-    JS_SetModuleExport(ctx, m, "StkBowed", ctor);
+    JS_SetModuleExport(ctx, m, "Bowed", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Brass", 0, JS_CFUNC_constructor_magic, INSTANCE_BRASS);
-    JS_SetModuleExport(ctx, m, "StkBrass", ctor);
+    JS_SetModuleExport(ctx, m, "Brass", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Clarinet", 0, JS_CFUNC_constructor_magic, INSTANCE_CLARINET);
-    JS_SetModuleExport(ctx, m, "StkClarinet", ctor);
+    JS_SetModuleExport(ctx, m, "Clarinet", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Drummer", 0, JS_CFUNC_constructor_magic, INSTANCE_DRUMMER);
-    JS_SetModuleExport(ctx, m, "StkDrummer", ctor);
+    JS_SetModuleExport(ctx, m, "Drummer", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Flute", 0, JS_CFUNC_constructor_magic, INSTANCE_FLUTE);
-    JS_SetModuleExport(ctx, m, "StkFlute", ctor);
+    JS_SetModuleExport(ctx, m, "Flute", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Mandolin", 0, JS_CFUNC_constructor_magic, INSTANCE_MANDOLIN);
-    JS_SetModuleExport(ctx, m, "StkMandolin", ctor);
+    JS_SetModuleExport(ctx, m, "Mandolin", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Mesh2D", 0, JS_CFUNC_constructor_magic, INSTANCE_MESH2D);
-    JS_SetModuleExport(ctx, m, "StkMesh2D", ctor);
+    JS_SetModuleExport(ctx, m, "Mesh2D", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Plucked", 0, JS_CFUNC_constructor_magic, INSTANCE_PLUCKED);
-    JS_SetModuleExport(ctx, m, "StkPlucked", ctor);
+    JS_SetModuleExport(ctx, m, "Plucked", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Recorder", 0, JS_CFUNC_constructor_magic, INSTANCE_RECORDER);
-    JS_SetModuleExport(ctx, m, "StkRecorder", ctor);
+    JS_SetModuleExport(ctx, m, "Recorder", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Resonate", 0, JS_CFUNC_constructor_magic, INSTANCE_RESONATE);
-    JS_SetModuleExport(ctx, m, "StkResonate", ctor);
+    JS_SetModuleExport(ctx, m, "Resonate", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Saxofony", 0, JS_CFUNC_constructor_magic, INSTANCE_SAXOFONY);
-    JS_SetModuleExport(ctx, m, "StkSaxofony", ctor);
+    JS_SetModuleExport(ctx, m, "Saxofony", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Shakers", 0, JS_CFUNC_constructor_magic, INSTANCE_SHAKERS);
-    JS_SetModuleExport(ctx, m, "StkShakers", ctor);
+    JS_SetModuleExport(ctx, m, "Shakers", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Simple", 0, JS_CFUNC_constructor_magic, INSTANCE_SIMPLE);
-    JS_SetModuleExport(ctx, m, "StkSimple", ctor);
+    JS_SetModuleExport(ctx, m, "Simple", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Sitar", 0, JS_CFUNC_constructor_magic, INSTANCE_SITAR);
-    JS_SetModuleExport(ctx, m, "StkSitar", ctor);
+    JS_SetModuleExport(ctx, m, "Sitar", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "StifKarp", 0, JS_CFUNC_constructor_magic, INSTANCE_STIFKARP);
-    JS_SetModuleExport(ctx, m, "StkStifKarp", ctor);
+    JS_SetModuleExport(ctx, m, "StifKarp", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "VoicForm", 0, JS_CFUNC_constructor_magic, INSTANCE_VOICFORM);
-    JS_SetModuleExport(ctx, m, "StkVoicForm", ctor);
+    JS_SetModuleExport(ctx, m, "VoicForm", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Whistle", 0, JS_CFUNC_constructor_magic, INSTANCE_WHISTLE);
-    JS_SetModuleExport(ctx, m, "StkWhistle", ctor);
+    JS_SetModuleExport(ctx, m, "Whistle", ctor);
 
-    JS_SetModuleExport(ctx, m, "Stk", stk_ctor);
-    JS_SetModuleExport(ctx, m, "StkFrames", stkframes_ctor);
-    JS_SetModuleExport(ctx, m, "StkGenerator", stkfilter_ctor);
-    JS_SetModuleExport(ctx, m, "StkFilter", stkgenerator_ctor);
+    JS_SetModuleExport(ctx, m, "Stk", stk_class.ctor);
+    JS_SetModuleExport(ctx, m, "StkFrames", stkframes_class.ctor);
+    JS_SetModuleExport(ctx, m, "Generator", stkfilter_class.ctor);
+    JS_SetModuleExport(ctx, m, "Filter", stkgenerator_class.ctor);
   }
 
   return 0;
@@ -1407,54 +1410,54 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
 
 extern "C" VISIBLE void
 js_init_module_stk(JSContext* ctx, JSModuleDef* m) {
-  JS_AddModuleExport(ctx, m, "StkBiQuad");
-  JS_AddModuleExport(ctx, m, "StkDelayA");
-  JS_AddModuleExport(ctx, m, "StkDelayL");
-  JS_AddModuleExport(ctx, m, "StkDelay");
-  JS_AddModuleExport(ctx, m, "StkFir");
-  JS_AddModuleExport(ctx, m, "StkFormSwep");
-  JS_AddModuleExport(ctx, m, "StkIir");
-  JS_AddModuleExport(ctx, m, "StkOnePole");
-  JS_AddModuleExport(ctx, m, "StkOneZero");
-  JS_AddModuleExport(ctx, m, "StkPoleZero");
-  JS_AddModuleExport(ctx, m, "StkTapDelay");
-  JS_AddModuleExport(ctx, m, "StkTwoPole");
-  JS_AddModuleExport(ctx, m, "StkTwoZero");
-  JS_AddModuleExport(ctx, m, "StkADSR");
-  JS_AddModuleExport(ctx, m, "StkAsymp");
-  JS_AddModuleExport(ctx, m, "StkBlitSaw");
-  JS_AddModuleExport(ctx, m, "StkBlitSquare");
-  JS_AddModuleExport(ctx, m, "StkBlit");
-  JS_AddModuleExport(ctx, m, "StkEnvelope");
-  JS_AddModuleExport(ctx, m, "StkGranulate");
-  JS_AddModuleExport(ctx, m, "StkModulate");
-  JS_AddModuleExport(ctx, m, "StkNoise");
-  JS_AddModuleExport(ctx, m, "StkSineWave");
-  JS_AddModuleExport(ctx, m, "StkStkSingWave");
-  JS_AddModuleExport(ctx, m, "StkBandedWG");
-  JS_AddModuleExport(ctx, m, "StkBlowBotl");
-  JS_AddModuleExport(ctx, m, "StkBlowHole");
-  JS_AddModuleExport(ctx, m, "StkBowed");
-  JS_AddModuleExport(ctx, m, "StkBrass");
-  JS_AddModuleExport(ctx, m, "StkClarinet");
-  JS_AddModuleExport(ctx, m, "StkDrummer");
-  JS_AddModuleExport(ctx, m, "StkFlute");
-  JS_AddModuleExport(ctx, m, "StkMandolin");
-  JS_AddModuleExport(ctx, m, "StkMesh2D");
-  JS_AddModuleExport(ctx, m, "StkPlucked");
-  JS_AddModuleExport(ctx, m, "StkRecorder");
-  JS_AddModuleExport(ctx, m, "StkResonate");
-  JS_AddModuleExport(ctx, m, "StkSaxofony");
-  JS_AddModuleExport(ctx, m, "StkShakers");
-  JS_AddModuleExport(ctx, m, "StkSimple");
-  JS_AddModuleExport(ctx, m, "StkSitar");
-  JS_AddModuleExport(ctx, m, "StkStifKarp");
-  JS_AddModuleExport(ctx, m, "StkVoicForm");
-  JS_AddModuleExport(ctx, m, "StkWhistle");
+  JS_AddModuleExport(ctx, m, "BiQuad");
+  JS_AddModuleExport(ctx, m, "DelayA");
+  JS_AddModuleExport(ctx, m, "DelayL");
+  JS_AddModuleExport(ctx, m, "Delay");
+  JS_AddModuleExport(ctx, m, "Fir");
+  JS_AddModuleExport(ctx, m, "FormSwep");
+  JS_AddModuleExport(ctx, m, "Iir");
+  JS_AddModuleExport(ctx, m, "OnePole");
+  JS_AddModuleExport(ctx, m, "OneZero");
+  JS_AddModuleExport(ctx, m, "PoleZero");
+  JS_AddModuleExport(ctx, m, "TapDelay");
+  JS_AddModuleExport(ctx, m, "TwoPole");
+  JS_AddModuleExport(ctx, m, "TwoZero");
+  JS_AddModuleExport(ctx, m, "ADSR");
+  JS_AddModuleExport(ctx, m, "Asymp");
+  JS_AddModuleExport(ctx, m, "BlitSaw");
+  JS_AddModuleExport(ctx, m, "BlitSquare");
+  JS_AddModuleExport(ctx, m, "Blit");
+  JS_AddModuleExport(ctx, m, "Envelope");
+  JS_AddModuleExport(ctx, m, "Granulate");
+  JS_AddModuleExport(ctx, m, "Modulate");
+  JS_AddModuleExport(ctx, m, "Noise");
+  JS_AddModuleExport(ctx, m, "SineWave");
+  JS_AddModuleExport(ctx, m, "SingWave");
+  JS_AddModuleExport(ctx, m, "BandedWG");
+  JS_AddModuleExport(ctx, m, "BlowBotl");
+  JS_AddModuleExport(ctx, m, "BlowHole");
+  JS_AddModuleExport(ctx, m, "Bowed");
+  JS_AddModuleExport(ctx, m, "Brass");
+  JS_AddModuleExport(ctx, m, "Clarinet");
+  JS_AddModuleExport(ctx, m, "Drummer");
+  JS_AddModuleExport(ctx, m, "Flute");
+  JS_AddModuleExport(ctx, m, "Mandolin");
+  JS_AddModuleExport(ctx, m, "Mesh2D");
+  JS_AddModuleExport(ctx, m, "Plucked");
+  JS_AddModuleExport(ctx, m, "Recorder");
+  JS_AddModuleExport(ctx, m, "Resonate");
+  JS_AddModuleExport(ctx, m, "Saxofony");
+  JS_AddModuleExport(ctx, m, "Shakers");
+  JS_AddModuleExport(ctx, m, "Simple");
+  JS_AddModuleExport(ctx, m, "Sitar");
+  JS_AddModuleExport(ctx, m, "StifKarp");
+  JS_AddModuleExport(ctx, m, "VoicForm");
+  JS_AddModuleExport(ctx, m, "Whistle");
   JS_AddModuleExport(ctx, m, "Stk");
   JS_AddModuleExport(ctx, m, "StkFrames");
-  JS_AddModuleExport(ctx, m, "StkGenerator");
-  JS_AddModuleExport(ctx, m, "StkFilter");
+  JS_AddModuleExport(ctx, m, "Generator");
+  JS_AddModuleExport(ctx, m, "Filter");
 }
 
 extern "C" VISIBLE JSModuleDef*

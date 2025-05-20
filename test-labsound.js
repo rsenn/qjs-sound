@@ -1,7 +1,7 @@
 import { AudioDevice, AudioContext, AudioDestinationNode, OscillatorNode } from 'labsound';
 
 function main() {
-  const device = new AudioDevice({}, { deviceIndex: 0, desiredSampleRate: 44100, desiredChannels: 2 });
+  const device = new AudioDevice({deviceIndex: 0, desiredSampleRate: 44100, desiredChannels: 1}, { deviceIndex: 0, desiredSampleRate: 44100, desiredChannels: 2 });
 
   const context = new AudioContext(false, true);
 
@@ -16,8 +16,9 @@ function main() {
 
   gain.gain = 0.0625;
 
-  oscillator.connect(gain, 0, 0);
   gain.connect(context.destination, 0, 0);
+
+  oscillator.connect(gain, 0, 0);
 
   oscillator.frequency = 440.0;
   oscillator.type = 'Sine';

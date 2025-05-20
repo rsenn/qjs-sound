@@ -104,6 +104,22 @@ js_array_get(JSContext* ctx, JSValueConst arr, R fn(JSContext*, JSValueConst), b
   return ret;
 }
 
+template<class R, class Iterator>
+inline JSValue
+js_array_build(JSContext* ctx, Iterator it, Iterator end, JSValue fn(JSContext*, R*)) {
+  JSValue ret = JS_NewArray(ctx);
+  uint32_t i = 0;
+
+  while(it != end) {
+    JSValue v = fn(ctx, &(*it));
+    JS_SetPropertyUint32(ctx, ret, i++, v);
+
+    ++it;
+  }
+
+  return ret;
+}
+
 /**
  * \defgroup from_js<Output> shims
  * @{
@@ -571,6 +587,20 @@ to_js<JSObjectPtr>(JSContext* ctx, const JSObjectPtr& obj) {
   return JS_DupValue(ctx, to_js<JSObject*>(obj));
 }
 
+template<class T>
+inline void
+to_js_property(JSContext* ctx, JSValueConst obj, const char* prop, T val) {
+  JSValue value = to_js<T>(ctx, val);
+  JS_SetPropertyStr(ctx, obj, prop, value);
+}
+
+template<template<class> class Container, class Input>
+inline void
+to_js_property(JSContext* ctx, JSValueConst obj, const char* prop, const Container<Input>& val) {
+  auto s = val.begin(), e = val.end();
+  JSValue value = to_js(ctx, s, e);
+  JS_SetPropertyStr(ctx, obj, prop, value);
+}
 /**
  * @}
  */
@@ -1090,10 +1120,20 @@ get_value(const T& ptr) {
 
 template<class T>
 ptrdiff_t
-size(T* const* ptr) {
-  T* const* start = ptr;
+size(T const* ptr) {
+  T const* start = ptr;
   if(start)
     while(*ptr)
+      ++ptr;
+  return ptr - start;
+}
+
+template<>
+ptrdiff_t
+size<lab::AudioParamDescriptor>(lab::AudioParamDescriptor const* ptr) {
+  lab::AudioParamDescriptor const* start = ptr;
+  if(start)
+    while(ptr->name)
       ++ptr;
   return ptr - start;
 }
