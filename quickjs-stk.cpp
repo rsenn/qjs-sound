@@ -423,8 +423,9 @@ js_stkframes_get(JSContext* ctx, JSValueConst this_val, int magic) {
 
       new(opaque) StkFramesPtr(*f);
 
-      ret = js_float32array_new(ctx, reinterpret_cast<uint8_t*>(ptr), sizeof(stk::StkFloat) * len, js_stkframes_free_buf, opaque);
-      // ret = JS_NewArrayBuffer(ctx, reinterpret_cast<uint8_t*>(ptr), sizeof(stk::StkFloat) * len, js_stkframes_free_buf, opaque, FALSE);
+      // ret = js_float32array_new(ctx, reinterpret_cast<uint8_t*>(ptr), sizeof(stk::StkFloat) * len, js_stkframes_free_buf, opaque);
+      JSValue buffer = JS_NewArrayBuffer(ctx, reinterpret_cast<uint8_t*>(ptr), sizeof(stk::StkFloat) * len, js_stkframes_free_buf, opaque, FALSE);
+      ret = js_typedarray_new(ctx, sizeof(stk::StkFloat) * 8, true, true, buffer);
       break;
     }
   }

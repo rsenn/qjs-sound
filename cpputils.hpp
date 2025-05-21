@@ -1260,4 +1260,40 @@ js_float32array_new(JSContext* ctx, uint8_t* buf, size_t len, JSFreeArrayBufferD
   return ret;
 }
 
+static inline JSValue
+js_typedarray_new(JSContext* ctx, int bits, bool floating, bool sign, int argc, JSValueConst argv[]) {
+  std::string class_name;
+
+  class_name += (!floating && bits >= 64) ? "Big" : "";
+  class_name += floating ? "Float" : sign ? "Int" : "Uint";
+  class_name += std::to_string(bits);
+  class_name += "Array";
+
+  JSValue glob = JS_GetGlobalObject(ctx);
+  JSValue ret, typedarray_ctor = JS_GetPropertyStr(ctx, glob, class_name.c_str());
+  JS_FreeValue(ctx, glob);
+  ret = JS_CallConstructor(ctx, typedarray_ctor, argc, argv);
+
+  JS_FreeValue(ctx, typedarray_ctor);
+  return ret;
+}
+
+static inline JSValue
+js_typedarray_new(
+    JSContext* ctx, int bits, bool floating, bool sign, JSValueConst buffer, std::optional<size_t> byteoffset = std::nullopt, std::optional<size_t> length = std::nullopt) {
+  std::vector<JSValue> argv{buffer};
+  if(byteoffset.has_value() || length.has_value())
+    argv.push_back(JS_NewInt64(ctx, byteoffset.value_or(0)));
+  if(length.has_value())
+    argv.push_back(JS_NewInt64(ctx, length.value()));
+
+  JSValue ret = js_typedarray_new(ctx, bits, floating, sign, argv.size(), argv.data());
+
+  if(argv.size() > 1)
+    JS_FreeValue(ctx, argv[1]);
+  if(argv.size() > 2)
+    JS_FreeValue(ctx, argv[2]);
+  return ret;
+}
+
 #endif // defined(CPPUTILS_HPP)
