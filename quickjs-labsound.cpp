@@ -682,6 +682,8 @@ js_audioparam_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSV
   if(JS_IsException(proto))
     goto fail;
 
+
+
   if(!JS_IsObject(proto))
     proto = JS_DupValue(ctx, audioparam_class.proto);
 
