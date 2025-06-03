@@ -19,7 +19,6 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/check-flags.cmake)
 
 #check_cxx_standard_flag(c++20 c++23)
 
-
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
 
 #check_flag("-std=c++20" STD_CXX20 MODULE_COMPILE_FLAGS)
@@ -119,9 +118,7 @@ set(labsound_LIBRARIES
     #${LABSOUND_BINARY_DIR}/bin/libLabSoundRtAudio${DEBUG_SUFFIX}.a
     libLabSound libLabSoundRtAudio ${LABSOUND_BINARY_DIR}/third_party/libnyquist/lib/liblibnyquist.a
     #LabSound_d libnyquist_d
-    asound
-    pulse pulse-simple
-    samplerate pthread)
+    asound pulse pulse-simple samplerate pthread)
 
 link_directories(${labsound_LINK_DIRECTORIES})
 
@@ -142,11 +139,11 @@ if(USE_STK)
 
   #link_directories(${STK_LIBRARY_DIR})
   if(STK_LIBRARY)
-  set(stk_LIBRARIES ${STK_LIBRARY})
-  set(stk_LINK_DIRECTORIES "${STK_LIBRARY_DIR}")
+    set(stk_LIBRARIES ${STK_LIBRARY})
+    set(stk_LINK_DIRECTORIES "${STK_LIBRARY_DIR}")
   endif(STK_LIBRARY)
 
-unset(stk_LIBRARIES)
+  unset(stk_LIBRARIES)
 
   dump(stk_LIBRARIES stk_LINK_DIRECTORIES)
 
@@ -182,7 +179,7 @@ if(USE_LABSOUND)
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/src/internal/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/src/internal/src/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/src/core/*.cpp)]]
-  list(APPEND labsound_SOURCES  cpputils.hpp defines.h)
+  list(APPEND labsound_SOURCES cpputils.hpp defines.h)
   dump(labsound_SOURCES)
 
   make_module(labsound cpp)
