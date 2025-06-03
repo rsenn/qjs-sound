@@ -26,7 +26,7 @@ check_flag("-w" F_NOWARN MODULE_COMPILE_FLAGS)
 check_flag("-fPIC" F_PIC MODULE_COMPILE_FLAGS)
 check_flag("-fvisibility=hidden" VISIBILITY_HIDDEN MODULE_COMPILE_FLAGS)
 
-dump(MODULE_COMPILE_FLAGS)
+#dump(MODULE_COMPILE_FLAGS)
 
 include(ExternalProject)
 
@@ -142,7 +142,7 @@ if(USE_STK)
 
   unset(stk_LIBRARIES)
 
-  dump(stk_LIBRARIES stk_LINK_DIRECTORIES)
+  #dump(stk_LIBRARIES stk_LINK_DIRECTORIES)
 
   file(GLOB stk_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/stk/src/*.cpp)
   list(FILTER stk_SOURCES EXCLUDE REGEX "(Inet|Rt|Tcp|Udp|Messager|Thread|Mutex|Socket)")
@@ -177,7 +177,7 @@ if(USE_LABSOUND)
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/src/internal/src/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/src/core/*.cpp)]]
   list(APPEND labsound_SOURCES cpputils.hpp defines.h)
-  dump(labsound_SOURCES)
+  #dump(labsound_SOURCES)
 
   make_module(labsound cpp)
   include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include")
