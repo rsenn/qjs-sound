@@ -52,6 +52,9 @@ if(USE_LABSOUND)
   message("Binary dir of LabSound = ${LABSOUND_BINARY_DIR}")
 endif(USE_LABSOUND)
 
+set(labsound_DEPS LabSound)
+
+
 if(USE_STK)
   ExternalProject_Add(
     stk
@@ -86,17 +89,19 @@ if(USE_STK)
   message("Binary dir of stk = ${STK_BINARY_DIR}")
 endif()
 
+set(stk_DEPS stk)
+
 include(CheckCCompilerFlag)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindQuickJS.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/QuickJSModule.cmake)
 
 set(labsound_LINK_DIRECTORIES ${LABSOUND_BINARY_DIR}/bin ${LABSOUND_BINARY_DIR}/third_party/libnyquist/lib)
 
-if(CMAKE_BUILD_TYPE MATCHES "Rel")
-  #set(DEBUG_SUFFIX _d)
-else(CMAKE_BUILD_TYPE MATCHES "Rel")
+if(CMAKE_BUILD_TYPE MATCHES "Deb")
+  set(DEBUG_SUFFIX _d)
+else(CMAKE_BUILD_TYPE MATCHES "Deb")
   set(DEBUG_SUFFIX "")
-endif(CMAKE_BUILD_TYPE MATCHES "Rel")
+endif(CMAKE_BUILD_TYPE MATCHES "Deb")
 
 add_library(libLabSound STATIC IMPORTED GLOBAL)
 set_target_properties(
@@ -115,11 +120,11 @@ link_directories(${LABSOUND_BINARY_DIR}/bin ${LABSOUND_BINARY_DIR}/third_party/l
 set(labsound_LIBRARIES
     #${LABSOUND_BINARY_DIR}/bin/libLabSound${DEBUG_SUFFIX}.a
     #${LABSOUND_BINARY_DIR}/bin/libLabSoundRtAudio${DEBUG_SUFFIX}.a
-    libLabSound libLabSoundRtAudio ${LABSOUND_BINARY_DIR}/third_party/libnyquist/lib/liblibnyquist.a
+    libLabSound libLabSoundRtAudio ${LABSOUND_BINARY_DIR}/third_party/libnyquist/lib/liblibnyquist${DEBUG_SUFFIX}.a
     #LabSound_d libnyquist_d
     asound pulse pulse-simple samplerate pthread)
 
-link_directories(${labsound_LINK_DIRECTORIES})
+set(labsound_DEPS LabSound)
 
 find_quickjs()
 configure_quickjs()
