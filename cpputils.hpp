@@ -11,7 +11,7 @@
 
 #include "LabSound/LabSound.h"
 
-// template<class T> using PointerRange = std::pair<T*, T*>;
+//template<class T> using PointerRange = std::pair<T*, T*>;
 template<class T> using PointerRange = std::ranges::subrange<T*, T*>;
 typedef JSObject* JSObjectPtr;
 
@@ -305,20 +305,6 @@ from_js(JSContext* ctx, JSValueConst val, T& ref) {
   static_assert(false, "from_js<Output, T>(ctx, val, ref)");
 }
 
-template<template<class> class Container, class Input>
-inline uint32_t
-from_js(JSContext* ctx, JSValueConst val, Container<Input>& ret) {
-  uint32_t i, len = js_array_length(ctx, val);
-
-  for(i = 0; i < len; ++i) {
-    JSValue elem = JS_GetPropertyUint32(ctx, val, i);
-    Input value = from_js_free<Input>(ctx, elem);
-    ret.push_back(value);
-  }
-
-  return i;
-}
-
 template<>
 inline bool
 from_js<double>(JSContext* ctx, JSValueConst val, double& ref) {
@@ -467,6 +453,20 @@ from_js_free(JSContext* ctx, JSValue val) {
   T v;
   from_js_free<T>(ctx, val, v);
   return v;
+}
+
+template<template<class> class Container, class Input>
+inline uint32_t
+from_js(JSContext* ctx, JSValueConst val, Container<Input>& ret) {
+  uint32_t i, len = js_array_length(ctx, val);
+
+  for(i = 0; i < len; ++i) {
+    JSValue elem = JS_GetPropertyUint32(ctx, val, i);
+    Input value = from_js_free<Input>(ctx, elem);
+    ret.push_back(value);
+  }
+
+  return i;
 }
 
 /**

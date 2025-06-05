@@ -228,47 +228,49 @@ function(make_module FNAME)
     set(PREFIX "")
   endif(NOT WASI AND "${CMAKE_SYSTEM_NAME}" STREQUAL "Emscripten")
 
-  set(MODNAME "${VNAME}")
-  if(${VNAME}_NAME)
-    set(MODNAME ${${VNAME}_NAME})
-
-  endif(${VNAME}_NAME)
-
   if(BUILD_SHARED_MODULES)
     #add_library(${TARGET_NAME} MODULE ${SOURCES})
     add_library(${TARGET_NAME} SHARED ${SOURCES})
 
+    #dump(QUICKJS_C_MODULE_DIR QUICKJS_LIBRARY_DIR)
+    dump(MODULE_COMPILE_FLAGS)
+
     set_target_properties(
       ${TARGET_NAME}
-      PROPERTIES RPATH "${MBEDTLS_LIBRARY_DIR}:${QUICKJS_C_MODULE_DIR}" INSTALL_RPATH "${QUICKJS_C_MODULE_DIR}"
-                 PREFIX "${PREFIX}" OUTPUT_NAME "${MODNAME}" COMPILE_FLAGS "${MODULE_COMPILE_FLAGS}")
+      PROPERTIES #RPATH "${QUICKJS_C_MODULE_DIR}"
+                 #INSTALL_RPATH "${QUICKJS_C_MODULE_DIR}"
+                 #LINK_FLAGS "${LINK_FLAGS}"
+                 PREFIX "${PREFIX}"
+                 OUTPUT_NAME "${VNAME}"
+                 COMPILE_FLAGS "${MODULE_COMPILE_FLAGS}")
 
     target_compile_definitions(
       ${TARGET_NAME} PRIVATE _GNU_SOURCE=1 JS_SHARED_LIBRARY=1 JS_${UNAME}_MODULE=1
                              QUICKJS_PREFIX="${QUICKJS_INSTALL_PREFIX}" LIBMAGIC_DB="${LIBMAGIC_DB}")
 
-    #dump(${VNAME}_LINK_DIRECTORIES)
+    target_link_directories(${TARGET_NAME} PUBLIC ${QUICKJS_LIBRARY_DIR} ${CMAKE_CURRENT_BINARY_DIR} PRIVATE
+                            ${LINK_DIRECTORIES})
 
-    target_link_directories(${TARGET_NAME} PUBLIC "${CMAKE_CURRENT_BINARY_DIR}" ${${VNAME}_LINK_DIRECTORIES})
-    target_link_libraries(${TARGET_NAME} PUBLIC ${LIBS} ${QUICKJS_LIBRARY})
-    target_link_libraries(${TARGET_NAME} PUBLIC ${LIBS} ${QUICKJS_LIBRARY})
+    target_link_libraries(${TARGET_NAME} PUBLIC ${QUICKJS_LIBRARY} PRIVATE ${LIBS})
 
     install(TARGETS ${TARGET_NAME} DESTINATION "${QUICKJS_C_MODULE_DIR}"
             PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
 
-    config_module(${TARGET_NAME})
-
-    set(LIBRARIES ${${VNAME}_LIBRARIES})
-    if(LIBRARIES)
-      target_link_libraries(${TARGET_NAME} PRIVATE ${LIBRARIES})
-    endif(LIBRARIES)
+    #[[if(LINK_DIRECTORIES)
+      target_link_directories(${TARGET_NAME} PUBLIC ${LINK_DIRECTORIES})
+    endif(LINK_DIRECTORIES)
+    if(LIBS)
+      target_link_libraries(${TARGET_NAME} PRIVATE ${LIBS})
+    endif(LIBS)]]
     if(DEPS)
       add_dependencies(${TARGET_NAME} ${DEPS})
     endif(DEPS)
 
+    config_module(${TARGET_NAME})
+
   endif(BUILD_SHARED_MODULES)
 
-  list(APPEND MODULES_SOURCES quickjs-${NAME}.${EXT})
+  list(APPEND MODULES_SOURCES quickjs-${NAME}.c)
   set(MODULES_SOURCES "${MODULES_SOURCES}" PARENT_SCOPE)
 
   #[[add_library(${TARGET_NAME}-static STATIC ${SOURCES})
