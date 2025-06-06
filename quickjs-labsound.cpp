@@ -1902,7 +1902,7 @@ js_audiostream_config(JSContext* ctx, JSValueConst obj) {
   return lab::AudioStreamConfig{
       .device_index = from_js_property<int32_t>(ctx, obj, "deviceIndex", -1),
       .desired_channels = from_js_property<uint32_t>(ctx, obj, "desiredChannels", 0),
-      .desired_samplerate = from_js_property<double>(ctx, obj, "desiredSampleRate", 0),
+      .desired_samplerate = static_cast<float>(from_js_property<double>(ctx, obj, "desiredSampleRate", 0)),
   };
 }
 struct AudioDeviceInfo {
