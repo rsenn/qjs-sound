@@ -11,8 +11,8 @@
 
 #include "LabSound/LabSound.h"
 
-//template<class T> using PointerRange = std::pair<T*, T*>;
-template<class T> using PointerRange = std::ranges::subrange<T*, T*>;
+template<class T> using PointerRange = std::pair<T*, T*>;
+//template<class T> using PointerRange = std::ranges::subrange<T*, T*>;
 typedef JSObject* JSObjectPtr;
 
 template<class T>
@@ -532,7 +532,7 @@ to_js<const char* const*>(JSContext* ctx, const char* const* const& values) {
   return ret;
 }
 
-template<class Range, /*class V =*/typename std::indirectly_readable_traits<std::remove_cvref_t<std::ranges::iterator_t<Range>>>::value_type>
+/*template<class Range, class V = typename std::indirectly_readable_traits<std::remove_cvref_t<std::ranges::iterator_t<Range>>>::value_type>
 inline JSValue
 to_js(JSContext* ctx, const Range& container) {
   typedef std::iter_value_t<std::ranges::iterator_t<Range>> value_type;
@@ -543,7 +543,7 @@ to_js(JSContext* ctx, const Range& container) {
     JS_SetPropertyUint32(ctx, ret, i++, to_js<value_type>(ctx, val));
 
   return ret;
-}
+}*/
 
 template<class Iterator>
 inline JSValue
@@ -1026,7 +1026,7 @@ public:
   uint8_t*
   end() const {
     pointer_range range(from_js(R::m_ctx, R::constValue()));
-    return range.end();
+    return range.second;
   }
 };
 
