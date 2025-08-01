@@ -8,11 +8,14 @@
 #include <ranges>
 #include <iterator>
 #include <type_traits>
+#include <map>
+#include <algorithm>
+#include <optional>
 
 #include "LabSound/LabSound.h"
 
 template<class T> using PointerRange = std::pair<T*, T*>;
-//template<class T> using PointerRange = std::ranges::subrange<T*, T*>;
+// template<class T> using PointerRange = std::ranges::subrange<T*, T*>;
 typedef JSObject* JSObjectPtr;
 
 template<class T>
@@ -821,15 +824,30 @@ template<class T> struct ClassObjectMap {
 
   static void
   remove(JSObjectPtr obj) {
-    std::erase_if(object_map, [obj](const auto& item) -> bool {
+    for(auto it = object_map.begin(); it != object_map.end(); ++it) {
+      if(it->second == obj) {
+        object_map.erase(it);
+        break;
+      }
+    }
+
+    /*std::erase_if(object_map, [obj](const auto& item) -> bool {
       auto const& [key, value] = item;
       return value == obj;
-    });
+    });*/
   }
 
   static void
   remove(JSContext* ctx) {
-    std::erase_if(object_map, [ctx](const auto& item) -> bool {
+    for(auto it = object_map.begin(); it != object_map.end(); ++it) {
+      if(it->first.expired()) {
+        JS_FreeValue(ctx, to_js<JSObject*>(it->second));
+        object_map.erase(it);
+        break;
+      }
+    }
+
+    /*std::erase_if(object_map, [ctx](const auto& item) -> bool {
       auto const& [key, value] = item;
 
       if(key.expired()) {
@@ -838,7 +856,7 @@ template<class T> struct ClassObjectMap {
       }
 
       return false;
-    });
+    });*/
   }
 
 private:
@@ -1012,7 +1030,7 @@ public:
   ObjectRef(JSContext* ctx, JSValueConst val, bool dupValue = true) : base_type(ctx, val, dupValue) {}
 };
 
-template<class R = ObjectRef> class ArrayBufferView : protected R, public std::ranges::view_interface<ArrayBufferView<R>> {
+template<class R = ObjectRef> class ArrayBufferView : protected R /*, public std::ranges::view_interface<ArrayBufferView<R>>*/ {
 public:
   typedef PointerRange<uint8_t> pointer_range;
 
@@ -1037,7 +1055,7 @@ struct TypedArray {
   ArrayBufferView<ObjectRef> buffer;
 };
 
-template<class T> class TypedArrayView : public std::ranges::view_interface<TypedArrayView<T>>, protected TypedArray {
+template<class T> class TypedArrayView : /*public std::ranges::view_interface<TypedArrayView<T>>, */ protected TypedArray {
 
   TypedArrayView() = delete;
   TypedArrayView(JSContext* ctx, JSValueConst buf) : TypedArray(ctx, buf) {}
@@ -1141,6 +1159,18 @@ size<lab::AudioParamDescriptor>(lab::AudioParamDescriptor const* ptr) {
 template<class T>
 static auto
 range_from(const T* const* ptr) {
+  return std::make_pair(ptr, ptr + size(ptr));
+}
+
+template<class T>
+static size_t
+range_size(const std::pair<T, T>& p) {
+  return std::distance(p.first, p.second);
+}
+
+/*template<class T>
+static auto
+range_from(const T* const* ptr) {
   return std::ranges::subrange<decltype(ptr)>{ptr, ptr + size(ptr)};
 }
 
@@ -1148,17 +1178,33 @@ template<class T>
 static auto
 range_from(const std::vector<T>& vec) {
   return std::ranges::subrange<typename std::vector<T>::iterator>{vec.begin(), vec.end()};
-}
+}*/
 
 template<class T> struct enumeration_type { static_assert(false, "struct enumeration_type<T>"); };
 
-template<class Range>
+/*template<class Range>
 static inline int32_t
 find_enumeration(const Range& range, const char* str) {
   auto it = std::ranges::find_if(range, [str](const char* enval) -> bool { return !strcasecmp(str, enval); });
 
   if(it != range.end())
     return std::distance(range.begin(), it);
+
+  return -1;
+}*/
+
+template<class T>
+static inline int32_t
+find_enumeration(const std::pair<T, T>& range, const char* str) {
+
+  for(auto it = range.first; it != range.second; ++it) {
+    if(!strcasecmp(*it, str))
+      return std::distance(range.first, it);
+  }
+  /*auto it = std::ranges::find_if(range, [str](const char* enval) -> bool { return !strcasecmp(str, enval); });
+
+  if(it != range.end())
+    return std::distance(range.begin(), it);*/
 
   return -1;
 }

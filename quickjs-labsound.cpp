@@ -85,7 +85,25 @@ js_audiochannel_buffer(JSContext* ctx, JSValueConst value) {
 
 static JSObjectPtr&
 js_audiochannel_object(JSContext* ctx, const AudioChannelPtr& ac) {
-  size_t count = std::erase_if(channel_map, [ctx](const auto& item) {
+  size_t count = 0;
+  for(auto it = channel_map.begin(); it != channel_map.end();) {
+    const bool del = it->first.expired();
+
+    if(del) {
+      for(JSObjectPtr ptr : it->second)
+        if(ptr)
+          JS_FreeValue(ctx, to_js(ptr));
+
+      channel_map.erase(it);
+      it = channel_map.begin();
+      ++count;
+      continue;
+    }
+
+    ++it;
+  }
+
+  /*size_t count = std::erase_if(channel_map, [ctx](const auto& item) {
     const auto& [key, value] = item;
     const bool del = key.expired();
 
@@ -95,7 +113,7 @@ js_audiochannel_object(JSContext* ctx, const AudioChannelPtr& ac) {
           JS_FreeValue(ctx, to_js(ptr));
 
     return del;
-  });
+  });*/
 
   if(count > 0)
     std::cerr << "Erased " << count << " expired references" << std::endl;
@@ -682,8 +700,6 @@ js_audioparam_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSV
   if(JS_IsException(proto))
     goto fail;
 
-
-
   if(!JS_IsObject(proto))
     proto = JS_DupValue(ctx, audioparam_class.proto);
 
@@ -1060,7 +1076,7 @@ js_audiosetting_setvalue(JSContext* ctx, AudioSettingPtr& as, JSValueConst value
     }
     case lab::SettingType::Enum: {
       auto enums = range_from(as->enums());
-      int size = std::ranges::size(enums);
+      int size = range_size(enums);
       int32_t val;
       const char* str;
 
@@ -1115,12 +1131,12 @@ js_audiosetting_getvalue(JSContext* ctx, AudioSettingPtr& as) {
     case lab::SettingType::Enum: {
       auto enums = range_from(as->enums());
       uint32_t index = as->valueUint32();
-      int size = std::ranges::size(enums);
+      int size = range_size(enums);
 
       if(index >= size)
         ret = JS_ThrowRangeError(ctx, "enumeration value not < %d", size);
       else
-        ret = to_js<const char*>(ctx, enums[index]);
+        ret = to_js<const char*>(ctx, enums.first[index]);
       break;
     }
     case lab::SettingType::Bus: {
@@ -1265,7 +1281,7 @@ js_audiosetting_get(JSContext* ctx, JSValueConst this_val, int magic) {
           return JS_ThrowInternalError(ctx, "AudioSetting of type Enum has no enums()");
 
         auto range = range_from(enums);
-        ret = to_js(ctx, range.begin(), range.end());
+        ret = to_js(ctx, range.first, range.second);
       }
       break;
     }
