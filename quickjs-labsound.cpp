@@ -803,7 +803,8 @@ js_audioparam_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
     case AUDIOPARAM_VALUECURVEATTIME: {
       double t, d;
       vector<float> curve;
-      vector<double> curve2 = from_js<vector, double>(ctx, argv[0]);
+      vector<double> curve2;
+      from_js(ctx, argv[0], curve2);
       std::transform(curve2.begin(), curve2.end(), std::back_inserter(curve), [](double d) -> float { return d; });
       from_js(ctx, argv[1], t);
       from_js(ctx, argv[2], d);
@@ -1943,7 +1944,7 @@ js_audiodevice_info(JSContext* ctx, lab::AudioDeviceInfo* adi) {
   std::vector<double> samplerates;
   std::transform(adi->supported_samplerates.begin(), adi->supported_samplerates.end(), std::back_inserter(samplerates), [](float f) -> double { return f; });
 
-  to_js_property(ctx, ret, "supportedSamplerates", samplerates);
+  to_js_property<std::vector<double>>(ctx, ret, "supportedSamplerates", samplerates);
   to_js_property(ctx, ret, "nominalSamplerate", double(adi->nominal_samplerate));
   to_js_property(ctx, ret, "isDefaultOutput", BOOL(adi->is_default_output));
   to_js_property(ctx, ret, "isDefaultInput", double(adi->is_default_input));
@@ -2788,13 +2789,13 @@ js_audionode_get(JSContext* ctx, JSValueConst this_val, int magic) {
     case AUDIONODE_PARAMNAMES: {
       vector<std::string> names((*an)->paramNames());
 
-      ret = to_js<vector, std::string>(ctx, names);
+      ret = to_js(ctx, names);
       break;
     }
     case AUDIONODE_PARAMSHORTNAMES: {
       vector<std::string> names((*an)->paramShortNames());
 
-      ret = to_js<vector, std::string>(ctx, names);
+      ret = to_js(ctx, names);
       break;
     }
     case AUDIONODE_SETTINGNAMES: {

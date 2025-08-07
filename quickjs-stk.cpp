@@ -750,7 +750,8 @@ js_stkfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
 
     case INSTANCE_FIR: {
       if(argc > 0) {
-        std::vector<double> coeff = from_js<std::vector, double>(ctx, argv[0]);
+        std::vector<double> coeff;
+        from_js(ctx, argv[0], coeff);
 
         *f = std::make_shared<stk::Fir>(coeff);
       } else {

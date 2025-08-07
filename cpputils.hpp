@@ -316,6 +316,22 @@ from_js<double>(JSContext* ctx, JSValueConst val, double& ref) {
 
 template<>
 inline bool
+from_js<std::vector<double>>(JSContext* ctx, JSValueConst val, std::vector<double>& ref) {
+  int64_t i, len = js_array_length(ctx, val);
+
+  ref.resize(len);
+
+  for(i = 0; i < len; ++i) {
+    JSValue item = JS_GetPropertyUint32(ctx, val, i);
+    from_js<double>(ctx, item, ref[i]);
+    JS_FreeValue(ctx, item);
+  }
+
+  return true;
+}
+
+template<>
+inline bool
 from_js<int32_t>(JSContext* ctx, JSValueConst val, int32_t& ref) {
   return !JS_ToInt32(ctx, &ref, val);
 }
@@ -324,6 +340,22 @@ template<>
 inline bool
 from_js<uint32_t>(JSContext* ctx, JSValueConst val, uint32_t& ref) {
   return !JS_ToUint32(ctx, &ref, val);
+}
+
+template<>
+inline bool
+from_js<std::vector<uint32_t>>(JSContext* ctx, JSValueConst val, std::vector<uint32_t>& ref) {
+  int64_t i, len = js_array_length(ctx, val);
+
+  ref.resize(len);
+
+  for(i = 0; i < len; ++i) {
+    JSValue item = JS_GetPropertyUint32(ctx, val, i);
+    from_js<uint32_t>(ctx, item, ref[i]);
+    JS_FreeValue(ctx, item);
+  }
+
+  return true;
 }
 
 template<>
@@ -556,6 +588,30 @@ to_js(JSContext* ctx, const Iterator& start, const Iterator& end) {
 
   for(Iterator it = start; it != end; ++it)
     JS_SetPropertyUint32(ctx, ret, i++, to_js(ctx, *it));
+
+  return ret;
+}
+
+template<>
+inline JSValue
+to_js<std::vector<std::string>>(JSContext* ctx, const std::vector<std::string>& container) {
+  uint32_t i = 0;
+  JSValue ret = JS_NewArray(ctx);
+
+  for(std::string val : container)
+    JS_SetPropertyUint32(ctx, ret, i++, to_js(ctx, val));
+
+  return ret;
+}
+
+template<>
+inline JSValue
+to_js<std::vector<double>>(JSContext* ctx, const std::vector<double>& container) {
+  uint32_t i = 0;
+  JSValue ret = JS_NewArray(ctx);
+
+  for(double val : container)
+    JS_SetPropertyUint32(ctx, ret, i++, to_js(ctx, val));
 
   return ret;
 }
