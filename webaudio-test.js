@@ -22,5 +22,5 @@ setTimeout(() => {
   kill(getpid(), SIGUSR1);
 }, 3000);
 
-//Object.assign(globalThis, { context, destination, oscillator });
+Object.assign(globalThis, { context, oscillator });
 //startInteractive()
