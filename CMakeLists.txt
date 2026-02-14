@@ -173,8 +173,8 @@ if(USE_LABSOUND)
   set_target_properties(
     qjs-labsound PROPERTIES INCLUDE_DIRECTORIES
                             "${QUICKJS_INCLUDE_DIR};${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include")
+
+  add_executable(test-labsound test-labsound.cpp)
+
+  target_link_libraries(test-labsound PRIVATE ${labsound_LIBRARIES})
 endif(USE_LABSOUND)
-
-add_executable(test-labsound test-labsound.cpp)
-
-target_link_libraries(test-labsound PRIVATE ${labsound_LIBRARIES})
