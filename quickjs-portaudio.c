@@ -9,12 +9,12 @@ static JSClassID js_pastream_class_id;
 static JSValue pastream_proto, pastream_ctor;
 
 static int
-js_pastreamcallback(const void* input,
-                    void* output,
-                    unsigned long frameCount,
-                    const PaStreamCallbackTimeInfo* timeInfo,
-                    PaStreamCallbackFlags statusFlags,
-                    void* userData) {
+js_pastreamcallback(const void* in,
+                    void* out,
+                    unsigned long nframes,
+                    const PaStreamCallbackTimeInfo* ti,
+                    PaStreamCallbackFlags sf,
+                    void* u) {
 }
 
 static JSValue
@@ -31,7 +31,6 @@ js_pastream_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVal
   uint32_t sampleFormat;
   double sampleRate;
   uint32_t framesPerBuffer;
-  PaStreamCallback* cb = NULL;
   void* userData = NULL;
 
   if(argc > 0)
@@ -47,8 +46,14 @@ js_pastream_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVal
 
   if(argc > 5) {}
 
-  PaError r = Pa_OpenDefaultStream(
-      &st, numInputChannels, numOutputChannels, sampleFormat, sampleRate, framesPerBuffer, cb, userData);
+  PaError r = Pa_OpenDefaultStream(&st,
+                                   numInputChannels,
+                                   numOutputChannels,
+                                   sampleFormat,
+                                   sampleRate,
+                                   framesPerBuffer,
+                                   js_pastreamcallback,
+                                   userData);
 
   if(r < 0) {
     JS_ThrowInternalError(ctx, "PortAudio error: %s", Pa_GetErrorText(r));
