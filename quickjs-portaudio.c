@@ -3,8 +3,6 @@
 #include "defines.h"
 #include <portaudio.h>
 
-static JSValue painitialize_function;
-
 static JSClassID js_pastream_class_id;
 static JSValue pastream_proto, pastream_ctor;
 
@@ -17,9 +15,55 @@ js_pastreamcallback(const void* in,
                     void* u) {
 }
 
+enum {
+  FUNC_INITIALIZE = 0,
+  FUNC_TERMINATE,
+  FUNC_SLEEP,
+  FUNC_GETSAMPLESIZE,
+};
+
 static JSValue
-js_painitialize_function(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
-  return JS_NewInt32(ctx, Pa_Initialize());
+js_portaudio_error(JSContext* ctx, PaError err) {
+  return err < 0    ? JS_ThrowInternalError(ctx, "PaError: %s", Pa_GetErrorText(err))
+         : err == 0 ? JS_UNDEFINED
+                    : JS_NewInt32(ctx, err);
+}
+
+static JSValue
+js_portaudio_function(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {
+  JSValue ret = JS_UNDEFINED;
+
+  switch(magic) {
+    case FUNC_INITIALIZE: {
+      ret = js_portaudio_error(ctx, Pa_Initialize());
+      break;
+    }
+    case FUNC_TERMINATE: {
+      ret = js_portaudio_error(ctx, Pa_Terminate());
+      break;
+    }
+    case FUNC_SLEEP: {
+      int64_t msec = -1;
+      if(argc > 0)
+        JS_ToInt64(ctx, &msec, argv[0]);
+      Pa_Sleep(msec);
+      break;
+    }
+
+    case FUNC_GETSAMPLESIZE: {
+      uint32_t u = 0;
+
+      if(argc > 0)
+        JS_ToUint32(ctx, &u, argv[0]);
+
+      PaError r = Pa_GetSampleSize(u);
+
+      ret = js_portaudio_error(ctx, r);
+      break;
+    }
+  }
+
+  return ret;
 }
 
 static JSValue
@@ -670,10 +714,17 @@ static const JSCFunctionListEntry js_pastreamparameters_funcs[] = {
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "PaStreamParameters", JS_PROP_CONFIGURABLE),
 };
 
+static const JSCFunctionListEntry js_portaudio_funcs[] = {
+    JS_CFUNC_MAGIC_DEF("Initialize", 0, js_portaudio_function, FUNC_INITIALIZE),
+    JS_CFUNC_MAGIC_DEF("Terminate", 0, js_portaudio_function, FUNC_TERMINATE),
+    JS_CFUNC_MAGIC_DEF("Sleep", 1, js_portaudio_function, FUNC_SLEEP),
+    JS_CFUNC_MAGIC_DEF("GetSampleSize", 1, js_portaudio_function, FUNC_GETSAMPLESIZE),
+    JS_PROP_INT32_DEF("NoDevice", paNoDevice, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("UseHostApiSpecificDeviceSpecification", paUseHostApiSpecificDeviceSpecification, JS_PROP_CONFIGURABLE),
+};
+
 int
 js_portaudio_init(JSContext* ctx, JSModuleDef* m) {
-  painitialize_function = JS_NewCFunction2(ctx, js_painitialize_function, "Initialize", 0, JS_CFUNC_generic, 0);
-
   JS_NewClassID(&js_pastream_class_id);
   JS_NewClass(JS_GetRuntime(ctx), js_pastream_class_id, &js_pastream_class);
 
@@ -709,10 +760,10 @@ js_portaudio_init(JSContext* ctx, JSModuleDef* m) {
   JS_SetClassProto(ctx, js_pastreamparameters_class_id, pastreamparameters_proto);
 
   if(m) {
-    JS_SetModuleExport(ctx, m, "Initialize", painitialize_function);
     JS_SetModuleExport(ctx, m, "Stream", pastream_ctor);
     JS_SetModuleExport(ctx, m, "DeviceInfo", padeviceinfo_ctor);
     JS_SetModuleExport(ctx, m, "StreamParameters", pastreamparameters_ctor);
+    JS_SetModuleExportList(ctx, m, js_portaudio_funcs, countof(js_portaudio_funcs));
   }
 
   return 0;
@@ -720,10 +771,10 @@ js_portaudio_init(JSContext* ctx, JSModuleDef* m) {
 
 VISIBLE void
 js_init_module_portaudio(JSContext* ctx, JSModuleDef* m) {
-  JS_AddModuleExport(ctx, m, "Initialize");
   JS_AddModuleExport(ctx, m, "Stream");
   JS_AddModuleExport(ctx, m, "DeviceInfo");
   JS_AddModuleExport(ctx, m, "StreamParameters");
+  JS_AddModuleExportList(ctx, m, js_portaudio_funcs, countof(js_portaudio_funcs));
 }
 
 VISIBLE JSModuleDef*

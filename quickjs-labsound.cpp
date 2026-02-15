@@ -568,7 +568,7 @@ js_init_module(JSContext* ctx, const char* module_name) {
 
   if((m = JS_NewCModule(ctx, module_name, js_labsound_init))) {
     js_init_module_labsound(ctx, m);
-  }
+    }
 
   return m;
 }
