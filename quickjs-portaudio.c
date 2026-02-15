@@ -720,7 +720,37 @@ static const JSCFunctionListEntry js_portaudio_funcs[] = {
     JS_CFUNC_MAGIC_DEF("Sleep", 1, js_portaudio_function, FUNC_SLEEP),
     JS_CFUNC_MAGIC_DEF("GetSampleSize", 1, js_portaudio_function, FUNC_GETSAMPLESIZE),
     JS_PROP_INT32_DEF("NoDevice", paNoDevice, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("UseHostApiSpecificDeviceSpecification", paUseHostApiSpecificDeviceSpecification, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("UseHostApiSpecificDeviceSpecification",
+                      paUseHostApiSpecificDeviceSpecification,
+                      JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("Continue", paContinue, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("Complete", paComplete, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("Abort", paAbort, JS_PROP_CONFIGURABLE),
+
+    JS_PROP_INT32_DEF("InputUnderflow", paInputUnderflow, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("InputOverflow", paInputOverflow, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("OutputUnderflow", paOutputUnderflow, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("OutputOverflow", paOutputOverflow, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("PrimingOutput", paPrimingOutput, JS_PROP_CONFIGURABLE),
+
+    JS_PROP_INT32_DEF("NoFlag", paNoFlag, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("ClipOff", paClipOff, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("DitherOff", paDitherOff, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("NeverDropInput", paNeverDropInput, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("PrimeOutputBuffersUsingStreamCallback",
+                      paPrimeOutputBuffersUsingStreamCallback,
+                      JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("PlatformSpecificFlags", paPlatformSpecificFlags, JS_PROP_CONFIGURABLE),
+
+    JS_PROP_INT32_DEF("Float32", paFloat32, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("Int32", paInt32, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("Int24", paInt24, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("Int16", paInt16, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("Int8", paInt8, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("UInt8", paUInt8, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("CustomFormat", paCustomFormat, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("NonInterleaved", paNonInterleaved, JS_PROP_CONFIGURABLE),
+
 };
 
 int
