@@ -4,6 +4,10 @@ cmake_minimum_required(VERSION 3.19)
 
 option(USE_LABSOUND "Use LabSound library" ON)
 option(USE_STK "Use Stk library" ON)
+option(USE_PORTAUDIO "Use PortAudio library" ON)
+
+
+include(FindPkgConfig)
 
 #add_subdirectory(stk)
 #add_subdirectory(sndobj)
@@ -178,3 +182,12 @@ if(USE_LABSOUND)
 
   target_link_libraries(test-labsound PRIVATE ${labsound_LIBRARIES})
 endif(USE_LABSOUND)
+
+
+if(USE_PORTAUDIO)
+  pkg_search_module(PORTAUDIO REQUIRED  portaudio-2.0)
+
+    make_module(portaudio c)
+    target_link_libraries(qjs-portaudio PRIVATE ${pkgcfg_lib_PORTAUDIO_portaudio})
+
+endif(USE_PORTAUDIO)
