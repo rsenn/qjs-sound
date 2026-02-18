@@ -808,38 +808,38 @@ static const JSCFunctionListEntry js_padevices_funcs[] = {
 };
 
 static const JSCFunctionListEntry js_portaudio_funcs[] = {
-    JS_CFUNC_MAGIC_DEF("Initialize", 0, js_portaudio_function, FUNC_INITIALIZE),
-    JS_CFUNC_MAGIC_DEF("Terminate", 0, js_portaudio_function, FUNC_TERMINATE),
-    JS_CFUNC_MAGIC_DEF("Sleep", 1, js_portaudio_function, FUNC_SLEEP),
-    JS_CFUNC_MAGIC_DEF("GetSampleSize", 1, js_portaudio_function, FUNC_GETSAMPLESIZE),
+    JS_CFUNC_MAGIC_DEF("Pa_Initialize", 0, js_portaudio_function, FUNC_INITIALIZE),
+    JS_CFUNC_MAGIC_DEF("Pa_Terminate", 0, js_portaudio_function, FUNC_TERMINATE),
+    JS_CFUNC_MAGIC_DEF("Pa_Sleep", 1, js_portaudio_function, FUNC_SLEEP),
+    JS_CFUNC_MAGIC_DEF("Pa_GetSampleSize", 1, js_portaudio_function, FUNC_GETSAMPLESIZE),
 
-    JS_PROP_INT32_DEF("NoDevice", paNoDevice, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("UseHostApiSpecificDeviceSpecification", paUseHostApiSpecificDeviceSpecification, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("Continue", paContinue, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("Complete", paComplete, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("Abort", paAbort, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paNoDevice", paNoDevice, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paUseHostApiSpecificDeviceSpecification", paUseHostApiSpecificDeviceSpecification, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paContinue", paContinue, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paComplete", paComplete, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paAbort", paAbort, JS_PROP_CONFIGURABLE),
 
-    JS_PROP_INT32_DEF("InputUnderflow", paInputUnderflow, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("InputOverflow", paInputOverflow, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("OutputUnderflow", paOutputUnderflow, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("OutputOverflow", paOutputOverflow, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("PrimingOutput", paPrimingOutput, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paInputUnderflow", paInputUnderflow, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paInputOverflow", paInputOverflow, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paOutputUnderflow", paOutputUnderflow, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paOutputOverflow", paOutputOverflow, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paPrimingOutput", paPrimingOutput, JS_PROP_CONFIGURABLE),
 
-    JS_PROP_INT32_DEF("NoFlag", paNoFlag, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("ClipOff", paClipOff, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("DitherOff", paDitherOff, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("NeverDropInput", paNeverDropInput, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("PrimeOutputBuffersUsingStreamCallback", paPrimeOutputBuffersUsingStreamCallback, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("PlatformSpecificFlags", paPlatformSpecificFlags, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paNoFlag", paNoFlag, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paClipOff", paClipOff, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paDitherOff", paDitherOff, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paNeverDropInput", paNeverDropInput, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paPrimeOutputBuffersUsingStreamCallback", paPrimeOutputBuffersUsingStreamCallback, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paPlatformSpecificFlags", paPlatformSpecificFlags, JS_PROP_CONFIGURABLE),
 
-    JS_PROP_INT32_DEF("Float32", paFloat32, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("Int32", paInt32, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("Int24", paInt24, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("Int16", paInt16, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("Int8", paInt8, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("UInt8", paUInt8, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("CustomFormat", paCustomFormat, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("NonInterleaved", paNonInterleaved, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paFloat32", paFloat32, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paInt32", paInt32, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paInt24", paInt24, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paInt16", paInt16, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paInt8", paInt8, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paUInt8", paUInt8, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paCustomFormat", paCustomFormat, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paNonInterleaved", paNonInterleaved, JS_PROP_CONFIGURABLE),
 };
 
 int
@@ -887,9 +887,9 @@ js_portaudio_init(JSContext* ctx, JSModuleDef* m) {
   padevices_obj = JS_NewObjectProtoClass(ctx, padevices_proto, js_padevices_class_id);
 
   if(m) {
-    JS_SetModuleExport(ctx, m, "Stream", pastream_ctor);
-    JS_SetModuleExport(ctx, m, "DeviceInfo", padeviceinfo_ctor);
-    JS_SetModuleExport(ctx, m, "StreamParameters", pastreamparameters_ctor);
+    JS_SetModuleExport(ctx, m, "PaStream", pastream_ctor);
+    JS_SetModuleExport(ctx, m, "PaDeviceInfo", padeviceinfo_ctor);
+    JS_SetModuleExport(ctx, m, "PaStreamParameters", pastreamparameters_ctor);
     JS_SetModuleExport(ctx, m, "devices", padevices_obj);
     JS_SetModuleExportList(ctx, m, js_portaudio_funcs, countof(js_portaudio_funcs));
   }
@@ -899,9 +899,9 @@ js_portaudio_init(JSContext* ctx, JSModuleDef* m) {
 
 VISIBLE void
 js_init_module_portaudio(JSContext* ctx, JSModuleDef* m) {
-  JS_AddModuleExport(ctx, m, "Stream");
-  JS_AddModuleExport(ctx, m, "DeviceInfo");
-  JS_AddModuleExport(ctx, m, "StreamParameters");
+  JS_AddModuleExport(ctx, m, "PaStream");
+  JS_AddModuleExport(ctx, m, "PaDeviceInfo");
+  JS_AddModuleExport(ctx, m, "PaStreamParameters");
   JS_AddModuleExport(ctx, m, "devices");
   JS_AddModuleExportList(ctx, m, js_portaudio_funcs, countof(js_portaudio_funcs));
 }
