@@ -368,6 +368,28 @@ fail:
   return JS_EXCEPTION;
 }
 
+static JSValue
+js_padeviceinfo_wrap(JSContext* ctx, JSValueConst proto, PaDeviceInfo info) {
+  JSValue obj = JS_NewObjectProtoClass(ctx, proto, js_padeviceinfo_class_id);
+
+  PaDeviceInfo* di;
+
+  if(!(di = js_mallocz(ctx, sizeof(PaDeviceInfo))))
+    goto fail;
+
+  if(info.name)
+    info.name = js_strdup(ctx, info.name);
+
+  *di = info;
+
+  JS_SetOpaque(obj, di);
+  return obj;
+
+fail:
+  JS_FreeValue(ctx, obj);
+  return JS_EXCEPTION;
+}
+
 enum {
   PROP_STRUCTVERSION,
   PROP_NAME,
@@ -528,7 +550,7 @@ static JSClassDef js_padeviceinfo_class = {
 
 static const JSCFunctionListEntry js_padeviceinfo_funcs[] = {
     JS_CGETSET_MAGIC_DEF("structVersion", js_padeviceinfo_get, js_padeviceinfo_set, PROP_STRUCTVERSION),
-    JS_CGETSET_MAGIC_DEF("name", js_padeviceinfo_get, js_padeviceinfo_set, PROP_NAME),
+    JS_CGETSET_MAGIC_FLAGS_DEF("name", js_padeviceinfo_get, js_padeviceinfo_set, PROP_NAME, JS_PROP_ENUMERABLE),
     JS_CGETSET_MAGIC_DEF("hostApi", js_padeviceinfo_get, js_padeviceinfo_set, PROP_HOSTAPI),
     JS_CGETSET_MAGIC_DEF("maxInputChannels", js_padeviceinfo_get, js_padeviceinfo_set, PROP_MAXINPUTCHANNELS),
     JS_CGETSET_MAGIC_DEF("maxOutputChannels", js_padeviceinfo_get, js_padeviceinfo_set, PROP_MAXOUTPUTCHANNELS),
@@ -718,6 +740,92 @@ static const JSCFunctionListEntry js_pastreamparameters_funcs[] = {
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "PaStreamParameters", JS_PROP_CONFIGURABLE),
 };
 
+static JSClassID js_padevices_class_id;
+static JSValue padevices_proto, padevices_ctor, padevices_obj;
+
+js_padevices_get_own_property(JSContext* ctx, JSPropertyDescriptor* pdesc, JSValueConst obj, JSAtom prop) {
+
+  if(prop & (1 << 31)) {
+    int32_t index;
+
+    if((index = prop & (~(1 << 31))) >= 0) {
+      PaDeviceInfo* info = Pa_GetDeviceInfo(index);
+
+      if(info)
+        if(pdesc) {
+          pdesc->flags = JS_PROP_ENUMERABLE;
+          pdesc->value = js_padeviceinfo_wrap(ctx, padeviceinfo_proto, *info);
+          pdesc->getter = JS_UNDEFINED;
+          pdesc->setter = JS_UNDEFINED;
+        }
+
+      return TRUE;
+    }
+  }
+
+  const char* key;
+  BOOL ret = FALSE;
+
+  if((key = JS_AtomToCString(ctx, prop))) {
+    if(!strcmp(key, "length")) {
+      if(pdesc) {
+        pdesc->flags = JS_PROP_ENUMERABLE;
+        pdesc->value = JS_NewUint32(ctx, Pa_GetDeviceCount());
+        pdesc->getter = JS_UNDEFINED;
+        pdesc->setter = JS_UNDEFINED;
+      }
+
+      ret = TRUE;
+    }
+
+    JS_FreeCString(ctx, key);
+  }
+
+  return ret;
+}
+
+static int
+js_padevices_get_own_property_names(JSContext* ctx, JSPropertyEnum** ptab, uint32_t* plen, JSValueConst obj) {
+  uint32_t i, len = Pa_GetDeviceCount();
+  JSPropertyEnum* props;
+
+  if((props = js_malloc(ctx, sizeof(JSPropertyEnum) * len))) {
+    for(i = 0; i < len; i++) {
+      props[i].is_enumerable = TRUE;
+      props[i].atom = JS_NewAtomUInt32(ctx, i);
+    }
+
+    *ptab = props;
+    *plen = len;
+  }
+
+  return 0;
+}
+
+static void
+js_padevices_finalizer(JSRuntime* rt, JSValue val) {
+  /*PaDevices* sp;
+
+  if((sp = JS_GetOpaque(val, js_padevices_class_id))) {
+    js_free_rt(rt, sp);
+  }*/
+}
+
+static JSClassExoticMethods js_padevices_exotic_methods = {
+    .get_own_property = js_padevices_get_own_property,
+    .get_own_property_names = js_padevices_get_own_property_names,
+};
+
+static JSClassDef js_padevices_class = {
+    .class_name = "PaDevices",
+    .finalizer = js_padevices_finalizer,
+    .exotic = &js_padevices_exotic_methods,
+};
+
+static const JSCFunctionListEntry js_padevices_funcs[] = {
+    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "PaDevices", JS_PROP_CONFIGURABLE),
+};
+
 static const JSCFunctionListEntry js_portaudio_funcs[] = {
     JS_CFUNC_MAGIC_DEF("Initialize", 0, js_portaudio_function, FUNC_INITIALIZE),
     JS_CFUNC_MAGIC_DEF("Terminate", 0, js_portaudio_function, FUNC_TERMINATE),
@@ -755,6 +863,7 @@ static const JSCFunctionListEntry js_portaudio_funcs[] = {
     JS_PROP_INT32_DEF("CustomFormat", paCustomFormat, JS_PROP_CONFIGURABLE),
     JS_PROP_INT32_DEF("NonInterleaved", paNonInterleaved, JS_PROP_CONFIGURABLE),
 
+    // JS_OBJECT_DEF("devices", js_portaudio_devices, countof(js_portaudio_devices), JS_PROP_CONFIGURABLE),
 };
 
 int
@@ -793,10 +902,23 @@ js_portaudio_init(JSContext* ctx, JSModuleDef* m) {
 
   JS_SetClassProto(ctx, js_pastreamparameters_class_id, pastreamparameters_proto);
 
+  JS_NewClassID(&js_padevices_class_id);
+  JS_NewClass(JS_GetRuntime(ctx), js_padevices_class_id, &js_padevices_class);
+
+  padevices_ctor = JS_NewObjectProto(ctx, JS_NULL);
+  padevices_proto = JS_NewObject(ctx);
+
+  JS_SetPropertyFunctionList(ctx, padevices_proto, js_padevices_funcs, countof(js_padevices_funcs));
+
+  JS_SetClassProto(ctx, js_padevices_class_id, padevices_proto);
+
+  padevices_obj = JS_NewObjectProtoClass(ctx, padevices_proto, js_padevices_class_id);
+
   if(m) {
     JS_SetModuleExport(ctx, m, "Stream", pastream_ctor);
     JS_SetModuleExport(ctx, m, "DeviceInfo", padeviceinfo_ctor);
     JS_SetModuleExport(ctx, m, "StreamParameters", pastreamparameters_ctor);
+    JS_SetModuleExport(ctx, m, "devices", padevices_obj);
     JS_SetModuleExportList(ctx, m, js_portaudio_funcs, countof(js_portaudio_funcs));
   }
 
@@ -808,6 +930,7 @@ js_init_module_portaudio(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "Stream");
   JS_AddModuleExport(ctx, m, "DeviceInfo");
   JS_AddModuleExport(ctx, m, "StreamParameters");
+  JS_AddModuleExport(ctx, m, "devices");
   JS_AddModuleExportList(ctx, m, js_portaudio_funcs, countof(js_portaudio_funcs));
 }
 
