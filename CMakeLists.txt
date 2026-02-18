@@ -206,8 +206,6 @@ endif(USE_LABSOUND)
 if(USE_PORTAUDIO)
   pkg_search_module(PORTAUDIO REQUIRED portaudio-2.0)
 
-  dump(pkgcfg_lib_PORTAUDIO_portaudio)
-
   #list(APPEND CMAKE_REQUIRED_LIBRARIES ${pkgcfg_lib_PORTAUDIO_portaudio})
   #check_function_def(Pa_GetStreamHostApiType HAVE_GETSTREAMHOSTAPITYPE)
   #list(REMOVE_ITEM CMAKE_REQUIRED_LIBRARIES ${pkgcfg_lib_PORTAUDIO_portaudio})
@@ -215,6 +213,9 @@ if(USE_PORTAUDIO)
 
   check_library_exists("${pkgcfg_lib_PORTAUDIO_portaudio}"
                        Pa_GetStreamHostApiType "" HAVE_GETSTREAMHOSTAPITYPE)
+
+  dump(HAVE_GETSTREAMHOSTAPITYPE)
+
   if(HAVE_GETSTREAMHOSTAPITYPE)
     target_compile_definitions(qjs-portaudio
                                PRIVATE HAVE_GETSTREAMHOSTAPITYPE=1)
