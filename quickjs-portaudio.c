@@ -724,6 +724,7 @@ static const JSCFunctionListEntry js_pastreamparameters_funcs[] = {
 static JSClassID js_padevices_class_id;
 static JSValue padevices_proto, padevices_ctor, padevices_obj;
 
+static BOOL
 js_padevices_get_own_property(JSContext* ctx, JSPropertyDescriptor* pdesc, JSValueConst obj, JSAtom prop) {
 
   if(prop & (1 << 31)) {
