@@ -193,6 +193,7 @@ js_pastream_get(JSContext* ctx, JSValueConst this_val, int magic) {
       ret = JS_NewInt64(ctx, Pa_GetStreamWriteAvailable(st));
       break;
     }
+#ifdef HAVE_GETSTREAMHOSTAPITYPE
     case PROP_HOSTAPITYPE: {
       enum PaHostApiTypeId id = Pa_GetStreamHostApiType(st);
       const char* str = 0;
@@ -219,6 +220,7 @@ js_pastream_get(JSContext* ctx, JSValueConst this_val, int magic) {
 
       break;
     }
+#endif
   }
 
   return ret;
@@ -312,7 +314,9 @@ static const JSCFunctionListEntry js_pastream_funcs[] = {
     JS_CGETSET_MAGIC_DEF("cpuLoad", js_pastream_get, 0, PROP_CPULOAD),
     JS_CGETSET_MAGIC_DEF("readAvailable", js_pastream_get, 0, PROP_READAVAILABLE),
     JS_CGETSET_MAGIC_DEF("writeAvailable", js_pastream_get, 0, PROP_WRITEAVAILABLE),
+#ifdef HAVE_GETSTREAMHOSTAPITYPE
     JS_CGETSET_MAGIC_DEF("hostApiType", js_pastream_get, 0, PROP_HOSTAPITYPE),
+#endif
     JS_CFUNC_MAGIC_DEF("start", 0, js_pastream_method, METHOD_START),
     JS_CFUNC_MAGIC_DEF("stop", 0, js_pastream_method, METHOD_STOP),
     JS_CFUNC_MAGIC_DEF("abort", 0, js_pastream_method, METHOD_ABORT),
