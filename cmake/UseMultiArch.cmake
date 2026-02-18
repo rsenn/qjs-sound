@@ -48,7 +48,7 @@ if(NOT CMAKE_ARCH_LIBDIR)
     set(CMAKE_CROSS_ARCH "${CMAKE_CROSS_ARCH}" CACHE STRING
                                                      "Cross compiling target")
   endif()
- set(THIS_SYSTEM "${SYSTEM_NAME}")
+  set(THIS_SYSTEM "${SYSTEM_NAME}")
   string(REGEX REPLACE "-unknown-" "-" THIS_SYSTEM "${THIS_SYSTEM}")
   string(REGEX REPLACE android[0-9]* android THIS_SYSTEM "${THIS_SYSTEM}")
 
