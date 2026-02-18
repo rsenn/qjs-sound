@@ -66,6 +66,7 @@ if(USE_STK)
                "-DCMAKE_CXX_COMPILER:STRING=${CMAKE_CXX_COMPILER}"
                "-DCMAKE_C_FLAGS:STRING=${CMAKE_C_FLAGS} ${MODULE_COMPILE_FLAGS}"
                "-DCMAKE_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS} ${MODULE_COMPILE_FLAGS}"
+               "-DCOMPILE_PROJECTS:BOOL=OFF"
     INSTALL_COMMAND "")
 
   ExternalProject_Get_Property(stk BINARY_DIR)
@@ -187,7 +188,14 @@ endif(USE_LABSOUND)
 if(USE_PORTAUDIO)
   pkg_search_module(PORTAUDIO REQUIRED  portaudio-2.0)
 
-    make_module(portaudio c)
-    target_link_libraries(qjs-portaudio PRIVATE ${pkgcfg_lib_PORTAUDIO_portaudio})
+  list(APPEND CMAKE_REQUIRED_LIBRARIES ${pkgcfg_lib_PORTAUDIO_portaudio})
+
+  check_function_def(Pa_GetStreamHostApiType HAVE_GETSTREAMHOSTAPITYPE)
+  dump(HAVE_GETSTREAMHOSTAPITYPE)
+
+  list(REMOVE_ITEM CMAKE_REQUIRED_LIBRARIES ${pkgcfg_lib_PORTAUDIO_portaudio})
+
+  make_module(portaudio c)
+  target_link_libraries(qjs-portaudio PRIVATE ${pkgcfg_lib_PORTAUDIO_portaudio})
 
 endif(USE_PORTAUDIO)
