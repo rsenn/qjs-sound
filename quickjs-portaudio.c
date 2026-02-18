@@ -7,12 +7,7 @@ static JSClassID js_pastream_class_id;
 static JSValue pastream_proto, pastream_ctor;
 
 static int
-js_pastreamcallback(const void* in,
-                    void* out,
-                    unsigned long nframes,
-                    const PaStreamCallbackTimeInfo* ti,
-                    PaStreamCallbackFlags sf,
-                    void* u) {
+js_pastreamcallback(const void* in, void* out, unsigned long nframes, const PaStreamCallbackTimeInfo* ti, PaStreamCallbackFlags sf, void* u) {
 }
 
 enum {
@@ -24,9 +19,7 @@ enum {
 
 static JSValue
 js_portaudio_error(JSContext* ctx, PaError err) {
-  return err < 0    ? JS_ThrowInternalError(ctx, "PaError: %s", Pa_GetErrorText(err))
-         : err == 0 ? JS_UNDEFINED
-                    : JS_NewInt32(ctx, err);
+  return err < 0 ? JS_ThrowInternalError(ctx, "PaError: %s", Pa_GetErrorText(err)) : err == 0 ? JS_UNDEFINED : JS_NewInt32(ctx, err);
 }
 
 static JSValue
@@ -90,14 +83,7 @@ js_pastream_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVal
 
   if(argc > 5) {}
 
-  PaError r = Pa_OpenDefaultStream(&st,
-                                   numInputChannels,
-                                   numOutputChannels,
-                                   sampleFormat,
-                                   sampleRate,
-                                   framesPerBuffer,
-                                   js_pastreamcallback,
-                                   userData);
+  PaError r = Pa_OpenDefaultStream(&st, numInputChannels, numOutputChannels, sampleFormat, sampleRate, framesPerBuffer, js_pastreamcallback, userData);
 
   if(r < 0) {
     JS_ThrowInternalError(ctx, "PortAudio error: %s", Pa_GetErrorText(r));
@@ -554,14 +540,10 @@ static const JSCFunctionListEntry js_padeviceinfo_funcs[] = {
     JS_CGETSET_MAGIC_DEF("hostApi", js_padeviceinfo_get, js_padeviceinfo_set, PROP_HOSTAPI),
     JS_CGETSET_MAGIC_DEF("maxInputChannels", js_padeviceinfo_get, js_padeviceinfo_set, PROP_MAXINPUTCHANNELS),
     JS_CGETSET_MAGIC_DEF("maxOutputChannels", js_padeviceinfo_get, js_padeviceinfo_set, PROP_MAXOUTPUTCHANNELS),
-    JS_CGETSET_MAGIC_DEF(
-        "defaultLowInputLatency", js_padeviceinfo_get, js_padeviceinfo_set, PROP_DEFAULTLOWINPUTLATENCY),
-    JS_CGETSET_MAGIC_DEF(
-        "defaultLowOutputLatency", js_padeviceinfo_get, js_padeviceinfo_set, PROP_DEFAULTLOWOUTPUTLATENCY),
-    JS_CGETSET_MAGIC_DEF(
-        "defaultHighInputLatency", js_padeviceinfo_get, js_padeviceinfo_set, PROP_DEFAULTHIGHINPUTLATENCY),
-    JS_CGETSET_MAGIC_DEF(
-        "defaultHighOutputLatency", js_padeviceinfo_get, js_padeviceinfo_set, PROP_DEFAULTHIGHOUTPUTLATENCY),
+    JS_CGETSET_MAGIC_DEF("defaultLowInputLatency", js_padeviceinfo_get, js_padeviceinfo_set, PROP_DEFAULTLOWINPUTLATENCY),
+    JS_CGETSET_MAGIC_DEF("defaultLowOutputLatency", js_padeviceinfo_get, js_padeviceinfo_set, PROP_DEFAULTLOWOUTPUTLATENCY),
+    JS_CGETSET_MAGIC_DEF("defaultHighInputLatency", js_padeviceinfo_get, js_padeviceinfo_set, PROP_DEFAULTHIGHINPUTLATENCY),
+    JS_CGETSET_MAGIC_DEF("defaultHighOutputLatency", js_padeviceinfo_get, js_padeviceinfo_set, PROP_DEFAULTHIGHOUTPUTLATENCY),
     JS_CGETSET_MAGIC_DEF("defaultSampleRate", js_padeviceinfo_get, js_padeviceinfo_set, PROP_DEFAULTSAMPLERATE),
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "PaDeviceInfo", JS_PROP_CONFIGURABLE),
 };
@@ -734,8 +716,7 @@ static const JSCFunctionListEntry js_pastreamparameters_funcs[] = {
     JS_CGETSET_MAGIC_DEF("device", js_pastreamparameters_get, js_pastreamparameters_set, PROP_DEVICE),
     JS_CGETSET_MAGIC_DEF("channelCount", js_pastreamparameters_get, js_pastreamparameters_set, PROP_CHANNELCOUNT),
     JS_CGETSET_MAGIC_DEF("sampleFormat", js_pastreamparameters_get, js_pastreamparameters_set, PROP_SAMPLEFORMAT),
-    JS_CGETSET_MAGIC_DEF(
-        "suggestedLatency", js_pastreamparameters_get, js_pastreamparameters_set, PROP_SUGGESTEDLATENCY),
+    JS_CGETSET_MAGIC_DEF("suggestedLatency", js_pastreamparameters_get, js_pastreamparameters_set, PROP_SUGGESTEDLATENCY),
     JS_CGETSET_MAGIC_DEF("hostApiSpecificStreamInfo", js_pastreamparameters_get, 0, PROP_HOSTAPISPECIFICSTREAMINFO),
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "PaStreamParameters", JS_PROP_CONFIGURABLE),
 };
@@ -831,10 +812,9 @@ static const JSCFunctionListEntry js_portaudio_funcs[] = {
     JS_CFUNC_MAGIC_DEF("Terminate", 0, js_portaudio_function, FUNC_TERMINATE),
     JS_CFUNC_MAGIC_DEF("Sleep", 1, js_portaudio_function, FUNC_SLEEP),
     JS_CFUNC_MAGIC_DEF("GetSampleSize", 1, js_portaudio_function, FUNC_GETSAMPLESIZE),
+
     JS_PROP_INT32_DEF("NoDevice", paNoDevice, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("UseHostApiSpecificDeviceSpecification",
-                      paUseHostApiSpecificDeviceSpecification,
-                      JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("UseHostApiSpecificDeviceSpecification", paUseHostApiSpecificDeviceSpecification, JS_PROP_CONFIGURABLE),
     JS_PROP_INT32_DEF("Continue", paContinue, JS_PROP_CONFIGURABLE),
     JS_PROP_INT32_DEF("Complete", paComplete, JS_PROP_CONFIGURABLE),
     JS_PROP_INT32_DEF("Abort", paAbort, JS_PROP_CONFIGURABLE),
@@ -849,9 +829,7 @@ static const JSCFunctionListEntry js_portaudio_funcs[] = {
     JS_PROP_INT32_DEF("ClipOff", paClipOff, JS_PROP_CONFIGURABLE),
     JS_PROP_INT32_DEF("DitherOff", paDitherOff, JS_PROP_CONFIGURABLE),
     JS_PROP_INT32_DEF("NeverDropInput", paNeverDropInput, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("PrimeOutputBuffersUsingStreamCallback",
-                      paPrimeOutputBuffersUsingStreamCallback,
-                      JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("PrimeOutputBuffersUsingStreamCallback", paPrimeOutputBuffersUsingStreamCallback, JS_PROP_CONFIGURABLE),
     JS_PROP_INT32_DEF("PlatformSpecificFlags", paPlatformSpecificFlags, JS_PROP_CONFIGURABLE),
 
     JS_PROP_INT32_DEF("Float32", paFloat32, JS_PROP_CONFIGURABLE),
@@ -862,8 +840,6 @@ static const JSCFunctionListEntry js_portaudio_funcs[] = {
     JS_PROP_INT32_DEF("UInt8", paUInt8, JS_PROP_CONFIGURABLE),
     JS_PROP_INT32_DEF("CustomFormat", paCustomFormat, JS_PROP_CONFIGURABLE),
     JS_PROP_INT32_DEF("NonInterleaved", paNonInterleaved, JS_PROP_CONFIGURABLE),
-
-    // JS_OBJECT_DEF("devices", js_portaudio_devices, countof(js_portaudio_devices), JS_PROP_CONFIGURABLE),
 };
 
 int
@@ -891,14 +867,10 @@ js_portaudio_init(JSContext* ctx, JSModuleDef* m) {
   JS_NewClassID(&js_pastreamparameters_class_id);
   JS_NewClass(JS_GetRuntime(ctx), js_pastreamparameters_class_id, &js_pastreamparameters_class);
 
-  pastreamparameters_ctor =
-      JS_NewCFunction2(ctx, js_pastreamparameters_constructor, "PaStreamParameters", 1, JS_CFUNC_constructor, 0);
+  pastreamparameters_ctor = JS_NewCFunction2(ctx, js_pastreamparameters_constructor, "PaStreamParameters", 1, JS_CFUNC_constructor, 0);
   pastreamparameters_proto = JS_NewObject(ctx);
 
-  JS_SetPropertyFunctionList(ctx,
-                             pastreamparameters_proto,
-                             js_pastreamparameters_funcs,
-                             countof(js_pastreamparameters_funcs));
+  JS_SetPropertyFunctionList(ctx, pastreamparameters_proto, js_pastreamparameters_funcs, countof(js_pastreamparameters_funcs));
 
   JS_SetClassProto(ctx, js_pastreamparameters_class_id, pastreamparameters_proto);
 
