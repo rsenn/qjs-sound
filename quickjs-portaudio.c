@@ -1,5 +1,6 @@
 #include <quickjs.h>
 #include <cutils.h>
+#include <string.h>
 #include "defines.h"
 #include <portaudio.h>
 
