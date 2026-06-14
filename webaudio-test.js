@@ -1,10 +1,16 @@
-import { AudioContext } from 'labsound';
-let context = new AudioContext();
+const isBrowser = typeof globalThis.window !== 'undefined';
 
-let d = context.destination;
+async function main() {
+  const { AudioContext, OscillatorNode } = isBrowser ? globalThis : await import('labsound');
+  const setTimeout = isBrowser ? globalThis.setTimeout : (await import('os')).setTimeout;
 
-let o = new OscillatorNode(context, { type: 'sawtooth', frequency: 1000, channelCount: 2 });
+  const context = new AudioContext();
+  const d = context.destination;
 
-o.connect(d);
-o.start();
-setTimeout(() => o.stop(), 1000);
+  const o = new OscillatorNode(context, { type: 'sawtooth', frequency: 1000, channelCount: 2 });
+  o.connect(d);
+  o.start();
+  setTimeout(() => o.stop(), 1000);
+}
+
+main();
