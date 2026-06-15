@@ -83,3 +83,64 @@ export class VCF {
 }
 
 export const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
+
+// One TB-303-style monosynth voice: VCO -> VCF -> VCA -> master -> output.
+// The VCO runs continuously; noteOn() reschedules pitch + envelopes per step.
+// opts.output (defaults to ctx.destination) lets the caller route the synth
+// through an effects chain.
+export class Synth {
+  constructor(ctx, env, opts = {}) {
+    this.ctx = ctx;
+    this.env = env;
+
+    this.master = new env.GainNode(ctx, { gain: opts.gain ?? 0.85 });
+    this.master.connect(opts.output ?? ctx.destination);
+
+    this.vca = new env.GainNode(ctx, { gain: 0.0 });
+    this.vca.connect(this.master);
+
+    this.vcf = new VCF(ctx, {
+      BiquadFilterNode: env.BiquadFilterNode,
+      type: 'lowpass',
+      frequency: opts.cutoff ?? 800,
+      Q: opts.Q ?? 5,
+      poles: opts.poles ?? 4,
+    });
+    this.vcf.connect(this.vca);
+
+    this.vco = new env.OscillatorNode(ctx, {
+      type: opts.type ?? 'sawtooth',
+      frequency: 55,
+    });
+    this.vco.connect(this.vcf.input);
+    this.vco.start();
+
+    this.ampEnv    = new ADSR(opts.ampEnv    ?? { attack: 0.003, decay: 0.10, sustain: 0.4, release: 0.06 });
+    this.filterEnv = new ADSR(opts.filterEnv ?? { attack: 0.002, decay: 0.20, sustain: 0.0, release: 0.06 });
+  }
+
+  noteOn({ t, midi, gateLen, accent = false, slide = false }) {
+    const freq = mtof(midi);
+
+    // VCO pitch — slide = portamento from previous note
+    this.vco.frequency.cancelScheduledValues(t);
+    if(slide) this.vco.frequency.exponentialRampToValueAtTime(freq, t + 0.05);
+    else      this.vco.frequency.setValueAtTime(freq, t);
+
+    // VCF cutoff envelope
+    const base = 300;
+    const peak = base + (accent ? 3500 : 2000);
+    this.filterEnv.trigger(this.vcf.frequency, t, gateLen, { peak, base });
+
+    // Resonance bump on accents
+    this.vcf.Q.setValueAtTime(accent ? 10 : 5, t);
+
+    // VCA envelope — skip on slide so the note ties to the previous one
+    if(!slide) {
+      const peakGain = accent ? 0.85 : 0.55;
+      this.ampEnv.trigger(this.vca.gain, t, gateLen, { peak: peakGain, base: 0 });
+    }
+  }
+
+  stop(t = 0) { this.vco.stop(t); }
+}

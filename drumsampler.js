@@ -41,7 +41,15 @@ export class DrumSampler {
 
     // Per-hit gain so each trigger can have its own velocity.
     const hitGain = new this.env.GainNode(this.ctx, { gain: opts.gain ?? 1.0 });
-    hitGain.connect(this.master);
+
+    // Optional per-hit stereo placement.
+    let downstream = this.master;
+    if(opts.pan !== undefined) {
+      const panner = new this.env.StereoPannerNode(this.ctx, { pan: opts.pan });
+      panner.connect(this.master);
+      downstream = panner;
+    }
+    hitGain.connect(downstream);
 
     if(v.kind === 'sample') {
       const src = new this.env.AudioBufferSourceNode(this.ctx, {
