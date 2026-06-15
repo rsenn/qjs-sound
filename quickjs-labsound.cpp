@@ -62,6 +62,33 @@ any_audio_node(JSValueConst v) {
   return nullptr;
 }
 
+// Anchor a node JS object into a hidden "__nodes" array on its AudioContext
+// AND give the node a JS-level "context" back-reference. lab's graph holds
+// raw back-pointers to nodes, so letting QuickJS finalize a node wrapper
+// while audio is still rendering corrupts the graph. The cycle node→context→
+// __nodes→node is fine — QuickJS's cycle collector handles it, and as long
+// as anything from the outside reaches one node, the whole graph stays live.
+static void
+anchor_node_in_context(JSContext* ctx, JSValueConst ac_jsval, JSValueConst node_jsval) {
+  if(JS_IsUndefined(ac_jsval) || !JS_IsObject(ac_jsval))
+    return;
+
+  JS_SetPropertyStr(ctx, node_jsval, "context", JS_DupValue(ctx, ac_jsval));
+
+  JSValue arr = JS_GetPropertyStr(ctx, ac_jsval, "__nodes");
+  if(JS_IsUndefined(arr) || JS_IsException(arr)) {
+    JS_FreeValue(ctx, arr);
+    arr = JS_NewArray(ctx);
+    JS_SetPropertyStr(ctx, ac_jsval, "__nodes", JS_DupValue(ctx, arr));
+  }
+  uint32_t len = 0;
+  JSValue len_v = JS_GetPropertyStr(ctx, arr, "length");
+  JS_ToUint32(ctx, &len, len_v);
+  JS_FreeValue(ctx, len_v);
+  JS_SetPropertyUint32(ctx, arr, len, JS_DupValue(ctx, node_jsval));
+  JS_FreeValue(ctx, arr);
+}
+
 static JSValue
 make_audio_node_js(JSContext* ctx, JSValueConst proto, JSClassID class_id, std::shared_ptr<lab::AudioNode> node, AudioContextPtr ac) {
   auto* w = static_cast<JsAudioNode*>(js_mallocz(ctx, sizeof(JsAudioNode)));
@@ -416,6 +443,7 @@ js_oscillator_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSV
 
   JSValue obj = make_audio_node_js(ctx, proto, js_oscillatornode_class_id, std::static_pointer_cast<lab::AudioNode>(osc), ac);
   JS_FreeValue(ctx, proto);
+  anchor_node_in_context(ctx, argv[0], obj);
   return obj;
 }
 
@@ -549,6 +577,7 @@ js_gain_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueCo
   }
   JSValue obj = make_audio_node_js(ctx, proto, js_gainnode_class_id, std::static_pointer_cast<lab::AudioNode>(g), ac);
   JS_FreeValue(ctx, proto);
+  anchor_node_in_context(ctx, argv[0], obj);
   return obj;
 }
 
@@ -693,6 +722,7 @@ js_biquadfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
   }
   JSValue obj = make_audio_node_js(ctx, proto, js_biquadfilternode_class_id, std::static_pointer_cast<lab::AudioNode>(f), ac);
   JS_FreeValue(ctx, proto);
+  anchor_node_in_context(ctx, argv[0], obj);
   return obj;
 }
 
