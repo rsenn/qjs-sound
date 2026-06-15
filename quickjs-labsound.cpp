@@ -3,6 +3,8 @@
 #include "defines.h"
 #include "LabSound/LabSound.h"
 #include "LabSound/backends/AudioDevice_RtAudio.h"
+#include "LabSound/core/AudioNodeOutput.h"
+#include "LabSound/extended/AudioContextLock.h"
 
 #include <algorithm>
 #include <cstring>
@@ -628,6 +630,14 @@ js_biquadfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
   AudioContextPtr ac = *acptr;
   auto f = std::make_shared<lab::BiquadFilterNode>(*ac);
 
+  // lab's BiquadFilterNode descriptor sets initialChannelCount=0, so the
+  // AudioNode base class doesn't add an output and any connection sourced
+  // from it would silently no-op. Add a stereo output under a graph lock.
+  if(f->numberOfOutputs() == 0) {
+    lab::ContextGraphLock gLock(ac.get(), "BiquadFilterNode.addOutput");
+    f->addOutput(gLock, std::unique_ptr<lab::AudioNodeOutput>(new lab::AudioNodeOutput(f.get(), 2)));
+  }
+
   if(argc > 1 && JS_IsObject(argv[1])) {
     JSValue v;
 
@@ -740,12 +750,22 @@ static JSClassDef js_biquadfilternode_class = {
     .finalizer = js_biquadfilternode_finalizer,
 };
 
+static JSValue
+js_audionode_io_count(JSContext* ctx, JSValueConst this_val, int magic) {
+  JsAudioNode* w = any_audio_node(this_val);
+  if(!w)
+    return JS_EXCEPTION;
+  return JS_NewInt32(ctx, magic == 0 ? w->node->numberOfInputs() : w->node->numberOfOutputs());
+}
+
 static const JSCFunctionListEntry js_biquadfilternode_funcs[] = {
     JS_CGETSET_MAGIC_DEF("type", js_biquadfilter_get, js_biquadfilter_set, BQ_PROP_TYPE),
     JS_CGETSET_MAGIC_DEF("frequency", js_biquadfilter_get, 0, BQ_PROP_FREQUENCY),
     JS_CGETSET_MAGIC_DEF("Q", js_biquadfilter_get, 0, BQ_PROP_Q),
     JS_CGETSET_MAGIC_DEF("detune", js_biquadfilter_get, 0, BQ_PROP_DETUNE),
     JS_CGETSET_MAGIC_DEF("gain", js_biquadfilter_get, 0, BQ_PROP_GAIN),
+    JS_CGETSET_MAGIC_DEF("numberOfInputs", js_audionode_io_count, 0, 0),
+    JS_CGETSET_MAGIC_DEF("numberOfOutputs", js_audionode_io_count, 0, 1),
     JS_CFUNC_DEF("connect", 1, js_audionode_connect),
     JS_CFUNC_DEF("disconnect", 0, js_audionode_disconnect),
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "BiquadFilterNode", JS_PROP_CONFIGURABLE),
