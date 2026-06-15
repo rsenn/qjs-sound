@@ -70,8 +70,12 @@ export class VCF {
 
     this.input = this.stages[0];
     this.output = this.stages[nStages - 1];
+    // Cutoff is broadcast across all stages so the envelope sweeps the whole
+    // cascade. Resonance lives on the last stage only — broadcasting Q at
+    // values like 14+ across 2 cascaded biquads compounds into an extremely
+    // narrow filter that nukes the signal.
     this.frequency = new BroadcastParam(this.stages.map(s => s.frequency));
-    this.Q = new BroadcastParam(this.stages.map(s => s.Q));
+    this.Q = this.stages[nStages - 1].Q;
   }
 
   connect(dest) { return this.output.connect(dest); }
