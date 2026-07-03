@@ -13,6 +13,7 @@
 #include "LabSound/core/DelayNode.h"
 #include "LabSound/core/WaveShaperNode.h"
 #include "LabSound/core/StereoPannerNode.h"
+#include "LabSound/core/ConvolverNode.h"
 
 #include <algorithm>
 #include <cstring>
@@ -34,6 +35,7 @@ static JSClassID js_noisenode_class_id;
 static JSClassID js_delaynode_class_id;
 static JSClassID js_waveshapernode_class_id;
 static JSClassID js_stereopannernode_class_id;
+static JSClassID js_convolvernode_class_id;
 static JSClassID js_audiobuffer_class_id;
 static JSClassID js_audiosetting_class_id;
 static JSClassID js_audioparam_class_id;
