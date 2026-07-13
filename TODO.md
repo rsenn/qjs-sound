@@ -251,3 +251,90 @@ Quirks to address:
   (use the same resolved-Promise trick as `decodeAudioData`, line 384-394,
   once rendering is actually synchronous under the hood, or a real async
   completion if LabSound's offline render runs on another thread).
+
+---
+
+## Complete WebAudio API class inventory
+
+Every interface in the spec, its LabSound backing (if any), and current
+binding status. "Needs custom C++" means LabSound has no equivalent type at
+all — the feature would have to be implemented from scratch in
+`quickjs-labsound.cpp`, not just wrapped.
+
+| WebAudio interface | LabSound equivalent | Status | Notes |
+|---|---|---|---|
+| `BaseAudioContext` | `lab::AudioContext` | Bound | LabSound doesn't split base/online/offline into separate types the way the spec does; single class + `isOffline` bool. |
+| `AudioContext` | `lab::AudioContext` | Bound | |
+| `OfflineAudioContext` | `lab::AudioContext(isOffline=true)` | Half-bound | Constructor threads the flag through; no `startRendering()`/result path. See item 12. |
+| `AudioNode` | `lab::AudioNode` | Bound (no shared JS proto) | Abstract base — `connect`/`disconnect` duplicated per node's funcs table today rather than inherited. |
+| `AudioParam` | `lab::AudioParam` | Bound | Full automation methods present (`setValueAtTime`, ramps, `setTargetAtTime`, `cancelScheduledValues`). |
+| `AudioParamMap` | — | N/A | Only used by `AudioWorkletNode.parameters`; moot until AudioWorklet exists. |
+| `AudioScheduledSourceNode` | `lab::AudioScheduledSourceNode` | Bound (no shared JS proto) | Abstract base for Oscillator/AudioBufferSource/ConstantSource — `start`/`stop` duplicated per node rather than inherited, same pattern as `AudioNode`. |
+| `AnalyserNode` | `lab::AnalyserNode` | **Not bound** | Item 3. |
+| `AudioBuffer` | `lab::AudioBus` | Bound, but constructor-less | Only produced via `decodeAudioData`/`createBufferFromFile`; no `new AudioBuffer(...)`. Item 8. `audiobuffer_ctor` global even exists (line 55) but is never assigned — dead like `ConvolverNode`. |
+| `AudioBufferSourceNode` | `lab::SampledAudioNode` | Bound | |
+| `AudioDestinationNode` | `lab::AudioDestinationNode` | Bound | |
+| `AudioListener` | `lab::AudioListener` | Bound | Currently inert — nothing produces spatialized output until `PannerNode` is bound (item 6). |
+| `BiquadFilterNode` | `lab::BiquadFilterNode` | Bound | Most complete node binding in the file — good template for others. |
+| `ChannelMergerNode` | `lab::ChannelMergerNode` | **Not bound** | Item 7. |
+| `ChannelSplitterNode` | `lab::ChannelSplitterNode` | **Not bound** | Item 7. |
+| `ConstantSourceNode` | `lab::ConstantSourceNode` | **Not bound** | Item 5. |
+| `ConvolverNode` | `lab::ConvolverNode` | **Stubbed** | Class id + header included, nothing else. Item 2. |
+| `DelayNode` | `lab::DelayNode` | Bound | `delayTime` uses the `AudioSetting` shim (immediate-only), not a real `AudioParam` — see the comment at line ~77; automation calls on it silently collapse to `setFloat`, a real spec deviation worth flagging to callers. |
+| `DynamicsCompressorNode` | `lab::DynamicsCompressorNode` | **Not bound** | Item 4. |
+| `GainNode` | `lab::GainNode` | Bound | |
+| `IIRFilterNode` | — | **Needs custom C++** | No IIR node anywhere in LabSound (checked all of `core/` and `extended/`). Would mean implementing a generic difference-equation processor from scratch — LabSound's `AudioProcessor`/`AudioBasicProcessorNode` base classes are the right hook point, but the DSP itself doesn't exist yet. |
+| `MediaElementAudioSourceNode` | — | **N/A / needs custom C++** | No `HTMLMediaElement` concept exists in a QuickJS environment; would need an entirely invented "media element" shim first. Low value outside a DOM. |
+| `MediaStreamAudioDestinationNode` | — | **Needs custom C++** | No `MediaStream` type anywhere in LabSound; would need a from-scratch shim. |
+| `MediaStreamAudioSourceNode` | `lab::AudioHardwareInputNode` (partial) | **Needs custom C++** | LabSound has live hardware-input capture (item 11) but no `MediaStream`/`MediaStreamTrack` wrapper around it — binding hardware input directly (non-spec API) is far cheaper than building real `MediaStream` semantics. |
+| `MediaStreamTrackAudioSourceNode` | — | **Needs custom C++** | Same gap as above. |
+| `OscillatorNode` | `lab::OscillatorNode` | Bound | `type` accepts LabSound-extension values (`"fast-sine"`, `"falling-sawtooth"`) beyond the spec's four — a deviation to document, not necessarily fix. No `setPeriodicWave()`. |
+| `PannerNode` | `lab::PannerNode` | **Not bound** | Item 6. |
+| `PeriodicWave` | `lab::PeriodicWave` | **Not bound** | Item 9. |
+| `ScriptProcessorNode` | — | **Deprecated in spec — skip** | LabSound's `FunctionNode` (extended) is the closest spirit-match (native callback per block) but bridging that callback into JS per audio quantum has real perf/threading cost for a deprecated API; not worth it. |
+| `StereoPannerNode` | `lab::StereoPannerNode` | Bound | |
+| `WaveShaperNode` | `lab::WaveShaperNode` | Bound | |
+| `AudioWorklet` | — | **Needs custom C++ (large)** | No equivalent concept in LabSound at all. |
+| `AudioWorkletNode` | — | **Needs custom C++ (large)** | Same. |
+| `AudioWorkletProcessor` | — | **Needs custom C++ (large)** | Same — would require running QuickJS callbacks on the audio render thread per quantum, with all the GC/threading hazards that implies. This is the single biggest lift on this list; everything else is wrapping existing LabSound DSP, this is inventing a JS-on-audio-thread execution model from nothing. |
+| `AudioWorkletGlobalScope` | — | **Needs custom C++ (large)** | Part of the same effort as above. |
+| `OfflineAudioCompletionEvent` | — | Covered by item 12 | Spec models this as an event; a resolved Promise (as already used for `decodeAudioData`) covers the same use case without inventing an Event system. |
+
+---
+
+## LabSound classes with no WebAudio equivalent (bindable anyway)
+
+These are LabSound's own additions — no spec interface to match, so no
+"deviation" to reconcile, just a straightforward wrap if/when useful. Ordered
+by rough relevance to what this project already does (`synth.js`,
+`drumsampler.js`, `effects.js` are all live-performance synth/effects code).
+
+| LabSound class | What it does | Why it'd be worth binding here |
+|---|---|---|
+| `ADSRNode` (extended) | Native envelope generator | `synth.js`'s `ADSR` class (line 23) currently hand-schedules envelopes via chained `AudioParam` automation calls in JS — a native `ADSRNode` could replace that with less per-note JS overhead and one call instead of 3-4 scheduling calls per envelope stage. Highest-value item in this list given current code. |
+| `SupersawNode` (extended) | Detuned multi-oscillator unison voice | Direct fit for pad/lead synth voices; `synth.js`'s `vco` is currently a single `OscillatorNode` — this would be a drop-in richer voice option. |
+| `BPMDelay` (extended, `BPMDelayNode.h`) | `DelayNode` subclass with tempo-synced delay time | Cheap to bind (it *is* a `DelayNode` — same shape as item 2's `ConvolverNode` work) and useful for any rhythmic delay effect alongside `effects.js`. |
+| `PingPongDelayNode` (extended) | Composite stereo ping-pong delay | Built as a `Subgraph` (multiple internal nodes wired together), not a plain `AudioNode` — binding pattern differs from everything else in the file; would need its own wrapper shape rather than reusing `make_audio_node_js`. |
+| `PolyBLEPNode` (extended) | Band-limited (anti-aliased) oscillator | Higher audio quality alternative to `OscillatorNode` for square/saw waves at high frequencies; same constructor shape as `OscillatorNode`, cheap port. |
+| `PWMNode` (extended) | Pulse-width-modulation oscillator | Common analog-synth voice type not otherwise available. |
+| `SfxrNode` (extended) | Procedural 8-bit/retro SFX generator (sfxr/bfxr-style) | Good fit for `drumsampler.js`-style one-shot hits without needing sample files. |
+| `GranulationNode` (extended) | Granular-synthesis buffer playback | Different playback model than `AudioBufferSourceNode`; useful for texture/pad effects, no spec equivalent exists. |
+| `ClipNode` (extended) | Hard clipper/distortion | Simpler/cheaper alternative to `WaveShaperNode` curves for basic distortion. |
+| `DiodeNode` (extended) | Diode-clipper distortion (subclasses `WaveShaperNode`) | Analog-modeling distortion; since it's a `WaveShaperNode` subclass, binding is nearly free once `WaveShaperNode`'s pattern is reused. |
+| `PeakCompNode` (extended) | Simple peak compressor/limiter | Lighter-weight alternative to full `DynamicsCompressorNode` (item 4) for basic limiting. |
+| `PowerMonitorNode` (extended) | RMS/power-level metering | Cheaper alternative to `AnalyserNode` (item 3) when only a level meter is needed, not full FFT data. |
+| `SpectralMonitorNode` (extended) | FFT-based spectral analysis | Overlaps with `AnalyserNode`'s frequency-domain data; only worth binding if its API offers something `AnalyserNode` doesn't. |
+| `RecorderNode` (extended) | Capture graph output to WAV | Already noted as item 10 — listed here too since it's the clearest "no spec equivalent" case. |
+| `FunctionNode` (extended) | Native per-block callback node | Could expose a small set of *built-in* canned processing functions from C++, but can't safely bridge to arbitrary JS callbacks per audio quantum (same perf/threading issue as `ScriptProcessorNode`/`AudioWorklet` above) — bind only the native-callback use case, not a JS-scriptable one. |
+| `PdNode` (extended) | Embeds a Pure Data (libpd) patch | Requires linking libpd as an additional dependency — only worth it if Pure Data patches are actually part of the workflow; skip otherwise. |
+
+**Not listed above (internal infrastructure, not meant to be user-facing node
+classes):** `AudioBasicInspectorNode`/`AudioBasicProcessorNode` (base classes
+other nodes derive from), `AudioProcessor`, `AudioNodeDescriptor`,
+`AudioParamDescriptor`, `AudioSettingDescriptor`, `RealtimeAnalyser` (wrapped
+*by* `AnalyserNode`, not exposed directly), `SpatializationNode` (internal to
+`PannerNode`), `AudioSourceProvider`, `AudioSummingJunction`,
+`AudioNodeInput`/`AudioNodeOutput`, `ConcurrentQueue`, `VectorMath`,
+`WindowFunctions`, `Mixing`, `Util`, `Logging`, `Profiler`, `Registry`,
+`AudioFileReader` (already used internally by `decodeAudioData`/
+`createBufferFromFile`).
