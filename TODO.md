@@ -19,12 +19,19 @@ Adding a node currently means touching **six** spots — easy to half-do:
    one most likely to be forgotten — without it, `.connect()`/`.disconnect()`
    and `ctx.connect()` silently reject the new node type as neither a valid
    source nor destination.
-5. `JSClassDef` + finalizer (`js_audionode_finalize_with`) + funcs table
-   (remember `connect`/`disconnect`/`[Symbol.toStringTag]` — copy-pasted per
-   node today, no shared prototype).
-6. Wire into `js_labsound_init` (class + proto + ctor + `JS_SetModuleExport`)
-   **and** `js_init_module_labsound` (`JS_AddModuleExport`) — both are
-   required, both are easy to forget one of.
+5. `JSClassDef` + finalizer (`js_audionode_finalize_with`) + funcs table.
+   `connect`/`disconnect` are now inherited via the prototype chain (see
+   below) — don't re-list them in the new node's funcs table, just add
+   whatever properties/methods are unique to it plus `[Symbol.toStringTag]`.
+   If the node is an `AudioScheduledSourceNode` (has `start`/`stop`), chain
+   its proto to `audioscheduledsourcenode_proto` instead of `audionode_proto`
+   and likewise skip `start`/`stop` unless its signature needs to differ from
+   the plain `(when)` form (`AudioBufferSourceNode` overrides `start` for its
+   offset/loop args but still inherits `stop`).
+6. Wire into `js_labsound_init` (class + proto + `JS_SetPrototype(ctx,
+   xxx_proto, audionode_proto)` or `audioscheduledsourcenode_proto` + ctor +
+   `JS_SetModuleExport`) **and** `js_init_module_labsound`
+   (`JS_AddModuleExport`) — both are required, both are easy to forget one of.
 
 ---
 
@@ -266,10 +273,10 @@ all — the feature would have to be implemented from scratch in
 | `BaseAudioContext` | `lab::AudioContext` | Bound | LabSound doesn't split base/online/offline into separate types the way the spec does; single class + `isOffline` bool. |
 | `AudioContext` | `lab::AudioContext` | Bound | |
 | `OfflineAudioContext` | `lab::AudioContext(isOffline=true)` | Half-bound | Constructor threads the flag through; no `startRendering()`/result path. See item 12. |
-| `AudioNode` | `lab::AudioNode` | Bound (no shared JS proto) | Abstract base — `connect`/`disconnect` duplicated per node's funcs table today rather than inherited. |
+| `AudioNode` | `lab::AudioNode` | Bound | Abstract base — `connect`/`disconnect` live once on a shared `audionode_proto` and are inherited by every node's prototype via `JS_SetPrototype`, rather than duplicated per funcs table. |
 | `AudioParam` | `lab::AudioParam` | Bound | Full automation methods present (`setValueAtTime`, ramps, `setTargetAtTime`, `cancelScheduledValues`). |
 | `AudioParamMap` | — | N/A | Only used by `AudioWorkletNode.parameters`; moot until AudioWorklet exists. |
-| `AudioScheduledSourceNode` | `lab::AudioScheduledSourceNode` | Bound (no shared JS proto) | Abstract base for Oscillator/AudioBufferSource/ConstantSource — `start`/`stop` duplicated per node rather than inherited, same pattern as `AudioNode`. |
+| `AudioScheduledSourceNode` | `lab::AudioScheduledSourceNode` | Bound | Abstract base for Oscillator/AudioBufferSource/Noise/ConstantSource — generic `start(when)`/`stop(when)` live once on `audioscheduledsourcenode_proto` (chained under `audionode_proto`) via `dynamic_pointer_cast<lab::AudioScheduledSourceNode>`. `AudioBufferSourceNode` overrides `start` on its own proto for its extra offset/loop args but still inherits the shared `stop`. |
 | `AnalyserNode` | `lab::AnalyserNode` | **Not bound** | Item 3. |
 | `AudioBuffer` | `lab::AudioBus` | Bound, but constructor-less | Only produced via `decodeAudioData`/`createBufferFromFile`; no `new AudioBuffer(...)`. Item 8. `audiobuffer_ctor` global even exists (line 55) but is never assigned — dead like `ConvolverNode`. |
 | `AudioBufferSourceNode` | `lab::SampledAudioNode` | Bound | |
