@@ -174,10 +174,11 @@ if(USE_LABSOUND)
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/src/core/*.cpp)]]
 
   make_module(labsound cpp)
-  include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include")
+  include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include"
+                      "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/third_party/libnyquist/include")
   set_target_properties(
     qjs-labsound PROPERTIES INCLUDE_DIRECTORIES
-                            "${QUICKJS_INCLUDE_DIR};${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include")
+                            "${QUICKJS_INCLUDE_DIR};${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include;${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/third_party/libnyquist/include")
 
   add_executable(test-labsound test-labsound.cpp)
 

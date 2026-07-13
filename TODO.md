@@ -35,99 +35,64 @@ Adding a node currently means touching **six** spots — easy to half-do:
 
 ---
 
-## 1. Node → AudioParam connections (`connect()` fix, not a new class)
+## 1. ✅ DONE — Node → AudioParam connections (`connect()` fix, not a new class)
 
 **Leverage: highest — unlocks LFO/modulation patterns for every node already
 bound, no new class needed.**
 
-`js_audionode_connect` (line ~452) and `AudioContext.connect` (line ~347) both
-resolve the destination via `any_audio_node(argv[0])`, so a call like
-`lfo.connect(gain.gain)` (connecting a node's output into an `AudioParam`, the
-core WebAudio modulation idiom) currently throws `"destination must be an
-AudioNode"`. `lab::AudioContext::connect` / `connectParam` supports this on the
-C++ side (`AudioParam` sinks); the JS wrapper never tried recognizing an
-`AudioParam` JS object as a valid destination.
-
-**Fix:** in `js_audionode_connect` and `js_audiocontext_connect`, if
-`any_audio_node(argv[0])` fails, fall back to `JS_GetOpaque2(ctx, argv[0],
-js_audioparam_class_id)` and route to `lab::AudioContext::connectParam(param,
-src->node, srcIdx)` (check LabSound's actual API name/signature in
-`AudioContext.h`). Returning `this_val`/dest per spec chaining still applies.
+`js_audionode_connect`/`js_audionode_disconnect` and
+`js_audiocontext_connect` now fall back to `any_audio_param(argv[0])`
+(`JS_GetOpaque` on `js_audioparam_class_id`) when the destination isn't a
+node, and route to `lab::AudioContext::connectParam`/`disconnectParam`.
+`node.connect(param, output)` returns `undefined` per spec (no chaining off
+an `AudioParam`), while node-to-node `connect` still returns the destination.
+Verified with `constantSource.connect(gain.gain)`.
 
 ---
 
-## 2. `ConvolverNode` — finish the stub
+## 2. ✅ DONE — `ConvolverNode`
 
-**Leverage: very high, very cheap.** The class id is declared
-(`js_convolvernode_class_id`, line 38) and the header is already included, but
-there's no constructor, proto, `JSClassDef`, funcs table, or module export —
-dead code. Mirror `WaveShaperNode` (closest analog: also takes a buffer/curve
-at construction).
-
-Quirks to address:
-- WebAudio's `ConvolverNode` takes a `buffer` (an `AudioBuffer`) and a
-  `normalize` bool in its options dict — wire both from `argv[1]`, converting
-  the JS `AudioBuffer` wrapper (`JsAudioBuffer`/`lab::AudioBus`) the same way
-  `AudioBufferSourceNode.buffer` does (see `js_absource_constructor` sections
-  around line 1260-1310 for the existing buffer-unwrap pattern).
-- No `AudioParam`s on this node — just `buffer` and `normalize` as plain
-  get/set properties, not `AudioSetting`/`AudioParam` wrappers.
-- Add `ConvolverNode` to `any_audio_node()` (step 4 above) — reverb chains
-  need `.connect()` to work.
+Constructor takes `(ctx, {buffer, normalize})`; `buffer`/`normalize` are plain
+get/set properties (no `AudioParam`s, matches spec). Chained to
+`audionode_proto` (not `audioscheduledsourcenode_proto`) since ConvolverNode
+has no `start`/`stop` in the spec, even though `lab::ConvolverNode` happens to
+derive from `AudioScheduledSourceNode` internally. Added to `any_audio_node()`.
 
 ---
 
-## 3. `AnalyserNode`
+## 3. ✅ DONE — `AnalyserNode`
 
-**Leverage: high.** Nothing today gives JS access to waveform/frequency data —
-blocks any metering, visualization, or level-driven synthesis
-(`fx-test.js`/`effects.js` style patches would want this for feedback-driven
-effects).
+`getFloatFrequencyData`/`getByteFrequencyData`/`getFloatTimeDomainData`/
+`getByteTimeDomainData` write into a caller-supplied `Float32Array`/
+`Uint8Array`, sized to `min(callerLength, frequencyBinCount-or-fftSize)` per
+spec (LabSound's vectors don't auto-resize — they silently no-op on a
+zero-length vector, so the binding pre-sizes a scratch `std::vector` itself).
+The node self-registers via `ac->addAutomaticPullNode()` in its constructor
+(required per `AnalyserNode.h`'s own doc comment when not connected to
+`destination`) and unregisters in its finalizer — skipping the unregister
+would leak a live LabSound node forever.
 
-Quirks to address:
-- WebAudio exposes `getFloatTimeDomainData`, `getByteTimeDomainData`,
-  `getFloatFrequencyData`, `getByteFrequencyData` — all of which write into a
-  caller-supplied `TypedArray`. The binding needs to accept a `Float32Array`/
-  `Uint8Array` argument and copy LabSound's `lab::AnalyserNode` output into it
-  (reuse the `JS_GetTypedArrayBuffer` pattern already in `read_float_array`,
-  line ~126, but write-direction instead of read).
-- `fftSize` must be a power of two in [32, 32768] per spec — LabSound's
-  `AnalyserNode` may not validate this the same way; validate in the setter
-  and throw `IndexSizeError`-equivalent (`JS_ThrowRangeError`) to match
-  browser behavior, since nothing else in this codebase currently validates
-  ranges like this.
-- `smoothingTimeConstant`, `minDecibels`, `maxDecibels`, `frequencyBinCount`
-  are plain numeric properties, not `AudioParam`s.
+**Not done:** `fftSize` setter doesn't validate power-of-two-in-[32,32768]
+per spec (passes straight to `lab::AnalyserNode::setFftSize`) — low-risk gap,
+but a caller passing a bad value gets whatever LabSound does internally
+rather than a spec-shaped `RangeError`.
 
 ---
 
-## 4. `DynamicsCompressorNode`
+## 4. ✅ DONE — `DynamicsCompressorNode`
 
-**Leverage: high** — standard mastering/bus-limiting node, commonly the last
-node before `destination` in real chains; currently nothing in this codebase
-can glue a mix bus together without clipping.
-
-Quirks to address:
-- Params (`threshold`, `knee`, `ratio`, `attack`, `release`) are real
-  `AudioParam`s in the spec — bind them via `make_audio_param_js` like
-  `BiquadFilterNode`'s `frequency`/`Q`/`gain`, **not** the `AudioSetting` shim
-  used for `DelayNode.delayTime` (that shim silently drops real scheduling; a
-  compressor's attack/release curves are commonly automated).
-- `reduction` is a read-only float (current gain reduction in dB) — plain
-  getter, no setter, not an `AudioParam`.
+`threshold`/`knee`/`ratio`/`attack`/`release` are real `AudioParam`s (bound
+via `make_audio_param_js`, so full automation works); `reduction` is a
+read-only float getter, not an `AudioParam`.
 
 ---
 
-## 5. `ConstantSourceNode`
+## 5. ✅ DONE — `ConstantSourceNode`
 
-**Leverage: medium-high, near-zero implementation cost** — a one-`AudioParam`
-source (`offset`) most useful as an LFO/constant modulation driver once item 1
-(param connections) lands. Binding this before item 1 has little value; do
-them together or in this order.
-
-Quirks to address:
-- `offset` is an `AudioParam` (bind like `GainNode.gain`).
-- Has `start()`/`stop()` like `OscillatorNode` — reuse that pattern directly.
+`offset` is a real `AudioParam`; `start`/`stop` are fully inherited from
+`audioscheduledsourcenode_proto` (no node-specific override needed — its
+constructor just chains to that proto like `OscillatorNode`/`NoiseNode`).
+Verified as an `AudioParam` modulation driver: `constantSource.connect(gain.gain)`.
 
 ---
 
@@ -169,23 +134,27 @@ Quirks to address:
 
 ---
 
-## 8. Real `AudioBuffer` construction (`new AudioBuffer(...)` / `ctx.createBuffer()`)
+## 8. ✅ DONE — Real `AudioBuffer` construction
 
-**Leverage: medium** — today `AudioBuffer` can only be *produced* by
-`decodeAudioData`/`createBufferFromFile` (line 366-419); there's no way to
-synthesize a buffer from scratch in JS (e.g. building a custom noise/impulse
-buffer for `ConvolverNode` above, or a wavetable). No JS constructor is
-registered at all for `AudioBuffer` (`audiobuffer_ctor` is declared at line 55
-but never assigned/exported — dead like `ConvolverNode`).
+`new AudioBuffer({numberOfChannels, length, sampleRate})` builds a
+`lab::AudioBus` directly. `getChannelData(channel)` returns a **copy**
+(`Float32Array`, built via a small `make_float32_array` helper since this
+quickjs.h has no `JS_NewFloat32Array`-style constructor helper — it wraps a
+copied `ArrayBuffer` with the global `Float32Array` ctor), not a live view —
+a deliberate spec deviation: the underlying `AudioBus` can be read by the
+audio render thread mid-playback (e.g. an actively-playing
+`AudioBufferSourceNode`), so a zero-copy alias would be a real data race.
+`copyToChannel`/`copyFromChannel` implemented as plain offset-bounded memcpys.
 
-Quirks to address:
-- Spec constructor: `new AudioBuffer({numberOfChannels, length, sampleRate})`,
-  plus `getChannelData(channel)` (returns a live `Float32Array` view, not a
-  copy — check whether `lab::AudioBus` channel storage can be safely aliased
-  into a QuickJS `ArrayBuffer` without a copy, or whether copy-in/copy-out on
-  `getChannelData`/`copyToChannel` is the only safe option given LabSound's
-  own buffer lifetime).
-- `copyFromChannel`/`copyToChannel` per spec for partial reads/writes.
+Also added `AudioBuffer.prototype.writeToWav(path, mixToMono)` (not originally
+scoped here, but natural to land alongside): reuses the exact recipe from
+`RecorderNode::writeRecordingToWav` (build an `nqr::AudioData`, call
+`nqr::encode_wav_to_disk`), generalized to write any `AudioBus` — works on a
+buffer from `decodeAudioData`, `createBufferFromFile`, `new AudioBuffer(...)`,
+or `OfflineAudioContext.startRendering()` (item 12) alike. Needed adding
+`third_party/LabSound/third_party/libnyquist/include` to `qjs-labsound`'s
+`INCLUDE_DIRECTORIES` in `CMakeLists.txt` — libnyquist headers weren't on the
+module's include path before (only linked, not include-visible).
 
 ---
 
@@ -236,28 +205,38 @@ Quirks to address:
 
 ---
 
-## 12. `OfflineAudioContext` completion
+## 12. ✅ DONE — `OfflineAudioContext` completion
 
-**Leverage: low for this project** (`synth.js`/`drumsampler.js`/`effects.js`
-are all realtime-performance code) but worth finishing since it's
-half-wired: `AudioContext`'s constructor already threads an `isOffline` bool
-into `lab::AudioContext` (line 267-274), but there is no `startRendering()`
-method, no completion promise/`oncomplete` event, and no way to pull the
-rendered result back out as an `AudioBuffer`. Right now constructing with
-`isOffline=true` produces an object that can build a graph but can never
-actually render or return audio to JS.
+Kept the boolean-flag shape (`new AudioContext(true, autoDispatchEvents,
+{numberOfChannels, length, sampleRate})`) rather than splitting out a real
+`OfflineAudioContext` class — still a documented deviation from the spec's
+distinct-constructor shape, but avoids doubling the class/proto/export
+boilerplate for what's otherwise identical machinery.
 
-Quirks to address:
-- Spec: `OfflineAudioContext` is really a distinct constructor/class (`new
-  OfflineAudioContext(numberOfChannels, length, sampleRate)`), not
-  `AudioContext(true)` — current single-constructor-with-bool-flag shape is
-  already a deviation; decide whether to keep the boolean-flag shape (simpler,
-  already partially done) or split out a real `OfflineAudioContext` class to
-  match spec call sites more closely.
-- `startRendering()` should return a Promise resolving to an `AudioBuffer`
-  (use the same resolved-Promise trick as `decodeAudioData`, line 384-394,
-  once rendering is actually synchronous under the hood, or a real async
-  completion if LabSound's offline render runs on another thread).
+When `isOffline`, the constructor now builds the destination with
+`lab::AudioDevice_Null` (previously: no destination at all was created for
+offline contexts — `ctx.destination` was `null` and nothing could ever be
+connected to it). `length` is stashed as a hidden `__offlineLength` JS
+property on the context object (mirrors the existing `__nodes` bookkeeping
+pattern in `anchor_node_in_context` — there's no room for it in the
+`AudioContextPtr*` opaque pointer without changing every call site that casts
+it).
+
+`AudioContext.prototype.startRendering()` pulls the graph synchronously via
+`lab::AudioDestinationNode::offlineRender(&scratchBus, quantum)` in
+`AudioNode::ProcessingSizeInFrames` (128-frame) chunks — no thread, no
+realtime pacing, since `offlineRender` already renders faster than realtime
+on the calling thread — accumulating into a pre-sized result `AudioBus`,
+trimming the final partial quantum. Returns a resolved Promise (same trick as
+`decodeAudioData`) wrapping the result as a real `AudioBuffer`, which composes
+directly with item 8's `writeToWav()`:
+```js
+const buf = await offlineCtx.startRendering();
+buf.writeToWav('out.wav');
+```
+Verified end-to-end: rendered buffer length/duration match the requested
+`length`, contains actual non-silent audio, and the written WAV round-trips
+through `ffprobe` as `pcm_f32le`/44100Hz/2ch/1.000000s.
 
 ---
 
@@ -272,23 +251,23 @@ all — the feature would have to be implemented from scratch in
 |---|---|---|---|
 | `BaseAudioContext` | `lab::AudioContext` | Bound | LabSound doesn't split base/online/offline into separate types the way the spec does; single class + `isOffline` bool. |
 | `AudioContext` | `lab::AudioContext` | Bound | |
-| `OfflineAudioContext` | `lab::AudioContext(isOffline=true)` | Half-bound | Constructor threads the flag through; no `startRendering()`/result path. See item 12. |
+| `OfflineAudioContext` | `lab::AudioContext(isOffline=true)` | Bound | `AudioDevice_Null`-backed destination + `startRendering()` returning a real `AudioBuffer`. See item 12. |
 | `AudioNode` | `lab::AudioNode` | Bound | Abstract base — `connect`/`disconnect` live once on a shared `audionode_proto` and are inherited by every node's prototype via `JS_SetPrototype`, rather than duplicated per funcs table. |
 | `AudioParam` | `lab::AudioParam` | Bound | Full automation methods present (`setValueAtTime`, ramps, `setTargetAtTime`, `cancelScheduledValues`). |
 | `AudioParamMap` | — | N/A | Only used by `AudioWorkletNode.parameters`; moot until AudioWorklet exists. |
 | `AudioScheduledSourceNode` | `lab::AudioScheduledSourceNode` | Bound | Abstract base for Oscillator/AudioBufferSource/Noise/ConstantSource — generic `start(when)`/`stop(when)` live once on `audioscheduledsourcenode_proto` (chained under `audionode_proto`) via `dynamic_pointer_cast<lab::AudioScheduledSourceNode>`. `AudioBufferSourceNode` overrides `start` on its own proto for its extra offset/loop args but still inherits the shared `stop`. |
-| `AnalyserNode` | `lab::AnalyserNode` | **Not bound** | Item 3. |
-| `AudioBuffer` | `lab::AudioBus` | Bound, but constructor-less | Only produced via `decodeAudioData`/`createBufferFromFile`; no `new AudioBuffer(...)`. Item 8. `audiobuffer_ctor` global even exists (line 55) but is never assigned — dead like `ConvolverNode`. |
+| `AnalyserNode` | `lab::AnalyserNode` | Bound | Item 3. `fftSize` setter doesn't validate power-of-two range per spec. |
+| `AudioBuffer` | `lab::AudioBus` | Bound | Item 8. `new AudioBuffer(...)` plus `getChannelData`/`copyToChannel`/`copyFromChannel`/`writeToWav`. `getChannelData` copies rather than aliasing (spec gives a live view) — deliberate, avoids a data race with the audio render thread. |
 | `AudioBufferSourceNode` | `lab::SampledAudioNode` | Bound | |
 | `AudioDestinationNode` | `lab::AudioDestinationNode` | Bound | |
 | `AudioListener` | `lab::AudioListener` | Bound | Currently inert — nothing produces spatialized output until `PannerNode` is bound (item 6). |
 | `BiquadFilterNode` | `lab::BiquadFilterNode` | Bound | Most complete node binding in the file — good template for others. |
 | `ChannelMergerNode` | `lab::ChannelMergerNode` | **Not bound** | Item 7. |
 | `ChannelSplitterNode` | `lab::ChannelSplitterNode` | **Not bound** | Item 7. |
-| `ConstantSourceNode` | `lab::ConstantSourceNode` | **Not bound** | Item 5. |
-| `ConvolverNode` | `lab::ConvolverNode` | **Stubbed** | Class id + header included, nothing else. Item 2. |
+| `ConstantSourceNode` | `lab::ConstantSourceNode` | Bound | Item 5. |
+| `ConvolverNode` | `lab::ConvolverNode` | Bound | Item 2. |
 | `DelayNode` | `lab::DelayNode` | Bound | `delayTime` uses the `AudioSetting` shim (immediate-only), not a real `AudioParam` — see the comment at line ~77; automation calls on it silently collapse to `setFloat`, a real spec deviation worth flagging to callers. |
-| `DynamicsCompressorNode` | `lab::DynamicsCompressorNode` | **Not bound** | Item 4. |
+| `DynamicsCompressorNode` | `lab::DynamicsCompressorNode` | Bound | Item 4. |
 | `GainNode` | `lab::GainNode` | Bound | |
 | `IIRFilterNode` | — | **Needs custom C++** | No IIR node anywhere in LabSound (checked all of `core/` and `extended/`). Would mean implementing a generic difference-equation processor from scratch — LabSound's `AudioProcessor`/`AudioBasicProcessorNode` base classes are the right hook point, but the DSP itself doesn't exist yet. |
 | `MediaElementAudioSourceNode` | — | **N/A / needs custom C++** | No `HTMLMediaElement` concept exists in a QuickJS environment; would need an entirely invented "media element" shim first. Low value outside a DOM. |
