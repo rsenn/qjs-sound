@@ -3,6 +3,8 @@
 
 #include <vector>
 #include <memory>
+#include <cmath>
+#include <cstring>
 
 #include "defines.h"
 #include "Stk.h"
@@ -26,6 +28,10 @@
 #include "TapDelay.h"
 #include "TwoPole.h"
 #include "TwoZero.h"
+
+/* stk::Function */
+#include "Function.h"
+#include "Cubic.h"
 
 /* stk::Generator */
 #include "ADSR.h"
@@ -92,9 +98,10 @@
 using stk::Stk;
 
 static JSClassID js_stkframes_class_id, js_stk_class_id, js_stkfilter_class_id, js_stkgenerator_class_id, js_stkeffect_class_id, js_stkfm_class_id,
-    js_stkinstrmnt_class_id;
+    js_stkinstrmnt_class_id, js_stkfunction_class_id;
 static JSValue stkframes_proto, stkframes_ctor, stk_proto, stk_ctor, stkfilter_proto, stkfilter_ctor, stkgenerator_proto, stkgenerator_ctor, stkeffect_proto,
-    stkeffect_ctor, stkfm_proto, stkfm_ctor, stkinstrmnt_proto, stkinstrmnt_ctor;
+    stkeffect_ctor, stkfm_proto, stkfm_ctor, stkinstrmnt_proto, stkinstrmnt_ctor, stkfunction_proto, stkfunction_ctor,
+    twintdrum_proto, tr909bassdrum_proto;
 
 typedef std::shared_ptr<stk::Stk> StkPtr;
 typedef std::shared_ptr<stk::StkFrames> StkFramesPtr;
@@ -103,6 +110,7 @@ typedef std::shared_ptr<stk::Filter> StkFilterPtr;
 typedef std::shared_ptr<stk::Effect> StkEffectPtr;
 typedef std::shared_ptr<stk::FM> StkFMPtr;
 typedef std::shared_ptr<stk::Instrmnt> StkInstrmntPtr;
+typedef std::shared_ptr<stk::Function> StkFunctionPtr;
 
 static JSAtom
 js_symbol_tostringtag(JSContext* ctx) {
@@ -274,8 +282,10 @@ js_stkframes_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
   if(JS_IsException(proto))
     goto fail;
 
-  if(!JS_IsObject(proto))
-    proto = stkframes_proto;
+  if(!JS_IsObject(proto)) {
+    JS_FreeValue(ctx, proto);
+    proto = JS_DupValue(ctx, stkframes_proto);
+  }
 
   /* using new_target to get the prototype is necessary when the class is
    * extended. */
@@ -572,8 +582,10 @@ js_stkgenerator_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
   if(JS_IsException(proto))
     goto fail;
 
-  if(!JS_IsObject(proto))
-    proto = stkgenerator_proto;
+  if(!JS_IsObject(proto)) {
+    JS_FreeValue(ctx, proto);
+    proto = JS_DupValue(ctx, stkgenerator_proto);
+  }
 
   /* using new_target to get the prototype is necessary when the class is
    * extended. */
@@ -762,7 +774,7 @@ js_stkfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
       if(argc > 0) {
         array_to_vector(ctx, argv[0], bcoeff);
         if(argc > 1)
-          array_to_vector(ctx, argv[1], bcoeff);
+          array_to_vector(ctx, argv[1], acoeff);
 
         *f = std::make_shared<stk::Iir>(bcoeff, acoeff);
       } else {
@@ -835,8 +847,10 @@ js_stkfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
   if(JS_IsException(proto))
     goto fail;
 
-  if(!JS_IsObject(proto))
-    proto = stkfilter_proto;
+  if(!JS_IsObject(proto)) {
+    JS_FreeValue(ctx, proto);
+    proto = JS_DupValue(ctx, stkfilter_proto);
+  }
 
   /* using new_target to get the prototype is necessary when the class is
    * extended. */
@@ -873,6 +887,37 @@ fail:
   return JS_EXCEPTION;
 }
 
+enum {
+  METHOD_FILTER_TICK = 0,
+};
+
+static JSValue
+js_stkfilter_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+  StkFilterPtr* f;
+  JSValue ret = JS_UNDEFINED;
+
+  if(!(f = static_cast<StkFilterPtr*>(JS_GetOpaque2(ctx, this_val, js_stkfilter_class_id))))
+    return JS_EXCEPTION;
+
+  switch(magic) {
+    case METHOD_FILTER_TICK: {
+      double input = 0;
+      JS_ToFloat64(ctx, &input, argv[0]);
+
+      /* Filter subclasses only expose a polymorphic StkFrames& tick(); route a
+       * single sample through a one-frame buffer so any filter type works here. */
+      stk::StkFrames frame(1, 1);
+      frame[0] = input;
+      (*f)->tick(frame, 0);
+
+      ret = JS_NewFloat64(ctx, frame[0]);
+      break;
+    }
+  }
+
+  return ret;
+}
+
 static void
 js_stkfilter_finalizer(JSRuntime* rt, JSValue val) {
   StkFilterPtr* f;
@@ -889,6 +934,7 @@ static JSClassDef js_stkfilter_class = {
 };
 
 static const JSCFunctionListEntry js_stkfilter_funcs[] = {
+    JS_CFUNC_MAGIC_DEF("tick", 1, js_stkfilter_method, METHOD_FILTER_TICK),
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "StkFilter", JS_PROP_CONFIGURABLE),
 };
 
@@ -954,8 +1000,10 @@ js_stkeffect_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
   if(JS_IsException(proto))
     goto fail;
 
-  if(!JS_IsObject(proto))
-    proto = stkeffect_proto;
+  if(!JS_IsObject(proto)) {
+    JS_FreeValue(ctx, proto);
+    proto = JS_DupValue(ctx, stkeffect_proto);
+  }
 
   /* using new_target to get the prototype is necessary when the class is
    * extended. */
@@ -987,6 +1035,78 @@ fail:
   return JS_EXCEPTION;
 }
 
+enum {
+  METHOD_EFFECT_TICK = 0,
+  METHOD_EFFECT_SET_MIX,
+  METHOD_EFFECT_CLEAR,
+};
+
+static JSValue
+js_stkeffect_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+  StkEffectPtr* e;
+  JSValue ret = JS_UNDEFINED;
+
+  if(!(e = static_cast<StkEffectPtr*>(JS_GetOpaque2(ctx, this_val, js_stkeffect_class_id))))
+    return JS_EXCEPTION;
+
+  stk::Effect* eff = e->get();
+
+  switch(magic) {
+    case METHOD_EFFECT_TICK: {
+      double in1 = 0, in2 = 0;
+      JS_ToFloat64(ctx, &in1, argv[0]);
+      if(argc > 1)
+        JS_ToFloat64(ctx, &in2, argv[1]);
+
+      /* Effect subclasses don't share a common tick() signature (some are
+       * mono, some stereo, FreeVerb takes two inputs), so dispatch by type
+       * and then read back through the (shared) lastFrame() accessor. */
+      if(auto* p = dynamic_cast<stk::FreeVerb*>(eff))
+        p->tick(in1, in2);
+      else if(auto* p = dynamic_cast<stk::JCRev*>(eff))
+        p->tick(in1);
+      else if(auto* p = dynamic_cast<stk::PRCRev*>(eff))
+        p->tick(in1);
+      else if(auto* p = dynamic_cast<stk::NRev*>(eff))
+        p->tick(in1);
+      else if(auto* p = dynamic_cast<stk::Chorus*>(eff))
+        p->tick(in1);
+      else if(auto* p = dynamic_cast<stk::Echo*>(eff))
+        p->tick(in1);
+      else if(auto* p = dynamic_cast<stk::PitShift*>(eff))
+        p->tick(in1);
+      else if(auto* p = dynamic_cast<stk::LentPitShift*>(eff))
+        p->tick(in1);
+
+      const stk::StkFrames& last = eff->lastFrame();
+      unsigned int nch = eff->channelsOut();
+
+      if(nch > 1) {
+        JSValue arr = JS_NewArray(ctx);
+        for(unsigned int c = 0; c < nch; c++)
+          JS_SetPropertyUint32(ctx, arr, c, JS_NewFloat64(ctx, last[c]));
+        ret = arr;
+      } else {
+        ret = JS_NewFloat64(ctx, last[0]);
+      }
+
+      break;
+    }
+    case METHOD_EFFECT_SET_MIX: {
+      double mix = 0;
+      JS_ToFloat64(ctx, &mix, argv[0]);
+      eff->setEffectMix(mix);
+      break;
+    }
+    case METHOD_EFFECT_CLEAR: {
+      eff->clear();
+      break;
+    }
+  }
+
+  return ret;
+}
+
 static void
 js_stkeffect_finalizer(JSRuntime* rt, JSValue val) {
   StkEffectPtr* e;
@@ -1003,6 +1123,9 @@ static JSClassDef js_stkeffect_class = {
 };
 
 static const JSCFunctionListEntry js_stkeffect_funcs[] = {
+    JS_CFUNC_MAGIC_DEF("tick", 1, js_stkeffect_method, METHOD_EFFECT_TICK),
+    JS_CFUNC_MAGIC_DEF("setEffectMix", 1, js_stkeffect_method, METHOD_EFFECT_SET_MIX),
+    JS_CFUNC_MAGIC_DEF("clear", 0, js_stkeffect_method, METHOD_EFFECT_CLEAR),
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "StkEffect", JS_PROP_CONFIGURABLE),
 };
 
@@ -1031,8 +1154,10 @@ js_stkfm_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueC
   if(JS_IsException(proto))
     goto fail;
 
-  if(!JS_IsObject(proto))
-    proto = stkfm_proto;
+  if(!JS_IsObject(proto)) {
+    JS_FreeValue(ctx, proto);
+    proto = JS_DupValue(ctx, stkfm_proto);
+  }
 
   /* using new_target to get the prototype is necessary when the class is
    * extended. */
@@ -1194,8 +1319,10 @@ js_stkinstrmnt_constructor(JSContext* ctx, JSValueConst new_target, int argc, JS
   if(JS_IsException(proto))
     goto fail;
 
-  if(!JS_IsObject(proto))
-    proto = stkinstrmnt_proto;
+  if(!JS_IsObject(proto)) {
+    JS_FreeValue(ctx, proto);
+    proto = JS_DupValue(ctx, stkinstrmnt_proto);
+  }
 
   /* using new_target to get the prototype is necessary when the class is
    * extended. */
@@ -1211,6 +1338,62 @@ js_stkinstrmnt_constructor(JSContext* ctx, JSValueConst new_target, int argc, JS
 fail:
   JS_FreeValue(ctx, obj);
   return JS_EXCEPTION;
+}
+
+enum {
+  METHOD_INSTRMNT_TICK = 0,
+  METHOD_INSTRMNT_NOTE_ON,
+  METHOD_INSTRMNT_NOTE_OFF,
+  METHOD_INSTRMNT_CONTROL_CHANGE,
+};
+
+static JSValue
+js_stkinstrmnt_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+  StkInstrmntPtr* i;
+  JSValue ret = JS_UNDEFINED;
+
+  if(!(i = static_cast<StkInstrmntPtr*>(JS_GetOpaque2(ctx, this_val, js_stkinstrmnt_class_id))))
+    return JS_EXCEPTION;
+
+  switch(magic) {
+    case METHOD_INSTRMNT_TICK: {
+      uint32_t channel = 0;
+      if(argc > 0)
+        JS_ToUint32(ctx, &channel, argv[0]);
+
+      ret = JS_NewFloat64(ctx, (*i)->tick(channel));
+      break;
+    }
+    case METHOD_INSTRMNT_NOTE_ON: {
+      double frequency = 0, amplitude = 0;
+      JS_ToFloat64(ctx, &frequency, argv[0]);
+      if(argc > 1)
+        JS_ToFloat64(ctx, &amplitude, argv[1]);
+
+      (*i)->noteOn(frequency, amplitude);
+      break;
+    }
+    case METHOD_INSTRMNT_NOTE_OFF: {
+      double amplitude = 0;
+      if(argc > 0)
+        JS_ToFloat64(ctx, &amplitude, argv[0]);
+
+      (*i)->noteOff(amplitude);
+      break;
+    }
+    case METHOD_INSTRMNT_CONTROL_CHANGE: {
+      int32_t number = 0;
+      double value = 0;
+      JS_ToInt32(ctx, &number, argv[0]);
+      if(argc > 1)
+        JS_ToFloat64(ctx, &value, argv[1]);
+
+      (*i)->controlChange(number, value);
+      break;
+    }
+  }
+
+  return ret;
 }
 
 static void
@@ -1229,7 +1412,734 @@ static JSClassDef js_stkinstrmnt_class = {
 };
 
 static const JSCFunctionListEntry js_stkinstrmnt_funcs[] = {
+    JS_CFUNC_MAGIC_DEF("tick", 0, js_stkinstrmnt_method, METHOD_INSTRMNT_TICK),
+    JS_CFUNC_MAGIC_DEF("noteOn", 2, js_stkinstrmnt_method, METHOD_INSTRMNT_NOTE_ON),
+    JS_CFUNC_MAGIC_DEF("noteOff", 1, js_stkinstrmnt_method, METHOD_INSTRMNT_NOTE_OFF),
+    JS_CFUNC_MAGIC_DEF("controlChange", 2, js_stkinstrmnt_method, METHOD_INSTRMNT_CONTROL_CHANGE),
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "StkInstrmnt", JS_PROP_CONFIGURABLE),
+};
+
+enum {
+  INSTANCE_CUBIC = 0,
+};
+
+static JSValue
+js_stkfunction_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {
+  StkFunctionPtr* g = static_cast<StkFunctionPtr*>(js_mallocz(ctx, sizeof(StkFunctionPtr)));
+
+  switch(magic) {
+    case INSTANCE_CUBIC: {
+      *g = std::make_shared<stk::Cubic>();
+      break;
+    }
+  }
+
+  /* using new_target to get the prototype is necessary when the class is
+   * extended. */
+  JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
+  if(JS_IsException(proto))
+    goto fail;
+
+  if(!JS_IsObject(proto)) {
+    JS_FreeValue(ctx, proto);
+    proto = JS_DupValue(ctx, stkfunction_proto);
+  }
+
+  /* using new_target to get the prototype is necessary when the class is
+   * extended. */
+  obj = JS_NewObjectProtoClass(ctx, proto, js_stkfunction_class_id);
+  JS_FreeValue(ctx, proto);
+
+  if(JS_IsException(obj))
+    goto fail;
+
+  JS_SetOpaque(obj, g);
+
+  js_set_tostringtag(ctx,
+                     obj,
+                     ((const char*[]){
+                         "StkCubic",
+                     })[magic]);
+
+  return obj;
+
+fail:
+  JS_FreeValue(ctx, obj);
+  return JS_EXCEPTION;
+}
+
+enum {
+  METHOD_FUNCTION_TICK = 0,
+  METHOD_FUNCTION_SET_A1,
+  METHOD_FUNCTION_SET_A2,
+  METHOD_FUNCTION_SET_A3,
+  METHOD_FUNCTION_SET_GAIN,
+  METHOD_FUNCTION_SET_THRESHOLD,
+};
+
+static JSValue
+js_stkfunction_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+  StkFunctionPtr* g;
+  JSValue ret = JS_UNDEFINED;
+
+  if(!(g = static_cast<StkFunctionPtr*>(JS_GetOpaque2(ctx, this_val, js_stkfunction_class_id))))
+    return JS_EXCEPTION;
+
+  switch(magic) {
+    case METHOD_FUNCTION_TICK: {
+      double input = 0;
+      JS_ToFloat64(ctx, &input, argv[0]);
+
+      ret = JS_NewFloat64(ctx, (*g)->tick(input));
+      break;
+    }
+    /* Cubic-specific shaping controls (Cubic is presently the only bound
+     * stk::Function subclass). */
+    case METHOD_FUNCTION_SET_A1:
+    case METHOD_FUNCTION_SET_A2:
+    case METHOD_FUNCTION_SET_A3:
+    case METHOD_FUNCTION_SET_GAIN:
+    case METHOD_FUNCTION_SET_THRESHOLD: {
+      double value = 0;
+      JS_ToFloat64(ctx, &value, argv[0]);
+
+      if(auto* cubic = dynamic_cast<stk::Cubic*>(g->get())) {
+        switch(magic) {
+          case METHOD_FUNCTION_SET_A1: cubic->setA1(value); break;
+          case METHOD_FUNCTION_SET_A2: cubic->setA2(value); break;
+          case METHOD_FUNCTION_SET_A3: cubic->setA3(value); break;
+          case METHOD_FUNCTION_SET_GAIN: cubic->setGain(value); break;
+          case METHOD_FUNCTION_SET_THRESHOLD: cubic->setThreshold(value); break;
+        }
+      }
+
+      break;
+    }
+  }
+
+  return ret;
+}
+
+static void
+js_stkfunction_finalizer(JSRuntime* rt, JSValue val) {
+  StkFunctionPtr* g;
+
+  if((g = static_cast<StkFunctionPtr*>(JS_GetOpaque(val, js_stkfunction_class_id)))) {
+    g->~StkFunctionPtr();
+    js_free_rt(rt, g);
+  }
+}
+
+static JSClassDef js_stkfunction_class = {
+    .class_name = "StkFunction",
+    .finalizer = js_stkfunction_finalizer,
+};
+
+static const JSCFunctionListEntry js_stkfunction_funcs[] = {
+    JS_CFUNC_MAGIC_DEF("tick", 1, js_stkfunction_method, METHOD_FUNCTION_TICK),
+    JS_CFUNC_MAGIC_DEF("setA1", 1, js_stkfunction_method, METHOD_FUNCTION_SET_A1),
+    JS_CFUNC_MAGIC_DEF("setA2", 1, js_stkfunction_method, METHOD_FUNCTION_SET_A2),
+    JS_CFUNC_MAGIC_DEF("setA3", 1, js_stkfunction_method, METHOD_FUNCTION_SET_A3),
+    JS_CFUNC_MAGIC_DEF("setGain", 1, js_stkfunction_method, METHOD_FUNCTION_SET_GAIN),
+    JS_CFUNC_MAGIC_DEF("setThreshold", 1, js_stkfunction_method, METHOD_FUNCTION_SET_THRESHOLD),
+    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "StkFunction", JS_PROP_CONFIGURABLE),
+};
+
+/* ============================================================
+ * Analog drum voice emulations.
+ *
+ * STK doesn't model analog drum circuits directly, so these are genuine
+ * DSP models of two classic techniques, built out of STK primitives
+ * (TwoPole for a ringing resonator, OnePole for tone shaping, Noise for
+ * transients) and exposed as ordinary stk::Instrmnt subclasses so they
+ * share the existing StkInstrmnt tick()/noteOn()/noteOff() binding above
+ * (same class id, same finalizer -- only their own prototype, chained
+ * onto stkinstrmnt_proto, adds the extra controls below).
+ * ============================================================ */
+
+enum {
+  DRIVE_TANH = 0,
+  DRIVE_CUBIC = 1,
+  DRIVE_FOLD = 2,
+};
+
+static double
+analog_drive(double x, double amount, int type) {
+  if(amount <= 0.0)
+    return x;
+
+  double driven = x * (1.0 + amount * 8.0);
+
+  switch(type) {
+    case DRIVE_CUBIC: {
+      if(driven > 1.0)
+        driven = 1.0;
+      else if(driven < -1.0)
+        driven = -1.0;
+      return driven - (driven * driven * driven) / 3.0;
+    }
+    case DRIVE_FOLD: {
+      for(int i = 0; i < 16 && (driven > 1.0 || driven < -1.0); i++) {
+        if(driven > 1.0)
+          driven = 2.0 - driven;
+        else if(driven < -1.0)
+          driven = -2.0 - driven;
+      }
+      return driven;
+    }
+    default: return tanh(driven);
+  }
+}
+
+/* ---- TwinTDrum: analog Twin-T oscillator style drum resonator ----
+ *
+ * A Twin-T RC notch network, wired into an inverting feedback loop,
+ * oscillates at its notch frequency; struck, it rings down like a tom,
+ * conga or woodblock. We model that ring-down directly as a discretized
+ * 2-pole resonator (stk::TwoPole, tuned via setResonance) excited by an
+ * impulse -- the digital equivalent of "pinging" the analog circuit. A
+ * second, detuned resonator and a noise "click" transient are layered in
+ * for timbres a plain twin-T never had (cowbell/agogo-style clusters). */
+class TwinTDrum : public stk::Instrmnt {
+public:
+  TwinTDrum(stk::StkFloat frequency = 200.0)
+      : frequency_(frequency), decay_(0.25), drive_(0.0), driveType_(DRIVE_TANH), pitchDropAmt_(0.0),
+        pitchDropTime_(0.03), secondaryRatio_(1.5), secondaryMix_(0.0), clickAmount_(0.0), clickEnv_(0.0),
+        age_(0.0) {
+    refreshResonators();
+  }
+
+  void setFrequency(stk::StkFloat frequency) override {
+    frequency_ = frequency;
+    refreshResonators();
+  }
+  void setDecay(double t60Seconds) {
+    decay_ = std::max(0.001, t60Seconds);
+    refreshResonators();
+  }
+  void setDrive(double amount, int type = DRIVE_TANH) {
+    drive_ = amount;
+    driveType_ = type;
+  }
+  void setPitchDrop(double semitones, double timeSeconds) {
+    pitchDropAmt_ = semitones;
+    pitchDropTime_ = std::max(0.0005, timeSeconds);
+  }
+  void setSecondary(double ratio, double mix) {
+    secondaryRatio_ = ratio;
+    secondaryMix_ = mix;
+    refreshResonators();
+  }
+  void setClick(double amount) { clickAmount_ = amount; }
+
+  void noteOn(stk::StkFloat frequency, stk::StkFloat amplitude) override {
+    if(frequency > 0.0)
+      setFrequency(frequency);
+    strike(amplitude);
+  }
+  void noteOff(stk::StkFloat amplitude) override { setDecay(0.01); }
+
+  void strike(double amplitude = 1.0) {
+    age_ = 0.0;
+    resonator_.tick(amplitude);
+    if(secondaryMix_ > 0.0)
+      secondary_.tick(amplitude);
+    if(clickAmount_ > 0.0)
+      clickEnv_ = 1.0;
+  }
+
+  stk::StkFloat tick(unsigned int channel = 0) override {
+    if(pitchDropAmt_ != 0.0) {
+      double f = currentFrequency();
+      resonator_.setResonance(f, radiusFor(decay_, f), true);
+      if(secondaryMix_ > 0.0)
+        secondary_.setResonance(f * secondaryRatio_, radiusFor(decay_, f * secondaryRatio_), true);
+    }
+
+    double y = resonator_.tick(0.0);
+    if(secondaryMix_ > 0.0)
+      y += secondaryMix_ * secondary_.tick(0.0);
+
+    if(clickEnv_ > 1e-4) {
+      y += clickAmount_ * clickEnv_ * noise_.tick();
+      clickEnv_ *= 0.9;
+    }
+
+    age_ += 1.0 / stk::Stk::sampleRate();
+    lastFrame_[0] = analog_drive(y, drive_, driveType_);
+    return lastFrame_[0];
+  }
+
+  stk::StkFrames& tick(stk::StkFrames& frames, unsigned int channel = 0) override {
+    stk::StkFloat* samples = &frames[channel];
+    unsigned int hop = frames.channels();
+    for(unsigned int i = 0; i < frames.frames(); i++, samples += hop)
+      *samples = tick();
+    return frames;
+  }
+
+private:
+  static double radiusFor(double t60, double freq) {
+    double sr = stk::Stk::sampleRate();
+    double n = std::max(1.0, t60 * sr);
+    return std::pow(10.0, -3.0 / n);
+  }
+
+  double currentFrequency() const {
+    double env = std::exp(-age_ / pitchDropTime_);
+    double ratio = std::pow(2.0, -pitchDropAmt_ * env / 12.0);
+    return frequency_ * ratio;
+  }
+
+  void refreshResonators() {
+    resonator_.setResonance(frequency_, radiusFor(decay_, frequency_), true);
+    secondary_.setResonance(frequency_ * secondaryRatio_, radiusFor(decay_, frequency_ * secondaryRatio_), true);
+  }
+
+  double frequency_, decay_, drive_;
+  int driveType_;
+  double pitchDropAmt_, pitchDropTime_;
+  double secondaryRatio_, secondaryMix_;
+  double clickAmount_, clickEnv_;
+  double age_;
+  stk::TwoPole resonator_, secondary_;
+  stk::Noise noise_;
+};
+
+/* ---- Tr909BassDrum: analog "909-style" bass drum ----
+ *
+ * A distorted sine core with independent, dedicated pitch- and
+ * amplitude-decay envelopes -- not ADSR: real analog bass drum circuits
+ * are a fast pitch-modulated oscillator plus a single decay stage, and the
+ * classic "punch" comes from the pitch settling much faster than the
+ * amplitude, not from a multi-stage envelope generator. */
+class Tr909BassDrum : public stk::Instrmnt {
+public:
+  Tr909BassDrum()
+      : pitchStart_(400.0), pitchEnd_(55.0), pitchDecay_(0.06), pitchLinear_(false), ampDecay_(0.45),
+        ampLinear_(false), drive_(0.35), driveType_(DRIVE_TANH), tone_(6000.0), clickLevel_(0.5),
+        clickDecay_(0.04), subMix_(0.0), subOctave_(1.0), tune_(1.0), phase_(0.0), subPhase_(0.0),
+        pitchEnv_(0.0), pitchCoeff_(1.0), pitchLinStep_(0.0), ampEnv_(0.0), ampCoeff_(1.0), ampLinStep_(0.0),
+        clickEnv_(0.0), clickCoeff_(1.0), velocity_(0.0) {
+    toneFilter_.setPole(poleFromCutoff(tone_));
+  }
+
+  void setPitchEnvelope(double startFreq, double endFreq, double decayTime, bool linear = false) {
+    pitchStart_ = startFreq;
+    pitchEnd_ = endFreq > 0 ? endFreq : 1.0;
+    pitchDecay_ = std::max(0.001, decayTime);
+    pitchLinear_ = linear;
+  }
+  void setAmpEnvelope(double decayTime, bool linear = false) {
+    ampDecay_ = std::max(0.001, decayTime);
+    ampLinear_ = linear;
+  }
+  void setDrive(double amount, int type = DRIVE_TANH) {
+    drive_ = amount;
+    driveType_ = type;
+  }
+  void setTone(double cutoffHz) {
+    tone_ = cutoffHz;
+    toneFilter_.setPole(poleFromCutoff(cutoffHz));
+  }
+  void setClick(double level, double decayTime) {
+    clickLevel_ = level;
+    clickDecay_ = std::max(0.001, decayTime);
+  }
+  void setSub(double mix, double octaveOffset = 1.0) {
+    subMix_ = mix;
+    subOctave_ = octaveOffset <= 0 ? 1.0 : octaveOffset;
+  }
+  void setTune(double multiplier) { tune_ = multiplier; }
+
+  void noteOn(stk::StkFloat frequency, stk::StkFloat amplitude) override {
+    if(frequency > 0.0) {
+      double ratio = pitchEnd_ > 0.0 ? pitchStart_ / pitchEnd_ : 2.0;
+      pitchEnd_ = frequency;
+      pitchStart_ = frequency * ratio;
+    }
+    trigger(amplitude);
+  }
+  void noteOff(stk::StkFloat amplitude) override {
+    ampEnv_ = 0.0;
+    clickEnv_ = 0.0;
+  }
+
+  void trigger(double velocity = 1.0) {
+    double sr = stk::Stk::sampleRate();
+    phase_ = 0.0;
+    subPhase_ = 0.0;
+    velocity_ = velocity;
+
+    pitchEnv_ = 1.0;
+    pitchCoeff_ = std::pow(1e-3, 1.0 / std::max(1.0, pitchDecay_ * sr));
+    pitchLinStep_ = 1.0 / std::max(1.0, pitchDecay_ * sr);
+
+    ampEnv_ = 1.0;
+    ampCoeff_ = std::pow(1e-3, 1.0 / std::max(1.0, ampDecay_ * sr));
+    ampLinStep_ = 1.0 / std::max(1.0, ampDecay_ * sr);
+
+    clickEnv_ = 1.0;
+    clickCoeff_ = std::pow(1e-3, 1.0 / std::max(1.0, clickDecay_ * sr));
+  }
+
+  stk::StkFloat tick(unsigned int channel = 0) override {
+    double sr = stk::Stk::sampleRate();
+    double freq = (pitchEnd_ + (pitchStart_ - pitchEnd_) * pitchEnv_) * tune_;
+
+    phase_ += 2.0 * M_PI * freq / sr;
+    if(phase_ > 2.0 * M_PI)
+      phase_ -= 2.0 * M_PI;
+    double sample = analog_drive(std::sin(phase_), drive_, driveType_);
+    sample = toneFilter_.tick(sample);
+
+    if(subMix_ > 0.0) {
+      subPhase_ += 2.0 * M_PI * (freq / subOctave_) / sr;
+      if(subPhase_ > 2.0 * M_PI)
+        subPhase_ -= 2.0 * M_PI;
+      sample += subMix_ * std::sin(subPhase_);
+    }
+
+    if(clickEnv_ > 1e-4) {
+      sample += clickLevel_ * clickEnv_ * noise_.tick();
+      clickEnv_ *= clickCoeff_;
+    }
+
+    sample *= ampEnv_ * velocity_;
+
+    pitchEnv_ = pitchLinear_ ? std::max(0.0, pitchEnv_ - pitchLinStep_) : pitchEnv_ * pitchCoeff_;
+    ampEnv_ = ampLinear_ ? std::max(0.0, ampEnv_ - ampLinStep_) : ampEnv_ * ampCoeff_;
+
+    lastFrame_[0] = sample;
+    return sample;
+  }
+
+  stk::StkFrames& tick(stk::StkFrames& frames, unsigned int channel = 0) override {
+    stk::StkFloat* samples = &frames[channel];
+    unsigned int hop = frames.channels();
+    for(unsigned int i = 0; i < frames.frames(); i++, samples += hop)
+      *samples = tick();
+    return frames;
+  }
+
+private:
+  static double poleFromCutoff(double cutoffHz) {
+    double sr = stk::Stk::sampleRate();
+    double clamped = std::min(std::max(cutoffHz, 20.0), sr * 0.45);
+    return std::exp(-2.0 * M_PI * clamped / sr);
+  }
+
+  double pitchStart_, pitchEnd_, pitchDecay_;
+  bool pitchLinear_;
+  double ampDecay_;
+  bool ampLinear_;
+  double drive_;
+  int driveType_;
+  double tone_;
+  double clickLevel_, clickDecay_;
+  double subMix_, subOctave_;
+  double tune_;
+
+  double phase_, subPhase_;
+  double pitchEnv_, pitchCoeff_, pitchLinStep_;
+  double ampEnv_, ampCoeff_, ampLinStep_;
+  double clickEnv_, clickCoeff_;
+  double velocity_;
+
+  stk::OnePole toneFilter_;
+  stk::Noise noise_;
+};
+
+static JSValue
+js_new_stkframes(JSContext* ctx, unsigned int nFrames, unsigned int nChannels) {
+  StkFramesPtr* f = static_cast<StkFramesPtr*>(js_mallocz(ctx, sizeof(StkFramesPtr)));
+  new(f) StkFramesPtr(std::make_shared<stk::StkFrames>(nFrames, nChannels));
+
+  JSValue obj = JS_NewObjectProtoClass(ctx, stkframes_proto, js_stkframes_class_id);
+  if(JS_IsException(obj)) {
+    f->~StkFramesPtr();
+    js_free(ctx, f);
+    return JS_EXCEPTION;
+  }
+  JS_SetOpaque(obj, f);
+  return obj;
+}
+
+static JSValue
+js_twintdrum_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+  double frequency = 200.0;
+  if(argc > 0)
+    JS_ToFloat64(ctx, &frequency, argv[0]);
+
+  StkInstrmntPtr* i = static_cast<StkInstrmntPtr*>(js_mallocz(ctx, sizeof(StkInstrmntPtr)));
+  new(i) StkInstrmntPtr(std::make_shared<TwinTDrum>(frequency));
+
+  JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
+  if(JS_IsException(proto))
+    goto fail;
+
+  if(!JS_IsObject(proto)) {
+    JS_FreeValue(ctx, proto);
+    proto = JS_DupValue(ctx, twintdrum_proto);
+  }
+
+  obj = JS_NewObjectProtoClass(ctx, proto, js_stkinstrmnt_class_id);
+  JS_FreeValue(ctx, proto);
+
+  if(JS_IsException(obj))
+    goto fail;
+
+  JS_SetOpaque(obj, i);
+  js_set_tostringtag(ctx, obj, "StkTwinTDrum");
+  return obj;
+
+fail:
+  JS_FreeValue(ctx, obj);
+  return JS_EXCEPTION;
+}
+
+enum {
+  METHOD_TWINT_SET_FREQUENCY = 0,
+  METHOD_TWINT_SET_DECAY,
+  METHOD_TWINT_SET_DRIVE,
+  METHOD_TWINT_SET_PITCH_DROP,
+  METHOD_TWINT_SET_SECONDARY,
+  METHOD_TWINT_SET_CLICK,
+  METHOD_TWINT_STRIKE,
+  METHOD_TWINT_RENDER,
+};
+
+static JSValue
+js_twintdrum_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+  StkInstrmntPtr* p;
+  JSValue ret = JS_UNDEFINED;
+
+  if(!(p = static_cast<StkInstrmntPtr*>(JS_GetOpaque2(ctx, this_val, js_stkinstrmnt_class_id))))
+    return JS_EXCEPTION;
+
+  TwinTDrum* d = dynamic_cast<TwinTDrum*>(p->get());
+  if(!d)
+    return JS_ThrowTypeError(ctx, "not a StkTwinTDrum");
+
+  double a = 0, b = 0;
+  if(argc > 0)
+    JS_ToFloat64(ctx, &a, argv[0]);
+  if(argc > 1)
+    JS_ToFloat64(ctx, &b, argv[1]);
+
+  switch(magic) {
+    case METHOD_TWINT_SET_FREQUENCY: d->setFrequency(a); break;
+    case METHOD_TWINT_SET_DECAY: d->setDecay(a); break;
+    case METHOD_TWINT_SET_DRIVE: d->setDrive(a, argc > 1 ? (int)b : DRIVE_TANH); break;
+    case METHOD_TWINT_SET_PITCH_DROP: d->setPitchDrop(a, argc > 1 ? b : 0.03); break;
+    case METHOD_TWINT_SET_SECONDARY: d->setSecondary(a, argc > 1 ? b : 0.0); break;
+    case METHOD_TWINT_SET_CLICK: d->setClick(a); break;
+    case METHOD_TWINT_STRIKE: d->strike(argc > 0 ? a : 1.0); break;
+    case METHOD_TWINT_RENDER: {
+      uint32_t n = (uint32_t)a;
+      double amp = argc > 1 ? b : 1.0;
+      JSValue frames = js_new_stkframes(ctx, n, 1);
+      if(JS_IsException(frames))
+        return frames;
+      StkFramesPtr* fp = static_cast<StkFramesPtr*>(JS_GetOpaque(frames, js_stkframes_class_id));
+      stk::StkFrames& fr = **fp;
+      d->strike(amp);
+      for(uint32_t k = 0; k < n; k++)
+        fr[k] = d->tick();
+      ret = frames;
+      break;
+    }
+  }
+
+  return ret;
+}
+
+static const JSCFunctionListEntry js_twintdrum_funcs[] = {
+    JS_CFUNC_MAGIC_DEF("setFrequency", 1, js_twintdrum_method, METHOD_TWINT_SET_FREQUENCY),
+    JS_CFUNC_MAGIC_DEF("setDecay", 1, js_twintdrum_method, METHOD_TWINT_SET_DECAY),
+    JS_CFUNC_MAGIC_DEF("setDrive", 1, js_twintdrum_method, METHOD_TWINT_SET_DRIVE),
+    JS_CFUNC_MAGIC_DEF("setPitchDrop", 2, js_twintdrum_method, METHOD_TWINT_SET_PITCH_DROP),
+    JS_CFUNC_MAGIC_DEF("setSecondary", 2, js_twintdrum_method, METHOD_TWINT_SET_SECONDARY),
+    JS_CFUNC_MAGIC_DEF("setClick", 1, js_twintdrum_method, METHOD_TWINT_SET_CLICK),
+    JS_CFUNC_MAGIC_DEF("strike", 1, js_twintdrum_method, METHOD_TWINT_STRIKE),
+    JS_CFUNC_MAGIC_DEF("render", 2, js_twintdrum_method, METHOD_TWINT_RENDER),
+};
+
+static JSValue
+js_tr909bassdrum_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+  StkInstrmntPtr* i = static_cast<StkInstrmntPtr*>(js_mallocz(ctx, sizeof(StkInstrmntPtr)));
+  new(i) StkInstrmntPtr(std::make_shared<Tr909BassDrum>());
+
+  JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
+  if(JS_IsException(proto))
+    goto fail;
+
+  if(!JS_IsObject(proto)) {
+    JS_FreeValue(ctx, proto);
+    proto = JS_DupValue(ctx, tr909bassdrum_proto);
+  }
+
+  obj = JS_NewObjectProtoClass(ctx, proto, js_stkinstrmnt_class_id);
+  JS_FreeValue(ctx, proto);
+
+  if(JS_IsException(obj))
+    goto fail;
+
+  JS_SetOpaque(obj, i);
+  js_set_tostringtag(ctx, obj, "StkTr909BassDrum");
+  return obj;
+
+fail:
+  JS_FreeValue(ctx, obj);
+  return JS_EXCEPTION;
+}
+
+static int
+parse_drive_type(JSContext* ctx, JSValueConst v) {
+  if(JS_IsUndefined(v))
+    return DRIVE_TANH;
+
+  const char* s = JS_ToCString(ctx, v);
+  int type = DRIVE_TANH;
+
+  if(s) {
+    if(!strcmp(s, "cubic"))
+      type = DRIVE_CUBIC;
+    else if(!strcmp(s, "fold"))
+      type = DRIVE_FOLD;
+    JS_FreeCString(ctx, s);
+  }
+
+  return type;
+}
+
+static bool
+parse_curve_linear(JSContext* ctx, JSValueConst v) {
+  if(JS_IsUndefined(v))
+    return false;
+
+  const char* s = JS_ToCString(ctx, v);
+  bool linear = s && !strcmp(s, "linear");
+
+  if(s)
+    JS_FreeCString(ctx, s);
+
+  return linear;
+}
+
+enum {
+  METHOD_TR909_SET_PITCH_ENV = 0,
+  METHOD_TR909_SET_AMP_ENV,
+  METHOD_TR909_SET_DRIVE,
+  METHOD_TR909_SET_TONE,
+  METHOD_TR909_SET_CLICK,
+  METHOD_TR909_SET_SUB,
+  METHOD_TR909_SET_TUNE,
+  METHOD_TR909_TRIGGER,
+  METHOD_TR909_RENDER,
+};
+
+static JSValue
+js_tr909bassdrum_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+  StkInstrmntPtr* p;
+  JSValue ret = JS_UNDEFINED;
+
+  if(!(p = static_cast<StkInstrmntPtr*>(JS_GetOpaque2(ctx, this_val, js_stkinstrmnt_class_id))))
+    return JS_EXCEPTION;
+
+  Tr909BassDrum* d = dynamic_cast<Tr909BassDrum*>(p->get());
+  if(!d)
+    return JS_ThrowTypeError(ctx, "not a StkTr909BassDrum");
+
+  switch(magic) {
+    case METHOD_TR909_SET_PITCH_ENV: {
+      double start = 0, end = 0, decay = 0;
+      JS_ToFloat64(ctx, &start, argv[0]);
+      JS_ToFloat64(ctx, &end, argv[1]);
+      JS_ToFloat64(ctx, &decay, argv[2]);
+      d->setPitchEnvelope(start, end, decay, argc > 3 ? parse_curve_linear(ctx, argv[3]) : false);
+      break;
+    }
+    case METHOD_TR909_SET_AMP_ENV: {
+      double decay = 0;
+      JS_ToFloat64(ctx, &decay, argv[0]);
+      d->setAmpEnvelope(decay, argc > 1 ? parse_curve_linear(ctx, argv[1]) : false);
+      break;
+    }
+    case METHOD_TR909_SET_DRIVE: {
+      double amount = 0;
+      JS_ToFloat64(ctx, &amount, argv[0]);
+      d->setDrive(amount, argc > 1 ? parse_drive_type(ctx, argv[1]) : DRIVE_TANH);
+      break;
+    }
+    case METHOD_TR909_SET_TONE: {
+      double cutoff = 0;
+      JS_ToFloat64(ctx, &cutoff, argv[0]);
+      d->setTone(cutoff);
+      break;
+    }
+    case METHOD_TR909_SET_CLICK: {
+      double level = 0, decay = 0.04;
+      JS_ToFloat64(ctx, &level, argv[0]);
+      if(argc > 1)
+        JS_ToFloat64(ctx, &decay, argv[1]);
+      d->setClick(level, decay);
+      break;
+    }
+    case METHOD_TR909_SET_SUB: {
+      double mix = 0, octave = 1.0;
+      JS_ToFloat64(ctx, &mix, argv[0]);
+      if(argc > 1)
+        JS_ToFloat64(ctx, &octave, argv[1]);
+      d->setSub(mix, octave);
+      break;
+    }
+    case METHOD_TR909_SET_TUNE: {
+      double t = 1.0;
+      JS_ToFloat64(ctx, &t, argv[0]);
+      d->setTune(t);
+      break;
+    }
+    case METHOD_TR909_TRIGGER: {
+      double v = 1.0;
+      if(argc > 0)
+        JS_ToFloat64(ctx, &v, argv[0]);
+      d->trigger(v);
+      break;
+    }
+    case METHOD_TR909_RENDER: {
+      uint32_t n = 0;
+      double v = 1.0;
+      JS_ToUint32(ctx, &n, argv[0]);
+      if(argc > 1)
+        JS_ToFloat64(ctx, &v, argv[1]);
+
+      JSValue frames = js_new_stkframes(ctx, n, 1);
+      if(JS_IsException(frames))
+        return frames;
+      StkFramesPtr* fp = static_cast<StkFramesPtr*>(JS_GetOpaque(frames, js_stkframes_class_id));
+      stk::StkFrames& fr = **fp;
+      d->trigger(v);
+      for(uint32_t k = 0; k < n; k++)
+        fr[k] = d->tick();
+      ret = frames;
+      break;
+    }
+  }
+
+  return ret;
+}
+
+static const JSCFunctionListEntry js_tr909bassdrum_funcs[] = {
+    JS_CFUNC_MAGIC_DEF("setPitchEnvelope", 4, js_tr909bassdrum_method, METHOD_TR909_SET_PITCH_ENV),
+    JS_CFUNC_MAGIC_DEF("setAmpEnvelope", 2, js_tr909bassdrum_method, METHOD_TR909_SET_AMP_ENV),
+    JS_CFUNC_MAGIC_DEF("setDrive", 2, js_tr909bassdrum_method, METHOD_TR909_SET_DRIVE),
+    JS_CFUNC_MAGIC_DEF("setTone", 1, js_tr909bassdrum_method, METHOD_TR909_SET_TONE),
+    JS_CFUNC_MAGIC_DEF("setClick", 2, js_tr909bassdrum_method, METHOD_TR909_SET_CLICK),
+    JS_CFUNC_MAGIC_DEF("setSub", 2, js_tr909bassdrum_method, METHOD_TR909_SET_SUB),
+    JS_CFUNC_MAGIC_DEF("setTune", 1, js_tr909bassdrum_method, METHOD_TR909_SET_TUNE),
+    JS_CFUNC_MAGIC_DEF("trigger", 1, js_tr909bassdrum_method, METHOD_TR909_TRIGGER),
+    JS_CFUNC_MAGIC_DEF("render", 2, js_tr909bassdrum_method, METHOD_TR909_RENDER),
 };
 
 int
@@ -1343,6 +2253,27 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
 
   JS_SetClassProto(ctx, js_stkeffect_class_id, stkeffect_proto);
 
+  if(m) {
+    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkeffect_constructor, "Chorus", 0, JS_CFUNC_constructor_magic, INSTANCE_CHORUS);
+    JS_SetModuleExport(ctx, m, "StkChorus", ctor);
+    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkeffect_constructor, "Echo", 0, JS_CFUNC_constructor_magic, INSTANCE_ECHO);
+    JS_SetModuleExport(ctx, m, "StkEcho", ctor);
+    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkeffect_constructor, "FreeVerb", 0, JS_CFUNC_constructor_magic, INSTANCE_FREEVERB);
+    JS_SetModuleExport(ctx, m, "StkFreeVerb", ctor);
+    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkeffect_constructor, "JCRev", 0, JS_CFUNC_constructor_magic, INSTANCE_JCREV);
+    JS_SetModuleExport(ctx, m, "StkJCRev", ctor);
+    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkeffect_constructor, "LentPitShift", 0, JS_CFUNC_constructor_magic, INSTANCE_LENTPITSHIFT);
+    JS_SetModuleExport(ctx, m, "StkLentPitShift", ctor);
+    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkeffect_constructor, "NRev", 0, JS_CFUNC_constructor_magic, INSTANCE_NREV);
+    JS_SetModuleExport(ctx, m, "StkNRev", ctor);
+    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkeffect_constructor, "PitShift", 0, JS_CFUNC_constructor_magic, INSTANCE_PITSHIFT);
+    JS_SetModuleExport(ctx, m, "StkPitShift", ctor);
+    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkeffect_constructor, "PRCRev", 0, JS_CFUNC_constructor_magic, INSTANCE_PRCREV);
+    JS_SetModuleExport(ctx, m, "StkPRCRev", ctor);
+
+    JS_SetModuleExport(ctx, m, "StkEffect", stkeffect_ctor);
+  }
+
   stkinstrmnt_ctor = JS_NewObject(ctx); // JS_NewCFunction2(ctx, js_stkinstrmnt_constructor,
                                         // "StkGenerator", 1, JS_CFUNC_constructor, 0);
   stkinstrmnt_proto = JS_NewObject(ctx);
@@ -1399,6 +2330,45 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
     JS_SetModuleExport(ctx, m, "StkFilter", stkgenerator_ctor);
   }
 
+  /* TwinTDrum and Tr909BassDrum are ordinary stk::Instrmnt subclasses, so
+   * they share js_stkinstrmnt_class_id/finalizer above; only their own
+   * prototype (chained onto stkinstrmnt_proto) differs, carrying their
+   * extra controls. */
+  twintdrum_proto = JS_NewObject(ctx);
+  JS_SetPrototype(ctx, twintdrum_proto, stkinstrmnt_proto);
+  JS_SetPropertyFunctionList(ctx, twintdrum_proto, js_twintdrum_funcs, countof(js_twintdrum_funcs));
+
+  tr909bassdrum_proto = JS_NewObject(ctx);
+  JS_SetPrototype(ctx, tr909bassdrum_proto, stkinstrmnt_proto);
+  JS_SetPropertyFunctionList(ctx, tr909bassdrum_proto, js_tr909bassdrum_funcs, countof(js_tr909bassdrum_funcs));
+
+  if(m) {
+    ctor = JS_NewCFunction2(ctx, js_twintdrum_constructor, "TwinTDrum", 1, JS_CFUNC_constructor, 0);
+    JS_SetConstructor(ctx, ctor, twintdrum_proto);
+    JS_SetModuleExport(ctx, m, "StkTwinTDrum", ctor);
+
+    ctor = JS_NewCFunction2(ctx, js_tr909bassdrum_constructor, "Tr909BassDrum", 0, JS_CFUNC_constructor, 0);
+    JS_SetConstructor(ctx, ctor, tr909bassdrum_proto);
+    JS_SetModuleExport(ctx, m, "StkTr909BassDrum", ctor);
+  }
+
+  JS_NewClassID(&js_stkfunction_class_id);
+  JS_NewClass(JS_GetRuntime(ctx), js_stkfunction_class_id, &js_stkfunction_class);
+
+  stkfunction_ctor = JS_NewObject(ctx);
+  stkfunction_proto = JS_NewObject(ctx);
+
+  JS_SetPropertyFunctionList(ctx, stkfunction_proto, js_stkfunction_funcs, countof(js_stkfunction_funcs));
+
+  JS_SetClassProto(ctx, js_stkfunction_class_id, stkfunction_proto);
+
+  if(m) {
+    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfunction_constructor, "Cubic", 0, JS_CFUNC_constructor_magic, INSTANCE_CUBIC);
+    JS_SetModuleExport(ctx, m, "StkCubic", ctor);
+
+    JS_SetModuleExport(ctx, m, "StkFunction", stkfunction_ctor);
+  }
+
   return 0;
 }
 
@@ -1448,6 +2418,19 @@ js_init_module_stk(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "StkStifKarp");
   JS_AddModuleExport(ctx, m, "StkVoicForm");
   JS_AddModuleExport(ctx, m, "StkWhistle");
+  JS_AddModuleExport(ctx, m, "StkChorus");
+  JS_AddModuleExport(ctx, m, "StkEcho");
+  JS_AddModuleExport(ctx, m, "StkFreeVerb");
+  JS_AddModuleExport(ctx, m, "StkJCRev");
+  JS_AddModuleExport(ctx, m, "StkLentPitShift");
+  JS_AddModuleExport(ctx, m, "StkNRev");
+  JS_AddModuleExport(ctx, m, "StkPitShift");
+  JS_AddModuleExport(ctx, m, "StkPRCRev");
+  JS_AddModuleExport(ctx, m, "StkEffect");
+  JS_AddModuleExport(ctx, m, "StkTwinTDrum");
+  JS_AddModuleExport(ctx, m, "StkTr909BassDrum");
+  JS_AddModuleExport(ctx, m, "StkCubic");
+  JS_AddModuleExport(ctx, m, "StkFunction");
   JS_AddModuleExport(ctx, m, "Stk");
   JS_AddModuleExport(ctx, m, "StkFrames");
   JS_AddModuleExport(ctx, m, "StkGenerator");
