@@ -57,44 +57,58 @@ function toFloat64(frames) {
 // Same class, five voices tuned/voiced differently -- this is the kind of
 // kit you'd get from a rack of twin-T oscillator drum modules.
 
-const lowTom = new stk.StkTwinTDrum(110);
-lowTom.setDecay(0.35);
-lowTom.setDrive(0.15);
-lowTom.setPitchDrop(5, 0.05);
-lowTom.setClick(0.25);
+// Each voice carries its own tailSeconds so the render loop below can pull
+// enough tail to hear the resonator all the way down, instead of chopping
+// every hit off at the same fixed window regardless of its decay.
 
-const midTom = new stk.StkTwinTDrum(175);
-midTom.setDecay(0.28);
-midTom.setDrive(0.2);
-midTom.setPitchDrop(6, 0.04);
-midTom.setClick(0.3);
+// Long decay + a wide, slow pitch drop (an octave-ish, settling over
+// ~100ms) so the "analog tom" pitch bend is unmistakable instead of hiding
+// inside the attack transient. Click is kept low so it accents the strike
+// without swamping the resonant tail.
+const lowTom = new stk.StkTwinTDrum(100);
+lowTom.setDecay(0.9);
+lowTom.setDrive(0.12);
+lowTom.setPitchDrop(8, 0.09);
+lowTom.setClick(0.08);
+lowTom.tailSeconds = 0.9 * 3;
 
-const hiTom = new stk.StkTwinTDrum(260);
-hiTom.setDecay(0.22);
-hiTom.setDrive(0.25);
-hiTom.setPitchDrop(7, 0.03);
-hiTom.setClick(0.35);
+const midTom = new stk.StkTwinTDrum(165);
+midTom.setDecay(0.7);
+midTom.setDrive(0.16);
+midTom.setPitchDrop(9, 0.075);
+midTom.setClick(0.1);
+midTom.tailSeconds = 0.7 * 3;
+
+const hiTom = new stk.StkTwinTDrum(240);
+hiTom.setDecay(0.55);
+hiTom.setDrive(0.2);
+hiTom.setPitchDrop(10, 0.06);
+hiTom.setClick(0.12);
+hiTom.tailSeconds = 0.55 * 3;
 
 // Cowbell-ish voice: two closely-tuned resonators (the "secondary" control)
 // beating against each other, more click, faster decay, hotter drive.
 const cowbell = new stk.StkTwinTDrum(560);
-cowbell.setDecay(0.18);
+cowbell.setDecay(0.4);
 cowbell.setDrive(0.6);
 cowbell.setSecondary(1.48, 0.8);
-cowbell.setClick(0.5);
+cowbell.setClick(0.4);
+cowbell.tailSeconds = 0.4 * 3;
 
 // Woodblock-ish voice: very short decay, high secondary ratio, no drive.
 const woodblock = new stk.StkTwinTDrum(900);
-woodblock.setDecay(0.05);
+woodblock.setDecay(0.08);
 woodblock.setSecondary(2.0, 0.5);
-woodblock.setClick(0.6);
+woodblock.setClick(0.5);
+woodblock.tailSeconds = 0.4;
 
 /* ---------- a solo groove exercising the whole kit ---------- */
 
 const bpm = 100;
 const step = 60 / bpm / 4; // 16th notes
 const totalSteps = 32;
-const totalFrames = Math.ceil((totalSteps * step + 1.0) * SR);
+const longestTail = Math.max(lowTom.tailSeconds, midTom.tailSeconds, hiTom.tailSeconds, cowbell.tailSeconds, woodblock.tailSeconds);
+const totalFrames = Math.ceil((totalSteps * step + longestTail) * SR);
 const out = new Float64Array(totalFrames);
 
 // [voice, velocity] per 16th, '.' = rest.
@@ -118,8 +132,10 @@ for(let i = 0; i < totalSteps; i++) {
   const startFrame = Math.round(i * step * SR);
 
   // render(n, velocity) strikes the voice and renders its tail in one call
-  // -- no per-sample tick() loop needed for one-shot use.
-  const tailFrames = Math.min(Math.round(SR * 0.6), totalFrames - startFrame);
+  // -- no per-sample tick() loop needed for one-shot use. Each voice's own
+  // tailSeconds (set above, proportional to its decay) keeps long-release
+  // toms from getting truncated by a fixed window.
+  const tailFrames = Math.min(Math.round(SR * voice.tailSeconds), totalFrames - startFrame);
   if(tailFrames <= 0)
     continue;
 
