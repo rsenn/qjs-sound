@@ -11,12 +11,12 @@ All classes below are constructed with `new` and exported directly from the
 module, e.g.:
 
 ```js
-import { StkRtWvOut, StkFrames } from 'stk';
+import { RtWvOut, StkFrames } from 'stk';
 ```
 
 ## Error handling
 
-Unlike the DSP classes (`StkBiQuad`, `StkSineWave`, etc.), which currently let
+Unlike the DSP classes (`BiQuad`, `SineWave`, etc.), which currently let
 any `stk::StkError` thrown from a constructor propagate as an unhandled C++
 exception, every class documented here catches `stk::StkError` /
 `RtMidiError` and re-throws as a normal catchable JS `TypeError`. Realtime
@@ -26,7 +26,7 @@ the extra code. Wrap calls in `try`/`catch` accordingly:
 
 ```js
 try {
-  const midi = new StkMidiFileIn('missing.mid');
+  const midi = new MidiFileIn('missing.mid');
 } catch (e) {
   console.error(e.message); // "MidiFileIn: error opening or finding file (missing.mid)."
 }
@@ -36,27 +36,27 @@ try {
 
 Two base classes exist purely to share `tick`/property implementations
 across their realtime and network subclasses (they mirror how
-`StkFilter`/`StkGenerator`/`StkEffect`/`StkInstrmnt` back the DSP classes) —
+`Filter`/`Generator`/`Effect`/`StkInstrmnt` back the DSP classes) —
 neither is exported or constructible on its own:
 
-- **`StkWvIn`** (wraps `stk::WvIn`) → `StkRtWvIn`, `StkInetWvIn`
-- **`StkWvOut`** (wraps `stk::WvOut`) → `StkRtWvOut`, `StkInetWvOut`
+- **`StkWvIn`** (wraps `stk::WvIn`) → `RtWvIn`, `InetWvIn`
+- **`StkWvOut`** (wraps `stk::WvOut`) → `RtWvOut`, `InetWvOut`
 
 ---
 
-## `StkRtWvIn` — realtime audio input (`RtWvIn.h`)
+## `RtWvIn` — realtime audio input (`RtWvIn.h`)
 
 Blocking realtime audio capture via RtAudio's ALSA/JACK backends, buffered
 internally by STK.
 
 ```js
-new StkRtWvIn(nChannels = 1, sampleRate = Stk.sampleRate, deviceIndex = 0,
+new RtWvIn(nChannels = 1, sampleRate = Stk.sampleRate, deviceIndex = 0,
               bufferFrames = 512, nBuffers = 20)
 ```
 
 `deviceIndex` is STK's own device-position convention (`0` = default input
 device, `1` = first enumerated device, ...) — **not** the device `id` values
-returned by `StkRtAudio.getDeviceIds()`.
+returned by `RtAudio.getDeviceIds()`.
 
 | Member | Description |
 |---|---|
@@ -67,12 +67,12 @@ returned by `StkRtAudio.getDeviceIds()`.
 | `start()` | Start the input stream (also happens automatically on first `tick`). |
 | `stop()` | Stop the input stream. |
 
-## `StkRtWvOut` — realtime audio output (`RtWvOut.h`)
+## `RtWvOut` — realtime audio output (`RtWvOut.h`)
 
-Blocking realtime audio playback, same buffering model as `StkRtWvIn`.
+Blocking realtime audio playback, same buffering model as `RtWvIn`.
 
 ```js
-new StkRtWvOut(nChannels = 1, sampleRate = Stk.sampleRate, deviceIndex = 0,
+new RtWvOut(nChannels = 1, sampleRate = Stk.sampleRate, deviceIndex = 0,
                bufferFrames = 512, nBuffers = 20)
 ```
 
@@ -88,9 +88,9 @@ new StkRtWvOut(nChannels = 1, sampleRate = Stk.sampleRate, deviceIndex = 0,
 | `stop()` | Stop the output stream. |
 
 ```js
-import { StkRtWvOut, StkFrames } from 'stk';
+import { RtWvOut, StkFrames } from 'stk';
 
-const out = new StkRtWvOut(1, 44100, 0 /* default device */, 512, 4);
+const out = new RtWvOut(1, 44100, 0 /* default device */, 512, 4);
 const frames = new StkFrames(256, 1);
 const buf = new Float64Array(frames.buffer);
 for (let i = 0; i < 256; i++) buf[i] = Math.sin(i * 0.05) * 0.2;
@@ -98,46 +98,46 @@ out.tick(frames);
 out.stop();
 ```
 
-## `StkInetWvIn` — network audio streaming input (`InetWvIn.h`)
+## `InetWvIn` — network audio streaming input (`InetWvIn.h`)
 
 Receives streamed audio over a TCP or UDP socket. `listen()` blocks (TCP) or
 returns immediately (UDP) waiting for a peer.
 
 ```js
-new StkInetWvIn(bufferFrames = 1024, nBuffers = 8)
+new InetWvIn(bufferFrames = 1024, nBuffers = 8)
 ```
 
 | Member | Description |
 |---|---|
 | `listen(port = 2006, nChannels = 1, format = 2, protocol = 0)` | `format` is one of the raw `Stk::StkFormat` values (`1`=SINT8, `2`=SINT16, `4`=SINT24, `8`=SINT32, `0x10`=FLOAT32, `0x20`=FLOAT64 — default `2`/SINT16 matches STK's own default). `protocol` is `0` = TCP, `1` = UDP (`stk::Socket::ProtocolType`). For TCP this blocks until a client connects; for UDP it returns immediately. |
 | `isConnected()` | `true` if a connection exists or buffered input remains to be read. |
-| `tick(channel = 0)` / `tick(frames, channel = 0)` | Same shape as `StkRtWvIn.tick`. |
+| `tick(channel = 0)` / `tick(frames, channel = 0)` | Same shape as `RtWvIn.tick`. |
 | `channelsOut`, `lastFrame` | Inherited from `StkWvIn`. |
 
-## `StkInetWvOut` — network audio streaming output (`InetWvOut.h`)
+## `InetWvOut` — network audio streaming output (`InetWvOut.h`)
 
 Streams audio out over a TCP or UDP socket, big-endian on the wire.
 
 ```js
-new StkInetWvOut(packetFrames = 1024)
+new InetWvOut(packetFrames = 1024)
 ```
 
 | Member | Description |
 |---|---|
-| `connect(port, protocol = 0, hostname = 'localhost', nChannels = 1, format = 2)` | Same `protocol`/`format` encoding as `StkInetWvIn.listen`. |
+| `connect(port, protocol = 0, hostname = 'localhost', nChannels = 1, format = 2)` | Same `protocol`/`format` encoding as `InetWvIn.listen`. |
 | `disconnect()` | Flush and close the connection, if any. |
-| `tick(sample)` / `tick(frames)` | Same shape as `StkRtWvOut.tick`. |
+| `tick(sample)` / `tick(frames)` | Same shape as `RtWvOut.tick`. |
 | `clipStatus()`, `resetClipStatus()`, `frameCount`, `time` | Inherited from `StkWvOut`. |
 
 ```js
-import { StkInetWvIn, StkInetWvOut, StkFrames } from 'stk';
+import { InetWvIn, InetWvOut, StkFrames } from 'stk';
 
 const PROTO_UDP = 1, FORMAT_SINT16 = 2;
 
-const wvIn = new StkInetWvIn(256, 4);
+const wvIn = new InetWvIn(256, 4);
 wvIn.listen(6007, 1, FORMAT_SINT16, PROTO_UDP);
 
-const wvOut = new StkInetWvOut(256);
+const wvOut = new InetWvOut(256);
 wvOut.connect(6007, PROTO_UDP, 'localhost', 1, FORMAT_SINT16);
 
 const frames = new StkFrames(64, 1);
@@ -146,16 +146,16 @@ wvOut.tick(frames);
 wvOut.disconnect();
 ```
 
-> **Note:** `StkInetWvIn.tick()` blocks reading from its internal socket
+> **Note:** `InetWvIn.tick()` blocks reading from its internal socket
 > thread until data is available — round-tripping a single UDP packet in a
 > tight script needs a short delay between the `wvOut.tick()` send and the
 > `wvIn.tick()` read, and is inherently timing-sensitive (this is STK's own
 > documented blocking behavior, not something the bindings add).
 
-## `StkMidiFileIn` — standard MIDI file reader (`MidiFileIn.h`)
+## `MidiFileIn` — standard MIDI file reader (`MidiFileIn.h`)
 
 ```js
-new StkMidiFileIn(fileName)
+new MidiFileIn(fileName)
 ```
 
 Throws if the file can't be opened or isn't a valid MIDI file.
@@ -171,9 +171,9 @@ Throws if the file can't be opened or isn't a valid MIDI file.
 | `getNextMidiEvent(track = 0)` | Next MIDI *channel* event only (meta/sysex are skipped, tempo is still tracked internally). Same `{ deltaTime, data }` shape. |
 
 ```js
-import { StkMidiFileIn } from 'stk';
+import { MidiFileIn } from 'stk';
 
-const mf = new StkMidiFileIn('song.mid');
+const mf = new MidiFileIn('song.mid');
 console.log(mf.format, mf.numberOfTracks, mf.division);
 
 for (let ev = mf.getNextMidiEvent(1); ev.data.length; ev = mf.getNextMidiEvent(1)) {
@@ -185,21 +185,21 @@ Track `0` in a format-1 file is typically the tempo/conductor track and has
 no channel events — use `getNextEvent(0)` to see its meta events, or read
 channel messages from tracks `1..numberOfTracks-1`.
 
-## `StkRtMidiIn` / `StkRtMidiOut` — realtime MIDI (`RtMidi.h`)
+## `RtMidiIn` / `RtMidiOut` — realtime MIDI (`RtMidi.h`)
 
 `RtMidiIn`/`RtMidiOut` are declared in the **global** C++ namespace by STK
 (unlike everything else), but are exposed here the same way as other STK
 classes.
 
 ```js
-new StkRtMidiIn(api = RtMidi.UNSPECIFIED, clientName = 'RtMidi Input Client', queueSizeLimit = 100)
-new StkRtMidiOut(api = RtMidi.UNSPECIFIED, clientName = 'RtMidi Output Client')
+new RtMidiIn(api = RtMidi.UNSPECIFIED, clientName = 'RtMidi Input Client', queueSizeLimit = 100)
+new RtMidiOut(api = RtMidi.UNSPECIFIED, clientName = 'RtMidi Output Client')
 ```
 
 `api` is a raw `RtMidi::Api` enum value; `0` (`UNSPECIFIED`) auto-selects a
 compiled backend (ALSA/JACK on Linux).
 
-**`StkRtMidiIn`** (message polling, not callback-based — see [Scope
+**`RtMidiIn`** (message polling, not callback-based — see [Scope
 limitations](#scope-limitations)):
 
 | Member | Description |
@@ -214,7 +214,7 @@ limitations](#scope-limitations)):
 | `getMessage()` | Pop the next queued message: `{ timeStamp, data }` (`data` empty if none pending). Non-blocking. |
 | `getCurrentApi()` | The `RtMidi::Api` value actually in use. |
 
-**`StkRtMidiOut`**:
+**`RtMidiOut`**:
 
 | Member | Description |
 |---|---|
@@ -228,14 +228,14 @@ limitations](#scope-limitations)):
 | `getCurrentApi()` | The `RtMidi::Api` value actually in use. |
 
 ```js
-import { StkRtMidiIn, StkRtMidiOut } from 'stk';
+import { RtMidiIn, RtMidiOut } from 'stk';
 
-const midiOut = new StkRtMidiOut();
+const midiOut = new RtMidiOut();
 console.log(midiOut.getPortCount(), midiOut.getPortName(0));
 midiOut.openPort(0);
 midiOut.sendMessage([0x90, 60, 100]); // note-on C4
 
-const midiIn = new StkRtMidiIn();
+const midiIn = new RtMidiIn();
 midiIn.openPort(0);
 const msg = midiIn.getMessage();
 if (msg.data.length) console.log(msg.timeStamp, msg.data);
@@ -245,10 +245,10 @@ if (msg.data.length) console.log(msg.timeStamp, msg.data);
 > it silently no-ops (this is upstream RtMidi behavior, reported only via
 > `RtMidiError::WARNING`, which STK deliberately doesn't throw for).
 
-## `StkRtAudio` — audio device enumeration (`RtAudio.h`)
+## `RtAudio` — audio device enumeration (`RtAudio.h`)
 
 ```js
-new StkRtAudio(api = RtAudio.UNSPECIFIED)
+new RtAudio(api = RtAudio.UNSPECIFIED)
 ```
 
 | Member | Description |
@@ -268,9 +268,9 @@ new StkRtAudio(api = RtAudio.UNSPECIFIED)
 | `showWarnings(value = true)` | Toggle warning output. |
 
 ```js
-import { StkRtAudio } from 'stk';
+import { RtAudio } from 'stk';
 
-const audio = new StkRtAudio();
+const audio = new RtAudio();
 for (const id of audio.getDeviceIds()) {
   const info = audio.getDeviceInfo(id);
   console.log(id, info.name, `in=${info.inputChannels} out=${info.outputChannels}`);
@@ -278,22 +278,22 @@ for (const id of audio.getDeviceIds()) {
 console.log('default output device id:', audio.getDefaultOutputDevice());
 ```
 
-> **Device id vs. device index:** `StkRtAudio`'s device `id` values (from
+> **Device id vs. device index:** `RtAudio`'s device `id` values (from
 > `getDeviceIds()`/`getDeviceInfo()`) are **not** the same numbering as the
-> `deviceIndex` argument to `StkRtWvIn`/`StkRtWvOut` (STK's older
+> `deviceIndex` argument to `RtWvIn`/`RtWvOut` (STK's older
 > position-based convention: `0` = default, `1` = first enumerated device,
-> ...). Don't pass a `StkRtAudio` device id straight into `StkRtWvIn`/`StkRtWvOut`.
+> ...). Don't pass a `RtAudio` device id straight into `RtWvIn`/`RtWvOut`.
 
 ### Scope limitations
 
-`StkRtAudio.openStream()` (the raw `RtAudioCallback`-based streaming API) and
-`StkRtMidiIn.setCallback()` are **not** bound. Both would require invoking a
+`RtAudio.openStream()` (the raw `RtAudioCallback`-based streaming API) and
+`RtMidiIn.setCallback()` are **not** bound. Both would require invoking a
 JS callback from RtAudio's/RtMidi's own native audio/MIDI thread — QuickJS
 is not thread-safe, so calling back into the engine from a thread other than
-the one running the interpreter is unsafe. Use `StkRtWvIn`/`StkRtWvOut` for
+the one running the interpreter is unsafe. Use `RtWvIn`/`RtWvOut` for
 realtime audio (STK's own blocking wrapper around the same callback
 machinery, buffered internally so it's safe to drive from a single JS-side
-tick loop) and `StkRtMidiIn.getMessage()` polling for realtime MIDI input.
+tick loop) and `RtMidiIn.getMessage()` polling for realtime MIDI input.
 
 ## Build notes
 
