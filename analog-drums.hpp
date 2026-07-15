@@ -205,9 +205,11 @@ enum {
  * a second, much faster pitch "spike" layered on top of the main drop (the
  * initial transient overshoot analog VCOs get when slammed hard, distinct
  * from the slower tonal settle), a dedicated punch/transient boost on the
- * amplitude stage, a resonant tone filter that can push into self-ringing
- * character instead of just rolling off highs, and a triangle core option
- * alongside the sine. */
+ * amplitude stage, a resonant tone filter that tracks the kick's own
+ * settling pitch (rather than sitting at a fixed Hz value, which reads as
+ * an unrelated second pitched element -- the same mechanism that makes a
+ * struck resonant filter sound like a bell elsewhere in this file), and a
+ * triangle core option alongside the sine. */
 class Tr909BassDrum : public stk::Instrmnt {
 public:
   Tr909BassDrum()
@@ -219,7 +221,6 @@ public:
         pitchSpikeCoeff_(1.0), ampEnv_(0.0), ampCoeff_(1.0), ampLinStep_(0.0), punchEnv_(0.0), punchCoeff_(1.0),
         clickEnv_(0.0), clickCoeff_(1.0), velocity_(0.0) {
     toneFilter_.setPole(poleFromCutoff(tone_));
-    refreshToneResonance();
   }
 
   void setPitchEnvelope(double startFreq, double endFreq, double decayTime, bool linear = false) {
@@ -255,15 +256,21 @@ public:
   void setTone(double cutoffHz) {
     tone_ = cutoffHz;
     toneFilter_.setPole(poleFromCutoff(cutoffHz));
-    refreshToneResonance();
   }
-  /* 0 = plain one-pole rolloff (unchanged default behavior); towards 1 the
-   * tone stage pushes into a resonant peak at the cutoff, up to near
-   * self-oscillation, for the "analog VCF" character a one-pole lowpass
-   * alone can't give. */
+  /* 0 = plain one-pole rolloff (unchanged default behavior). Above 0 the
+   * tone stage adds a resonant peak -- but pinned to a fixed Hz value, that
+   * peak reads as a second, unrelated pitched element as soon as the pitch
+   * envelope sweeps past or near it (worse with setPitchSpike()), which is
+   * exactly what makes a resonant filter sound like a struck bell/cowbell
+   * elsewhere in this file (see TwinTDrum). To actually sound like a kick
+   * rather than a kick-plus-bell, the resonance instead tracks a multiple
+   * of the *current* fundamental each sample (see tick()), capped at the
+   * tone_ cutoff -- it reinforces the kick's own pitch as it settles,
+   * instead of ringing at some unrelated frequency independent of it. */
   void setToneResonance(double amount) {
-    toneResonance_ = std::max(0.0, std::min(0.999, amount));
-    refreshToneResonance();
+    toneResonance_ = std::max(0.0, std::min(0.95, amount));
+    if(toneResonance_ <= 0.0)
+      resonanceFilter_.setResonance(1000.0, 0.0, true); // force back to identity immediately
   }
   void setClick(double level, double decayTime) {
     clickLevel_ = level;
@@ -323,6 +330,15 @@ public:
       phase_ -= 2.0 * M_PI;
     double sample = analog_drive(oscillate(phase_, waveform_), drive_, driveType_);
     sample = toneFilter_.tick(sample);
+
+    if(toneResonance_ > 0.0) {
+      /* Track ~3x the *un-spiked* fundamental so the resonant peak follows
+       * the kick's own pitch as it settles, capped at the tone_ ceiling.
+       * Deliberately ignores the pitch spike so a fast, wide spike doesn't
+       * yank the resonance into an unrelated frequency for a few ms. */
+      double resoFreq = std::min(tone_, std::max(20.0, baseFreq * 3.0));
+      resonanceFilter_.setResonance(resoFreq, toneResonance_, true);
+    }
     sample = resonanceFilter_.tick(sample);
 
     if(subMix_ > 0.0) {
@@ -368,19 +384,6 @@ private:
       case TR909_WAVE_TRIANGLE: return (2.0 / M_PI) * std::asin(std::sin(phase));
       default: return std::sin(phase);
     }
-  }
-
-  /* resonanceFilter_ sits after the one-pole tone stage and is driven
-   * continuously by the oscillator/sub/click signal each sample, so
-   * normalize=true (unity gain under continuous drive) is the right choice
-   * here -- unlike TwinTDrum's impulse-excited resonator, there's no
-   * single-sample-strike energy-starvation problem to work around. At
-   * toneResonance_=0 the radius is 0, which makes this stage an exact
-   * identity pass (b0=1, a1=a2=0), so default behavior is unchanged. */
-  void refreshToneResonance() {
-    double sr = stk::Stk::sampleRate();
-    double cutoff = std::min(std::max(tone_, 20.0), sr * 0.45);
-    resonanceFilter_.setResonance(cutoff, toneResonance_, true);
   }
 
   double pitchStart_, pitchEnd_, pitchDecay_;
