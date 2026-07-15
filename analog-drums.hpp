@@ -187,22 +187,39 @@ private:
   stk::Noise noise_;
 };
 
-/* ---- Tr909BassDrum: analog "909-style" bass drum ----
+enum {
+  TR909_WAVE_SINE = 0,
+  TR909_WAVE_TRIANGLE = 1,
+};
+
+/* ---- Tr909BassDrum: analog bass drum designer (909-core, mbase-11-ish reach) ----
  *
- * A distorted sine core with independent, dedicated pitch- and
+ * A distorted sine/triangle core with independent, dedicated pitch- and
  * amplitude-decay envelopes -- not ADSR: real analog bass drum circuits
  * are a fast pitch-modulated oscillator plus a single decay stage, and the
  * classic "punch" comes from the pitch settling much faster than the
- * amplitude, not from a multi-stage envelope generator. */
+ * amplitude, not from a multi-stage envelope generator.
+ *
+ * On top of that 909-style core this adds the controls that separate a
+ * one-knob "kick" from a real bass drum designer (Jomox mBase 11 territory):
+ * a second, much faster pitch "spike" layered on top of the main drop (the
+ * initial transient overshoot analog VCOs get when slammed hard, distinct
+ * from the slower tonal settle), a dedicated punch/transient boost on the
+ * amplitude stage, a resonant tone filter that can push into self-ringing
+ * character instead of just rolling off highs, and a triangle core option
+ * alongside the sine. */
 class Tr909BassDrum : public stk::Instrmnt {
 public:
   Tr909BassDrum()
-      : pitchStart_(400.0), pitchEnd_(55.0), pitchDecay_(0.06), pitchLinear_(false), ampDecay_(0.45),
-        ampLinear_(false), drive_(0.35), driveType_(DRIVE_TANH), tone_(6000.0), clickLevel_(0.5),
-        clickDecay_(0.04), subMix_(0.0), subOctave_(1.0), tune_(1.0), phase_(0.0), subPhase_(0.0),
-        pitchEnv_(0.0), pitchCoeff_(1.0), pitchLinStep_(0.0), ampEnv_(0.0), ampCoeff_(1.0), ampLinStep_(0.0),
+      : pitchStart_(400.0), pitchEnd_(55.0), pitchDecay_(0.06), pitchLinear_(false), pitchSpikeAmt_(0.0),
+        pitchSpikeTime_(0.005), ampDecay_(0.45), ampLinear_(false), punchAmount_(0.0), punchTime_(0.01),
+        drive_(0.35), driveType_(DRIVE_TANH), waveform_(TR909_WAVE_SINE), tone_(6000.0), toneResonance_(0.0),
+        clickLevel_(0.5), clickDecay_(0.04), subMix_(0.0), subOctave_(1.0), tune_(1.0), phase_(0.0),
+        subPhase_(0.0), pitchEnv_(0.0), pitchCoeff_(1.0), pitchLinStep_(0.0), pitchSpikeEnv_(0.0),
+        pitchSpikeCoeff_(1.0), ampEnv_(0.0), ampCoeff_(1.0), ampLinStep_(0.0), punchEnv_(0.0), punchCoeff_(1.0),
         clickEnv_(0.0), clickCoeff_(1.0), velocity_(0.0) {
     toneFilter_.setPole(poleFromCutoff(tone_));
+    refreshToneResonance();
   }
 
   void setPitchEnvelope(double startFreq, double endFreq, double decayTime, bool linear = false) {
@@ -211,17 +228,42 @@ public:
     pitchDecay_ = std::max(0.001, decayTime);
     pitchLinear_ = linear;
   }
+  /* A second, independent pitch overshoot layered on top of the main
+   * envelope above, decaying much faster (a handful of ms) -- the analog
+   * "double pitch decay" character a plain single-stage pitch envelope
+   * can't reach: a near-instant spike on top of the slower tonal drop. */
+  void setPitchSpike(double semitones, double timeSeconds) {
+    pitchSpikeAmt_ = semitones;
+    pitchSpikeTime_ = std::max(0.0005, timeSeconds);
+  }
   void setAmpEnvelope(double decayTime, bool linear = false) {
     ampDecay_ = std::max(0.001, decayTime);
     ampLinear_ = linear;
+  }
+  /* Extra transient gain right at the strike, decaying fast and
+   * independently of the main amp envelope -- the "punch" knob dedicated
+   * bass drum designers give you instead of just a fast attack stage. */
+  void setPunch(double amount, double timeSeconds) {
+    punchAmount_ = amount;
+    punchTime_ = std::max(0.0005, timeSeconds);
   }
   void setDrive(double amount, int type = DRIVE_TANH) {
     drive_ = amount;
     driveType_ = type;
   }
+  void setWaveform(int type) { waveform_ = type; }
   void setTone(double cutoffHz) {
     tone_ = cutoffHz;
     toneFilter_.setPole(poleFromCutoff(cutoffHz));
+    refreshToneResonance();
+  }
+  /* 0 = plain one-pole rolloff (unchanged default behavior); towards 1 the
+   * tone stage pushes into a resonant peak at the cutoff, up to near
+   * self-oscillation, for the "analog VCF" character a one-pole lowpass
+   * alone can't give. */
+  void setToneResonance(double amount) {
+    toneResonance_ = std::max(0.0, std::min(0.999, amount));
+    refreshToneResonance();
   }
   void setClick(double level, double decayTime) {
     clickLevel_ = level;
@@ -256,9 +298,15 @@ public:
     pitchCoeff_ = std::pow(1e-3, 1.0 / std::max(1.0, pitchDecay_ * sr));
     pitchLinStep_ = 1.0 / std::max(1.0, pitchDecay_ * sr);
 
+    pitchSpikeEnv_ = 1.0;
+    pitchSpikeCoeff_ = std::pow(1e-3, 1.0 / std::max(1.0, pitchSpikeTime_ * sr));
+
     ampEnv_ = 1.0;
     ampCoeff_ = std::pow(1e-3, 1.0 / std::max(1.0, ampDecay_ * sr));
     ampLinStep_ = 1.0 / std::max(1.0, ampDecay_ * sr);
+
+    punchEnv_ = 1.0;
+    punchCoeff_ = std::pow(1e-3, 1.0 / std::max(1.0, punchTime_ * sr));
 
     clickEnv_ = 1.0;
     clickCoeff_ = std::pow(1e-3, 1.0 / std::max(1.0, clickDecay_ * sr));
@@ -266,19 +314,22 @@ public:
 
   stk::StkFloat tick(unsigned int channel = 0) override {
     double sr = stk::Stk::sampleRate();
-    double freq = (pitchEnd_ + (pitchStart_ - pitchEnd_) * pitchEnv_) * tune_;
+    double baseFreq = pitchEnd_ + (pitchStart_ - pitchEnd_) * pitchEnv_;
+    double spikeRatio = pitchSpikeAmt_ != 0.0 ? std::pow(2.0, pitchSpikeAmt_ * pitchSpikeEnv_ / 12.0) : 1.0;
+    double freq = baseFreq * spikeRatio * tune_;
 
     phase_ += 2.0 * M_PI * freq / sr;
     if(phase_ > 2.0 * M_PI)
       phase_ -= 2.0 * M_PI;
-    double sample = analog_drive(std::sin(phase_), drive_, driveType_);
+    double sample = analog_drive(oscillate(phase_, waveform_), drive_, driveType_);
     sample = toneFilter_.tick(sample);
+    sample = resonanceFilter_.tick(sample);
 
     if(subMix_ > 0.0) {
       subPhase_ += 2.0 * M_PI * (freq / subOctave_) / sr;
       if(subPhase_ > 2.0 * M_PI)
         subPhase_ -= 2.0 * M_PI;
-      sample += subMix_ * std::sin(subPhase_);
+      sample += subMix_ * oscillate(subPhase_, waveform_);
     }
 
     if(clickEnv_ > 1e-4) {
@@ -286,10 +337,12 @@ public:
       clickEnv_ *= clickCoeff_;
     }
 
-    sample *= ampEnv_ * velocity_;
+    sample *= ampEnv_ * velocity_ * (1.0 + punchAmount_ * punchEnv_);
 
     pitchEnv_ = pitchLinear_ ? std::max(0.0, pitchEnv_ - pitchLinStep_) : pitchEnv_ * pitchCoeff_;
+    pitchSpikeEnv_ *= pitchSpikeCoeff_;
     ampEnv_ = ampLinear_ ? std::max(0.0, ampEnv_ - ampLinStep_) : ampEnv_ * ampCoeff_;
+    punchEnv_ *= punchCoeff_;
 
     lastFrame_[0] = sample;
     return sample;
@@ -310,23 +363,49 @@ private:
     return std::exp(-2.0 * M_PI * clamped / sr);
   }
 
+  static double oscillate(double phase, int waveform) {
+    switch(waveform) {
+      case TR909_WAVE_TRIANGLE: return (2.0 / M_PI) * std::asin(std::sin(phase));
+      default: return std::sin(phase);
+    }
+  }
+
+  /* resonanceFilter_ sits after the one-pole tone stage and is driven
+   * continuously by the oscillator/sub/click signal each sample, so
+   * normalize=true (unity gain under continuous drive) is the right choice
+   * here -- unlike TwinTDrum's impulse-excited resonator, there's no
+   * single-sample-strike energy-starvation problem to work around. At
+   * toneResonance_=0 the radius is 0, which makes this stage an exact
+   * identity pass (b0=1, a1=a2=0), so default behavior is unchanged. */
+  void refreshToneResonance() {
+    double sr = stk::Stk::sampleRate();
+    double cutoff = std::min(std::max(tone_, 20.0), sr * 0.45);
+    resonanceFilter_.setResonance(cutoff, toneResonance_, true);
+  }
+
   double pitchStart_, pitchEnd_, pitchDecay_;
   bool pitchLinear_;
+  double pitchSpikeAmt_, pitchSpikeTime_;
   double ampDecay_;
   bool ampLinear_;
+  double punchAmount_, punchTime_;
   double drive_;
   int driveType_;
-  double tone_;
+  int waveform_;
+  double tone_, toneResonance_;
   double clickLevel_, clickDecay_;
   double subMix_, subOctave_;
   double tune_;
 
   double phase_, subPhase_;
   double pitchEnv_, pitchCoeff_, pitchLinStep_;
+  double pitchSpikeEnv_, pitchSpikeCoeff_;
   double ampEnv_, ampCoeff_, ampLinStep_;
+  double punchEnv_, punchCoeff_;
   double clickEnv_, clickCoeff_;
   double velocity_;
 
   stk::OnePole toneFilter_;
+  stk::TwoPole resonanceFilter_;
   stk::Noise noise_;
 };

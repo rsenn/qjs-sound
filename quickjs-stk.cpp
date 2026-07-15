@@ -1831,11 +1831,29 @@ parse_curve_linear(JSContext* ctx, JSValueConst v) {
   return linear;
 }
 
+static int
+parse_tr909_waveform(JSContext* ctx, JSValueConst v) {
+  if(JS_IsUndefined(v))
+    return TR909_WAVE_SINE;
+
+  const char* s = JS_ToCString(ctx, v);
+  int type = (s && !strcmp(s, "triangle")) ? TR909_WAVE_TRIANGLE : TR909_WAVE_SINE;
+
+  if(s)
+    JS_FreeCString(ctx, s);
+
+  return type;
+}
+
 enum {
   METHOD_TR909_SET_PITCH_ENV = 0,
+  METHOD_TR909_SET_PITCH_SPIKE,
   METHOD_TR909_SET_AMP_ENV,
+  METHOD_TR909_SET_PUNCH,
   METHOD_TR909_SET_DRIVE,
+  METHOD_TR909_SET_WAVEFORM,
   METHOD_TR909_SET_TONE,
+  METHOD_TR909_SET_TONE_RESONANCE,
   METHOD_TR909_SET_CLICK,
   METHOD_TR909_SET_SUB,
   METHOD_TR909_SET_TUNE,
@@ -1864,10 +1882,26 @@ js_tr909bassdrum_method(JSContext* ctx, JSValueConst this_val, int argc, JSValue
       d->setPitchEnvelope(start, end, decay, argc > 3 ? parse_curve_linear(ctx, argv[3]) : false);
       break;
     }
+    case METHOD_TR909_SET_PITCH_SPIKE: {
+      double semitones = 0, time = 0.005;
+      JS_ToFloat64(ctx, &semitones, argv[0]);
+      if(argc > 1)
+        JS_ToFloat64(ctx, &time, argv[1]);
+      d->setPitchSpike(semitones, time);
+      break;
+    }
     case METHOD_TR909_SET_AMP_ENV: {
       double decay = 0;
       JS_ToFloat64(ctx, &decay, argv[0]);
       d->setAmpEnvelope(decay, argc > 1 ? parse_curve_linear(ctx, argv[1]) : false);
+      break;
+    }
+    case METHOD_TR909_SET_PUNCH: {
+      double amount = 0, time = 0.01;
+      JS_ToFloat64(ctx, &amount, argv[0]);
+      if(argc > 1)
+        JS_ToFloat64(ctx, &time, argv[1]);
+      d->setPunch(amount, time);
       break;
     }
     case METHOD_TR909_SET_DRIVE: {
@@ -1876,10 +1910,20 @@ js_tr909bassdrum_method(JSContext* ctx, JSValueConst this_val, int argc, JSValue
       d->setDrive(amount, argc > 1 ? parse_drive_type(ctx, argv[1]) : DRIVE_TANH);
       break;
     }
+    case METHOD_TR909_SET_WAVEFORM: {
+      d->setWaveform(parse_tr909_waveform(ctx, argv[0]));
+      break;
+    }
     case METHOD_TR909_SET_TONE: {
       double cutoff = 0;
       JS_ToFloat64(ctx, &cutoff, argv[0]);
       d->setTone(cutoff);
+      break;
+    }
+    case METHOD_TR909_SET_TONE_RESONANCE: {
+      double amount = 0;
+      JS_ToFloat64(ctx, &amount, argv[0]);
+      d->setToneResonance(amount);
       break;
     }
     case METHOD_TR909_SET_CLICK: {
@@ -1936,9 +1980,13 @@ js_tr909bassdrum_method(JSContext* ctx, JSValueConst this_val, int argc, JSValue
 
 static const JSCFunctionListEntry js_tr909bassdrum_funcs[] = {
     JS_CFUNC_MAGIC_DEF("setPitchEnvelope", 4, js_tr909bassdrum_method, METHOD_TR909_SET_PITCH_ENV),
+    JS_CFUNC_MAGIC_DEF("setPitchSpike", 2, js_tr909bassdrum_method, METHOD_TR909_SET_PITCH_SPIKE),
     JS_CFUNC_MAGIC_DEF("setAmpEnvelope", 2, js_tr909bassdrum_method, METHOD_TR909_SET_AMP_ENV),
+    JS_CFUNC_MAGIC_DEF("setPunch", 2, js_tr909bassdrum_method, METHOD_TR909_SET_PUNCH),
     JS_CFUNC_MAGIC_DEF("setDrive", 2, js_tr909bassdrum_method, METHOD_TR909_SET_DRIVE),
+    JS_CFUNC_MAGIC_DEF("setWaveform", 1, js_tr909bassdrum_method, METHOD_TR909_SET_WAVEFORM),
     JS_CFUNC_MAGIC_DEF("setTone", 1, js_tr909bassdrum_method, METHOD_TR909_SET_TONE),
+    JS_CFUNC_MAGIC_DEF("setToneResonance", 1, js_tr909bassdrum_method, METHOD_TR909_SET_TONE_RESONANCE),
     JS_CFUNC_MAGIC_DEF("setClick", 2, js_tr909bassdrum_method, METHOD_TR909_SET_CLICK),
     JS_CFUNC_MAGIC_DEF("setSub", 2, js_tr909bassdrum_method, METHOD_TR909_SET_SUB),
     JS_CFUNC_MAGIC_DEF("setTune", 1, js_tr909bassdrum_method, METHOD_TR909_SET_TUNE),
