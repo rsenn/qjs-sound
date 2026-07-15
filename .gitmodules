@@ -13,3 +13,6 @@
 [submodule "third_party/dsp"]
 	path = third_party/dsp
 	url = https://github.com/Signalsmith-Audio/dsp.git
+[submodule "third_party/aubio"]
+	path = third_party/aubio
+	url = https://github.com/aubio/aubio.git
