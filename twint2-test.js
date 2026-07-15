@@ -85,6 +85,15 @@ function qForDecay(freq, t60) {
   return Math.max(0.3, Math.min(500, (Math.PI * freq * t60) / (3 * Math.LN10)));
 }
 
+// Gain needed to counteract a "constant peak gain" bandpass biquad's
+// amplitude normalization when struck with a single-sample impulse: its
+// impulse-response peak is empirically (2*pi*freq/sampleRate)/Q times the
+// input amplitude, so this is that ratio's reciprocal. See the comment in
+// the TwinT2 constructor for the full explanation.
+function excitationGain(freq, q, sampleRate) {
+  return (q * sampleRate) / (2 * Math.PI * freq);
+}
+
 /* ---------- TwinT2: the Twin-T drum, built from LabSound nodes ---------- */
 class TwinT2 {
   constructor(ctx, frequency = 200) {
@@ -102,12 +111,29 @@ class TwinT2 {
     this.resonator = new BiquadFilterNode(ctx, { type: 'bandpass', frequency, Q: 1 });
     this.secondary = new BiquadFilterNode(ctx, { type: 'bandpass', frequency: frequency * this.secondaryRatio, Q: 1 });
     this.secondaryGain = new GainNode(ctx, { gain: 0 });
+    // Separate excitation-gain stages for each resonator (not one shared
+    // gain): a "constant peak gain" bandpass biquad -- like this one, and
+    // like the WebAudio spec's bandpass generally -- normalizes for a
+    // *continuous* sinusoidal drive, not a single-sample impulse. Struck
+    // with a plain impulse, its peak ring-out is only ~(2*pi*freq/sr)/Q of
+    // the input amplitude (confirmed empirically: peak*Q/freq is constant
+    // and equals 2*pi/sr to 4 significant figures) -- tiny enough, for a
+    // low-frequency high-Q tom, to fall below the WaveShaperNode curve's
+    // lookup resolution and disappear into quantization noise instead of
+    // ringing down audibly. excitationGain() cancels that out so strike()
+    // peaks at roughly `amplitude` regardless of tuning/decay, matching
+    // the same fix applied to StkTwinTDrum's TwoPole resonator in
+    // analog-drums.hpp (there via normalize=false + sin(w0) scaling; here
+    // via a compensating gain stage, since BiquadFilterNode doesn't expose
+    // an unnormalized mode).
     this.strikeGain = new GainNode(ctx, { gain: 1 });
+    this.secondaryStrikeGain = new GainNode(ctx, { gain: 0 });
     this.shaper = new WaveShaperNode(ctx, { curve: buildDriveCurve(0, 'tanh') });
     this.output = new GainNode(ctx, { gain: 1 });
 
     this.strikeGain.connect(this.resonator);
     this.resonator.connect(this.shaper);
+    this.secondaryStrikeGain.connect(this.secondary);
     this.secondary.connect(this.secondaryGain);
     this.secondaryGain.connect(this.shaper);
     this.shaper.connect(this.output);
@@ -143,30 +169,39 @@ class TwinT2 {
   connect(dest) { return this.output.connect(dest); }
 
   strike(t, amplitude = 1.0) {
+    const sr = this.ctx.sampleRate;
     const q = qForDecay(this.frequency, this.decay);
     this.resonator.Q.setValueAtTime(q, t);
     this.resonator.frequency.cancelScheduledValues(t);
+    // The impulse lands at the frequency the resonator is actually tuned
+    // to at time t, so the excitation-gain compensation has to match that
+    // (the peak-frequency overshoot when a pitch drop is active), not the
+    // settled frequency it ramps down to afterwards.
+    let strikeFreq = this.frequency;
     if(this.pitchDropSemitones !== 0) {
-      const peakFreq = this.frequency * Math.pow(2, this.pitchDropSemitones / 12);
-      this.resonator.frequency.setValueAtTime(peakFreq, t);
+      strikeFreq = this.frequency * Math.pow(2, this.pitchDropSemitones / 12);
+      this.resonator.frequency.setValueAtTime(strikeFreq, t);
       this.resonator.frequency.exponentialRampToValueAtTime(this.frequency, t + this.pitchDropTime);
     } else {
-      this.resonator.frequency.setValueAtTime(this.frequency, t);
+      this.resonator.frequency.setValueAtTime(strikeFreq, t);
     }
 
     const src = new AudioBufferSourceNode(this.ctx, { buffer: this._impulse });
     src.connect(this.strikeGain);
-    this.strikeGain.gain.setValueAtTime(amplitude, t);
+    this.strikeGain.gain.setValueAtTime(amplitude * excitationGain(strikeFreq, q, sr), t);
 
     if(this.secondaryMix > 0) {
       const f2 = this.frequency * this.secondaryRatio;
+      const q2 = qForDecay(f2, this.decay);
       this.secondary.frequency.cancelScheduledValues(t);
       this.secondary.frequency.setValueAtTime(f2, t);
-      this.secondary.Q.setValueAtTime(qForDecay(f2, this.decay), t);
+      this.secondary.Q.setValueAtTime(q2, t);
       this.secondaryGain.gain.setValueAtTime(this.secondaryMix, t);
-      src.connect(this.secondary);
+      this.secondaryStrikeGain.gain.setValueAtTime(amplitude * excitationGain(f2, q2, sr), t);
+      src.connect(this.secondaryStrikeGain);
     } else {
       this.secondaryGain.gain.setValueAtTime(0, t);
+      this.secondaryStrikeGain.gain.setValueAtTime(0, t);
     }
     src.start(t);
 
@@ -254,8 +289,25 @@ async function main() {
   }
 
   const rendered = await ctx.startRendering();
+
+  // The excitation-gain compensation aims each strike at peak~=amplitude in
+  // isolation, but overlapping voices (a new hit landing while a previous
+  // one is still ringing) can still sum past 0dB -- normalize to a safe
+  // target peak before writing, same as twintdrum-test.js.
+  const data = rendered.getChannelData(0);
+  let peak = 0;
+  for(let i = 0; i < data.length; i++)
+    peak = Math.max(peak, Math.abs(data[i]));
+  const TARGET_PEAK = 0.95;
+  if(peak > TARGET_PEAK) {
+    const norm = TARGET_PEAK / peak;
+    for(let i = 0; i < data.length; i++)
+      data[i] *= norm;
+    rendered.copyToChannel(data, 0);
+  }
+
   rendered.writeToWav('twint2-test.wav');
-  console.log(`Rendered ${(totalFrames / SR).toFixed(2)}s -> twint2-test.wav`);
+  console.log(`Rendered ${(totalFrames / SR).toFixed(2)}s -> twint2-test.wav (peak was ${peak.toFixed(3)})`);
 }
 
 main();
