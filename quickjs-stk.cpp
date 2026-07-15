@@ -101,7 +101,7 @@ static JSClassID js_stkframes_class_id, js_stk_class_id, js_stkfilter_class_id, 
     js_stkinstrmnt_class_id, js_stkfunction_class_id;
 static JSValue stkframes_proto, stkframes_ctor, stk_proto, stk_ctor, stkfilter_proto, stkfilter_ctor, stkgenerator_proto, stkgenerator_ctor, stkeffect_proto,
     stkeffect_ctor, stkfm_proto, stkfm_ctor, stkinstrmnt_proto, stkinstrmnt_ctor, stkfunction_proto, stkfunction_ctor,
-    twintdrum_proto, tr909bassdrum_proto;
+    twintdrum_proto, tr909bassdrum_proto, tr909percussion_proto;
 
 typedef std::shared_ptr<stk::Stk> StkPtr;
 typedef std::shared_ptr<stk::StkFrames> StkFramesPtr;
@@ -1845,6 +1845,25 @@ parse_tr909_waveform(JSContext* ctx, JSValueConst v) {
   return type;
 }
 
+static int
+parse_perc_filter_type(JSContext* ctx, JSValueConst v) {
+  if(JS_IsUndefined(v))
+    return PERC_FILTER_BANDPASS;
+
+  const char* s = JS_ToCString(ctx, v);
+  int type = PERC_FILTER_BANDPASS;
+
+  if(s) {
+    if(!strcmp(s, "highpass"))
+      type = PERC_FILTER_HIGHPASS;
+    else if(!strcmp(s, "lowpass"))
+      type = PERC_FILTER_LOWPASS;
+    JS_FreeCString(ctx, s);
+  }
+
+  return type;
+}
+
 enum {
   METHOD_TR909_SET_PITCH_ENV = 0,
   METHOD_TR909_SET_PITCH_SPIKE,
@@ -1992,6 +2011,157 @@ static const JSCFunctionListEntry js_tr909bassdrum_funcs[] = {
     JS_CFUNC_MAGIC_DEF("setTune", 1, js_tr909bassdrum_method, METHOD_TR909_SET_TUNE),
     JS_CFUNC_MAGIC_DEF("trigger", 1, js_tr909bassdrum_method, METHOD_TR909_TRIGGER),
     JS_CFUNC_MAGIC_DEF("render", 2, js_tr909bassdrum_method, METHOD_TR909_RENDER),
+};
+
+static JSValue
+js_tr909percussion_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+  StkInstrmntPtr* i = static_cast<StkInstrmntPtr*>(js_mallocz(ctx, sizeof(StkInstrmntPtr)));
+  new(i) StkInstrmntPtr(std::make_shared<Tr909Percussion>());
+
+  JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
+  if(JS_IsException(proto))
+    goto fail;
+
+  if(!JS_IsObject(proto)) {
+    JS_FreeValue(ctx, proto);
+    proto = JS_DupValue(ctx, tr909percussion_proto);
+  }
+
+  obj = JS_NewObjectProtoClass(ctx, proto, js_stkinstrmnt_class_id);
+  JS_FreeValue(ctx, proto);
+
+  if(JS_IsException(obj))
+    goto fail;
+
+  JS_SetOpaque(obj, i);
+  js_set_tostringtag(ctx, obj, "StkTr909Percussion");
+  return obj;
+
+fail:
+  JS_FreeValue(ctx, obj);
+  return JS_EXCEPTION;
+}
+
+enum {
+  METHOD_PERC_SET_TONE = 0,
+  METHOD_PERC_SET_METALLIC,
+  METHOD_PERC_SET_NOISE,
+  METHOD_PERC_SET_NOISE_FILTER,
+  METHOD_PERC_SET_CRUNCH,
+  METHOD_PERC_SET_CLAP,
+  METHOD_PERC_SET_TUNE,
+  METHOD_PERC_TRIGGER,
+  METHOD_PERC_RENDER,
+};
+
+static JSValue
+js_tr909percussion_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+  StkInstrmntPtr* p;
+  JSValue ret = JS_UNDEFINED;
+
+  if(!(p = static_cast<StkInstrmntPtr*>(JS_GetOpaque2(ctx, this_val, js_stkinstrmnt_class_id))))
+    return JS_EXCEPTION;
+
+  Tr909Percussion* d = dynamic_cast<Tr909Percussion*>(p->get());
+  if(!d)
+    return JS_ThrowTypeError(ctx, "not a StkTr909Percussion");
+
+  switch(magic) {
+    case METHOD_PERC_SET_TONE: {
+      double freq1 = 0, freq2 = 0, mix = 0, decay = 0;
+      JS_ToFloat64(ctx, &freq1, argv[0]);
+      JS_ToFloat64(ctx, &freq2, argv[1]);
+      JS_ToFloat64(ctx, &mix, argv[2]);
+      JS_ToFloat64(ctx, &decay, argv[3]);
+      d->setTone(freq1, freq2, mix, decay);
+      break;
+    }
+    case METHOD_PERC_SET_METALLIC: {
+      double base = 0, mix = 0, decay = 0, brightness = 7000;
+      JS_ToFloat64(ctx, &base, argv[0]);
+      JS_ToFloat64(ctx, &mix, argv[1]);
+      JS_ToFloat64(ctx, &decay, argv[2]);
+      if(argc > 3)
+        JS_ToFloat64(ctx, &brightness, argv[3]);
+      d->setMetallic(base, mix, decay, brightness);
+      break;
+    }
+    case METHOD_PERC_SET_NOISE: {
+      double mix = 0, decay = 0;
+      JS_ToFloat64(ctx, &mix, argv[0]);
+      JS_ToFloat64(ctx, &decay, argv[1]);
+      d->setNoise(mix, decay);
+      break;
+    }
+    case METHOD_PERC_SET_NOISE_FILTER: {
+      double cutoff = 0, q = 1.0;
+      JS_ToFloat64(ctx, &cutoff, argv[0]);
+      if(argc > 1)
+        JS_ToFloat64(ctx, &q, argv[1]);
+      d->setNoiseFilter(cutoff, q, argc > 2 ? parse_perc_filter_type(ctx, argv[2]) : PERC_FILTER_BANDPASS);
+      break;
+    }
+    case METHOD_PERC_SET_CRUNCH: {
+      double amount = 0;
+      JS_ToFloat64(ctx, &amount, argv[0]);
+      d->setCrunch(amount, argc > 1 ? parse_drive_type(ctx, argv[1]) : DRIVE_TANH);
+      break;
+    }
+    case METHOD_PERC_SET_CLAP: {
+      uint32_t hits = 1;
+      double spacing = 0.01;
+      JS_ToUint32(ctx, &hits, argv[0]);
+      if(argc > 1)
+        JS_ToFloat64(ctx, &spacing, argv[1]);
+      d->setClap((int)hits, spacing);
+      break;
+    }
+    case METHOD_PERC_SET_TUNE: {
+      double t = 1.0;
+      JS_ToFloat64(ctx, &t, argv[0]);
+      d->setTune(t);
+      break;
+    }
+    case METHOD_PERC_TRIGGER: {
+      double v = 1.0;
+      if(argc > 0)
+        JS_ToFloat64(ctx, &v, argv[0]);
+      d->trigger(v);
+      break;
+    }
+    case METHOD_PERC_RENDER: {
+      uint32_t n = 0;
+      double v = 1.0;
+      JS_ToUint32(ctx, &n, argv[0]);
+      if(argc > 1)
+        JS_ToFloat64(ctx, &v, argv[1]);
+
+      JSValue frames = js_new_stkframes(ctx, n, 1);
+      if(JS_IsException(frames))
+        return frames;
+      StkFramesPtr* fp = static_cast<StkFramesPtr*>(JS_GetOpaque(frames, js_stkframes_class_id));
+      stk::StkFrames& fr = **fp;
+      d->trigger(v);
+      for(uint32_t k = 0; k < n; k++)
+        fr[k] = d->tick();
+      ret = frames;
+      break;
+    }
+  }
+
+  return ret;
+}
+
+static const JSCFunctionListEntry js_tr909percussion_funcs[] = {
+    JS_CFUNC_MAGIC_DEF("setTone", 4, js_tr909percussion_method, METHOD_PERC_SET_TONE),
+    JS_CFUNC_MAGIC_DEF("setMetallic", 3, js_tr909percussion_method, METHOD_PERC_SET_METALLIC),
+    JS_CFUNC_MAGIC_DEF("setNoise", 2, js_tr909percussion_method, METHOD_PERC_SET_NOISE),
+    JS_CFUNC_MAGIC_DEF("setNoiseFilter", 1, js_tr909percussion_method, METHOD_PERC_SET_NOISE_FILTER),
+    JS_CFUNC_MAGIC_DEF("setCrunch", 1, js_tr909percussion_method, METHOD_PERC_SET_CRUNCH),
+    JS_CFUNC_MAGIC_DEF("setClap", 1, js_tr909percussion_method, METHOD_PERC_SET_CLAP),
+    JS_CFUNC_MAGIC_DEF("setTune", 1, js_tr909percussion_method, METHOD_PERC_SET_TUNE),
+    JS_CFUNC_MAGIC_DEF("trigger", 1, js_tr909percussion_method, METHOD_PERC_TRIGGER),
+    JS_CFUNC_MAGIC_DEF("render", 2, js_tr909percussion_method, METHOD_PERC_RENDER),
 };
 
 int
@@ -2182,10 +2352,10 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
     JS_SetModuleExport(ctx, m, "StkFilter", stkgenerator_ctor);
   }
 
-  /* TwinTDrum and Tr909BassDrum are ordinary stk::Instrmnt subclasses, so
-   * they share js_stkinstrmnt_class_id/finalizer above; only their own
-   * prototype (chained onto stkinstrmnt_proto) differs, carrying their
-   * extra controls. */
+  /* TwinTDrum, Tr909BassDrum and Tr909Percussion are ordinary stk::Instrmnt
+   * subclasses, so they share js_stkinstrmnt_class_id/finalizer above;
+   * only their own prototype (chained onto stkinstrmnt_proto) differs,
+   * carrying their extra controls. */
   twintdrum_proto = JS_NewObject(ctx);
   JS_SetPrototype(ctx, twintdrum_proto, stkinstrmnt_proto);
   JS_SetPropertyFunctionList(ctx, twintdrum_proto, js_twintdrum_funcs, countof(js_twintdrum_funcs));
@@ -2193,6 +2363,10 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
   tr909bassdrum_proto = JS_NewObject(ctx);
   JS_SetPrototype(ctx, tr909bassdrum_proto, stkinstrmnt_proto);
   JS_SetPropertyFunctionList(ctx, tr909bassdrum_proto, js_tr909bassdrum_funcs, countof(js_tr909bassdrum_funcs));
+
+  tr909percussion_proto = JS_NewObject(ctx);
+  JS_SetPrototype(ctx, tr909percussion_proto, stkinstrmnt_proto);
+  JS_SetPropertyFunctionList(ctx, tr909percussion_proto, js_tr909percussion_funcs, countof(js_tr909percussion_funcs));
 
   if(m) {
     ctor = JS_NewCFunction2(ctx, js_twintdrum_constructor, "TwinTDrum", 1, JS_CFUNC_constructor, 0);
@@ -2202,6 +2376,10 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
     ctor = JS_NewCFunction2(ctx, js_tr909bassdrum_constructor, "Tr909BassDrum", 0, JS_CFUNC_constructor, 0);
     JS_SetConstructor(ctx, ctor, tr909bassdrum_proto);
     JS_SetModuleExport(ctx, m, "StkTr909BassDrum", ctor);
+
+    ctor = JS_NewCFunction2(ctx, js_tr909percussion_constructor, "Tr909Percussion", 0, JS_CFUNC_constructor, 0);
+    JS_SetConstructor(ctx, ctor, tr909percussion_proto);
+    JS_SetModuleExport(ctx, m, "StkTr909Percussion", ctor);
   }
 
   JS_NewClassID(&js_stkfunction_class_id);
@@ -2281,6 +2459,7 @@ js_init_module_stk(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "StkEffect");
   JS_AddModuleExport(ctx, m, "StkTwinTDrum");
   JS_AddModuleExport(ctx, m, "StkTr909BassDrum");
+  JS_AddModuleExport(ctx, m, "StkTr909Percussion");
   JS_AddModuleExport(ctx, m, "StkCubic");
   JS_AddModuleExport(ctx, m, "StkFunction");
   JS_AddModuleExport(ctx, m, "Stk");

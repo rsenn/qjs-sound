@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "BiQuad.h"
 #include "Instrmnt.h"
 #include "Noise.h"
 #include "OnePole.h"
@@ -410,5 +411,222 @@ private:
 
   stk::OnePole toneFilter_;
   stk::TwoPole resonanceFilter_;
+  stk::Noise noise_;
+};
+
+enum {
+  PERC_FILTER_BANDPASS = 0,
+  PERC_FILTER_HIGHPASS = 1,
+  PERC_FILTER_LOWPASS = 2,
+};
+
+/* ---- Tr909Percussion: noise/metallic-core percussion designer ----
+ * (snare, clap, closed/open hihat, cymbal)
+ *
+ * Real analog drum machines build snares, claps, hihats and cymbals out of
+ * the same few circuit blocks in different proportions, not four separate
+ * synthesis engines: a noise source (the "snap"/"hiss"/"sizzle" common to
+ * all four), a filter to carve its character, an envelope (single-shot
+ * for snare/hihat/cymbal, multi-triggered for a clap's characteristic
+ * "burst-burst-burst-tail"), and -- for snare and hihat/cymbal
+ * specifically -- a tonal or metallic core: two detuned tone oscillators
+ * for a snare's "shell" thump (the classic 808/909 snare mixes ~180Hz/
+ * 330Hz tones under its noise, not noise alone), or a bank of six
+ * square-wave oscillators at fixed inharmonic ratios (the classic 808/909
+ * hi-hat/cymbal "six-oscillator" trick) for hihat/cymbal shimmer.
+ *
+ * This class exposes those blocks as orthogonal controls rather than a
+ * fixed "voice type" switch; which of snare, clap, hihat or cymbal you get
+ * is a matter of which blocks you mix in and how you filter/envelope them
+ * -- exactly like the real circuits share hardware between voices. */
+class Tr909Percussion : public stk::Instrmnt {
+public:
+  Tr909Percussion()
+      : tone1_(180.0), tone2_(330.0), toneMix_(0.0), toneDecay_(0.1), metallicBase_(540.0), metallicMix_(0.0),
+        metallicDecay_(0.3), noiseMix_(1.0), noiseDecay_(0.2), crunchAmount_(0.25), crunchType_(DRIVE_TANH),
+        clapHits_(1), clapSpacing_(0.01), tune_(1.0), tonePhase1_(0.0), tonePhase2_(0.0), toneEnv_(0.0),
+        toneCoeff_(1.0), metallicEnv_(0.0), metallicCoeff_(1.0), noiseEnv_(0.0), noiseCoeff_(1.0),
+        noiseBurstCoeff_(1.0), clapHitIndex_(0), clapNextHitSample_(0), sampleIndex_(0), velocity_(0.0) {
+    for(unsigned int i = 0; i < kMetallicVoices; i++)
+      metallicPhase_[i] = 0.0;
+    metallicFilter_.setHighPass(7000.0, 0.7);
+    noiseFilter_.setBandPass(2000.0, 1.0);
+  }
+
+  /* Two detuned tone oscillators -- the "shell" thump under a snare's
+   * noise. mix=0 (default) disables both and skips the oscillator work. */
+  void setTone(double freq1, double freq2, double mix, double decayTime) {
+    tone1_ = freq1;
+    tone2_ = freq2;
+    toneMix_ = mix;
+    toneDecay_ = std::max(0.001, decayTime);
+  }
+
+  /* Six square-wave oscillators at fixed inharmonic ratios (the classic
+   * 808/909 hi-hat "six-oscillator" trick), scaled from baseFreq, mixed
+   * and pushed through a highpass at brightnessHz to carve the
+   * fundamentals out and leave the metallic shimmer. mix=0 (default)
+   * disables the bank and skips the oscillator work. */
+  void setMetallic(double baseFreq, double mix, double decayTime, double brightnessHz) {
+    metallicBase_ = baseFreq;
+    metallicMix_ = mix;
+    metallicDecay_ = std::max(0.001, decayTime);
+    metallicFilter_.setHighPass(std::max(20.0, brightnessHz), 0.7);
+  }
+
+  /* The noise layer -- shared by snare "snap", clap's bursts, and
+   * hihat/cymbal texture. */
+  void setNoise(double mix, double decayTime) {
+    noiseMix_ = mix;
+    noiseDecay_ = std::max(0.001, decayTime);
+  }
+  void setNoiseFilter(double cutoffHz, double q, int type) {
+    double c = std::max(20.0, cutoffHz), qq = std::max(0.1, q);
+    switch(type) {
+      case PERC_FILTER_HIGHPASS: noiseFilter_.setHighPass(c, qq); break;
+      case PERC_FILTER_LOWPASS: noiseFilter_.setLowPass(c, qq); break;
+      default: noiseFilter_.setBandPass(c, qq); break;
+    }
+  }
+
+  /* Waveshaping distortion on the full mix -- the "snappy and crunchy"
+   * character plain filtered noise doesn't have on its own. */
+  void setCrunch(double amount, int type = DRIVE_TANH) {
+    crunchAmount_ = amount;
+    crunchType_ = type;
+  }
+
+  /* hits>1 retriggers the noise envelope that many times, spacingSeconds
+   * apart -- every burst but the last decays fast, and the last decays
+   * into the full noiseDecay_ tail -- the classic clap "burst-burst-
+   * burst-tail" circuit. hits=1 (default) is a plain single-envelope hit,
+   * i.e. snare/hihat/cymbal territory rather than clap. */
+  void setClap(int hits, double spacingSeconds) {
+    clapHits_ = std::max(1, hits);
+    clapSpacing_ = std::max(0.001, spacingSeconds);
+  }
+
+  void setTune(double multiplier) { tune_ = multiplier; }
+
+  void noteOn(stk::StkFloat frequency, stk::StkFloat amplitude) override {
+    if(frequency > 0.0)
+      tune_ = frequency / metallicBase_;
+    trigger(amplitude);
+  }
+  void noteOff(stk::StkFloat amplitude) override {
+    toneEnv_ = 0.0;
+    metallicEnv_ = 0.0;
+    noiseEnv_ = 0.0;
+  }
+
+  void trigger(double velocity = 1.0) {
+    double sr = stk::Stk::sampleRate();
+    tonePhase1_ = tonePhase2_ = 0.0;
+    for(unsigned int i = 0; i < kMetallicVoices; i++)
+      metallicPhase_[i] = 0.0;
+    velocity_ = velocity;
+    sampleIndex_ = 0;
+
+    toneEnv_ = 1.0;
+    toneCoeff_ = std::pow(1e-3, 1.0 / std::max(1.0, toneDecay_ * sr));
+
+    metallicEnv_ = 1.0;
+    metallicCoeff_ = std::pow(1e-3, 1.0 / std::max(1.0, metallicDecay_ * sr));
+
+    noiseEnv_ = 1.0;
+    noiseCoeff_ = std::pow(1e-3, 1.0 / std::max(1.0, noiseDecay_ * sr));
+    /* individual clap bursts are always short and snappy, independent of
+     * the tail's noiseDecay_ */
+    noiseBurstCoeff_ = std::pow(1e-3, 1.0 / std::max(1.0, 0.006 * sr));
+
+    clapHitIndex_ = 1; // trigger() itself is hit #1
+    clapNextHitSample_ = (unsigned int)(clapSpacing_ * sr);
+  }
+
+  stk::StkFloat tick(unsigned int channel = 0) override {
+    double sr = stk::Stk::sampleRate();
+
+    if(clapHits_ > 1 && clapHitIndex_ < (unsigned int)clapHits_ && sampleIndex_ >= clapNextHitSample_) {
+      noiseEnv_ = 1.0;
+      clapHitIndex_++;
+      clapNextHitSample_ += (unsigned int)(clapSpacing_ * sr);
+    }
+    sampleIndex_++;
+
+    double sample = 0.0;
+
+    if(toneMix_ > 0.0) {
+      double f1 = tone1_ * tune_, f2 = tone2_ * tune_;
+      tonePhase1_ += 2.0 * M_PI * f1 / sr;
+      if(tonePhase1_ > 2.0 * M_PI)
+        tonePhase1_ -= 2.0 * M_PI;
+      tonePhase2_ += 2.0 * M_PI * f2 / sr;
+      if(tonePhase2_ > 2.0 * M_PI)
+        tonePhase2_ -= 2.0 * M_PI;
+      sample += toneMix_ * toneEnv_ * 0.5 * (std::sin(tonePhase1_) + std::sin(tonePhase2_));
+    }
+
+    if(metallicMix_ > 0.0) {
+      double metallic = 0.0;
+      for(unsigned int i = 0; i < kMetallicVoices; i++) {
+        metallicPhase_[i] += 2.0 * M_PI * (metallicBase_ * kMetallicRatios[i] * tune_) / sr;
+        if(metallicPhase_[i] > 2.0 * M_PI)
+          metallicPhase_[i] -= 2.0 * M_PI;
+        metallic += metallicPhase_[i] < M_PI ? 1.0 : -1.0;
+      }
+      metallic /= kMetallicVoices;
+      metallic = metallicFilter_.tick(metallic);
+      sample += metallicMix_ * metallicEnv_ * metallic;
+    }
+
+    if(noiseMix_ > 0.0) {
+      double n = noiseFilter_.tick(noise_.tick());
+      sample += noiseMix_ * noiseEnv_ * n;
+    }
+
+    sample = analog_drive(sample, crunchAmount_, crunchType_);
+    sample *= velocity_;
+
+    toneEnv_ *= toneCoeff_;
+    metallicEnv_ *= metallicCoeff_;
+    noiseEnv_ *= (clapHitIndex_ >= (unsigned int)clapHits_) ? noiseCoeff_ : noiseBurstCoeff_;
+
+    lastFrame_[0] = sample;
+    return sample;
+  }
+
+  stk::StkFrames& tick(stk::StkFrames& frames, unsigned int channel = 0) override {
+    stk::StkFloat* samples = &frames[channel];
+    unsigned int hop = frames.channels();
+    for(unsigned int i = 0; i < frames.frames(); i++, samples += hop)
+      *samples = tick();
+    return frames;
+  }
+
+private:
+  static constexpr unsigned int kMetallicVoices = 6;
+  /* Approximate ratios of the classic TR-808/909 six-oscillator hi-hat
+   * bank (205.3, 304.4, 369.6, 522.7, 540.4, 800.5 Hz), normalized to the
+   * 540.4Hz voice so metallicBase_ scales the whole inharmonic cluster. */
+  static constexpr double kMetallicRatios[kMetallicVoices] = {0.3799, 0.5633, 0.6839, 0.9673, 1.0, 1.4815};
+
+  double tone1_, tone2_, toneMix_, toneDecay_;
+  double metallicBase_, metallicMix_, metallicDecay_;
+  double noiseMix_, noiseDecay_;
+  double crunchAmount_;
+  int crunchType_;
+  int clapHits_;
+  double clapSpacing_;
+  double tune_;
+
+  double tonePhase1_, tonePhase2_;
+  double toneEnv_, toneCoeff_;
+  double metallicPhase_[kMetallicVoices];
+  double metallicEnv_, metallicCoeff_;
+  double noiseEnv_, noiseCoeff_, noiseBurstCoeff_;
+  unsigned int clapHitIndex_, clapNextHitSample_, sampleIndex_;
+  double velocity_;
+
+  stk::BiQuad metallicFilter_, noiseFilter_;
   stk::Noise noise_;
 };
