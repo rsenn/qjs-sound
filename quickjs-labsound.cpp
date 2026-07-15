@@ -1489,22 +1489,28 @@ js_audiobuffer_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
   if(!w || !w->bus)
     return JS_EXCEPTION;
 
-  if(argc < 1)
-    return JS_ThrowTypeError(ctx, "channel index required");
-  int32_t channel = 0;
-  JS_ToInt32(ctx, &channel, argv[0]);
-  if(channel < 0 || channel >= w->bus->numberOfChannels())
-    return JS_ThrowRangeError(ctx, "channel index out of range");
-  lab::AudioChannel* ch = w->bus->channel(channel);
-
   switch(magic) {
-    case AB_METHOD_GET_CHANNEL_DATA:
+    case AB_METHOD_GET_CHANNEL_DATA: {
+      // getChannelData(channel)
+      if(argc < 1)
+        return JS_ThrowTypeError(ctx, "channel index required");
+      int32_t channel = 0;
+      JS_ToInt32(ctx, &channel, argv[0]);
+      if(channel < 0 || channel >= w->bus->numberOfChannels())
+        return JS_ThrowRangeError(ctx, "channel index out of range");
+      lab::AudioChannel* ch = w->bus->channel(channel);
       return make_float32_array(ctx, ch->data(), ch->length());
+    }
 
     case AB_METHOD_COPY_TO_CHANNEL: {
       // copyToChannel(source, channelNumber, startInChannel = 0)
       if(argc < 2)
         return JS_ThrowTypeError(ctx, "copyToChannel requires (source, channelNumber)");
+      int32_t channel = 0;
+      JS_ToInt32(ctx, &channel, argv[1]);
+      if(channel < 0 || channel >= w->bus->numberOfChannels())
+        return JS_ThrowRangeError(ctx, "channel index out of range");
+      lab::AudioChannel* ch = w->bus->channel(channel);
       std::vector<float> src;
       if(read_float_array(ctx, argv[0], src) != 0)
         return JS_ThrowTypeError(ctx, "source must be a Float32Array or array-like");
@@ -1522,6 +1528,11 @@ js_audiobuffer_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
       // copyFromChannel(destination, channelNumber, startInChannel = 0)
       if(argc < 2)
         return JS_ThrowTypeError(ctx, "copyFromChannel requires (destination, channelNumber)");
+      int32_t channel = 0;
+      JS_ToInt32(ctx, &channel, argv[1]);
+      if(channel < 0 || channel >= w->bus->numberOfChannels())
+        return JS_ThrowRangeError(ctx, "channel index out of range");
+      lab::AudioChannel* ch = w->bus->channel(channel);
       size_t byte_offset = 0, byte_length = 0, bytes_per_element = 0;
       JSValue buf = JS_GetTypedArrayBuffer(ctx, argv[0], &byte_offset, &byte_length, &bytes_per_element);
       if(JS_IsException(buf) || bytes_per_element != sizeof(float))
