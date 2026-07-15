@@ -138,6 +138,12 @@ if(USE_STK)
   #link_directories(${STK_LIBRARY_DIR})
 
   set(stk_LIBRARIES libstk)
+  if(LINUX OR ANDROID)
+    # RtAudio/RtMidi (ALSA + JACK backends) and Thread/Mutex are compiled
+    # into libstk.a; the JS bindings now call into them, so their runtime
+    # deps must be linked into qjs-stk too.
+    list(APPEND stk_LIBRARIES pthread asound jack)
+  endif()
   set(stk_LINK_DIRECTORIES "${STK_LIBRARY_DIR}")
 
   #dump(stk_LIBRARIES stk_LINK_DIRECTORIES)
