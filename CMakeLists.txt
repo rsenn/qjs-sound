@@ -5,6 +5,7 @@ cmake_minimum_required(VERSION 3.19)
 option(USE_LABSOUND "Use LabSound library" ON)
 option(USE_STK "Use Stk library" ON)
 option(USE_PORTAUDIO "Use PortAudio library" ON)
+option(USE_AUBIO "Use aubio library" ON)
 
 include(FindPkgConfig)
 include(CheckLibraryExists)
@@ -167,6 +168,21 @@ if(USE_STK)
       "${QUICKJS_INCLUDE_DIR};${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/include;${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/src/include"
   )
 endif(USE_STK)
+
+if(USE_AUBIO)
+  set(CMAKE_POSITION_INDEPENDENT_CODE_SAVE "${CMAKE_POSITION_INDEPENDENT_CODE}")
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+  add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/third_party/aubio/src" "${CMAKE_CURRENT_BINARY_DIR}/third_party/aubio/src")
+  set(CMAKE_POSITION_INDEPENDENT_CODE "${CMAKE_POSITION_INDEPENDENT_CODE_SAVE}")
+
+  set(aubio_LIBRARIES aubio)
+
+  make_module(aubio c)
+
+  include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third_party/aubio/src")
+  set_target_properties(
+    qjs-aubio PROPERTIES INCLUDE_DIRECTORIES "${QUICKJS_INCLUDE_DIR};${CMAKE_CURRENT_SOURCE_DIR}/third_party/aubio/src")
+endif(USE_AUBIO)
 
 if(USE_LABSOUND)
   #[[file(
