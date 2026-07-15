@@ -146,11 +146,18 @@ for (let h = 0; h < 40; h++) {
 
 ## Build notes
 
-`third_party/aubio/src/CMakeLists.txt` is patched to build `aubio` as a
-`STATIC` library (upstream hardcodes `SHARED`, ignoring `BUILD_SHARED_LIBS`)
-— same kind of direct submodule patch as `third_party/stk`. The top-level
-`CMakeLists.txt` builds it via `add_subdirectory(third_party/aubio/src)`
-with `CMAKE_POSITION_INDEPENDENT_CODE` set `ON` around that call, producing
+Upstream `third_party/aubio/src/CMakeLists.txt` hardcodes
+`add_library (aubio SHARED)`, ignoring `BUILD_SHARED_LIBS`, so it can't
+produce the static `libaubio.a` this binding needs. Rather than carrying a
+local commit in the submodule, the top-level `CMakeLists.txt` applies
+`cmake/patches/aubio-static-lib.patch` (`SHARED` -> `STATIC`) to
+`third_party/aubio` at configure time via `git apply`, checked first with
+`git apply --reverse --check` so re-running `cmake` is a no-op once the
+patch is already applied. This keeps `third_party/aubio` a plain checkout
+of upstream — unlike `third_party/stk`, which does carry local commits.
+
+After patching, `add_subdirectory(third_party/aubio/src)` builds it with
+`CMAKE_POSITION_INDEPENDENT_CODE` set `ON` around that call, producing
 `libaubio.a` with `-fPIC`, then links it into `qjs-aubio` via
 `make_module(aubio c)`.
 

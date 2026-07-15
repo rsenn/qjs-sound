@@ -1,0 +1,10 @@
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index eef327f3..634380a1 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -1,4 +1,4 @@
+-add_library (aubio SHARED)
++add_library (aubio STATIC)
+ 
+ set_target_properties (aubio PROPERTIES SOVERSION 5.4.8)
+ 

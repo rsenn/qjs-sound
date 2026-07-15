@@ -170,6 +170,31 @@ if(USE_STK)
 endif(USE_STK)
 
 if(USE_AUBIO)
+  # Upstream third_party/aubio hardcodes `add_library (aubio SHARED)`,
+  # ignoring BUILD_SHARED_LIBS, so it can't produce the static libaubio.a
+  # this project links into qjs-aubio. Rather than carrying a local commit
+  # in the submodule, apply that one-line fix as a patch at configure time,
+  # so third_party/aubio can stay a plain checkout of upstream.
+  find_package(Git REQUIRED)
+
+  set(AUBIO_STATIC_LIB_PATCH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/patches/aubio-static-lib.patch")
+  execute_process(
+    COMMAND "${GIT_EXECUTABLE}" apply --reverse --check "${AUBIO_STATIC_LIB_PATCH}"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/third_party/aubio"
+    RESULT_VARIABLE AUBIO_STATIC_LIB_PATCH_APPLIED
+    OUTPUT_QUIET ERROR_QUIET)
+
+  if(NOT AUBIO_STATIC_LIB_PATCH_APPLIED EQUAL 0)
+    message(STATUS "Patching third_party/aubio to build a static library")
+    execute_process(
+      COMMAND "${GIT_EXECUTABLE}" apply "${AUBIO_STATIC_LIB_PATCH}"
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/third_party/aubio"
+      RESULT_VARIABLE AUBIO_STATIC_LIB_PATCH_RESULT)
+    if(NOT AUBIO_STATIC_LIB_PATCH_RESULT EQUAL 0)
+      message(FATAL_ERROR "Failed to apply ${AUBIO_STATIC_LIB_PATCH} to third_party/aubio")
+    endif()
+  endif()
+
   set(CMAKE_POSITION_INDEPENDENT_CODE_SAVE "${CMAKE_POSITION_INDEPENDENT_CODE}")
   set(CMAKE_POSITION_INDEPENDENT_CODE ON)
   add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/third_party/aubio/src" "${CMAKE_CURRENT_BINARY_DIR}/third_party/aubio/src")
