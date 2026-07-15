@@ -1,8 +1,8 @@
-// Demo for StkTwinTDrum: an analog Twin-T oscillator style drum resonator.
+// Demo for TwinTDrum: an analog Twin-T oscillator style drum resonator.
 //
 // A Twin-T RC notch network wired into an inverting feedback loop
 // oscillates at its notch frequency; struck, it rings down like a tom,
-// conga or woodblock -- that's exactly what StkTwinTDrum models (a
+// conga or woodblock -- that's exactly what TwinTDrum models (a
 // stk::TwoPole resonator pinged with an impulse). Beyond the plain ring it
 // adds three controls no analog Twin-T circuit had: a "secondary" detuned
 // resonator for cowbell/agogo-style clusters, a noise "click" transient for
@@ -65,21 +65,21 @@ function toFloat64(frames) {
 // ~100ms) so the "analog tom" pitch bend is unmistakable instead of hiding
 // inside the attack transient. Click is kept low so it accents the strike
 // without swamping the resonant tail.
-const lowTom = new stk.StkTwinTDrum(100);
+const lowTom = new stk.TwinTDrum(100);
 lowTom.setDecay(0.9);
 lowTom.setDrive(0.12);
 lowTom.setPitchDrop(8, 0.09);
 lowTom.setClick(0.08);
 lowTom.tailSeconds = 0.9 * 3;
 
-const midTom = new stk.StkTwinTDrum(165);
+const midTom = new stk.TwinTDrum(165);
 midTom.setDecay(0.7);
 midTom.setDrive(0.16);
 midTom.setPitchDrop(9, 0.075);
 midTom.setClick(0.1);
 midTom.tailSeconds = 0.7 * 3;
 
-const hiTom = new stk.StkTwinTDrum(240);
+const hiTom = new stk.TwinTDrum(240);
 hiTom.setDecay(0.55);
 hiTom.setDrive(0.2);
 hiTom.setPitchDrop(10, 0.06);
@@ -88,7 +88,7 @@ hiTom.tailSeconds = 0.55 * 3;
 
 // Cowbell-ish voice: two closely-tuned resonators (the "secondary" control)
 // beating against each other, more click, faster decay, hotter drive.
-const cowbell = new stk.StkTwinTDrum(560);
+const cowbell = new stk.TwinTDrum(560);
 cowbell.setDecay(0.4);
 cowbell.setDrive(0.6);
 cowbell.setSecondary(1.48, 0.8);
@@ -96,7 +96,7 @@ cowbell.setClick(0.4);
 cowbell.tailSeconds = 0.4 * 3;
 
 // Woodblock-ish voice: very short decay, high secondary ratio, no drive.
-const woodblock = new stk.StkTwinTDrum(900);
+const woodblock = new stk.TwinTDrum(900);
 woodblock.setDecay(0.08);
 woodblock.setSecondary(2.0, 0.5);
 woodblock.setClick(0.5);

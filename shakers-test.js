@@ -1,4 +1,4 @@
-// Demo for the quickjs-stk bindings: StkShakers, STK's PhISEM (Physically
+// Demo for the quickjs-stk bindings: Shakers, STK's PhISEM (Physically
 // Informed Stochastic Event Modeling) instrument, run through a light
 // effects chain and rendered offline to a stereo WAV file.
 //
@@ -7,7 +7,7 @@
 //   1. A showcase that solos every one of Shakers' 23 built-in instrument
 //      types in turn (Maraca through Tuned Bamboo Chimes), each given a
 //      "shake-shake-shake" gesture and a moment to decay, run through only
-//      a light touch of StkCubic waveshaping -- no filter, delay or
+//      a light touch of Cubic waveshaping -- no filter, delay or
 //      reverb -- so each instrument's own papery/crunchy character stays
 //      clearly audible instead of getting buried.
 //   2. A short groove afterward that cycles through ten of those
@@ -38,8 +38,8 @@ const ALL_INSTRUMENTS = [
   [22, 'Tuned Bamboo Chimes'],
 ];
 
-const shakers = new stk.StkShakers(0);
-const cubic = new stk.StkCubic();
+const shakers = new stk.Shakers(0);
+const cubic = new stk.Cubic();
 
 /* ---------- section 1: showcase every instrument, lightly touched ---------- */
 // A continuous "shake" gesture (noteOn retriggered every 50ms, like
@@ -90,7 +90,7 @@ const showcaseL = new Float64Array(showcaseFrames);
 
 /* ---------- section 2: a short groove, tamed effects chain ---------- */
 
-/* -- distortion: StkCubic, still crunchy but far less extreme than before -- */
+/* -- distortion: Cubic, still crunchy but far less extreme than before -- */
 cubic.setA1(0.3);
 cubic.setA2(0.0);
 cubic.setA3(0.55);
@@ -113,20 +113,20 @@ function lowpassCoeffs(freq, q) {
   return [[b0, b1, b2], [1, a1, a2]];
 }
 const FILTER_Q = 1.1;
-let iir = new stk.StkIir(...lowpassCoeffs(4500, FILTER_Q));
+let iir = new stk.Iir(...lowpassCoeffs(4500, FILTER_Q));
 const BLOCK = 512;
 
 /* -- ping-pong delay: much lower feedback than before, so repeats fade -- */
 /* -- out cleanly instead of building into a wash.                     -- */
 const bpm = 96;
 const eighthNoteSamples = Math.round((60 / bpm / 2) * SR);
-const delayA = new stk.StkDelayL(eighthNoteSamples, eighthNoteSamples + 8);
-const delayB = new stk.StkDelayL(eighthNoteSamples, eighthNoteSamples + 8);
+const delayA = new stk.DelayL(eighthNoteSamples, eighthNoteSamples + 8);
+const delayB = new stk.DelayL(eighthNoteSamples, eighthNoteSamples + 8);
 const PING_PONG_FEEDBACK = 0.28;
 let lastA = 0, lastB = 0;
 
 /* -- reverb: subtler mix, just a touch of space -- */
-const verb = new stk.StkFreeVerb();
+const verb = new stk.FreeVerb();
 verb.setEffectMix(0.18);
 
 const MARACA = 0, CABASA = 1, SEKERE = 2, TAMBOURINE = 3, SLEIGHBELLS = 4, BAMBOO = 5, COKECAN = 7, STICKS = 8, GUIRO = 19,
@@ -162,7 +162,7 @@ const grooveR = new Float64Array(grooveFrames);
       // Slow, bright cutoff sweep: 3200 Hz .. 5800 Hz over a ~5s cycle.
       const t = n / SR;
       const cutoff = 4500 + 1300 * Math.sin((2 * Math.PI * t) / 5);
-      iir = new stk.StkIir(...lowpassCoeffs(cutoff, FILTER_Q));
+      iir = new stk.Iir(...lowpassCoeffs(cutoff, FILTER_Q));
     }
 
     let x = shakers.tick();

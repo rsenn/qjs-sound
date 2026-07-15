@@ -1,4 +1,4 @@
-// twint2-test.js — the same Twin-T drum design as StkTwinTDrum
+// twint2-test.js — the same Twin-T drum design as TwinTDrum
 // (analog-drums.hpp), rebuilt from scratch using only LabSound's WebAudio-
 // style node graph, entirely in JS. No native C++ class involved: this is
 // a genuine port of the DSP idea, not a wrapper around the STK one.
@@ -122,7 +122,7 @@ class TwinT2 {
     // lookup resolution and disappear into quantization noise instead of
     // ringing down audibly. excitationGain() cancels that out so strike()
     // peaks at roughly `amplitude` regardless of tuning/decay, matching
-    // the same fix applied to StkTwinTDrum's TwoPole resonator in
+    // the same fix applied to TwinTDrum's TwoPole resonator in
     // analog-drums.hpp (there via normalize=false + sin(w0) scaling; here
     // via a compensating gain stage, since BiquadFilterNode doesn't expose
     // an unnormalized mode).

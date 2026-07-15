@@ -1,4 +1,4 @@
-// Demo for StkTr909Percussion: a noise/metallic-core percussion designer
+// Demo for Tr909Percussion: a noise/metallic-core percussion designer
 // covering snares, claps, hihats and cymbals.
 //
 // Real analog drum machines build these four voices out of the same few
@@ -62,7 +62,7 @@ function toFloat64(frames) {
 }
 
 function renderHit(configure, duration, velocity = 1.0) {
-  const p = new stk.StkTr909Percussion();
+  const p = new stk.Tr909Percussion();
   configure(p);
   return toFloat64(p.render(Math.round(duration * SR), velocity));
 }

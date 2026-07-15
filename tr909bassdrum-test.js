@@ -1,10 +1,10 @@
-// Demo for StkTr909BassDrum: a bass drum designer, 909-core with mBase-11-
+// Demo for Tr909BassDrum: a bass drum designer, 909-core with mBase-11-
 // style reach.
 //
 // Real analog kick circuits (TR-909 included) are not an ADSR patch: a
 // sine (or triangle) core VCO gets a fast pitch-drop envelope for the
 // "punch" and a single decay stage for amplitude -- no attack/sustain/
-// release stages, no multi-segment shaping. StkTr909BassDrum models
+// release stages, no multi-segment shaping. Tr909BassDrum models
 // exactly that: setPitchEnvelope()/setAmpEnvelope() are two independent
 // decay-only envelopes, and the classic thump comes from the pitch
 // settling much faster than the amplitude. On top of the classic circuit
@@ -71,7 +71,7 @@ function toFloat64(frames) {
 }
 
 function renderHit(configure, duration, velocity = 1.0) {
-  const bd = new stk.StkTr909BassDrum();
+  const bd = new stk.Tr909BassDrum();
   configure(bd);
   return toFloat64(bd.render(Math.round(duration * SR), velocity));
 }
