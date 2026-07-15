@@ -7,8 +7,33 @@
 static JSClassID js_pastream_class_id;
 static JSValue pastream_proto, pastream_ctor;
 
-static int
-js_pastreamcallback(const void* in, void* out, unsigned long nframes, const PaStreamCallbackTimeInfo* ti, PaStreamCallbackFlags sf, void* u) {
+/* Opened with a NULL stream callback (blocking I/O) so JS is only ever
+ * invoked from the interpreter thread, driving the stream via read()/
+ * write() -- calling back into QuickJS from PortAudio's own realtime
+ * audio thread would not be thread-safe. */
+typedef struct {
+  PaStream* stream;
+  int32_t numInputChannels;
+  int32_t numOutputChannels;
+  PaSampleFormat sampleFormat;
+} JSPaStream;
+
+static uint8_t*
+js_pastream_get_buffer(JSContext* ctx, JSValueConst val, size_t* plen) {
+  size_t byte_offset = 0, byte_length = 0, bytes_per_element = 0;
+  JSValue buf = JS_GetTypedArrayBuffer(ctx, val, &byte_offset, &byte_length, &bytes_per_element);
+
+  if(!JS_IsException(buf)) {
+    size_t ab_size = 0;
+    uint8_t* ab_data = JS_GetArrayBuffer(ctx, &ab_size, buf);
+    JS_FreeValue(ctx, buf);
+    if(!ab_data)
+      return NULL;
+    *plen = byte_length;
+    return ab_data + byte_offset;
+  }
+
+  return JS_GetArrayBuffer(ctx, plen, val);
 }
 
 enum {
@@ -64,12 +89,12 @@ static JSValue
 js_pastream_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
   JSValue proto, obj = JS_UNDEFINED;
   PaStream* st = NULL;
+  JSPaStream* w = NULL;
 
-  int32_t numInputChannels, numOutputChannels;
-  uint32_t sampleFormat;
-  double sampleRate;
-  uint32_t framesPerBuffer;
-  void* userData = NULL;
+  int32_t numInputChannels = 0, numOutputChannels = 2;
+  uint32_t sampleFormat = paFloat32;
+  double sampleRate = 44100;
+  uint32_t framesPerBuffer = paFramesPerBufferUnspecified;
 
   if(argc > 0)
     JS_ToInt32(ctx, &numInputChannels, argv[0]);
@@ -82,14 +107,22 @@ js_pastream_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVal
   if(argc > 4)
     JS_ToUint32(ctx, &framesPerBuffer, argv[4]);
 
-  if(argc > 5) {}
+  PaError r = Pa_OpenDefaultStream(&st, numInputChannels, numOutputChannels, sampleFormat, sampleRate, framesPerBuffer, NULL, NULL);
 
-  PaError r = Pa_OpenDefaultStream(&st, numInputChannels, numOutputChannels, sampleFormat, sampleRate, framesPerBuffer, js_pastreamcallback, userData);
-
-  if(r < 0) {
+  if(r != paNoError) {
     JS_ThrowInternalError(ctx, "PortAudio error: %s", Pa_GetErrorText(r));
     goto fail;
   }
+
+  if(!(w = js_mallocz(ctx, sizeof(JSPaStream)))) {
+    Pa_CloseStream(st);
+    goto fail;
+  }
+
+  w->stream = st;
+  w->numInputChannels = numInputChannels;
+  w->numOutputChannels = numOutputChannels;
+  w->sampleFormat = sampleFormat;
 
   /* using new_target to get the prototype is necessary when the class is
    * extended. */
@@ -108,10 +141,14 @@ js_pastream_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVal
   if(JS_IsException(obj))
     goto fail;
 
-  JS_SetOpaque(obj, st);
+  JS_SetOpaque(obj, w);
   return obj;
 
 fail:
+  if(w) {
+    Pa_CloseStream(w->stream);
+    js_free(ctx, w);
+  }
   JS_FreeValue(ctx, obj);
   return JS_EXCEPTION;
 }
@@ -131,11 +168,14 @@ enum {
 
 static JSValue
 js_pastream_get(JSContext* ctx, JSValueConst this_val, int magic) {
+  JSPaStream* w;
   PaStream* st;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(st = JS_GetOpaque2(ctx, this_val, js_pastream_class_id)))
+  if(!(w = JS_GetOpaque2(ctx, this_val, js_pastream_class_id)))
     return JS_EXCEPTION;
+
+  st = w->stream;
 
   switch(magic) {
     case PROP_ACTIVE: {
@@ -215,10 +255,10 @@ js_pastream_get(JSContext* ctx, JSValueConst this_val, int magic) {
 
 static JSValue
 js_pastream_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
-  PaStream* st;
+  JSPaStream* w;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(st = JS_GetOpaque2(ctx, this_val, js_pastream_class_id)))
+  if(!(w = JS_GetOpaque2(ctx, this_val, js_pastream_class_id)))
     return JS_EXCEPTION;
 
   switch(magic) {}
@@ -228,6 +268,7 @@ js_pastream_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int m
 
 enum {
   METHOD_READ = 0,
+  METHOD_WRITE,
   METHOD_START,
   METHOD_STOP,
   METHOD_ABORT,
@@ -236,11 +277,14 @@ enum {
 
 static JSValue
 js_pastream_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+  JSPaStream* w;
   PaStream* st;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(st = JS_GetOpaque2(ctx, this_val, js_pastream_class_id)))
+  if(!(w = JS_GetOpaque2(ctx, this_val, js_pastream_class_id)))
     return JS_EXCEPTION;
+
+  st = w->stream;
 
   switch(magic) {
     case METHOD_READ: {
@@ -248,12 +292,40 @@ js_pastream_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
       uint8_t* ptr;
       uint32_t frames = 0;
 
-      if(!(ptr = JS_GetArrayBuffer(ctx, &len, argv[0])))
-        return JS_ThrowTypeError(ctx, "argument 1 must be an ArrayBuffer");
+      if(argc < 1 || !(ptr = js_pastream_get_buffer(ctx, argv[0], &len)))
+        return JS_ThrowTypeError(ctx, "argument 1 must be an ArrayBuffer or TypedArray");
 
-      if(argc > 1)
+      if(argc > 1) {
         JS_ToUint32(ctx, &frames, argv[1]);
+      } else {
+        int32_t channels = w->numInputChannels > 0 ? w->numInputChannels : 1;
+        PaError sampleSize = Pa_GetSampleSize(w->sampleFormat);
+        if(sampleSize > 0)
+          frames = len / (channels * sampleSize);
+      }
 
+      ret = js_portaudio_error(ctx, Pa_ReadStream(st, ptr, frames));
+      break;
+    }
+
+    case METHOD_WRITE: {
+      size_t len;
+      uint8_t* ptr;
+      uint32_t frames = 0;
+
+      if(argc < 1 || !(ptr = js_pastream_get_buffer(ctx, argv[0], &len)))
+        return JS_ThrowTypeError(ctx, "argument 1 must be an ArrayBuffer or TypedArray");
+
+      if(argc > 1) {
+        JS_ToUint32(ctx, &frames, argv[1]);
+      } else {
+        int32_t channels = w->numOutputChannels > 0 ? w->numOutputChannels : 1;
+        PaError sampleSize = Pa_GetSampleSize(w->sampleFormat);
+        if(sampleSize > 0)
+          frames = len / (channels * sampleSize);
+      }
+
+      ret = js_portaudio_error(ctx, Pa_WriteStream(st, ptr, frames));
       break;
     }
 
@@ -271,6 +343,7 @@ js_pastream_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
     }
     case METHOD_CLOSE: {
       ret = JS_NewInt32(ctx, Pa_CloseStream(st));
+      w->stream = NULL;
       break;
     }
   }
@@ -280,10 +353,12 @@ js_pastream_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
 
 static void
 js_pastream_finalizer(JSRuntime* rt, JSValue val) {
-  PaStream* st;
+  JSPaStream* w;
 
-  if((st = JS_GetOpaque(val, js_pastream_class_id))) {
-    js_free_rt(rt, st);
+  if((w = JS_GetOpaque(val, js_pastream_class_id))) {
+    if(w->stream)
+      Pa_CloseStream(w->stream);
+    js_free_rt(rt, w);
   }
 }
 
@@ -304,6 +379,8 @@ static const JSCFunctionListEntry js_pastream_funcs[] = {
 #ifdef HAVE_GETSTREAMHOSTAPITYPE
     JS_CGETSET_MAGIC_DEF("hostApiType", js_pastream_get, 0, PROP_HOSTAPITYPE),
 #endif
+    JS_CFUNC_MAGIC_DEF("read", 1, js_pastream_method, METHOD_READ),
+    JS_CFUNC_MAGIC_DEF("write", 1, js_pastream_method, METHOD_WRITE),
     JS_CFUNC_MAGIC_DEF("start", 0, js_pastream_method, METHOD_START),
     JS_CFUNC_MAGIC_DEF("stop", 0, js_pastream_method, METHOD_STOP),
     JS_CFUNC_MAGIC_DEF("abort", 0, js_pastream_method, METHOD_ABORT),
