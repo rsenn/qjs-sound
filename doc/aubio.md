@@ -37,7 +37,12 @@ returned array is always a fresh copy.
 
 `process()` returns a length-3 `Float32Array`: `[midiNote, velocity,
 midiNoteOff]`. `midiNote` is `0` when no note was found; `midiNoteOff` is
-the note to turn off, or `-1` if none.
+the note to turn off, or `0` if none (matching aubio's own
+`examples/aubionotes.c`, which checks `obuf->data[2] != 0`). Note that on
+the very first note-on of a stream, aubio itself emits a spurious
+`midiNoteOff` of `-1` alongside it — an artifact of its internal "no
+current note" sentinel, not a real event; the `!== 0` check still handles
+it the same way aubio's own reference tool does.
 
 | Member | Description |
 |---|---|
@@ -53,7 +58,7 @@ const notes = new AubioNotes('default', 1024, 256, 44100);
 const hop = new Float32Array(256); // ... fill with samples ...
 const [midiNote, velocity, midiNoteOff] = notes.process(hop);
 if (midiNote) console.log(`note on ${midiNote} vel ${velocity}`);
-if (midiNoteOff >= 0) console.log(`note off ${midiNoteOff}`);
+if (midiNoteOff !== 0) console.log(`note off ${midiNoteOff}`);
 ```
 
 ## `AubioOnset` — onset detection (`onset/onset.h`)
