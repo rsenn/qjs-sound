@@ -1,6 +1,6 @@
 // twint2-test.js — the same Twin-T drum design as TwinTDrum
-// (analog-drums.hpp), rebuilt from scratch using only LabSound's WebAudio-
-// style node graph, entirely in JS. No native C++ class involved: this is
+// (analog-drums.hpp), rebuilt from scratch using only WebAudio's
+// node graph, entirely in JS. No native C++ class involved: this is
 // a genuine port of the DSP idea, not a wrapper around the STK one.
 //
 // STK's TwinTDrum models a Twin-T RC notch circuit wired into an inverting
@@ -24,9 +24,15 @@
 //                        down to it -- the classic analog-tom "boing".
 //   - setSecondary()  -> a second, detuned BiquadFilterNode fed the same
 //                        impulse, mixed in through a GainNode.
-//   - setClick()      -> a NoiseNode burst, gated by a fast GainNode decay,
-//                        summed in before the drive stage (matching STK,
-//                        where the click is added before analog_drive()).
+//   - setClick()      -> a short pre-rendered white-noise AudioBuffer
+//                        (played through an AudioBufferSourceNode), gated
+//                        by a fast GainNode decay, summed in before the
+//                        drive stage (matching STK, where the click is
+//                        added before analog_drive()). A buffer instead of
+//                        LabSound's NoiseNode because NoiseNode has no
+//                        WebAudio-spec equivalent -- real browsers only
+//                        get noise from a manually-filled buffer or an
+//                        AudioWorklet.
 //   - setDrive()       -> a WaveShaperNode built from the exact same
 //                        tanh/cubic/fold formula as analog_drive() in
 //                        analog-drums.hpp, ported line-for-line to JS.
@@ -35,8 +41,14 @@
 // long-release, distinct-pitch-drop-tuned) kit, so the two files render a
 // direct A/B comparison of the same instrument design on two different
 // synthesis engines.
+//
+// Isomorphic: both qjs (via LabSound's spec-shaped OfflineAudioContext) and
+// a real browser render offline through the exact same TwinT2 class and
+// node graph and OfflineAudioContext constructor call; only what happens to
+// the rendered buffer differs -- qjs writes a WAV file, the browser plays
+// it back through a live AudioContext (no 'labsound' module there).
 
-import { AudioContext, BiquadFilterNode, GainNode, WaveShaperNode, NoiseNode, AudioBufferSourceNode, AudioBuffer } from 'labsound';
+const isBrowser = typeof globalThis.window !== 'undefined';
 
 const SR = 44100;
 
@@ -94,10 +106,11 @@ function excitationGain(freq, q, sampleRate) {
   return (q * sampleRate) / (2 * Math.PI * freq);
 }
 
-/* ---------- TwinT2: the Twin-T drum, built from LabSound nodes ---------- */
+/* ---------- TwinT2: the Twin-T drum, built from WebAudio nodes ---------- */
 class TwinT2 {
-  constructor(ctx, frequency = 200) {
+  constructor(ctx, env, frequency = 200) {
     this.ctx = ctx;
+    this.env = env;
     this.frequency = frequency;
     this.decay = 0.25;
     this.driveAmount = 0.0;
@@ -108,9 +121,9 @@ class TwinT2 {
     this.pitchDropSemitones = 0;
     this.pitchDropTime = 0.03;
 
-    this.resonator = new BiquadFilterNode(ctx, { type: 'bandpass', frequency, Q: 1 });
-    this.secondary = new BiquadFilterNode(ctx, { type: 'bandpass', frequency: frequency * this.secondaryRatio, Q: 1 });
-    this.secondaryGain = new GainNode(ctx, { gain: 0 });
+    this.resonator = new env.BiquadFilterNode(ctx, { type: 'bandpass', frequency, Q: 1 });
+    this.secondary = new env.BiquadFilterNode(ctx, { type: 'bandpass', frequency: frequency * this.secondaryRatio, Q: 1 });
+    this.secondaryGain = new env.GainNode(ctx, { gain: 0 });
     // Separate excitation-gain stages for each resonator (not one shared
     // gain): a "constant peak gain" bandpass biquad -- like this one, and
     // like the WebAudio spec's bandpass generally -- normalizes for a
@@ -126,10 +139,10 @@ class TwinT2 {
     // analog-drums.hpp (there via normalize=false + sin(w0) scaling; here
     // via a compensating gain stage, since BiquadFilterNode doesn't expose
     // an unnormalized mode).
-    this.strikeGain = new GainNode(ctx, { gain: 1 });
-    this.secondaryStrikeGain = new GainNode(ctx, { gain: 0 });
-    this.shaper = new WaveShaperNode(ctx, { curve: buildDriveCurve(0, 'tanh') });
-    this.output = new GainNode(ctx, { gain: 1 });
+    this.strikeGain = new env.GainNode(ctx, { gain: 1 });
+    this.secondaryStrikeGain = new env.GainNode(ctx, { gain: 0 });
+    this.shaper = new env.WaveShaperNode(ctx, { curve: buildDriveCurve(0, 'tanh') });
+    this.output = new env.GainNode(ctx, { gain: 1 });
 
     this.strikeGain.connect(this.resonator);
     this.resonator.connect(this.shaper);
@@ -142,8 +155,18 @@ class TwinT2 {
     // single-use source (like every AudioScheduledSourceNode), so each
     // strike() still needs a fresh source node -- but they can all point
     // at this same buffer.
-    this._impulse = new AudioBuffer({ numberOfChannels: 1, length: 1, sampleRate: ctx.sampleRate });
+    this._impulse = new env.AudioBuffer({ numberOfChannels: 1, length: 1, sampleRate: ctx.sampleRate });
     this._impulse.copyToChannel(new Float32Array([1.0]), 0);
+
+    // A shared white-noise buffer for setClick()'s burst, long enough to
+    // cover the fixed 0.15s click tail used in strike() below. Pre-filled
+    // once here rather than regenerated per strike.
+    const noiseLength = Math.ceil(ctx.sampleRate * 0.2);
+    const noiseData = new Float32Array(noiseLength);
+    for(let i = 0; i < noiseLength; i++)
+      noiseData[i] = Math.random() * 2 - 1;
+    this._noise = new env.AudioBuffer({ numberOfChannels: 1, length: noiseLength, sampleRate: ctx.sampleRate });
+    this._noise.copyToChannel(noiseData, 0);
   }
 
   setDecay(t60) { this.decay = t60; return this; }
@@ -186,7 +209,7 @@ class TwinT2 {
       this.resonator.frequency.setValueAtTime(strikeFreq, t);
     }
 
-    const src = new AudioBufferSourceNode(this.ctx, { buffer: this._impulse });
+    const src = new this.env.AudioBufferSourceNode(this.ctx, { buffer: this._impulse });
     src.connect(this.strikeGain);
     this.strikeGain.gain.setValueAtTime(amplitude * excitationGain(strikeFreq, q, sr), t);
 
@@ -206,8 +229,8 @@ class TwinT2 {
     src.start(t);
 
     if(this.clickAmount > 0) {
-      const noise = new NoiseNode(this.ctx, { type: 'white' });
-      const clickGain = new GainNode(this.ctx, { gain: 0 });
+      const noise = new this.env.AudioBufferSourceNode(this.ctx, { buffer: this._noise });
+      const clickGain = new this.env.GainNode(this.ctx, { gain: 0 });
       noise.connect(clickGain);
       clickGain.connect(this.shaper);
       clickGain.gain.setValueAtTime(this.clickAmount * amplitude, t);
@@ -221,6 +244,8 @@ class TwinT2 {
 /* ---------- build the kit: same tuning as twintdrum-test.js ---------- */
 
 async function main() {
+  const env = isBrowser ? globalThis : await import('labsound');
+
   const bpm = 100;
   const step = 60 / bpm / 4; // 16th notes
   const totalSteps = 32;
@@ -243,25 +268,25 @@ async function main() {
   const longestTail = Math.max(lowTom.tailSeconds, midTom.tailSeconds, hiTom.tailSeconds, cowbell.tailSeconds, woodblock.tailSeconds);
   const totalFrames = Math.ceil((LEAD_IN + totalSteps * step + longestTail) * SR);
 
-  const ctx = new AudioContext(true, true, { numberOfChannels: 1, length: totalFrames, sampleRate: SR });
+  const ctx = new env.OfflineAudioContext({ numberOfChannels: 1, length: totalFrames, sampleRate: SR });
 
-  lowTom.voice = new TwinT2(ctx, 100);
+  lowTom.voice = new TwinT2(ctx, env, 100);
   lowTom.voice.setDecay(0.9).setDrive(0.12, 'tanh').setPitchDrop(8, 0.09).setClick(0.08);
   lowTom.voice.connect(ctx.destination);
 
-  midTom.voice = new TwinT2(ctx, 165);
+  midTom.voice = new TwinT2(ctx, env, 165);
   midTom.voice.setDecay(0.7).setDrive(0.16, 'tanh').setPitchDrop(9, 0.075).setClick(0.1);
   midTom.voice.connect(ctx.destination);
 
-  hiTom.voice = new TwinT2(ctx, 240);
+  hiTom.voice = new TwinT2(ctx, env, 240);
   hiTom.voice.setDecay(0.55).setDrive(0.2, 'tanh').setPitchDrop(10, 0.06).setClick(0.12);
   hiTom.voice.connect(ctx.destination);
 
-  cowbell.voice = new TwinT2(ctx, 560);
+  cowbell.voice = new TwinT2(ctx, env, 560);
   cowbell.voice.setDecay(0.4).setDrive(0.6, 'tanh').setSecondary(1.48, 0.8).setClick(0.4);
   cowbell.voice.connect(ctx.destination);
 
-  woodblock.voice = new TwinT2(ctx, 900);
+  woodblock.voice = new TwinT2(ctx, env, 900);
   woodblock.voice.setDecay(0.08).setSecondary(2.0, 0.5).setClick(0.5);
   woodblock.voice.connect(ctx.destination);
 
@@ -306,8 +331,17 @@ async function main() {
     rendered.copyToChannel(data, 0);
   }
 
-  rendered.writeToWav('twint2-test.wav');
-  console.log(`Rendered ${(totalFrames / SR).toFixed(2)}s -> twint2-test.wav (peak was ${peak.toFixed(3)})`);
+  if(isBrowser) {
+    const playCtx = new env.AudioContext();
+    const src = new env.AudioBufferSourceNode(playCtx, { buffer: rendered });
+    src.connect(playCtx.destination);
+    src.start();
+    globalThis.__twint2_keepalive = { playCtx, src };
+    console.log(`Rendered ${(totalFrames / SR).toFixed(2)}s, playing back (peak was ${peak.toFixed(3)})`);
+  } else {
+    rendered.writeToWav('twint2-test.wav');
+    console.log(`Rendered ${(totalFrames / SR).toFixed(2)}s -> twint2-test.wav (peak was ${peak.toFixed(3)})`);
+  }
 }
 
 main();

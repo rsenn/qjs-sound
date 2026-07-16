@@ -16,7 +16,7 @@
 //   <prefix>.notes.txt  one line per note on/off event: time_s  event  midiNote  velocity
 
 import * as std from 'std';
-import { AudioContext } from 'labsound';
+import { OfflineAudioContext } from 'labsound';
 import { AubioNotes, AubioOnset, AubioPitch } from 'aubio';
 
 const BUF_SIZE = 1024;
@@ -34,7 +34,9 @@ function main() {
   }
   const prefix = scriptArgs[2] || baseName(inPath);
 
-  const ctx = new AudioContext(true /* offline, no playback device needed */);
+  // Only createBufferFromFile() is used below (no rendering), so the
+  // required numberOfChannels/length/sampleRate are just placeholders.
+  const ctx = new OfflineAudioContext(1, 1, 44100);
   const buffer = ctx.createBufferFromFile(inPath, true /* mixToMono */);
   const sampleRate = buffer.sampleRate;
   const samples = buffer.getChannelData(0);
