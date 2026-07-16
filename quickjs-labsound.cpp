@@ -55,6 +55,7 @@ static JSValue audionode_proto;
 static JSValue audioscheduledsourcenode_proto;
 
 static JSValue audiocontext_proto, audiocontext_ctor;
+static JSValue offlineaudiocontext_proto, offlineaudiocontext_ctor;
 static JSValue audiodestinationnode_proto, audiodestinationnode_ctor;
 static JSValue audiolistener_proto, audiolistener_ctor;
 static JSValue audiodevice_proto, audiodevice_ctor;
@@ -347,60 +348,43 @@ get_default_device_config() {
   return {inputConfig, outputConfig};
 }
 
-/* ---------- AudioContext ---------- */
+/* ---------- AudioContext / OfflineAudioContext ---------- */
+//
+// Per spec these are two separate constructors sharing a common
+// BaseAudioContext interface -- AudioContext(contextOptions = {}) always
+// realtime, OfflineAudioContext(numberOfChannels, length, sampleRate) (or
+// the equivalent contextOptions dictionary) always offline with a fixed
+// render length. Both produce objects backed by the same lab::AudioContext
+// and js_audiocontext_class_id (an implementation detail: nothing JS-visible
+// depends on them being different native classes), but each gets its own
+// prototype so the exposed members and [Symbol.toStringTag] match spec --
+// e.g. only OfflineAudioContext instances have startRendering()/length.
 
 static JSValue
 js_audiocontext_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
   JSValue proto, obj = JS_UNDEFINED;
-  bool isOffline = false, autoDispatchEvents = true;
 
-  if(argc > 0)
-    isOffline = JS_ToBool(ctx, argv[0]);
-  if(argc > 1)
-    autoDispatchEvents = JS_ToBool(ctx, argv[1]);
-
-  auto ac = std::make_shared<lab::AudioContext>(isOffline, autoDispatchEvents);
-
-  // OfflineAudioContext, layered onto the same isOffline-flag constructor:
-  // new AudioContext(true, autoDispatchEvents, {numberOfChannels, length, sampleRate}).
-  int32_t offlineLength = 0;
-  if(!isOffline) {
-    auto cfg = get_default_device_config();
-    auto device = std::make_shared<lab::AudioDevice_RtAudio>(cfg.first, cfg.second);
-    auto dest = std::make_shared<lab::AudioDestinationNode>(*ac, device);
-    device->setDestinationNode(dest);
-    ac->setDestinationNode(dest);
-  } else {
-    int32_t numberOfChannels = 2;
-    double sampleRate = 44100;
-    if(argc > 2 && JS_IsObject(argv[2])) {
-      JSValue v = JS_GetPropertyStr(ctx, argv[2], "numberOfChannels");
-      if(JS_IsNumber(v))
-        JS_ToInt32(ctx, &numberOfChannels, v);
-      JS_FreeValue(ctx, v);
-
-      v = JS_GetPropertyStr(ctx, argv[2], "length");
-      if(JS_IsNumber(v))
-        JS_ToInt32(ctx, &offlineLength, v);
-      JS_FreeValue(ctx, v);
-
-      v = JS_GetPropertyStr(ctx, argv[2], "sampleRate");
-      if(JS_IsNumber(v))
-        JS_ToFloat64(ctx, &sampleRate, v);
-      JS_FreeValue(ctx, v);
-    }
-
-    lab::AudioStreamConfig outCfg;
-    outCfg.device_index = -1;
-    outCfg.desired_channels = static_cast<uint32_t>(std::max(1, numberOfChannels));
-    outCfg.desired_samplerate = static_cast<float>(sampleRate);
-    lab::AudioStreamConfig inCfg;
-
-    auto device = std::make_shared<lab::AudioDevice_Null>(inCfg, outCfg);
-    auto dest = std::make_shared<lab::AudioDestinationNode>(*ac, device);
-    device->setDestinationNode(dest);
-    ac->setDestinationNode(dest);
+  // contextOptions.sampleRate is honored as a best-effort request to the
+  // underlying device; latencyHint/sinkId are accepted (for API
+  // compatibility with browser code) but not implemented by this fixed
+  // default-RtAudio-device backend.
+  double sampleRate = 0;
+  if(argc > 0 && JS_IsObject(argv[0])) {
+    JSValue v = JS_GetPropertyStr(ctx, argv[0], "sampleRate");
+    if(JS_IsNumber(v))
+      JS_ToFloat64(ctx, &sampleRate, v);
+    JS_FreeValue(ctx, v);
   }
+
+  auto ac = std::make_shared<lab::AudioContext>(/* isOffline */ false, /* autoDispatchEvents */ true);
+
+  auto cfg = get_default_device_config();
+  if(sampleRate > 0)
+    cfg.second.desired_samplerate = static_cast<float>(sampleRate);
+  auto device = std::make_shared<lab::AudioDevice_RtAudio>(cfg.first, cfg.second);
+  auto dest = std::make_shared<lab::AudioDestinationNode>(*ac, device);
+  device->setDestinationNode(dest);
+  ac->setDestinationNode(dest);
 
   auto* sac = static_cast<AudioContextPtr*>(js_mallocz(ctx, sizeof(AudioContextPtr)));
   new(sac) AudioContextPtr(ac);
@@ -417,8 +401,77 @@ js_audiocontext_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
     goto fail;
 
   JS_SetOpaque(obj, sac);
-  if(isOffline)
-    JS_SetPropertyStr(ctx, obj, "__offlineLength", JS_NewInt32(ctx, offlineLength));
+  return obj;
+
+fail:
+  sac->~AudioContextPtr();
+  js_free(ctx, sac);
+  JS_FreeValue(ctx, obj);
+  return JS_EXCEPTION;
+}
+
+static JSValue
+js_offlineaudiocontext_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+  JSValue proto, obj = JS_UNDEFINED;
+
+  int32_t numberOfChannels = 0, length = 0;
+  double sampleRate = 0;
+
+  if(argc > 0 && JS_IsObject(argv[0])) {
+    // new OfflineAudioContext({numberOfChannels, length, sampleRate})
+    JSValue v = JS_GetPropertyStr(ctx, argv[0], "numberOfChannels");
+    JS_ToInt32(ctx, &numberOfChannels, v);
+    JS_FreeValue(ctx, v);
+
+    v = JS_GetPropertyStr(ctx, argv[0], "length");
+    JS_ToInt32(ctx, &length, v);
+    JS_FreeValue(ctx, v);
+
+    v = JS_GetPropertyStr(ctx, argv[0], "sampleRate");
+    JS_ToFloat64(ctx, &sampleRate, v);
+    JS_FreeValue(ctx, v);
+  } else {
+    // new OfflineAudioContext(numberOfChannels, length, sampleRate)
+    if(argc > 0)
+      JS_ToInt32(ctx, &numberOfChannels, argv[0]);
+    if(argc > 1)
+      JS_ToInt32(ctx, &length, argv[1]);
+    if(argc > 2)
+      JS_ToFloat64(ctx, &sampleRate, argv[2]);
+  }
+
+  if(numberOfChannels <= 0 || length <= 0 || sampleRate <= 0)
+    return JS_ThrowTypeError(ctx, "OfflineAudioContext requires (numberOfChannels, length, sampleRate), all positive");
+
+  auto ac = std::make_shared<lab::AudioContext>(/* isOffline */ true, /* autoDispatchEvents */ true);
+
+  lab::AudioStreamConfig outCfg;
+  outCfg.device_index = -1;
+  outCfg.desired_channels = static_cast<uint32_t>(numberOfChannels);
+  outCfg.desired_samplerate = static_cast<float>(sampleRate);
+  lab::AudioStreamConfig inCfg;
+
+  auto device = std::make_shared<lab::AudioDevice_Null>(inCfg, outCfg);
+  auto dest = std::make_shared<lab::AudioDestinationNode>(*ac, device);
+  device->setDestinationNode(dest);
+  ac->setDestinationNode(dest);
+
+  auto* sac = static_cast<AudioContextPtr*>(js_mallocz(ctx, sizeof(AudioContextPtr)));
+  new(sac) AudioContextPtr(ac);
+
+  proto = JS_GetPropertyStr(ctx, new_target, "prototype");
+  if(JS_IsException(proto))
+    goto fail;
+  if(!JS_IsObject(proto))
+    proto = JS_DupValue(ctx, offlineaudiocontext_proto);
+
+  obj = JS_NewObjectProtoClass(ctx, proto, js_audiocontext_class_id);
+  JS_FreeValue(ctx, proto);
+  if(JS_IsException(obj))
+    goto fail;
+
+  JS_SetOpaque(obj, sac);
+  JS_SetPropertyStr(ctx, obj, "__offlineLength", JS_NewInt32(ctx, length));
   return obj;
 
 fail:
@@ -435,6 +488,7 @@ enum {
   AC_PROP_CURRENTTIME,
   AC_PROP_CURRENTSAMPLEFRAME,
   AC_PROP_PREDICTED_CURRENTTIME,
+  AC_PROP_LENGTH,
 };
 
 static JSValue
@@ -462,6 +516,13 @@ js_audiocontext_get(JSContext* ctx, JSValueConst this_val, int magic) {
     case AC_PROP_CURRENTTIME: return JS_NewFloat64(ctx, (*sac)->currentTime());
     case AC_PROP_CURRENTSAMPLEFRAME: return JS_NewInt64(ctx, (*sac)->currentSampleFrame());
     case AC_PROP_PREDICTED_CURRENTTIME: return JS_NewFloat64(ctx, (*sac)->predictedCurrentTime());
+    case AC_PROP_LENGTH: {
+      JSValue lenv = JS_GetPropertyStr(ctx, this_val, "__offlineLength");
+      int32_t length = 0;
+      JS_ToInt32(ctx, &length, lenv);
+      JS_FreeValue(ctx, lenv);
+      return JS_NewInt32(ctx, length);
+    }
   }
   return JS_UNDEFINED;
 }
@@ -615,7 +676,9 @@ static JSClassDef js_audiocontext_class = {
     .finalizer = js_audiocontext_finalizer,
 };
 
-static const JSCFunctionListEntry js_audiocontext_funcs[] = {
+// Shared BaseAudioContext-equivalent members, applied to both
+// audiocontext_proto and offlineaudiocontext_proto.
+static const JSCFunctionListEntry js_baseaudiocontext_funcs[] = {
     JS_CGETSET_MAGIC_DEF("sampleRate", js_audiocontext_get, 0, AC_PROP_SAMPLERATE),
     JS_CGETSET_MAGIC_DEF("destination", js_audiocontext_get, 0, AC_PROP_DESTINATION),
     JS_CGETSET_MAGIC_DEF("destinationNode", js_audiocontext_get, 0, AC_PROP_DESTINATION),
@@ -626,8 +689,19 @@ static const JSCFunctionListEntry js_audiocontext_funcs[] = {
     JS_CFUNC_DEF("connect", 2, js_audiocontext_connect),
     JS_CFUNC_DEF("decodeAudioData", 1, js_audiocontext_decode_audio_data),
     JS_CFUNC_DEF("createBufferFromFile", 1, js_audiocontext_create_buffer_from_file),
-    JS_CFUNC_DEF("startRendering", 0, js_audiocontext_start_rendering),
+};
+
+// AudioContext-only.
+static const JSCFunctionListEntry js_audiocontext_funcs[] = {
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioContext", JS_PROP_CONFIGURABLE),
+};
+
+// OfflineAudioContext-only: startRendering()/length have no meaning (and no
+// spec presence) on a realtime AudioContext.
+static const JSCFunctionListEntry js_offlineaudiocontext_funcs[] = {
+    JS_CGETSET_MAGIC_DEF("length", js_audiocontext_get, 0, AC_PROP_LENGTH),
+    JS_CFUNC_DEF("startRendering", 0, js_audiocontext_start_rendering),
+    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "OfflineAudioContext", JS_PROP_CONFIGURABLE),
 };
 
 /* ---------- shared AudioNode methods ---------- */
@@ -2638,11 +2712,23 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
 
   JS_NewClassID(&js_audiocontext_class_id);
   JS_NewClass(JS_GetRuntime(ctx), js_audiocontext_class_id, &js_audiocontext_class);
+
   audiocontext_proto = JS_NewObject(ctx);
+  JS_SetPropertyFunctionList(ctx, audiocontext_proto, js_baseaudiocontext_funcs, countof(js_baseaudiocontext_funcs));
   JS_SetPropertyFunctionList(ctx, audiocontext_proto, js_audiocontext_funcs, countof(js_audiocontext_funcs));
   JS_SetClassProto(ctx, js_audiocontext_class_id, audiocontext_proto);
-  audiocontext_ctor = JS_NewCFunction2(ctx, js_audiocontext_constructor, "AudioContext", 1, JS_CFUNC_constructor, 0);
+  audiocontext_ctor = JS_NewCFunction2(ctx, js_audiocontext_constructor, "AudioContext", 0, JS_CFUNC_constructor, 0);
   JS_SetConstructor(ctx, audiocontext_ctor, audiocontext_proto);
+
+  // OfflineAudioContext shares js_audiocontext_class_id/finalizer with
+  // AudioContext (both just wrap a lab::AudioContext), but gets its own
+  // prototype and constructor per spec -- see the comment above
+  // js_audiocontext_constructor.
+  offlineaudiocontext_proto = JS_NewObject(ctx);
+  JS_SetPropertyFunctionList(ctx, offlineaudiocontext_proto, js_baseaudiocontext_funcs, countof(js_baseaudiocontext_funcs));
+  JS_SetPropertyFunctionList(ctx, offlineaudiocontext_proto, js_offlineaudiocontext_funcs, countof(js_offlineaudiocontext_funcs));
+  offlineaudiocontext_ctor = JS_NewCFunction2(ctx, js_offlineaudiocontext_constructor, "OfflineAudioContext", 3, JS_CFUNC_constructor, 0);
+  JS_SetConstructor(ctx, offlineaudiocontext_ctor, offlineaudiocontext_proto);
 
   JS_NewClassID(&js_audiodestinationnode_class_id);
   JS_NewClass(JS_GetRuntime(ctx), js_audiodestinationnode_class_id, &js_audiodestinationnode_class);
@@ -2806,6 +2892,7 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
 
   if(m) {
     JS_SetModuleExport(ctx, m, "AudioContext", audiocontext_ctor);
+    JS_SetModuleExport(ctx, m, "OfflineAudioContext", offlineaudiocontext_ctor);
     JS_SetModuleExport(ctx, m, "AudioDestinationNode", audiodestinationnode_ctor);
     JS_SetModuleExport(ctx, m, "AudioListener", audiolistener_ctor);
     JS_SetModuleExport(ctx, m, "AudioDevice", audiodevice_ctor);
@@ -2830,6 +2917,7 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
 extern "C" VISIBLE void
 js_init_module_labsound(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "AudioContext");
+  JS_AddModuleExport(ctx, m, "OfflineAudioContext");
   JS_AddModuleExport(ctx, m, "AudioDestinationNode");
   JS_AddModuleExport(ctx, m, "AudioListener");
   JS_AddModuleExport(ctx, m, "AudioDevice");
