@@ -6,6 +6,7 @@ option(USE_LABSOUND "Use LabSound library" ON)
 option(USE_STK "Use Stk library" ON)
 option(USE_PORTAUDIO "Use PortAudio library" ON)
 option(USE_AUBIO "Use aubio library" ON)
+option(USE_PORTMIDI "Use PortMidi library" ON)
 
 include(FindPkgConfig)
 include(CheckLibraryExists)
@@ -245,3 +246,19 @@ if(USE_PORTAUDIO)
 
   target_link_libraries(qjs-portaudio PRIVATE ${pkgcfg_lib_PORTAUDIO_portaudio})
 endif(USE_PORTAUDIO)
+
+if(USE_PORTMIDI)
+  # No .pc file ships for libportmidi on Debian/Ubuntu, unlike portaudio-2.0
+  # above, so it's located directly instead of through pkg_search_module().
+  find_path(PORTMIDI_INCLUDE_DIR NAMES portmidi.h)
+  find_library(PORTMIDI_LIBRARY NAMES portmidi)
+
+  if(NOT PORTMIDI_INCLUDE_DIR OR NOT PORTMIDI_LIBRARY)
+    message(FATAL_ERROR "USE_PORTMIDI is ON but portmidi.h/libportmidi could not be found")
+  endif(NOT PORTMIDI_INCLUDE_DIR OR NOT PORTMIDI_LIBRARY)
+
+  make_module(portmidi c)
+
+  target_include_directories(qjs-portmidi PRIVATE "${PORTMIDI_INCLUDE_DIR}")
+  target_link_libraries(qjs-portmidi PRIVATE "${PORTMIDI_LIBRARY}")
+endif(USE_PORTMIDI)
