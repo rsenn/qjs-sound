@@ -1,0 +1,46 @@
+- pastream-reopen-after-close-segfault: opening a PaStream (either constructor form), closing
+  it, then opening a second PaStream in the same process segfaults inside libportaudio's ALSA
+  host API - reproduces with the plain positional constructor alone (`Pa_OpenDefaultStream`
+  twice, closing in between), so it is not specific to the new object-form constructor or to
+  this binding's C code. Confirmed present on the unmodified `quickjs-portaudio.c` too (tested
+  by stashing the doc/portaudio.md implementation changes and rebuilding). Likely an
+  ALSA/PortAudio-level issue specific to this sandboxed environment (no real audio hardware,
+  JACK not running, only dummy/pulse ALSA devices - see the ALSA/JACK connection errors printed
+  on every Pa_Initialize()), but not yet root-caused past that.
+
+    import * as pa from 'portaudio';
+    pa.Pa_Initialize();
+    new pa.PaStream(0, 2).close();
+    new pa.PaStream(0, 2); // segfaults during Pa_OpenDefaultStream
+
+- pastream-getters-no-closed-guard (quickjs-portaudio.c: js_pastream_get): unlike the methods
+  (read/write/start/stop/abort/close, which now throw "PaStream is closed"), the property
+  getters (active, stopped, time, cpuLoad, readAvailable, writeAvailable) call their
+  PortAudio function directly on `st` with no NULL check after `.close()` has set
+  `w->stream = NULL`. Several of these don't crash on a NULL PaStream* but silently return a
+  wrong value instead - e.g. `.stopped` reads back `true` after close only because
+  `Pa_IsStreamStopped(NULL)`'s negative PaError return happens to coerce truthy through
+  `JS_NewBool()`, not because the query is meaningful. `inputLatency`/`outputLatency`/
+  `sampleRate` are safe (guarded by `Pa_GetStreamInfo(st)` already returning NULL), but the
+  rest are not.
+
+    let s = new portaudio.PaStream(0, 2); s.close(); s.stopped; // true, not because it's meaningfully "stopped"
+
+- devices-hostapis-interleave-segfault: a specific call sequence involving no PaStream at all
+  reliably segfaults - iterate every `devices[i]` (or just access enough of them), then call
+  `new PaDeviceInfo(index)`, then iterate `hostApis[i]` reading `.typeName`, then access
+  `devices[...]` again afterward. Any one of these steps alone, or most pairs, are fine; only
+  this specific interleaving crashes. Root cause not identified (does not reproduce with a
+  plain devices-loop + hostApis-loop with no constructor call in between, and does not
+  reproduce if the `PaDeviceInfo`/`HostApiInfo` constructor calls are moved to run last, after
+  both collections are otherwise fully read - see the workaround note above
+  `testDeviceInfoAndHostApiInfoConstructors()` in portaudio-test.js). Likely the same general
+  class of environment/heap issue as pastream-reopen-after-close-segfault above, but confirmed
+  as a distinct trigger (no stream ever opened here).
+
+    import * as pa from 'portaudio';
+    pa.Pa_Initialize();
+    for(let i = 0; i < pa.devices.length; i++) pa.devices[i];
+    new pa.PaDeviceInfo(pa.devices.defaultOutput);
+    for(let i = 0; i < pa.hostApis.length; i++) pa.hostApis[i].typeName;
+    pa.devices[pa.devices.defaultOutput].hostApi; // segfaults here

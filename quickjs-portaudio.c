@@ -41,11 +41,81 @@ enum {
   FUNC_TERMINATE,
   FUNC_SLEEP,
   FUNC_GETSAMPLESIZE,
+  FUNC_GETVERSION,
+  FUNC_GETVERSIONTEXT,
+  FUNC_GETLASTHOSTERRORINFO,
 };
 
 static JSValue
 js_portaudio_error(JSContext* ctx, PaError err) {
   return err < 0 ? JS_ThrowInternalError(ctx, "PaError: %s", Pa_GetErrorText(err)) : err == 0 ? JS_UNDEFINED : JS_NewInt32(ctx, err);
+}
+
+static const char*
+pa_hostapitype_name(PaHostApiTypeId id) {
+  switch(id) {
+    case paInDevelopment: return "InDevelopment";
+    case paDirectSound: return "DirectSound";
+    case paMME: return "MME";
+    case paASIO: return "ASIO";
+    case paSoundManager: return "SoundManager";
+    case paCoreAudio: return "CoreAudio";
+    case paOSS: return "OSS";
+    case paALSA: return "ALSA";
+    case paAL: return "AL";
+    case paBeOS: return "BeOS";
+    case paWDMKS: return "WDMKS";
+    case paJACK: return "JACK";
+    case paWASAPI: return "WASAPI";
+    case paAudioScienceHPI: return "AudioScienceHPI";
+  }
+  return NULL;
+}
+
+/* Parses a plain {device, channelCount, sampleFormat, suggestedLatency}
+ * object into a stack PaStreamParameters - used only at Pa_OpenStream()/
+ * Pa_IsFormatSupported() call time, so this is a duck-typed value
+ * conversion (skill section 6), not a resource class. Returns FALSE (obj
+ * is not an object, e.g. null/undefined) to mean "pass NULL for this
+ * side", matching Pa_OpenStream()'s own NULL-parameter convention. */
+static BOOL
+js_pastreamparameters_fromobj(JSContext* ctx, JSValueConst obj, PaStreamParameters* out) {
+  JSValue v;
+
+  if(!JS_IsObject(obj))
+    return FALSE;
+
+  *out = (PaStreamParameters){-1, 2, paFloat32, 0.001, NULL};
+
+  if(!JS_IsUndefined(v = JS_GetPropertyStr(ctx, obj, "device"))) {
+    int32_t n;
+    if(!JS_ToInt32(ctx, &n, v))
+      out->device = n;
+  }
+  JS_FreeValue(ctx, v);
+
+  if(!JS_IsUndefined(v = JS_GetPropertyStr(ctx, obj, "channelCount"))) {
+    int32_t n;
+    if(!JS_ToInt32(ctx, &n, v))
+      out->channelCount = n;
+  }
+  JS_FreeValue(ctx, v);
+
+  if(!JS_IsUndefined(v = JS_GetPropertyStr(ctx, obj, "sampleFormat"))) {
+    uint32_t u;
+    if(!JS_ToUint32(ctx, &u, v))
+      out->sampleFormat = u;
+  }
+  JS_FreeValue(ctx, v);
+
+  if(!JS_IsUndefined(v = JS_GetPropertyStr(ctx, obj, "suggestedLatency"))) {
+    double d;
+    if(!JS_ToFloat64(ctx, &d, v))
+      out->suggestedLatency = d;
+  }
+  JS_FreeValue(ctx, v);
+
+  return TRUE;
 }
 
 static JSValue
@@ -80,6 +150,26 @@ js_portaudio_function(JSContext* ctx, JSValueConst new_target, int argc, JSValue
       ret = js_portaudio_error(ctx, r);
       break;
     }
+
+    case FUNC_GETVERSION: {
+      ret = JS_NewInt32(ctx, Pa_GetVersion());
+      break;
+    }
+
+    case FUNC_GETVERSIONTEXT: {
+      ret = JS_NewString(ctx, Pa_GetVersionText());
+      break;
+    }
+
+    case FUNC_GETLASTHOSTERRORINFO: {
+      const PaHostErrorInfo* info = Pa_GetLastHostErrorInfo();
+
+      ret = JS_NewObject(ctx);
+      JS_SetPropertyStr(ctx, ret, "hostApiType", JS_NewInt32(ctx, info->hostApiType));
+      JS_SetPropertyStr(ctx, ret, "errorCode", JS_NewInt64(ctx, info->errorCode));
+      JS_SetPropertyStr(ctx, ret, "errorText", JS_NewString(ctx, info->errorText));
+      break;
+    }
   }
 
   return ret;
@@ -90,24 +180,59 @@ js_pastream_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVal
   JSValue proto, obj = JS_UNDEFINED;
   PaStream* st = NULL;
   JSPaStream* w = NULL;
+  PaError r;
 
   int32_t numInputChannels = 0, numOutputChannels = 2;
   uint32_t sampleFormat = paFloat32;
-  double sampleRate = 44100;
-  uint32_t framesPerBuffer = paFramesPerBufferUnspecified;
 
-  if(argc > 0)
-    JS_ToInt32(ctx, &numInputChannels, argv[0]);
-  if(argc > 1)
-    JS_ToInt32(ctx, &numOutputChannels, argv[1]);
-  if(argc > 2)
-    JS_ToUint32(ctx, &sampleFormat, argv[2]);
-  if(argc > 3)
-    JS_ToFloat64(ctx, &sampleRate, argv[3]);
-  if(argc > 4)
-    JS_ToUint32(ctx, &framesPerBuffer, argv[4]);
+  if(argc > 0 && JS_IsObject(argv[0])) {
+    PaStreamParameters inParams, outParams;
+    JSValue inVal = JS_GetPropertyStr(ctx, argv[0], "input");
+    JSValue outVal = JS_GetPropertyStr(ctx, argv[0], "output");
+    BOOL hasIn = js_pastreamparameters_fromobj(ctx, inVal, &inParams);
+    BOOL hasOut = js_pastreamparameters_fromobj(ctx, outVal, &outParams);
+    JS_FreeValue(ctx, inVal);
+    JS_FreeValue(ctx, outVal);
 
-  PaError r = Pa_OpenDefaultStream(&st, numInputChannels, numOutputChannels, sampleFormat, sampleRate, framesPerBuffer, NULL, NULL);
+    double sampleRate = 44100;
+    uint32_t framesPerBuffer = paFramesPerBufferUnspecified;
+    uint32_t flags = paNoFlag;
+    JSValue v;
+
+    if(!JS_IsUndefined(v = JS_GetPropertyStr(ctx, argv[0], "sampleRate")))
+      JS_ToFloat64(ctx, &sampleRate, v);
+    JS_FreeValue(ctx, v);
+
+    if(!JS_IsUndefined(v = JS_GetPropertyStr(ctx, argv[0], "framesPerBuffer")))
+      JS_ToUint32(ctx, &framesPerBuffer, v);
+    JS_FreeValue(ctx, v);
+
+    if(!JS_IsUndefined(v = JS_GetPropertyStr(ctx, argv[0], "flags")))
+      JS_ToUint32(ctx, &flags, v);
+    JS_FreeValue(ctx, v);
+
+    r = Pa_OpenStream(&st, hasIn ? &inParams : NULL, hasOut ? &outParams : NULL, sampleRate, framesPerBuffer, flags, NULL, NULL);
+
+    numInputChannels = hasIn ? inParams.channelCount : 0;
+    numOutputChannels = hasOut ? outParams.channelCount : 0;
+    sampleFormat = hasIn ? inParams.sampleFormat : hasOut ? outParams.sampleFormat : paFloat32;
+  } else {
+    double sampleRate = 44100;
+    uint32_t framesPerBuffer = paFramesPerBufferUnspecified;
+
+    if(argc > 0)
+      JS_ToInt32(ctx, &numInputChannels, argv[0]);
+    if(argc > 1)
+      JS_ToInt32(ctx, &numOutputChannels, argv[1]);
+    if(argc > 2)
+      JS_ToUint32(ctx, &sampleFormat, argv[2]);
+    if(argc > 3)
+      JS_ToFloat64(ctx, &sampleRate, argv[3]);
+    if(argc > 4)
+      JS_ToUint32(ctx, &framesPerBuffer, argv[4]);
+
+    r = Pa_OpenDefaultStream(&st, numInputChannels, numOutputChannels, sampleFormat, sampleRate, framesPerBuffer, NULL, NULL);
+  }
 
   if(r != paNoError) {
     JS_ThrowInternalError(ctx, "PortAudio error: %s", Pa_GetErrorText(r));
@@ -151,6 +276,19 @@ fail:
   }
   JS_FreeValue(ctx, obj);
   return JS_EXCEPTION;
+}
+
+static JSValue
+js_pastream_isformatsupported(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
+  PaStreamParameters inParams, outParams;
+  BOOL hasIn = argc > 0 ? js_pastreamparameters_fromobj(ctx, argv[0], &inParams) : FALSE;
+  BOOL hasOut = argc > 1 ? js_pastreamparameters_fromobj(ctx, argv[1], &outParams) : FALSE;
+  double sampleRate = 44100;
+
+  if(argc > 2)
+    JS_ToFloat64(ctx, &sampleRate, argv[2]);
+
+  return js_portaudio_error(ctx, Pa_IsFormatSupported(hasIn ? &inParams : NULL, hasOut ? &outParams : NULL, sampleRate));
 }
 
 enum {
@@ -222,25 +360,7 @@ js_pastream_get(JSContext* ctx, JSValueConst this_val, int magic) {
     }
 #ifdef HAVE_GETSTREAMHOSTAPITYPE
     case PROP_HOSTAPITYPE: {
-      enum PaHostApiTypeId id = Pa_GetStreamHostApiType(st);
-      const char* str = 0;
-
-      switch(id) {
-        case paInDevelopment: str = "InDevelopment"; break;
-        case paDirectSound: str = "DirectSound"; break;
-        case paMME: str = "MME"; break;
-        case paASIO: str = "ASIO"; break;
-        case paSoundManager: str = "SoundManager"; break;
-        case paCoreAudio: str = "CoreAudio"; break;
-        case paOSS: str = "OSS"; break;
-        case paALSA: str = "ALSA"; break;
-        case paAL: str = "AL"; break;
-        case paBeOS: str = "BeOS"; break;
-        case paWDMKS: str = "WDMKS"; break;
-        case paJACK: str = "JACK"; break;
-        case paWASAPI: str = "WASAPI"; break;
-        case paAudioScienceHPI: str = "AudioScienceHPI"; break;
-      }
+      const char* str = pa_hostapitype_name(Pa_GetStreamHostApiType(st));
 
       if(str)
         ret = JS_NewString(ctx, str);
@@ -286,6 +406,9 @@ js_pastream_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
 
   st = w->stream;
 
+  if(!st)
+    return magic == METHOD_CLOSE ? JS_UNDEFINED : JS_ThrowTypeError(ctx, "PaStream is closed");
+
   switch(magic) {
     case METHOD_READ: {
       size_t len;
@@ -330,19 +453,19 @@ js_pastream_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
     }
 
     case METHOD_START: {
-      ret = JS_NewInt32(ctx, Pa_StartStream(st));
+      ret = js_portaudio_error(ctx, Pa_StartStream(st));
       break;
     }
     case METHOD_STOP: {
-      ret = JS_NewInt32(ctx, Pa_StopStream(st));
+      ret = js_portaudio_error(ctx, Pa_StopStream(st));
       break;
     }
     case METHOD_ABORT: {
-      ret = JS_NewInt32(ctx, Pa_AbortStream(st));
+      ret = js_portaudio_error(ctx, Pa_AbortStream(st));
       break;
     }
     case METHOD_CLOSE: {
-      ret = JS_NewInt32(ctx, Pa_CloseStream(st));
+      ret = js_portaudio_error(ctx, Pa_CloseStream(st));
       w->stream = NULL;
       break;
     }
@@ -369,6 +492,7 @@ static JSClassDef js_pastream_class = {
 
 static const JSCFunctionListEntry js_pastream_funcs[] = {
     JS_CGETSET_MAGIC_DEF("active", js_pastream_get, 0, PROP_ACTIVE),
+    JS_CGETSET_MAGIC_DEF("stopped", js_pastream_get, 0, PROP_STOPPED),
     JS_CGETSET_MAGIC_DEF("inputLatency", js_pastream_get, 0, PROP_INPUTLATENCY),
     JS_CGETSET_MAGIC_DEF("outputLatency", js_pastream_get, 0, PROP_OUTPUTLATENCY),
     JS_CGETSET_MAGIC_DEF("sampleRate", js_pastream_get, 0, PROP_SAMPLERATE),
@@ -626,36 +750,25 @@ static const JSCFunctionListEntry js_padeviceinfo_funcs[] = {
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "PaDeviceInfo", JS_PROP_CONFIGURABLE),
 };
 
-static JSClassID js_pastreamparameters_class_id;
-static JSValue pastreamparameters_proto, pastreamparameters_ctor;
+static JSClassID js_hostapiinfo_class_id;
+static JSValue hostapiinfo_proto, hostapiinfo_ctor;
 
 static JSValue
-js_pastreamparameters_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+js_hostapiinfo_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
   JSValue proto, obj = JS_UNDEFINED;
 
-  PaStreamParameters* sp = js_mallocz(ctx, sizeof(PaStreamParameters));
-
-  *sp = (PaStreamParameters){-1, 2, 1, 0.001};
+  PaHostApiInfo* hi = js_mallocz(ctx, sizeof(PaHostApiInfo));
 
   if(argc > 0) {
-    int32_t n = -1;
-    JS_ToInt32(ctx, &n, argv[0]);
-    sp->device = n;
-  }
-  if(argc > 1) {
-    int32_t n = -1;
-    JS_ToInt32(ctx, &n, argv[1]);
-    sp->channelCount = n;
-  }
-  if(argc > 2) {
-    uint32_t u;
-    JS_ToUint32(ctx, &u, argv[2]);
-    sp->sampleFormat = u;
-  }
-  if(argc > 3) {
-    double d;
-    JS_ToFloat64(ctx, &d, argv[3]);
-    sp->suggestedLatency = d;
+    int32_t index = -1;
+    JS_ToInt32(ctx, &index, argv[0]);
+    const PaHostApiInfo* info;
+
+    if((info = Pa_GetHostApiInfo(index))) {
+      *hi = *info;
+      if(hi->name)
+        hi->name = js_strdup(ctx, hi->name);
+    }
   }
 
   /* using new_target to get the prototype is necessary when the class is
@@ -665,17 +778,40 @@ js_pastreamparameters_constructor(JSContext* ctx, JSValueConst new_target, int a
     goto fail;
 
   if(!JS_IsObject(proto))
-    proto = pastreamparameters_proto;
+    proto = hostapiinfo_proto;
 
   /* using new_target to get the prototype is necessary when the class is
    * extended. */
-  obj = JS_NewObjectProtoClass(ctx, proto, js_pastreamparameters_class_id);
+  obj = JS_NewObjectProtoClass(ctx, proto, js_hostapiinfo_class_id);
   JS_FreeValue(ctx, proto);
 
   if(JS_IsException(obj))
     goto fail;
 
-  JS_SetOpaque(obj, sp);
+  JS_SetOpaque(obj, hi);
+  return obj;
+
+fail:
+  js_free(ctx, hi);
+  JS_FreeValue(ctx, obj);
+  return JS_EXCEPTION;
+}
+
+static JSValue
+js_hostapiinfo_wrap(JSContext* ctx, JSValueConst proto, PaHostApiInfo info) {
+  JSValue obj = JS_NewObjectProtoClass(ctx, proto, js_hostapiinfo_class_id);
+
+  PaHostApiInfo* hi;
+
+  if(!(hi = js_mallocz(ctx, sizeof(PaHostApiInfo))))
+    goto fail;
+
+  if(info.name)
+    info.name = js_strdup(ctx, info.name);
+
+  *hi = info;
+
+  JS_SetOpaque(obj, hi);
   return obj;
 
 fail:
@@ -684,91 +820,51 @@ fail:
 }
 
 enum {
-  PROP_DEVICE,
-  PROP_CHANNELCOUNT,
-  PROP_SAMPLEFORMAT,
-  PROP_SUGGESTEDLATENCY,
-  PROP_HOSTAPISPECIFICSTREAMINFO,
+  HAPROP_STRUCTVERSION = 0,
+  HAPROP_TYPE,
+  HAPROP_TYPENAME,
+  HAPROP_NAME,
+  HAPROP_DEVICECOUNT,
+  HAPROP_DEFAULTINPUTDEVICE,
+  HAPROP_DEFAULTOUTPUTDEVICE,
 };
 
 static JSValue
-js_pastreamparameters_get(JSContext* ctx, JSValueConst this_val, int magic) {
-  PaStreamParameters* sp;
+js_hostapiinfo_get(JSContext* ctx, JSValueConst this_val, int magic) {
+  PaHostApiInfo* hi;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(sp = JS_GetOpaque2(ctx, this_val, js_pastreamparameters_class_id)))
+  if(!(hi = JS_GetOpaque2(ctx, this_val, js_hostapiinfo_class_id)))
     return JS_EXCEPTION;
 
   switch(magic) {
-    case PROP_DEVICE: {
-      ret = JS_NewInt32(ctx, sp->device);
+    case HAPROP_STRUCTVERSION: {
+      ret = JS_NewInt32(ctx, hi->structVersion);
       break;
     }
-    case PROP_CHANNELCOUNT: {
-      ret = JS_NewInt32(ctx, sp->channelCount);
+    case HAPROP_TYPE: {
+      ret = JS_NewInt32(ctx, hi->type);
       break;
     }
-    case PROP_SAMPLEFORMAT: {
-      ret = JS_NewUint32(ctx, sp->sampleFormat);
+    case HAPROP_TYPENAME: {
+      const char* str = pa_hostapitype_name(hi->type);
+      ret = str ? JS_NewString(ctx, str) : JS_NULL;
       break;
     }
-    case PROP_SUGGESTEDLATENCY: {
-      ret = JS_NewFloat64(ctx, sp->suggestedLatency);
+    case HAPROP_NAME: {
+      ret = hi->name ? JS_NewString(ctx, hi->name) : JS_NULL;
       break;
     }
-    case PROP_HOSTAPISPECIFICSTREAMINFO: {
-      if(sp->hostApiSpecificStreamInfo) {
-        char buf[64];
-        snprintf(buf, sizeof(buf), "%p", sp->hostApiSpecificStreamInfo);
-        ret = JS_NewString(ctx, buf);
-      } else {
-        ret = JS_NULL;
-      }
+    case HAPROP_DEVICECOUNT: {
+      ret = JS_NewInt32(ctx, hi->deviceCount);
       break;
     }
-  }
-
-  return ret;
-}
-
-static JSValue
-js_pastreamparameters_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
-  PaStreamParameters* sp;
-  JSValue ret = JS_UNDEFINED;
-
-  if(!(sp = JS_GetOpaque2(ctx, this_val, js_pastreamparameters_class_id)))
-    return JS_EXCEPTION;
-
-  switch(magic) {
-    case PROP_DEVICE: {
-      int32_t n;
-      if(!JS_ToInt32(ctx, &n, value))
-        sp->device = n;
+    case HAPROP_DEFAULTINPUTDEVICE: {
+      ret = JS_NewInt32(ctx, hi->defaultInputDevice);
       break;
     }
-    case PROP_CHANNELCOUNT: {
-      int32_t n;
-      if(!JS_ToInt32(ctx, &n, value))
-        sp->channelCount = n;
-      break;
-      break;
-    }
-    case PROP_SAMPLEFORMAT: {
-      uint32_t u;
-      if(!JS_ToUint32(ctx, &u, value))
-        sp->sampleFormat = u;
-      break;
-      break;
-    }
-    case PROP_SUGGESTEDLATENCY: {
-      double d;
-      if(!JS_ToFloat64(ctx, &d, value))
-        sp->suggestedLatency = d;
-      break;
-
-      break;
-    }
-    case PROP_HOSTAPISPECIFICSTREAMINFO: {
+    case HAPROP_DEFAULTOUTPUTDEVICE: {
+      ret = JS_NewInt32(ctx, hi->defaultOutputDevice);
       break;
     }
   }
@@ -777,26 +873,29 @@ js_pastreamparameters_set(JSContext* ctx, JSValueConst this_val, JSValueConst va
 }
 
 static void
-js_pastreamparameters_finalizer(JSRuntime* rt, JSValue val) {
-  PaStreamParameters* sp;
+js_hostapiinfo_finalizer(JSRuntime* rt, JSValue val) {
+  PaHostApiInfo* hi;
 
-  if((sp = JS_GetOpaque(val, js_pastreamparameters_class_id))) {
-    js_free_rt(rt, sp);
+  if((hi = JS_GetOpaque(val, js_hostapiinfo_class_id))) {
+    js_free_rt(rt, (void*)hi->name);
+    js_free_rt(rt, hi);
   }
 }
 
-static JSClassDef js_pastreamparameters_class = {
-    .class_name = "PaStreamParameters",
-    .finalizer = js_pastreamparameters_finalizer,
+static JSClassDef js_hostapiinfo_class = {
+    .class_name = "HostApiInfo",
+    .finalizer = js_hostapiinfo_finalizer,
 };
 
-static const JSCFunctionListEntry js_pastreamparameters_funcs[] = {
-    JS_CGETSET_MAGIC_DEF("device", js_pastreamparameters_get, js_pastreamparameters_set, PROP_DEVICE),
-    JS_CGETSET_MAGIC_DEF("channelCount", js_pastreamparameters_get, js_pastreamparameters_set, PROP_CHANNELCOUNT),
-    JS_CGETSET_MAGIC_DEF("sampleFormat", js_pastreamparameters_get, js_pastreamparameters_set, PROP_SAMPLEFORMAT),
-    JS_CGETSET_MAGIC_DEF("suggestedLatency", js_pastreamparameters_get, js_pastreamparameters_set, PROP_SUGGESTEDLATENCY),
-    JS_CGETSET_MAGIC_DEF("hostApiSpecificStreamInfo", js_pastreamparameters_get, 0, PROP_HOSTAPISPECIFICSTREAMINFO),
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "PaStreamParameters", JS_PROP_CONFIGURABLE),
+static const JSCFunctionListEntry js_hostapiinfo_funcs[] = {
+    JS_CGETSET_MAGIC_DEF("structVersion", js_hostapiinfo_get, 0, HAPROP_STRUCTVERSION),
+    JS_CGETSET_MAGIC_DEF("type", js_hostapiinfo_get, 0, HAPROP_TYPE),
+    JS_CGETSET_MAGIC_DEF("typeName", js_hostapiinfo_get, 0, HAPROP_TYPENAME),
+    JS_CGETSET_MAGIC_FLAGS_DEF("name", js_hostapiinfo_get, 0, HAPROP_NAME, JS_PROP_ENUMERABLE),
+    JS_CGETSET_MAGIC_DEF("deviceCount", js_hostapiinfo_get, 0, HAPROP_DEVICECOUNT),
+    JS_CGETSET_MAGIC_DEF("defaultInputDevice", js_hostapiinfo_get, 0, HAPROP_DEFAULTINPUTDEVICE),
+    JS_CGETSET_MAGIC_DEF("defaultOutputDevice", js_hostapiinfo_get, 0, HAPROP_DEFAULTOUTPUTDEVICE),
+    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "HostApiInfo", JS_PROP_CONFIGURABLE),
 };
 
 static JSClassID js_padevices_class_id;
@@ -831,6 +930,24 @@ js_padevices_get_own_property(JSContext* ctx, JSPropertyDescriptor* pdesc, JSVal
       if(pdesc) {
         pdesc->flags = JS_PROP_ENUMERABLE;
         pdesc->value = JS_NewUint32(ctx, Pa_GetDeviceCount());
+        pdesc->getter = JS_UNDEFINED;
+        pdesc->setter = JS_UNDEFINED;
+      }
+
+      ret = TRUE;
+    } else if(!strcmp(key, "defaultInput")) {
+      if(pdesc) {
+        pdesc->flags = JS_PROP_ENUMERABLE;
+        pdesc->value = JS_NewInt32(ctx, Pa_GetDefaultInputDevice());
+        pdesc->getter = JS_UNDEFINED;
+        pdesc->setter = JS_UNDEFINED;
+      }
+
+      ret = TRUE;
+    } else if(!strcmp(key, "defaultOutput")) {
+      if(pdesc) {
+        pdesc->flags = JS_PROP_ENUMERABLE;
+        pdesc->value = JS_NewInt32(ctx, Pa_GetDefaultOutputDevice());
         pdesc->getter = JS_UNDEFINED;
         pdesc->setter = JS_UNDEFINED;
       }
@@ -886,11 +1003,105 @@ static const JSCFunctionListEntry js_padevices_funcs[] = {
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "PaDevices", JS_PROP_CONFIGURABLE),
 };
 
+static JSClassID js_pahostapis_class_id;
+static JSValue pahostapis_proto, pahostapis_obj;
+
+static BOOL
+js_pahostapis_get_own_property(JSContext* ctx, JSPropertyDescriptor* pdesc, JSValueConst obj, JSAtom prop) {
+
+  if(prop & (1 << 31)) {
+    int32_t index;
+
+    if((index = prop & (~(1 << 31))) >= 0) {
+      PaHostApiInfo* info = Pa_GetHostApiInfo(index);
+
+      if(info)
+        if(pdesc) {
+          pdesc->flags = JS_PROP_ENUMERABLE;
+          pdesc->value = js_hostapiinfo_wrap(ctx, hostapiinfo_proto, *info);
+          pdesc->getter = JS_UNDEFINED;
+          pdesc->setter = JS_UNDEFINED;
+        }
+
+      return TRUE;
+    }
+  }
+
+  const char* key;
+  BOOL ret = FALSE;
+
+  if((key = JS_AtomToCString(ctx, prop))) {
+    if(!strcmp(key, "length")) {
+      if(pdesc) {
+        pdesc->flags = JS_PROP_ENUMERABLE;
+        pdesc->value = JS_NewUint32(ctx, Pa_GetHostApiCount());
+        pdesc->getter = JS_UNDEFINED;
+        pdesc->setter = JS_UNDEFINED;
+      }
+
+      ret = TRUE;
+    } else if(!strcmp(key, "default")) {
+      if(pdesc) {
+        pdesc->flags = JS_PROP_ENUMERABLE;
+        pdesc->value = JS_NewInt32(ctx, Pa_GetDefaultHostApi());
+        pdesc->getter = JS_UNDEFINED;
+        pdesc->setter = JS_UNDEFINED;
+      }
+
+      ret = TRUE;
+    }
+
+    JS_FreeCString(ctx, key);
+  }
+
+  return ret;
+}
+
+static int
+js_pahostapis_get_own_property_names(JSContext* ctx, JSPropertyEnum** ptab, uint32_t* plen, JSValueConst obj) {
+  uint32_t i, len = Pa_GetHostApiCount();
+  JSPropertyEnum* props;
+
+  if((props = js_malloc(ctx, sizeof(JSPropertyEnum) * len))) {
+    for(i = 0; i < len; i++) {
+      props[i].is_enumerable = TRUE;
+      props[i].atom = JS_NewAtomUInt32(ctx, i);
+    }
+
+    *ptab = props;
+    *plen = len;
+  }
+
+  return 0;
+}
+
+static void
+js_pahostapis_finalizer(JSRuntime* rt, JSValue val) {
+}
+
+static JSClassExoticMethods js_pahostapis_exotic_methods = {
+    .get_own_property = js_pahostapis_get_own_property,
+    .get_own_property_names = js_pahostapis_get_own_property_names,
+};
+
+static JSClassDef js_pahostapis_class = {
+    .class_name = "PaHostApis",
+    .finalizer = js_pahostapis_finalizer,
+    .exotic = &js_pahostapis_exotic_methods,
+};
+
+static const JSCFunctionListEntry js_pahostapis_funcs[] = {
+    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "PaHostApis", JS_PROP_CONFIGURABLE),
+};
+
 static const JSCFunctionListEntry js_portaudio_funcs[] = {
     JS_CFUNC_MAGIC_DEF("Pa_Initialize", 0, js_portaudio_function, FUNC_INITIALIZE),
     JS_CFUNC_MAGIC_DEF("Pa_Terminate", 0, js_portaudio_function, FUNC_TERMINATE),
     JS_CFUNC_MAGIC_DEF("Pa_Sleep", 1, js_portaudio_function, FUNC_SLEEP),
     JS_CFUNC_MAGIC_DEF("Pa_GetSampleSize", 1, js_portaudio_function, FUNC_GETSAMPLESIZE),
+    JS_CFUNC_MAGIC_DEF("Pa_GetVersion", 0, js_portaudio_function, FUNC_GETVERSION),
+    JS_CFUNC_MAGIC_DEF("Pa_GetVersionText", 0, js_portaudio_function, FUNC_GETVERSIONTEXT),
+    JS_CFUNC_MAGIC_DEF("Pa_GetLastHostErrorInfo", 0, js_portaudio_function, FUNC_GETLASTHOSTERRORINFO),
 
     JS_PROP_INT32_DEF("paNoDevice", paNoDevice, JS_PROP_CONFIGURABLE),
     JS_PROP_INT32_DEF("paUseHostApiSpecificDeviceSpecification", paUseHostApiSpecificDeviceSpecification, JS_PROP_CONFIGURABLE),
@@ -919,6 +1130,23 @@ static const JSCFunctionListEntry js_portaudio_funcs[] = {
     JS_PROP_INT32_DEF("paUInt8", paUInt8, JS_PROP_CONFIGURABLE),
     JS_PROP_INT32_DEF("paCustomFormat", paCustomFormat, JS_PROP_CONFIGURABLE),
     JS_PROP_INT32_DEF("paNonInterleaved", paNonInterleaved, JS_PROP_CONFIGURABLE),
+
+    JS_PROP_INT32_DEF("paFramesPerBufferUnspecified", paFramesPerBufferUnspecified, JS_PROP_CONFIGURABLE),
+
+    JS_PROP_INT32_DEF("paInDevelopment", paInDevelopment, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paDirectSound", paDirectSound, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paMME", paMME, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paASIO", paASIO, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paSoundManager", paSoundManager, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paCoreAudio", paCoreAudio, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paOSS", paOSS, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paALSA", paALSA, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paAL", paAL, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paBeOS", paBeOS, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paWDMKS", paWDMKS, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paJACK", paJACK, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paWASAPI", paWASAPI, JS_PROP_CONFIGURABLE),
+    JS_PROP_INT32_DEF("paAudioScienceHPI", paAudioScienceHPI, JS_PROP_CONFIGURABLE),
 };
 
 int
@@ -933,6 +1161,8 @@ js_portaudio_init(JSContext* ctx, JSModuleDef* m) {
 
   JS_SetClassProto(ctx, js_pastream_class_id, pastream_proto);
 
+  JS_SetPropertyStr(ctx, pastream_ctor, "isFormatSupported", JS_NewCFunction(ctx, js_pastream_isformatsupported, "isFormatSupported", 3));
+
   JS_NewClassID(&js_padeviceinfo_class_id);
   JS_NewClass(JS_GetRuntime(ctx), js_padeviceinfo_class_id, &js_padeviceinfo_class);
 
@@ -943,15 +1173,15 @@ js_portaudio_init(JSContext* ctx, JSModuleDef* m) {
 
   JS_SetClassProto(ctx, js_padeviceinfo_class_id, padeviceinfo_proto);
 
-  JS_NewClassID(&js_pastreamparameters_class_id);
-  JS_NewClass(JS_GetRuntime(ctx), js_pastreamparameters_class_id, &js_pastreamparameters_class);
+  JS_NewClassID(&js_hostapiinfo_class_id);
+  JS_NewClass(JS_GetRuntime(ctx), js_hostapiinfo_class_id, &js_hostapiinfo_class);
 
-  pastreamparameters_ctor = JS_NewCFunction2(ctx, js_pastreamparameters_constructor, "PaStreamParameters", 1, JS_CFUNC_constructor, 0);
-  pastreamparameters_proto = JS_NewObject(ctx);
+  hostapiinfo_ctor = JS_NewCFunction2(ctx, js_hostapiinfo_constructor, "HostApiInfo", 1, JS_CFUNC_constructor, 0);
+  hostapiinfo_proto = JS_NewObject(ctx);
 
-  JS_SetPropertyFunctionList(ctx, pastreamparameters_proto, js_pastreamparameters_funcs, countof(js_pastreamparameters_funcs));
+  JS_SetPropertyFunctionList(ctx, hostapiinfo_proto, js_hostapiinfo_funcs, countof(js_hostapiinfo_funcs));
 
-  JS_SetClassProto(ctx, js_pastreamparameters_class_id, pastreamparameters_proto);
+  JS_SetClassProto(ctx, js_hostapiinfo_class_id, hostapiinfo_proto);
 
   JS_NewClassID(&js_padevices_class_id);
   JS_NewClass(JS_GetRuntime(ctx), js_padevices_class_id, &js_padevices_class);
@@ -965,11 +1195,23 @@ js_portaudio_init(JSContext* ctx, JSModuleDef* m) {
 
   padevices_obj = JS_NewObjectProtoClass(ctx, padevices_proto, js_padevices_class_id);
 
+  JS_NewClassID(&js_pahostapis_class_id);
+  JS_NewClass(JS_GetRuntime(ctx), js_pahostapis_class_id, &js_pahostapis_class);
+
+  pahostapis_proto = JS_NewObject(ctx);
+
+  JS_SetPropertyFunctionList(ctx, pahostapis_proto, js_pahostapis_funcs, countof(js_pahostapis_funcs));
+
+  JS_SetClassProto(ctx, js_pahostapis_class_id, pahostapis_proto);
+
+  pahostapis_obj = JS_NewObjectProtoClass(ctx, pahostapis_proto, js_pahostapis_class_id);
+
   if(m) {
     JS_SetModuleExport(ctx, m, "PaStream", pastream_ctor);
     JS_SetModuleExport(ctx, m, "PaDeviceInfo", padeviceinfo_ctor);
-    JS_SetModuleExport(ctx, m, "PaStreamParameters", pastreamparameters_ctor);
+    JS_SetModuleExport(ctx, m, "HostApiInfo", hostapiinfo_ctor);
     JS_SetModuleExport(ctx, m, "devices", padevices_obj);
+    JS_SetModuleExport(ctx, m, "hostApis", pahostapis_obj);
     JS_SetModuleExportList(ctx, m, js_portaudio_funcs, countof(js_portaudio_funcs));
   }
 
@@ -980,8 +1222,9 @@ VISIBLE void
 js_init_module_portaudio(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "PaStream");
   JS_AddModuleExport(ctx, m, "PaDeviceInfo");
-  JS_AddModuleExport(ctx, m, "PaStreamParameters");
+  JS_AddModuleExport(ctx, m, "HostApiInfo");
   JS_AddModuleExport(ctx, m, "devices");
+  JS_AddModuleExport(ctx, m, "hostApis");
   JS_AddModuleExportList(ctx, m, js_portaudio_funcs, countof(js_portaudio_funcs));
 }
 
