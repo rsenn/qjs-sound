@@ -1,10 +1,12 @@
-// Drum sampler demo: 16-step pattern across kick/snare/hihat (sample-based)
-// and tom/cymbal/conga/djembe (procedural).
-//
-// Lab ships kick.wav / snare.wav / hihat.wav under third_party/LabSound/
-// assets/samples; the test reads them straight off disk via the qjs-only
-// ctx.createBufferFromFile() helper. In a browser, the same script uses
-// fetch + decodeAudioData on the same paths.
+/*
+ * Drum sampler demo: 16-step pattern across kick/snare/hihat (sample-based)
+ * and tom/cymbal/conga/djembe (procedural).
+ *
+ * Lab ships kick.wav / snare.wav / hihat.wav under third_party/LabSound/
+ * assets/samples; the test reads them straight off disk via the qjs-only
+ * ctx.createBufferFromFile() helper. In a browser, the same script uses
+ * fetch + decodeAudioData on the same paths.
+ */
 
 import { DrumSampler, tom, cymbal, conga, djembe } from './drumsampler.js';
 
@@ -42,7 +44,9 @@ async function main() {
 
   globalThis.__drum_keepalive = { ctx, drums };
 
-  // 16-step grid per row. 'X' = hit, '-' = rest.
+  /*
+   * 16-step grid per row. 'X' = hit, '-' = rest.
+   */
   const pattern = {
     kick:   'X---X-------X---',
     snare:  '----X-------X---',

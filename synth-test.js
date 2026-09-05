@@ -1,5 +1,7 @@
-// TB-303-style acid bassline. Wraps the patch in a reusable Synth class.
-// Runs unchanged in qjs and browsers (load as <script type="module">).
+/*
+ * TB-303-style acid bassline. Wraps the patch in a reusable Synth class.
+ * Runs unchanged in qjs and browsers (load as <script type="module">).
+ */
 
 import { Synth } from './synth.js';
 
@@ -12,12 +14,16 @@ async function main() {
   const ctx = new env.AudioContext();
   const synth = new Synth(ctx, env);
 
-  // Belt-and-braces keepalive. The binding already anchors nodes against
-  // their context, but pinning here as well makes the lifetime obvious:
-  // as long as the global exists, the whole audio graph stays live.
+  /*
+   * Belt-and-braces keepalive. The binding already anchors nodes against
+   * their context, but pinning here as well makes the lifetime obvious:
+   * as long as the global exists, the whole audio graph stays live.
+   */
   globalThis.__synth_keepalive = { ctx, synth };
 
-  // 16-step pattern: [midiNote, accent, slide]
+  /*
+   * 16-step pattern: [midiNote, accent, slide]
+   */
   const pattern = [
     [33, false, false], [45, true,  false], [33, false, true ], [40, false, false],
     [33, false, false], [52, true,  false], [33, false, true ], [40, false, false],
@@ -26,7 +32,7 @@ async function main() {
   ];
 
   const bpm = 130;
-  const stepDur = 60 / bpm / 4;          // 16th notes
+  const stepDur = 60 / bpm / 4; /* 16th notes */
   const repeats = 2;
   const totalSteps = pattern.length * repeats;
   const t0 = ctx.currentTime + 0.1;

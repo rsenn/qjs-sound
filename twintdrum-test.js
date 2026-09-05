@@ -1,14 +1,16 @@
-// Demo for TwinTDrum: an analog Twin-T oscillator style drum resonator.
-//
-// A Twin-T RC notch network wired into an inverting feedback loop
-// oscillates at its notch frequency; struck, it rings down like a tom,
-// conga or woodblock -- that's exactly what TwinTDrum models (a
-// stk::TwoPole resonator pinged with an impulse). Beyond the plain ring it
-// adds three controls no analog Twin-T circuit had: a "secondary" detuned
-// resonator for cowbell/agogo-style clusters, a noise "click" transient for
-// attack punch, and a fast post-strike pitch drop for that analog-tom
-// "boing". This script builds a small tuned kit out of one class and
-// renders a solo groove to a WAV file.
+/*
+ * Demo for TwinTDrum: an analog Twin-T oscillator style drum resonator.
+ *
+ * A Twin-T RC notch network wired into an inverting feedback loop
+ * oscillates at its notch frequency; struck, it rings down like a tom,
+ * conga or woodblock -- that's exactly what TwinTDrum models (a
+ * stk::TwoPole resonator pinged with an impulse). Beyond the plain ring it
+ * adds three controls no analog Twin-T circuit had: a "secondary" detuned
+ * resonator for cowbell/agogo-style clusters, a noise "click" transient for
+ * attack punch, and a fast post-strike pitch drop for that analog-tom
+ * "boing". This script builds a small tuned kit out of one class and
+ * renders a solo groove to a WAV file.
+ */
 
 import * as std from 'std';
 import * as stk from 'stk';
@@ -17,7 +19,7 @@ const SR = 44100;
 
 function writeWav(path, samples, sampleRate) {
   const nFrames = samples.length;
-  const dataSize = nFrames * 2; // mono, 16-bit
+  const dataSize = nFrames * 2; /* mono, 16-bit */
   const buf = new ArrayBuffer(44 + dataSize);
   const dv = new DataView(buf);
   const str = (off, s) => { for(let i = 0; i < s.length; i++) dv.setUint8(off + i, s.charCodeAt(i)); };
@@ -28,7 +30,7 @@ function writeWav(path, samples, sampleRate) {
   str(12, 'fmt ');
   dv.setUint32(16, 16, true);
   dv.setUint16(20, 1, true);
-  dv.setUint16(22, 1, true); // mono
+  dv.setUint16(22, 1, true); /* mono */
   dv.setUint32(24, sampleRate, true);
   dv.setUint32(28, sampleRate * 2, true);
   dv.setUint16(32, 2, true);
@@ -47,25 +49,33 @@ function writeWav(path, samples, sampleRate) {
   f.close();
 }
 
-// StkFrames.buffer aliases the underlying native Float64 storage, so this
-// is a zero-copy view onto whatever render() produced.
+/*
+ * StkFrames.buffer aliases the underlying native Float64 storage, so this
+ * is a zero-copy view onto whatever render() produced.
+ */
 function toFloat64(frames) {
   return new Float64Array(frames.buffer);
 }
 
 function main() {
   /* ---------- build a small tuned kit ---------- */
-  // Same class, five voices tuned/voiced differently -- this is the kind of
-  // kit you'd get from a rack of twin-T oscillator drum modules.
+  /*
+   * Same class, five voices tuned/voiced differently -- this is the kind of
+   * kit you'd get from a rack of twin-T oscillator drum modules.
+   */
 
-  // Each voice carries its own tailSeconds so the render loop below can pull
-  // enough tail to hear the resonator all the way down, instead of chopping
-  // every hit off at the same fixed window regardless of its decay.
+  /*
+   * Each voice carries its own tailSeconds so the render loop below can pull
+   * enough tail to hear the resonator all the way down, instead of chopping
+   * every hit off at the same fixed window regardless of its decay.
+   */
 
-  // Long decay + a wide, slow pitch drop (an octave-ish, settling over
-  // ~100ms) so the "analog tom" pitch bend is unmistakable instead of hiding
-  // inside the attack transient. Click is kept low so it accents the strike
-  // without swamping the resonant tail.
+  /*
+   * Long decay + a wide, slow pitch drop (an octave-ish, settling over
+   * ~100ms) so the "analog tom" pitch bend is unmistakable instead of hiding
+   * inside the attack transient. Click is kept low so it accents the strike
+   * without swamping the resonant tail.
+   */
   const lowTom = new stk.TwinTDrum(100);
   lowTom.setDecay(0.9);
   lowTom.setDrive(0.12);
@@ -87,8 +97,10 @@ function main() {
   hiTom.setClick(0.12);
   hiTom.tailSeconds = 0.55 * 3;
 
-  // Cowbell-ish voice: two closely-tuned resonators (the "secondary" control)
-  // beating against each other, more click, faster decay, hotter drive.
+  /*
+   * Cowbell-ish voice: two closely-tuned resonators (the "secondary" control)
+   * beating against each other, more click, faster decay, hotter drive.
+   */
   const cowbell = new stk.TwinTDrum(560);
   cowbell.setDecay(0.4);
   cowbell.setDrive(0.6);
@@ -96,7 +108,9 @@ function main() {
   cowbell.setClick(0.4);
   cowbell.tailSeconds = 0.4 * 3;
 
-  // Woodblock-ish voice: very short decay, high secondary ratio, no drive.
+  /*
+   * Woodblock-ish voice: very short decay, high secondary ratio, no drive.
+   */
   const woodblock = new stk.TwinTDrum(900);
   woodblock.setDecay(0.08);
   woodblock.setSecondary(2.0, 0.5);
@@ -106,13 +120,15 @@ function main() {
   /* ---------- a solo groove exercising the whole kit ---------- */
 
   const bpm = 100;
-  const step = 60 / bpm / 4; // 16th notes
+  const step = 60 / bpm / 4; /* 16th notes */
   const totalSteps = 32;
   const longestTail = Math.max(lowTom.tailSeconds, midTom.tailSeconds, hiTom.tailSeconds, cowbell.tailSeconds, woodblock.tailSeconds);
   const totalFrames = Math.ceil((totalSteps * step + longestTail) * SR);
   const out = new Float64Array(totalFrames);
 
-  // [voice, velocity] per 16th, '.' = rest.
+  /*
+   * [voice, velocity] per 16th, '.' = rest.
+   */
   const pattern = [
     [lowTom, 1.0], 0, [woodblock, 0.6], 0,
     [midTom, 0.9], [woodblock, 0.4], 0, [hiTom, 0.7],
@@ -132,10 +148,12 @@ function main() {
     const [voice, velocity] = hit;
     const startFrame = Math.round(i * step * SR);
 
-    // render(n, velocity) strikes the voice and renders its tail in one call
-    // -- no per-sample tick() loop needed for one-shot use. Each voice's own
-    // tailSeconds (set above, proportional to its decay) keeps long-release
-    // toms from getting truncated by a fixed window.
+    /*
+     * render(n, velocity) strikes the voice and renders its tail in one call
+     * -- no per-sample tick() loop needed for one-shot use. Each voice's own
+     * tailSeconds (set above, proportional to its decay) keeps long-release
+     * toms from getting truncated by a fixed window.
+     */
     const tailFrames = Math.min(Math.round(SR * voice.tailSeconds), totalFrames - startFrame);
     if(tailFrames <= 0)
       continue;

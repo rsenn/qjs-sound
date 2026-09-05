@@ -1,26 +1,28 @@
-// Demo for the quickjs-stk bindings: Shakers, STK's PhISEM (Physically
-// Informed Stochastic Event Modeling) instrument, run through a light
-// effects chain and rendered offline to a stereo WAV file.
-//
-// This has two sections:
-//
-//   1. A showcase that solos every one of Shakers' 23 built-in instrument
-//      types in turn (Maraca through Tuned Bamboo Chimes), each given a
-//      "shake-shake-shake" gesture and a moment to decay, run through only
-//      a light touch of Cubic waveshaping -- no filter, delay or
-//      reverb -- so each instrument's own papery/crunchy character stays
-//      clearly audible instead of getting buried.
-//   2. A short groove afterward that cycles through ten of those
-//      instruments in a 16th-note pattern, through a tamed version of the
-//      original signal chain (distortion -> gentle sweep filter ->
-//      ping-pong delay -> reverb) to show them working together
-//      musically, without the earlier version's heavy resonance/feedback/
-//      reverb wash swamping the transients.
-//
-// STK is compiled with a default sample rate of 44100 Hz (see SRATE in
-// Stk.h); the "stk" module's exported Stk.sampleRate setter is currently a
-// no-op placeholder (not a real binding to Stk::setSampleRate), so we just
-// rely on that built-in default rather than pretend to change it.
+/*
+ * Demo for the quickjs-stk bindings: Shakers, STK's PhISEM (Physically
+ * Informed Stochastic Event Modeling) instrument, run through a light
+ * effects chain and rendered offline to a stereo WAV file.
+ *
+ * This has two sections:
+ *
+ *   1. A showcase that solos every one of Shakers' 23 built-in instrument
+ *      types in turn (Maraca through Tuned Bamboo Chimes), each given a
+ *      "shake-shake-shake" gesture and a moment to decay, run through only
+ *      a light touch of Cubic waveshaping -- no filter, delay or
+ *      reverb -- so each instrument's own papery/crunchy character stays
+ *      clearly audible instead of getting buried.
+ *   2. A short groove afterward that cycles through ten of those
+ *      instruments in a 16th-note pattern, through a tamed version of the
+ *      original signal chain (distortion -> gentle sweep filter ->
+ *      ping-pong delay -> reverb) to show them working together
+ *      musically, without the earlier version's heavy resonance/feedback/
+ *      reverb wash swamping the transients.
+ *
+ * STK is compiled with a default sample rate of 44100 Hz (see SRATE in
+ * Stk.h); the "stk" module's exported Stk.sampleRate setter is currently a
+ * no-op placeholder (not a real binding to Stk::setSampleRate), so we just
+ * rely on that built-in default rather than pretend to change it.
+ */
 
 import * as std from 'std';
 import * as stk from 'stk';
@@ -54,11 +56,13 @@ function lowpassCoeffs(freq, q) {
   return [[b0, b1, b2], [1, a1, a2]];
 }
 
-// PhISEM's shake-energy model is inherently quiet (peaks well under 0.15
-// even at full velocity) -- normalize each section to a healthy target
-// peak independently, since the showcase (dry) and groove (through delay
-// and reverb) build up very differently and a single global normalization
-// would leave one of them too quiet.
+/*
+ * PhISEM's shake-energy model is inherently quiet (peaks well under 0.15
+ * even at full velocity) -- normalize each section to a healthy target
+ * peak independently, since the showcase (dry) and groove (through delay
+ * and reverb) build up very differently and a single global normalization
+ * would leave one of them too quiet.
+ */
 function normalize(...channels) {
   const TARGET_PEAK = 0.9;
   let peak = 0;
@@ -74,7 +78,7 @@ function normalize(...channels) {
 /* ---------- write out a 16-bit stereo WAV ---------- */
 function writeWav(path, left, right, sampleRate) {
   const nFrames = left.length;
-  const dataSize = nFrames * 2 * 2; // stereo, 16-bit
+  const dataSize = nFrames * 2 * 2; /* stereo, 16-bit */
   const buf = new ArrayBuffer(44 + dataSize);
   const dv = new DataView(buf);
   const str = (off, s) => { for(let i = 0; i < s.length; i++) dv.setUint8(off + i, s.charCodeAt(i)); };
@@ -84,12 +88,12 @@ function writeWav(path, left, right, sampleRate) {
   str(8, 'WAVE');
   str(12, 'fmt ');
   dv.setUint32(16, 16, true);
-  dv.setUint16(20, 1, true);  // PCM
-  dv.setUint16(22, 2, true);  // channels
+  dv.setUint16(20, 1, true); /* PCM */
+  dv.setUint16(22, 2, true); /* channels */
   dv.setUint32(24, sampleRate, true);
-  dv.setUint32(28, sampleRate * 2 * 2, true); // byte rate
-  dv.setUint16(32, 4, true);  // block align
-  dv.setUint16(34, 16, true); // bits per sample
+  dv.setUint32(28, sampleRate * 2 * 2, true); /* byte rate */
+  dv.setUint16(32, 4, true); /* block align */
+  dv.setUint16(34, 16, true); /* bits per sample */
   str(36, 'data');
   dv.setUint32(40, dataSize, true);
 
@@ -111,16 +115,18 @@ function main() {
   const cubic = new stk.Cubic();
 
   /* ---------- section 1: showcase every instrument, lightly touched ---------- */
-  // A continuous "shake" gesture (noteOn retriggered every 50ms, like
-  // actually shaking the instrument rather than a couple of taps), then a
-  // moment to let it decay. Guiro/Wrench (types 19/20) are ratchet-driven --
-  // each noteOn is one scrape -- so continuous retriggering also gives them
-  // a proper multi-scrape sound. Shake energy in this model decays to
-  // inaudible within tens of milliseconds of the last noteOn, and a few
-  // instruments (Water Drops in particular) only produce a sound on a
-  // per-sample random chance while energy is up -- a couple of taps isn't a
-  // long enough window for that chance to land reliably, so the shake phase
-  // needs to be sustained, not just a triggered decay.
+  /*
+   * A continuous "shake" gesture (noteOn retriggered every 50ms, like
+   * actually shaking the instrument rather than a couple of taps), then a
+   * moment to let it decay. Guiro/Wrench (types 19/20) are ratchet-driven --
+   * each noteOn is one scrape -- so continuous retriggering also gives them
+   * a proper multi-scrape sound. Shake energy in this model decays to
+   * inaudible within tens of milliseconds of the last noteOn, and a few
+   * instruments (Water Drops in particular) only produce a sound on a
+   * per-sample random chance while energy is up -- a couple of taps isn't a
+   * long enough window for that chance to land reliably, so the shake phase
+   * needs to be sustained, not just a triggered decay.
+   */
   const SHOWCASE_SHAKE_SPACING = 0.05;
   const SHOWCASE_SHAKE_DURATION = 0.6;
   const SHOWCASE_TAIL = 0.4;
@@ -129,8 +135,10 @@ function main() {
   const SHOWCASE_ITEM_FRAMES = Math.round(SHOWCASE_ITEM_SECONDS * SR);
   const SHOWCASE_GAP_FRAMES = Math.round(SHOWCASE_GAP * SR);
 
-  // Just enough waveshaping to add a little crunch to the transients, not
-  // enough to smear the instrument's own character.
+  /*
+   * Just enough waveshaping to add a little crunch to the transients, not
+   * enough to smear the instrument's own character.
+   */
   cubic.setA1(0.2);
   cubic.setA2(0.0);
   cubic.setA3(0.35);
@@ -185,7 +193,7 @@ function main() {
 
   const MARACA = 0, CABASA = 1, SEKERE = 2, TAMBOURINE = 3, SLEIGHBELLS = 4, BAMBOO = 5, COKECAN = 7, STICKS = 8, GUIRO = 19,
       WATERDROPS = 21;
-  const stepDur = 60 / bpm / 4; // 16th notes
+  const stepDur = 60 / bpm / 4; /* 16th notes */
   const groovePattern = [
     { inst: MARACA, amp: 0.9 }, { inst: MARACA, amp: 0.25 },
     { inst: CABASA, amp: 0.7 }, { inst: STICKS, amp: 0.4 },
@@ -213,7 +221,9 @@ function main() {
       }
 
       if(n % BLOCK === 0) {
-        // Slow, bright cutoff sweep: 3200 Hz .. 5800 Hz over a ~5s cycle.
+        /*
+         * Slow, bright cutoff sweep: 3200 Hz .. 5800 Hz over a ~5s cycle.
+         */
         const t = n / SR;
         const cutoff = 4500 + 1300 * Math.sin((2 * Math.PI * t) / 5);
         iir = new stk.Iir(...lowpassCoeffs(cutoff, FILTER_Q));
@@ -242,7 +252,7 @@ function main() {
   const outL = new Float64Array(showcaseL.length + sectionGap.length + grooveL.length);
   const outR = new Float64Array(outL.length);
   outL.set(showcaseL, 0);
-  outR.set(showcaseL, 0); // showcase is dry/mono -- duplicate to both channels
+  outR.set(showcaseL, 0); /* showcase is dry/mono -- duplicate to both channels */
   outL.set(grooveL, showcaseL.length + sectionGap.length);
   outR.set(grooveR, showcaseL.length + sectionGap.length);
 

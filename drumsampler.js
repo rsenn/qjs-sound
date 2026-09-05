@@ -1,17 +1,19 @@
-// Drum sampler with sample-based AND procedural voices.
-//
-// Sample-based: kick / snare / hihat etc. — load a WAV via AudioContext and
-// register it with loadSample(name, buffer). Every trigger() spawns a fresh
-// AudioBufferSourceNode (the WebAudio idiom for sample playback).
-//
-// Procedural: tom / cymbal / conga / djembe — synthesized from oscillators
-// + noise + filters + envelopes. Each defineVoice(name, fn) registers a
-// function that, on trigger, builds the per-hit graph and returns its
-// output AudioNode.
-//
-// Runtime-agnostic: pass in the runtime env ({ GainNode, OscillatorNode,
-// NoiseNode, BiquadFilterNode, AudioBufferSourceNode }) so the same file
-// works in qjs and the browser.
+/*
+ * Drum sampler with sample-based AND procedural voices.
+ *
+ * Sample-based: kick / snare / hihat etc. — load a WAV via AudioContext and
+ * register it with loadSample(name, buffer). Every trigger() spawns a fresh
+ * AudioBufferSourceNode (the WebAudio idiom for sample playback).
+ *
+ * Procedural: tom / cymbal / conga / djembe — synthesized from oscillators
+ * + noise + filters + envelopes. Each defineVoice(name, fn) registers a
+ * function that, on trigger, builds the per-hit graph and returns its
+ * output AudioNode.
+ *
+ * Runtime-agnostic: pass in the runtime env ({ GainNode, OscillatorNode,
+ * NoiseNode, BiquadFilterNode, AudioBufferSourceNode }) so the same file
+ * works in qjs and the browser.
+ */
 
 export class DrumSampler {
   constructor(ctx, env, opts = {}) {
@@ -29,7 +31,9 @@ export class DrumSampler {
     return this;
   }
 
-  // fn(ctx, env, t, opts) -> output AudioNode connected via internal graph.
+  /*
+   * fn(ctx, env, t, opts) -> output AudioNode connected via internal graph.
+   */
   defineVoice(name, fn) {
     this.voices.set(name, { kind: 'proc', fn });
     return this;
@@ -39,10 +43,14 @@ export class DrumSampler {
     const v = this.voices.get(name);
     if(!v) throw new Error(`unknown drum voice: ${name}`);
 
-    // Per-hit gain so each trigger can have its own velocity.
+    /*
+     * Per-hit gain so each trigger can have its own velocity.
+     */
     const hitGain = new this.env.GainNode(this.ctx, { gain: opts.gain ?? 1.0 });
 
-    // Optional per-hit stereo placement.
+    /*
+     * Optional per-hit stereo placement.
+     */
     let downstream = this.master;
     if(opts.pan !== undefined) {
       const panner = new this.env.StereoPannerNode(this.ctx, { pan: opts.pan });
@@ -67,7 +75,9 @@ export class DrumSampler {
 
 /* ---------- procedural drum voices ---------- */
 
-// Tom: low sine with a fast downward pitch sweep and exponential decay.
+/*
+ * Tom: low sine with a fast downward pitch sweep and exponential decay.
+ */
 export function tom(ctx, env, t, { freq = 110, decay = 0.4 } = {}) {
   const osc = new env.OscillatorNode(ctx, { type: 'sine', frequency: freq * 2 });
   const g   = new env.GainNode(ctx, { gain: 0 });
@@ -85,7 +95,9 @@ export function tom(ctx, env, t, { freq = 110, decay = 0.4 } = {}) {
   return g;
 }
 
-// Cymbal: highpassed white noise with a long exponential tail.
+/*
+ * Cymbal: highpassed white noise with a long exponential tail.
+ */
 export function cymbal(ctx, env, t, { decay = 0.8 } = {}) {
   const n  = new env.NoiseNode(ctx, { type: 'white' });
   const hp = new env.BiquadFilterNode(ctx, { type: 'highpass', frequency: 6000, Q: 0.7 });
@@ -102,7 +114,9 @@ export function cymbal(ctx, env, t, { decay = 0.8 } = {}) {
   return g;
 }
 
-// Conga: short sine with a quick pitch sweep, higher than tom.
+/*
+ * Conga: short sine with a quick pitch sweep, higher than tom.
+ */
 export function conga(ctx, env, t, { freq = 240, decay = 0.25 } = {}) {
   const osc = new env.OscillatorNode(ctx, { type: 'sine', frequency: freq * 1.5 });
   const g   = new env.GainNode(ctx, { gain: 0 });
@@ -120,7 +134,9 @@ export function conga(ctx, env, t, { freq = 240, decay = 0.25 } = {}) {
   return g;
 }
 
-// Djembe: pitched sine + highpassed noise. Sine is the body, noise is the slap.
+/*
+ * Djembe: pitched sine + highpassed noise. Sine is the body, noise is the slap.
+ */
 export function djembe(ctx, env, t, { freq = 180, decay = 0.3 } = {}) {
   const osc    = new env.OscillatorNode(ctx, { type: 'sine', frequency: freq * 1.8 });
   const noise  = new env.NoiseNode(ctx, { type: 'white' });

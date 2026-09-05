@@ -1,52 +1,54 @@
-// twint2-test.js — the same Twin-T drum design as TwinTDrum
-// (analog-drums.hpp), rebuilt from scratch using only WebAudio's
-// node graph, entirely in JS. No native C++ class involved: this is
-// a genuine port of the DSP idea, not a wrapper around the STK one.
-//
-// STK's TwinTDrum models a Twin-T RC notch circuit wired into an inverting
-// feedback loop: struck, it rings down at its notch frequency like a tom,
-// conga or woodblock. In STK that's a stk::TwoPole resonator pinged with a
-// single-sample impulse. The exact same idea maps directly onto a
-// WebAudio-style graph:
-//
-//   impulse (1-sample AudioBuffer) --> BiquadFilterNode(bandpass) --> ...
-//
-// A bandpass biquad excited by an impulse rings down at its center
-// frequency, with the ring length set by Q -- the WebAudio equivalent of
-// STK's pole radius. qForDecay() below converts a T60 decay time (seconds)
-// into the Q that gives roughly that decay, using the same math STK's
-// radiusFor() uses internally (T60 -> pole radius -> here, -> Q instead).
-//
-// The rest of TwinTDrum's design carries over the same way:
-//   - setPitchDrop()  -> BiquadFilterNode.frequency AudioParam automation
-//                        (setValueAtTime + exponentialRampToValueAtTime),
-//                        started ABOVE the target frequency and dropping
-//                        down to it -- the classic analog-tom "boing".
-//   - setSecondary()  -> a second, detuned BiquadFilterNode fed the same
-//                        impulse, mixed in through a GainNode.
-//   - setClick()      -> a short pre-rendered white-noise AudioBuffer
-//                        (played through an AudioBufferSourceNode), gated
-//                        by a fast GainNode decay, summed in before the
-//                        drive stage (matching STK, where the click is
-//                        added before analog_drive()). A buffer instead of
-//                        LabSound's NoiseNode because NoiseNode has no
-//                        WebAudio-spec equivalent -- real browsers only
-//                        get noise from a manually-filled buffer or an
-//                        AudioWorklet.
-//   - setDrive()       -> a WaveShaperNode built from the exact same
-//                        tanh/cubic/fold formula as analog_drive() in
-//                        analog-drums.hpp, ported line-for-line to JS.
-//
-// The kit below reuses the exact tuning from twintdrum-test.js's (already
-// long-release, distinct-pitch-drop-tuned) kit, so the two files render a
-// direct A/B comparison of the same instrument design on two different
-// synthesis engines.
-//
-// Isomorphic: both qjs (via LabSound's spec-shaped OfflineAudioContext) and
-// a real browser render offline through the exact same TwinT2 class and
-// node graph and OfflineAudioContext constructor call; only what happens to
-// the rendered buffer differs -- qjs writes a WAV file, the browser plays
-// it back through a live AudioContext (no 'labsound' module there).
+/*
+ * twint2-test.js — the same Twin-T drum design as TwinTDrum
+ * (analog-drums.hpp), rebuilt from scratch using only WebAudio's
+ * node graph, entirely in JS. No native C++ class involved: this is
+ * a genuine port of the DSP idea, not a wrapper around the STK one.
+ *
+ * STK's TwinTDrum models a Twin-T RC notch circuit wired into an inverting
+ * feedback loop: struck, it rings down at its notch frequency like a tom,
+ * conga or woodblock. In STK that's a stk::TwoPole resonator pinged with a
+ * single-sample impulse. The exact same idea maps directly onto a
+ * WebAudio-style graph:
+ *
+ *   impulse (1-sample AudioBuffer) --> BiquadFilterNode(bandpass) --> ...
+ *
+ * A bandpass biquad excited by an impulse rings down at its center
+ * frequency, with the ring length set by Q -- the WebAudio equivalent of
+ * STK's pole radius. qForDecay() below converts a T60 decay time (seconds)
+ * into the Q that gives roughly that decay, using the same math STK's
+ * radiusFor() uses internally (T60 -> pole radius -> here, -> Q instead).
+ *
+ * The rest of TwinTDrum's design carries over the same way:
+ *   - setPitchDrop()  -> BiquadFilterNode.frequency AudioParam automation
+ *                        (setValueAtTime + exponentialRampToValueAtTime),
+ *                        started ABOVE the target frequency and dropping
+ *                        down to it -- the classic analog-tom "boing".
+ *   - setSecondary()  -> a second, detuned BiquadFilterNode fed the same
+ *                        impulse, mixed in through a GainNode.
+ *   - setClick()      -> a short pre-rendered white-noise AudioBuffer
+ *                        (played through an AudioBufferSourceNode), gated
+ *                        by a fast GainNode decay, summed in before the
+ *                        drive stage (matching STK, where the click is
+ *                        added before analog_drive()). A buffer instead of
+ *                        LabSound's NoiseNode because NoiseNode has no
+ *                        WebAudio-spec equivalent -- real browsers only
+ *                        get noise from a manually-filled buffer or an
+ *                        AudioWorklet.
+ *   - setDrive()       -> a WaveShaperNode built from the exact same
+ *                        tanh/cubic/fold formula as analog_drive() in
+ *                        analog-drums.hpp, ported line-for-line to JS.
+ *
+ * The kit below reuses the exact tuning from twintdrum-test.js's (already
+ * long-release, distinct-pitch-drop-tuned) kit, so the two files render a
+ * direct A/B comparison of the same instrument design on two different
+ * synthesis engines.
+ *
+ * Isomorphic: both qjs (via LabSound's spec-shaped OfflineAudioContext) and
+ * a real browser render offline through the exact same TwinT2 class and
+ * node graph and OfflineAudioContext constructor call; only what happens to
+ * the rendered buffer differs -- qjs writes a WAV file, the browser plays
+ * it back through a live AudioContext (no 'labsound' module there).
+ */
 
 const isBrowser = typeof globalThis.window !== 'undefined';
 
@@ -83,25 +85,29 @@ function analogDrive(x, amount, type) {
 function buildDriveCurve(amount, type, n = 2048) {
   const curve = new Float32Array(n);
   for(let i = 0; i < n; i++) {
-    const x = (i / (n - 1)) * 2 - 1; // -1..1
+    const x = (i / (n - 1)) * 2 - 1; /* -1..1 */
     curve[i] = analogDrive(x, amount, type);
   }
   return curve;
 }
 
-// T60 (seconds) -> BiquadFilterNode Q, using the same relationship STK's
-// radiusFor() uses (r = 10^(-3/(t60*sr))), converted from pole radius to Q
-// via the standard narrowband bandpass approximation BW_Hz ~= (1-r)*sr/pi,
-// Q = f0/BW_Hz. The sr terms cancel, so Q depends only on frequency and T60.
+/*
+ * T60 (seconds) -> BiquadFilterNode Q, using the same relationship STK's
+ * radiusFor() uses (r = 10^(-3/(t60*sr))), converted from pole radius to Q
+ * via the standard narrowband bandpass approximation BW_Hz ~= (1-r)*sr/pi,
+ * Q = f0/BW_Hz. The sr terms cancel, so Q depends only on frequency and T60.
+ */
 function qForDecay(freq, t60) {
   return Math.max(0.3, Math.min(500, (Math.PI * freq * t60) / (3 * Math.LN10)));
 }
 
-// Gain needed to counteract a "constant peak gain" bandpass biquad's
-// amplitude normalization when struck with a single-sample impulse: its
-// impulse-response peak is empirically (2*pi*freq/sampleRate)/Q times the
-// input amplitude, so this is that ratio's reciprocal. See the comment in
-// the TwinT2 constructor for the full explanation.
+/*
+ * Gain needed to counteract a "constant peak gain" bandpass biquad's
+ * amplitude normalization when struck with a single-sample impulse: its
+ * impulse-response peak is empirically (2*pi*freq/sampleRate)/Q times the
+ * input amplitude, so this is that ratio's reciprocal. See the comment in
+ * the TwinT2 constructor for the full explanation.
+ */
 function excitationGain(freq, q, sampleRate) {
   return (q * sampleRate) / (2 * Math.PI * freq);
 }
@@ -124,21 +130,23 @@ class TwinT2 {
     this.resonator = new env.BiquadFilterNode(ctx, { type: 'bandpass', frequency, Q: 1 });
     this.secondary = new env.BiquadFilterNode(ctx, { type: 'bandpass', frequency: frequency * this.secondaryRatio, Q: 1 });
     this.secondaryGain = new env.GainNode(ctx, { gain: 0 });
-    // Separate excitation-gain stages for each resonator (not one shared
-    // gain): a "constant peak gain" bandpass biquad -- like this one, and
-    // like the WebAudio spec's bandpass generally -- normalizes for a
-    // *continuous* sinusoidal drive, not a single-sample impulse. Struck
-    // with a plain impulse, its peak ring-out is only ~(2*pi*freq/sr)/Q of
-    // the input amplitude (confirmed empirically: peak*Q/freq is constant
-    // and equals 2*pi/sr to 4 significant figures) -- tiny enough, for a
-    // low-frequency high-Q tom, to fall below the WaveShaperNode curve's
-    // lookup resolution and disappear into quantization noise instead of
-    // ringing down audibly. excitationGain() cancels that out so strike()
-    // peaks at roughly `amplitude` regardless of tuning/decay, matching
-    // the same fix applied to TwinTDrum's TwoPole resonator in
-    // analog-drums.hpp (there via normalize=false + sin(w0) scaling; here
-    // via a compensating gain stage, since BiquadFilterNode doesn't expose
-    // an unnormalized mode).
+    /*
+     * Separate excitation-gain stages for each resonator (not one shared
+     * gain): a "constant peak gain" bandpass biquad -- like this one, and
+     * like the WebAudio spec's bandpass generally -- normalizes for a
+     * *continuous* sinusoidal drive, not a single-sample impulse. Struck
+     * with a plain impulse, its peak ring-out is only ~(2*pi*freq/sr)/Q of
+     * the input amplitude (confirmed empirically: peak*Q/freq is constant
+     * and equals 2*pi/sr to 4 significant figures) -- tiny enough, for a
+     * low-frequency high-Q tom, to fall below the WaveShaperNode curve's
+     * lookup resolution and disappear into quantization noise instead of
+     * ringing down audibly. excitationGain() cancels that out so strike()
+     * peaks at roughly `amplitude` regardless of tuning/decay, matching
+     * the same fix applied to TwinTDrum's TwoPole resonator in
+     * analog-drums.hpp (there via normalize=false + sin(w0) scaling; here
+     * via a compensating gain stage, since BiquadFilterNode doesn't expose
+     * an unnormalized mode).
+     */
     this.strikeGain = new env.GainNode(ctx, { gain: 1 });
     this.secondaryStrikeGain = new env.GainNode(ctx, { gain: 0 });
     this.shaper = new env.WaveShaperNode(ctx, { curve: buildDriveCurve(0, 'tanh') });
@@ -151,16 +159,20 @@ class TwinT2 {
     this.secondaryGain.connect(this.shaper);
     this.shaper.connect(this.output);
 
-    // A shared 1-sample impulse buffer. AudioBufferSourceNode is a
-    // single-use source (like every AudioScheduledSourceNode), so each
-    // strike() still needs a fresh source node -- but they can all point
-    // at this same buffer.
+    /*
+     * A shared 1-sample impulse buffer. AudioBufferSourceNode is a
+     * single-use source (like every AudioScheduledSourceNode), so each
+     * strike() still needs a fresh source node -- but they can all point
+     * at this same buffer.
+     */
     this._impulse = new env.AudioBuffer({ numberOfChannels: 1, length: 1, sampleRate: ctx.sampleRate });
     this._impulse.copyToChannel(new Float32Array([1.0]), 0);
 
-    // A shared white-noise buffer for setClick()'s burst, long enough to
-    // cover the fixed 0.15s click tail used in strike() below. Pre-filled
-    // once here rather than regenerated per strike.
+    /*
+     * A shared white-noise buffer for setClick()'s burst, long enough to
+     * cover the fixed 0.15s click tail used in strike() below. Pre-filled
+     * once here rather than regenerated per strike.
+     */
     const noiseLength = Math.ceil(ctx.sampleRate * 0.2);
     const noiseData = new Float32Array(noiseLength);
     for(let i = 0; i < noiseLength; i++)
@@ -196,10 +208,12 @@ class TwinT2 {
     const q = qForDecay(this.frequency, this.decay);
     this.resonator.Q.setValueAtTime(q, t);
     this.resonator.frequency.cancelScheduledValues(t);
-    // The impulse lands at the frequency the resonator is actually tuned
-    // to at time t, so the excitation-gain compensation has to match that
-    // (the peak-frequency overshoot when a pitch drop is active), not the
-    // settled frequency it ramps down to afterwards.
+    /*
+     * The impulse lands at the frequency the resonator is actually tuned
+     * to at time t, so the excitation-gain compensation has to match that
+     * (the peak-frequency overshoot when a pitch drop is active), not the
+     * settled frequency it ramps down to afterwards.
+     */
     let strikeFreq = this.frequency;
     if(this.pitchDropSemitones !== 0) {
       strikeFreq = this.frequency * Math.pow(2, this.pitchDropSemitones / 12);
@@ -234,7 +248,7 @@ class TwinT2 {
       noise.connect(clickGain);
       clickGain.connect(this.shaper);
       clickGain.gain.setValueAtTime(this.clickAmount * amplitude, t);
-      clickGain.gain.setTargetAtTime(0.0001, t, 0.006); // ~6ms time constant -- fast, snappy click
+      clickGain.gain.setTargetAtTime(0.0001, t, 0.006); /* ~6ms time constant -- fast, snappy click */
       noise.start(t);
       noise.stop(t + 0.15);
     }
@@ -247,7 +261,7 @@ async function main() {
   const env = isBrowser ? globalThis : await import('labsound');
 
   const bpm = 100;
-  const step = 60 / bpm / 4; // 16th notes
+  const step = 60 / bpm / 4; /* 16th notes */
   const totalSteps = 32;
 
   const lowTom = { voice: null, tailSeconds: 0.9 * 3 };
@@ -256,13 +270,15 @@ async function main() {
   const cowbell = { voice: null, tailSeconds: 0.4 * 3 };
   const woodblock = { voice: null, tailSeconds: 0.4 };
 
-  // Any source scheduled to start within the offline context's very first
-  // processing quantum (128 samples, ~2.9ms) renders completely silent --
-  // a LabSound scheduler quirk confirmed by direct probing (a source
-  // start()ed at t=0 or anywhere before sample 128 produces no output at
-  // all; from sample 128 on it works normally, just delayed to the next
-  // quantum boundary). LEAD_IN keeps every scheduled event safely past
-  // that dead zone.
+  /*
+   * Any source scheduled to start within the offline context's very first
+   * processing quantum (128 samples, ~2.9ms) renders completely silent --
+   * a LabSound scheduler quirk confirmed by direct probing (a source
+   * start()ed at t=0 or anywhere before sample 128 produces no output at
+   * all; from sample 128 on it works normally, just delayed to the next
+   * quantum boundary). LEAD_IN keeps every scheduled event safely past
+   * that dead zone.
+   */
   const LEAD_IN = 0.01;
 
   const longestTail = Math.max(lowTom.tailSeconds, midTom.tailSeconds, hiTom.tailSeconds, cowbell.tailSeconds, woodblock.tailSeconds);
@@ -302,9 +318,11 @@ async function main() {
     [woodblock, 0.5], [cowbell, 1.0], [lowTom, 0.7], [hiTom, 1.0],
   ];
 
-  // With a graph-scheduled engine there's no per-sample tick() loop --
-  // every strike is just scheduled at its absolute time up front, and
-  // startRendering() resolves the whole timeline in one shot.
+  /*
+   * With a graph-scheduled engine there's no per-sample tick() loop --
+   * every strike is just scheduled at its absolute time up front, and
+   * startRendering() resolves the whole timeline in one shot.
+   */
   for(let i = 0; i < totalSteps; i++) {
     const hit = pattern[i % pattern.length];
     if(!hit)
@@ -315,10 +333,12 @@ async function main() {
 
   const rendered = await ctx.startRendering();
 
-  // The excitation-gain compensation aims each strike at peak~=amplitude in
-  // isolation, but overlapping voices (a new hit landing while a previous
-  // one is still ringing) can still sum past 0dB -- normalize to a safe
-  // target peak before writing, same as twintdrum-test.js.
+  /*
+   * The excitation-gain compensation aims each strike at peak~=amplitude in
+   * isolation, but overlapping voices (a new hit landing while a previous
+   * one is still ringing) can still sum past 0dB -- normalize to a safe
+   * target peak before writing, same as twintdrum-test.js.
+   */
   const data = rendered.getChannelData(0);
   let peak = 0;
   for(let i = 0; i < data.length; i++)

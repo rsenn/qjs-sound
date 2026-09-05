@@ -1,14 +1,16 @@
-// Full track: drums + TB-303 synth + effects, all in one mix.
-//
-// Bus layout:
-//
-//   Synth ─► WaveShaper (dist) ─┬─► synthBus ─► master ─► destination
-//                               └─► PingPongDelay ─► wetSend ─► synthBus
-//
-//   Drums (kick/snare/hihat samples + procedural tom/cymbal) ─► drumBus ─► master
-//
-// 4 bars at 124 BPM. Drums per-hit panned across the stereo field; synth runs
-// through distortion + an 8th-dotted ping-pong delay.
+/*
+ * Full track: drums + TB-303 synth + effects, all in one mix.
+ *
+ * Bus layout:
+ *
+ *   Synth ─► WaveShaper (dist) ─┬─► synthBus ─► master ─► destination
+ *                               └─► PingPongDelay ─► wetSend ─► synthBus
+ *
+ *   Drums (kick/snare/hihat samples + procedural tom/cymbal) ─► drumBus ─► master
+ *
+ * 4 bars at 124 BPM. Drums per-hit panned across the stereo field; synth runs
+ * through distortion + an 8th-dotted ping-pong delay.
+ */
 
 import { Synth } from './synth.js';
 import { DrumSampler, tom, cymbal } from './drumsampler.js';
@@ -65,16 +67,20 @@ async function main() {
   });
   dist.connect(synthBus);
 
-  // 8th-dotted delay at 124 BPM = (60/124) * 0.75 = ~0.363 s
+  /*
+   * 8th-dotted delay at 124 BPM = (60/124) * 0.75 = ~0.363 s
+   */
   const bpm = 124;
-  const stepDur = 60 / bpm / 4;          // 16th notes
+  const stepDur = 60 / bpm / 4; /* 16th notes */
   const ppd = createPingPongDelay(ctx, env, { time: stepDur * 3, feedback: 0.45 });
   const wetSend = new env.GainNode(ctx, { gain: 0.35 });
   ppd.output.connect(wetSend);
   wetSend.connect(synthBus);
   dist.connect(ppd.input);
 
-  // Synth feeds the distortion (it then fans out to dry + delay)
+  /*
+   * Synth feeds the distortion (it then fans out to dry + delay)
+   */
   const synth = new Synth(ctx, env, {
     gain: 0.7,
     cutoff: 600,
@@ -87,7 +93,9 @@ async function main() {
 
   /* ---------- patterns ---------- */
 
-  // 16-step drum pattern. X = hit, '-' = rest.
+  /*
+   * 16-step drum pattern. X = hit, '-' = rest.
+   */
   const drumPattern = {
     kick:   'X---X---X---X---',
     snare:  '----X-------X---',
@@ -96,7 +104,9 @@ async function main() {
     tom:    '--------------X-',
   };
 
-  // Per-voice stereo placement (-1 = hard left, +1 = hard right).
+  /*
+   * Per-voice stereo placement (-1 = hard left, +1 = hard right).
+   */
   const drumPan = {
     kick:   0.0,
     snare: -0.15,
@@ -105,7 +115,9 @@ async function main() {
     tom:   -0.5,
   };
 
-  // 16-step bassline. [midi, accent, slide]
+  /*
+   * 16-step bassline. [midi, accent, slide]
+   */
   const synthPattern = [
     [33, false, false], [45, true,  false], [33, false, true ], [40, false, false],
     [33, false, false], [52, true,  false], [33, false, true ], [40, false, false],
@@ -124,7 +136,9 @@ async function main() {
     const t = t0 + i * stepDur;
     const stepInBar = i % stepsPerBar;
 
-    // Drums
+    /*
+     * Drums
+     */
     for(const [name, row] of Object.entries(drumPattern)) {
       if(row[stepInBar] !== '-') {
         drums.trigger(name, t, {
@@ -134,7 +148,9 @@ async function main() {
       }
     }
 
-    // Synth — start the bassline from bar 2 so the drums establish first
+    /*
+     * Synth — start the bassline from bar 2 so the drums establish first
+     */
     if(i >= stepsPerBar) {
       const [midi, accent, slide] = synthPattern[stepInBar];
       synth.noteOn({

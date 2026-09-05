@@ -1,24 +1,26 @@
-// Exercises every capability of the quickjs-portaudio binding: module-level
-// functions/constants, the `devices`/`hostApis` collections and their
-// `PaDeviceInfo`/`HostApiInfo` element classes, `PaStream.isFormatSupported`,
-// both `PaStream` constructor forms (positional -> Pa_OpenDefaultStream,
-// object -> Pa_OpenStream), every PaStream property/method, the closed-stream
-// guard, and idempotent close(). See doc/portaudio.md for the full API this
-// exercises.
-//
-// Only ONE real PaStream is ever successfully opened in this process. Opening
-// a second live stream after closing (or even alongside) a first one reliably
-// crashes in this environment -- confirmed with gdb in an earlier session
-// (heap corruption inside QuickJS's own property lookup, not in PortAudio;
-// an identical Pa_OpenDefaultStream/Pa_CloseStream sequence in a standalone C
-// program does not crash), most likely a PortAudio/ALSA background thread
-// racing the next stream's setup. See BUGS: pastream-reopen-after-close-segfault.
-// A *failed* open (bad device/channel count, throwing before a real stream
-// exists) does not trigger it, so both constructors' argument handling is
-// still exercised via deliberately-invalid calls.
-//
-// Usage:
-//   qjs -m --std portaudio-test.js [seconds]
+/*
+ * Exercises every capability of the quickjs-portaudio binding: module-level
+ * functions/constants, the `devices`/`hostApis` collections and their
+ * `PaDeviceInfo`/`HostApiInfo` element classes, `PaStream.isFormatSupported`,
+ * both `PaStream` constructor forms (positional -> Pa_OpenDefaultStream,
+ * object -> Pa_OpenStream), every PaStream property/method, the closed-stream
+ * guard, and idempotent close(). See doc/portaudio.md for the full API this
+ * exercises.
+ *
+ * Only ONE real PaStream is ever successfully opened in this process. Opening
+ * a second live stream after closing (or even alongside) a first one reliably
+ * crashes in this environment -- confirmed with gdb in an earlier session
+ * (heap corruption inside QuickJS's own property lookup, not in PortAudio;
+ * an identical Pa_OpenDefaultStream/Pa_CloseStream sequence in a standalone C
+ * program does not crash), most likely a PortAudio/ALSA background thread
+ * racing the next stream's setup. See BUGS: pastream-reopen-after-close-segfault.
+ * A *failed* open (bad device/channel count, throwing before a real stream
+ * exists) does not trigger it, so both constructors' argument handling is
+ * still exercised via deliberately-invalid calls.
+ *
+ * Usage:
+ *   qjs -m --std portaudio-test.js [seconds]
+ */
 
 import * as std from 'std';
 import * as pa from 'portaudio';
@@ -64,12 +66,12 @@ function writeWavMono(path, samples, sampleRate) {
   str(8, 'WAVE');
   str(12, 'fmt ');
   dv.setUint32(16, 16, true);
-  dv.setUint16(20, 1, true); // PCM
-  dv.setUint16(22, 1, true); // mono
+  dv.setUint16(20, 1, true); /* PCM */
+  dv.setUint16(22, 1, true); /* mono */
   dv.setUint32(24, sampleRate, true);
-  dv.setUint32(28, sampleRate * 2, true); // byte rate
-  dv.setUint16(32, 2, true); // block align
-  dv.setUint16(34, 16, true); // bits per sample
+  dv.setUint32(28, sampleRate * 2, true); /* byte rate */
+  dv.setUint16(32, 2, true); /* block align */
+  dv.setUint16(34, 16, true); /* bits per sample */
   str(36, 'data');
   dv.setUint32(40, dataSize, true);
 
@@ -104,15 +106,17 @@ function testModuleLevel() {
   check(Date.now() - before >= 15, 'Pa_Sleep(20) actually sleeps');
 }
 
-// NOTE: `defaultOutputHostApi` is captured up front, in main(), rather than
-// re-read from `pa.devices` inside testHostApis() below. Touching `devices`
-// again *after* running the `hostApis` loop and a `PaDeviceInfo`/
-// `HostApiInfo` constructor call reliably segfaults in this environment --
-// see BUGS: devices-hostapis-interleave-segfault. This
-// isn't a PaStream issue (no stream is ever opened here), so it's a
-// separate, second instance of the same "some sequences of otherwise-valid
-// calls corrupt memory in this environment" class of problem documented at
-// the top of this file.
+/*
+ * NOTE: `defaultOutputHostApi` is captured up front, in main(), rather than
+ * re-read from `pa.devices` inside testHostApis() below. Touching `devices`
+ * again *after* running the `hostApis` loop and a `PaDeviceInfo`/
+ * `HostApiInfo` constructor call reliably segfaults in this environment --
+ * see BUGS: devices-hostapis-interleave-segfault. This
+ * isn't a PaStream issue (no stream is ever opened here), so it's a
+ * separate, second instance of the same "some sequences of otherwise-valid
+ * calls corrupt memory in this environment" class of problem documented at
+ * the top of this file.
+ */
 function testDevices() {
   console.log('-- devices --');
 
@@ -141,8 +145,10 @@ function testHostApis(defaultOutputHostApi) {
   check(defaultApi.defaultOutputDevice === pa.devices.defaultOutput, 'hostApis[devices[defaultOutput].hostApi].defaultOutputDevice round-trips to devices.defaultOutput');
 }
 
-// Split out from testDevices()/testHostApis() above and run last, once both
-// collections have already been fully exercised - see the note above.
+/*
+ * Split out from testDevices()/testHostApis() above and run last, once both
+ * collections have already been fully exercised - see the note above.
+ */
 function testDeviceInfoAndHostApiInfoConstructors() {
   console.log('-- PaDeviceInfo / HostApiInfo constructors --');
 
@@ -213,8 +219,8 @@ function testRealStream() {
   let written = 0;
   while(written < total) {
     const frames = Math.min(CHUNK_FRAMES, total - written);
-    stream.read(chunk, frames); // capture from mic
-    stream.write(chunk, frames); // play back live
+    stream.read(chunk, frames); /* capture from mic */
+    stream.write(chunk, frames); /* play back live */
     recorded.set(chunk.subarray(0, frames), written);
     written += frames;
   }
@@ -223,7 +229,7 @@ function testRealStream() {
   check(stream.stopped === true, 'stream.stopped === true after stop()');
 
   stream.close();
-  stream.close(); // idempotent, must not throw
+  stream.close(); /* idempotent, must not throw */
   check(true, 'close() twice is a no-op, not an error');
 
   throws(() => stream.start(), 'start() after close() throws');

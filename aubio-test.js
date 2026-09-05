@@ -1,19 +1,21 @@
-// Demo for the quickjs-aubio bindings: analyze an audio file with
-// AubioNotes, AubioOnset and AubioPitch, writing each detector's output to
-// its own text file.
-//
-// Usage:
-//   qjs -m --std aubio-test.js <audio-file> [outputPrefix]
-//
-// <audio-file> is decoded via LabSound's AudioContext.createBufferFromFile()
-// (mixed down to mono), so anything libnyquist can read (WAV, and depending
-// on build config OGG/FLAC/etc.) works, not just WAV.
-//
-// Writes three tab-separated text files (default prefix = input file name
-// without its extension):
-//   <prefix>.onset.txt  one line per detected onset:  time_s  strength
-//   <prefix>.pitch.txt  one line per analysis hop:     time_s  hz  confidence
-//   <prefix>.notes.txt  one line per note on/off event: time_s  event  midiNote  velocity
+/*
+ * Demo for the quickjs-aubio bindings: analyze an audio file with
+ * AubioNotes, AubioOnset and AubioPitch, writing each detector's output to
+ * its own text file.
+ *
+ * Usage:
+ *   qjs -m --std aubio-test.js <audio-file> [outputPrefix]
+ *
+ * <audio-file> is decoded via LabSound's AudioContext.createBufferFromFile()
+ * (mixed down to mono), so anything libnyquist can read (WAV, and depending
+ * on build config OGG/FLAC/etc.) works, not just WAV.
+ *
+ * Writes three tab-separated text files (default prefix = input file name
+ * without its extension):
+ *   <prefix>.onset.txt  one line per detected onset:  time_s  strength
+ *   <prefix>.pitch.txt  one line per analysis hop:     time_s  hz  confidence
+ *   <prefix>.notes.txt  one line per note on/off event: time_s  event  midiNote  velocity
+ */
 
 import * as std from 'std';
 import { OfflineAudioContext } from 'labsound';
@@ -34,8 +36,10 @@ function main() {
   }
   const prefix = scriptArgs[2] || baseName(inPath);
 
-  // Only createBufferFromFile() is used below (no rendering), so the
-  // required numberOfChannels/length/sampleRate are just placeholders.
+  /*
+   * Only createBufferFromFile() is used below (no rendering), so the
+   * required numberOfChannels/length/sampleRate are just placeholders.
+   */
   const ctx = new OfflineAudioContext(1, 1, 44100);
   const buffer = ctx.createBufferFromFile(inPath, true /* mixToMono */);
   const sampleRate = buffer.sampleRate;
