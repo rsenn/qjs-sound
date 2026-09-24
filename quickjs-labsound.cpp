@@ -1,6 +1,7 @@
 #include <quickjs.h>
 #include <cutils.h>
 #include "defines.h"
+#include "quickjs-cpp.hpp"
 #include "LabSound/LabSound.h"
 #include "LabSound/backends/AudioDevice_RtAudio.h"
 #include "LabSound/core/AudioNodeOutput.h"
@@ -2306,26 +2307,6 @@ static const JSCFunctionListEntry js_delaynode_funcs[] = {
 
 /* ---------- IIRFilterNode ---------- */
 
-/* Coefficients stay double: pole locations near the unit circle are lost in float32. */
-static int
-read_double_array(JSContext* ctx, JSValueConst val, std::vector<double>& out) {
-  JSValue lenv = JS_GetPropertyStr(ctx, val, "length");
-  uint32_t len = 0;
-  int r = JS_ToUint32(ctx, &len, lenv);
-  JS_FreeValue(ctx, lenv);
-  if(r)
-    return -1;
-  out.resize(len);
-  for(uint32_t i = 0; i < len; i++) {
-    JSValue e = JS_GetPropertyUint32(ctx, val, i);
-    r = JS_ToFloat64(ctx, &out[i], e);
-    JS_FreeValue(ctx, e);
-    if(r)
-      return -1;
-  }
-  return 0;
-}
-
 static JSValue
 js_iirfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
   if(argc < 2 || !JS_IsObject(argv[1]))
@@ -2335,24 +2316,19 @@ js_iirfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
     return JS_EXCEPTION;
   AudioContextPtr ac = *acptr;
 
-  std::vector<double> feedforward, feedback;
+  std::vector<double> coeffs[2];
   const char* keys[2] = {"feedforward", "feedback"};
-  std::vector<double>* dst[2] = {&feedforward, &feedback};
   for(int i = 0; i < 2; i++) {
     JSValue v = JS_GetPropertyStr(ctx, argv[1], keys[i]);
-    if(!JS_IsObject(v)) {
-      JS_FreeValue(ctx, v);
-      return JS_ThrowTypeError(ctx, "IIRFilterNode %s must be an array of numbers", keys[i]);
-    }
-    int r = read_double_array(ctx, v, *dst[i]);
+    bool ok = qjsx::read_array(ctx, v, coeffs[i]);
     JS_FreeValue(ctx, v);
-    if(r)
+    if(!ok)
       return JS_EXCEPTION;
   }
 
   std::shared_ptr<lab::IIRFilterNode> f;
   try {
-    f = std::make_shared<lab::IIRFilterNode>(*ac, feedforward, feedback);
+    f = std::make_shared<lab::IIRFilterNode>(*ac, coeffs[0], coeffs[1]);
   } catch(const std::invalid_argument& e) {
     return JS_ThrowRangeError(ctx, "%s", e.what());
   }
@@ -2370,24 +2346,6 @@ js_iirfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
   return obj;
 }
 
-/* Float32Array backing store, or null with a TypeError thrown. */
-static float*
-float32_array_data(JSContext* ctx, JSValueConst val, size_t* count) {
-  size_t byte_offset = 0, byte_length = 0, bytes_per_element = 0;
-  JSValue buf = JS_GetTypedArrayBuffer(ctx, val, &byte_offset, &byte_length, &bytes_per_element);
-  if(JS_IsException(buf))
-    return nullptr;
-  size_t ab_size = 0;
-  uint8_t* ab_data = bytes_per_element == sizeof(float) ? JS_GetArrayBuffer(ctx, &ab_size, buf) : nullptr;
-  JS_FreeValue(ctx, buf);
-  if(!ab_data) {
-    JS_ThrowTypeError(ctx, "expected a Float32Array");
-    return nullptr;
-  }
-  *count = byte_length / sizeof(float);
-  return reinterpret_cast<float*>(ab_data + byte_offset);
-}
-
 static JSValue
 js_iirfilter_get_frequency_response(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_iirfilternode_class_id));
@@ -2399,21 +2357,18 @@ js_iirfilter_get_frequency_response(JSContext* ctx, JSValueConst this_val, int a
   if(argc < 3)
     return JS_ThrowTypeError(ctx, "getFrequencyResponse requires (frequencyHz, magResponse, phaseResponse)");
 
-  size_t nf = 0, nm = 0, np = 0;
-  float* freq = float32_array_data(ctx, argv[0], &nf);
-  float* mag = freq ? float32_array_data(ctx, argv[1], &nm) : nullptr;
-  float* phase = mag ? float32_array_data(ctx, argv[2], &np) : nullptr;
-  if(!phase)
+  qjsx::array_view<float> freq, mag, phase;
+  if(!qjsx::get_array(ctx, argv[0], freq) || !qjsx::get_array(ctx, argv[1], mag) || !qjsx::get_array(ctx, argv[2], phase))
     return JS_EXCEPTION;
 
-  size_t n = std::min(nf, std::min(nm, np));
-  std::vector<float> hz(freq, freq + n), m(n), p(n);
+  size_t n = std::min({freq.size, mag.size, phase.size});
+  std::vector<float> hz(freq.begin(), freq.begin() + n), m(n), p(n);
   {
     lab::ContextRenderLock rLock(w->ctx.get(), "IIRFilterNode.getFrequencyResponse");
     f->getFrequencyResponse(rLock, hz, m, p);
   }
-  memcpy(mag, m.data(), n * sizeof(float));
-  memcpy(phase, p.data(), n * sizeof(float));
+  std::copy(m.begin(), m.end(), mag.begin());
+  std::copy(p.begin(), p.end(), phase.begin());
   return JS_UNDEFINED;
 }
 

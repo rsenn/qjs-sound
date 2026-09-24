@@ -197,7 +197,12 @@ if(USE_LABSOUND)
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/src/internal/src/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/src/core/*.cpp)]]
 
+  set(COMMON_SOURCES quickjs-typedarray.c)
+
   make_module(labsound cpp)
+
+  unset(COMMON_SOURCES)
+
   include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include"
                       "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/third_party/libnyquist/include")
   set_target_properties(
