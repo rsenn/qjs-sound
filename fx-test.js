@@ -1,6 +1,6 @@
 /*
- * Demo for the three new WebAudio nodes — DelayNode, WaveShaperNode,
- * StereoPannerNode — wrapped in reusable effect blocks from effects.js.
+ * Demo for the three new WebAudio nodes -DelayNode, WaveShaperNode,
+ * StereoPannerNode -wrapped in reusable effect blocks from effects.js.
  *
  * Signal chain:
  *   Oscillator --> WaveShaper (distortion) --+--> StereoPanner (auto-pan) -> master
@@ -61,7 +61,7 @@ async function main() {
   globalThis.__fx_keepalive = { ctx, vco, vca, dist, pan, ppd, master };
 
   /*
-   * Note pattern — riff using a pentatonic minor scale, plus pan + envelope
+   * Note pattern -riff using a pentatonic minor scale, plus pan + envelope
    * sweep so all three effects are obvious.
    */
   const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
@@ -85,7 +85,7 @@ async function main() {
     vca.gain.setTargetAtTime(0, t + stepDur * 0.6, 0.02);
 
     /*
-     * Auto-pan — swing across stereo over 4-step cycle
+     * Auto-pan -swing across stereo over 4-step cycle
      */
     const phase = ((i % 4) / 4) * 2 * Math.PI;
     pan.pan.setValueAtTime(Math.sin(phase), t);

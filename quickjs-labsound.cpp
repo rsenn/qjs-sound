@@ -35,6 +35,7 @@ static JSClassID js_audiodevice_class_id;
 static JSClassID js_oscillatornode_class_id;
 static JSClassID js_gainnode_class_id;
 static JSClassID js_biquadfilternode_class_id;
+static JSClassID js_iirfilternode_class_id;
 static JSClassID js_audiobuffersourcenode_class_id;
 static JSClassID js_noisenode_class_id;
 static JSClassID js_delaynode_class_id;
@@ -62,6 +63,7 @@ static JSValue audiodevice_proto, audiodevice_ctor;
 static JSValue oscillatornode_proto, oscillatornode_ctor;
 static JSValue gainnode_proto, gainnode_ctor;
 static JSValue biquadfilternode_proto, biquadfilternode_ctor;
+static JSValue iirfilternode_proto, iirfilternode_ctor;
 static JSValue audiobuffersourcenode_proto, audiobuffersourcenode_ctor;
 static JSValue noisenode_proto, noisenode_ctor;
 static JSValue delaynode_proto, delaynode_ctor;
@@ -94,7 +96,7 @@ struct JsAudioBuffer {
 };
 
 // Shim so DelayNode.delayTime can be `delay.delayTime.value = 0.3` isomorphic
-// with browsers — lab uses AudioSetting (no automation) for it, so the
+// with browsers -lab uses AudioSetting (no automation) for it, so the
 // scheduling methods just collapse to immediate setFloat.
 struct JsAudioSetting {
   std::shared_ptr<lab::AudioSetting> setting;
@@ -112,6 +114,8 @@ any_audio_node(JSValueConst v) {
   if((p = JS_GetOpaque(v, js_gainnode_class_id)))
     return static_cast<JsAudioNode*>(p);
   if((p = JS_GetOpaque(v, js_biquadfilternode_class_id)))
+    return static_cast<JsAudioNode*>(p);
+  if((p = JS_GetOpaque(v, js_iirfilternode_class_id)))
     return static_cast<JsAudioNode*>(p);
   if((p = JS_GetOpaque(v, js_audiobuffersourcenode_class_id)))
     return static_cast<JsAudioNode*>(p);
@@ -266,8 +270,111 @@ write_bus_to_wav(lab::AudioBus* bus, const std::string& path, bool mixToMono) {
 // AND give the node a JS-level "context" back-reference. lab's graph holds
 // raw back-pointers to nodes, so letting QuickJS finalize a node wrapper
 // while audio is still rendering corrupts the graph. The cycle node→context→
-// __nodes→node is fine — QuickJS's cycle collector handles it, and as long
+// __nodes→node is fine -QuickJS's cycle collector handles it, and as long
 // as anything from the outside reaches one node, the whole graph stays live.
+/* The engine adds start/stop times to the node's own scheduler epoch, which is 0 until the audio thread first
+   processes the node and then tracks the context clock, so the same call means absolute time on a fresh node and
+   "seconds from now" on a playing one. Subtracting the epoch gives WebAudio's absolute context time either way.
+   _self is protected, so it is reached through a pointer-to-member named via a derived class. */
+struct SchedulerAccess : lab::AudioScheduledSourceNode {
+  static double epoch_seconds(lab::AudioScheduledSourceNode& n) {
+    auto& sched = (n.*(&SchedulerAccess::_self))->_scheduler;
+    return static_cast<double>(sched._epoch.load()) / sched._sampleRate;
+  }
+  static double stop_seconds(lab::AudioScheduledSourceNode& n) {
+    auto& sched = (n.*(&SchedulerAccess::_self))->_scheduler;
+    return static_cast<double>(sched._stopWhen) / sched._sampleRate;
+  }
+};
+
+static float
+engine_when(lab::AudioScheduledSourceNode& n, double when) {
+  return static_cast<float>(std::max(0.0, when - SchedulerAccess::epoch_seconds(n)));
+}
+
+/* The anchor array is the only thing keeping a node alive once JS drops its references, so short-lived voices (a note's
+   oscillators and gains) would pile up for the life of the context. A node can be released once JS can no longer reach
+   it (the array holds its last reference) AND the graph no longer needs it:
+   - a scheduled source that has stopped is silent, so it is cut from the graph;
+   - any other node with no connected inputs or params only produces silence, so it is cut too, which lets a stopped
+     voice's gain chain follow its oscillators in the next pass of the loop.
+   Nodes are only ever cut from the graph while nothing in JS can reach them, and the graph edges hold raw node
+   pointers, so the edges are removed under the render and graph locks before the wrappers are freed. */
+static void
+sweep_anchored_nodes(JSContext* ctx, JSValueConst ac_jsval, JSValueConst arr, uint32_t len) {
+  AudioContextPtr* sac = static_cast<AudioContextPtr*>(JS_GetOpaque(ac_jsval, js_audiocontext_class_id));
+  if(!sac)
+    return;
+  AudioContextPtr ac = *sac;
+
+  std::vector<JSValue> vals(len);
+  std::vector<char> dead(len, 0);
+  for(uint32_t i = 0; i < len; i++)
+    vals[i] = JS_GetPropertyUint32(ctx, arr, i);
+
+  /* The array's reference plus the one just taken above. */
+  auto reachable_from_js = [](JSValueConst v) { return JS_IsObject(v) && static_cast<JSRefCountHeader*>(JS_VALUE_GET_PTR(v))->ref_count > 2; };
+
+  {
+    lab::ContextRenderLock rLock(ac.get(), "AudioContext.sweepNodes");
+    /* Apply queued connects first, or a node about to be connected would look orphaned. */
+    ac->handlePreRenderTasks(rLock);
+    lab::ContextGraphLock gLock(ac.get(), "AudioContext.sweepNodes");
+
+    bool changed;
+    do {
+      changed = false;
+      for(uint32_t i = 0; i < len; i++) {
+        if(dead[i] || reachable_from_js(vals[i]))
+          continue;
+        JsAudioNode* w = any_audio_node(vals[i]);
+        if(!w || !w->node)
+          continue;
+        const auto& nd = w->node;
+
+        bool releasable = true;
+        if(nd->isScheduledNode()) {
+          auto st = nd->schedulingState();
+          /* A stopped node is no longer pulled by the engine, so it can sit in STOPPING forever; past its stop time it is silent. */
+          bool past_stop = st == lab::SchedulingState::STOPPING &&
+                           SchedulerAccess::stop_seconds(static_cast<lab::AudioScheduledSourceNode&>(*nd)) < ac->currentTime();
+          releasable = st == lab::SchedulingState::UNSCHEDULED || st == lab::SchedulingState::FINISHED || past_stop;
+        } else {
+          for(int k = 0; k < nd->numberOfInputs() && releasable; k++) {
+            auto in = nd->input(k);
+            if(in && in->numberOfConnections() > 0)
+              releasable = false;
+          }
+          for(const auto& p : nd->params()) {
+            if(p && p->numberOfConnections() > 0)
+              releasable = false;
+          }
+        }
+        if(!releasable)
+          continue;
+
+        for(int k = 0; k < nd->numberOfOutputs(); k++) {
+          auto out = nd->output(k);
+          if(out)
+            lab::AudioNodeOutput::disconnectAll(gLock, out);
+        }
+        dead[i] = 1;
+        changed = true;
+      }
+    } while(changed);
+  }
+
+  JSValue kept = JS_NewArray(ctx);
+  uint32_t n = 0;
+  for(uint32_t i = 0; i < len; i++)
+    if(!dead[i])
+      JS_SetPropertyUint32(ctx, kept, n++, JS_DupValue(ctx, vals[i]));
+  JS_SetPropertyStr(ctx, ac_jsval, "__nodes", kept);
+  /* Freeing the last references here runs the finalizers, outside the locks. */
+  for(uint32_t i = 0; i < len; i++)
+    JS_FreeValue(ctx, vals[i]);
+}
+
 static void
 anchor_node_in_context(JSContext* ctx, JSValueConst ac_jsval, JSValueConst node_jsval) {
   if(JS_IsUndefined(ac_jsval) || !JS_IsObject(ac_jsval))
@@ -285,6 +392,24 @@ anchor_node_in_context(JSContext* ctx, JSValueConst ac_jsval, JSValueConst node_
   JSValue len_v = JS_GetPropertyStr(ctx, arr, "length");
   JS_ToUint32(ctx, &len, len_v);
   JS_FreeValue(ctx, len_v);
+
+  /* Sweeping before the append keeps the node being created out of the sweep; the threshold doubles as a floor so a
+     long-lived graph is not rescanned on every creation. */
+  JSValue next_v = JS_GetPropertyStr(ctx, ac_jsval, "__nextSweep");
+  uint32_t next = 64;
+  if(JS_IsNumber(next_v))
+    JS_ToUint32(ctx, &next, next_v);
+  JS_FreeValue(ctx, next_v);
+  if(len >= next) {
+    sweep_anchored_nodes(ctx, ac_jsval, arr, len);
+    JS_FreeValue(ctx, arr);
+    arr = JS_GetPropertyStr(ctx, ac_jsval, "__nodes");
+    len_v = JS_GetPropertyStr(ctx, arr, "length");
+    JS_ToUint32(ctx, &len, len_v);
+    JS_FreeValue(ctx, len_v);
+    JS_SetPropertyStr(ctx, ac_jsval, "__nextSweep", JS_NewUint32(ctx, len + 64));
+  }
+
   JS_SetPropertyUint32(ctx, arr, len, JS_DupValue(ctx, node_jsval));
   JS_FreeValue(ctx, arr);
 }
@@ -489,6 +614,7 @@ enum {
   AC_PROP_CURRENTSAMPLEFRAME,
   AC_PROP_PREDICTED_CURRENTTIME,
   AC_PROP_LENGTH,
+  AC_PROP_STATE,
 };
 
 static JSValue
@@ -516,6 +642,12 @@ js_audiocontext_get(JSContext* ctx, JSValueConst this_val, int magic) {
     case AC_PROP_CURRENTTIME: return JS_NewFloat64(ctx, (*sac)->currentTime());
     case AC_PROP_CURRENTSAMPLEFRAME: return JS_NewInt64(ctx, (*sac)->currentSampleFrame());
     case AC_PROP_PREDICTED_CURRENTTIME: return JS_NewFloat64(ctx, (*sac)->predictedCurrentTime());
+    case AC_PROP_STATE: {
+      auto dest = (*sac)->destinationNode();
+      if(!dest || !dest->device())
+        return JS_NewString(ctx, "closed");
+      return JS_NewString(ctx, dest->device()->isRunning() ? "running" : "suspended");
+    }
     case AC_PROP_LENGTH: {
       JSValue lenv = JS_GetPropertyStr(ctx, this_val, "__offlineLength");
       int32_t length = 0;
@@ -616,6 +748,112 @@ js_audiocontext_create_buffer_from_file(JSContext* ctx, JSValueConst this_val, i
   return make_audio_buffer_js(ctx, bus);
 }
 
+/* Browser-style factories: browser code calls ctx.createGain() where the bindings only expose constructors. */
+enum {
+  CN_OSCILLATOR,
+  CN_GAIN,
+  CN_BIQUADFILTER,
+  CN_DELAY,
+  CN_CONVOLVER,
+  CN_WAVESHAPER,
+  CN_DYNAMICSCOMPRESSOR,
+  CN_STEREOPANNER,
+  CN_CONSTANTSOURCE,
+  CN_ANALYSER,
+};
+
+static JSValue
+js_audiocontext_create_node(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+  if(!JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id))
+    return JS_EXCEPTION;
+
+  JSValueConst ctor;
+  switch(magic) {
+    case CN_OSCILLATOR: ctor = oscillatornode_ctor; break;
+    case CN_GAIN: ctor = gainnode_ctor; break;
+    case CN_BIQUADFILTER: ctor = biquadfilternode_ctor; break;
+    case CN_DELAY: ctor = delaynode_ctor; break;
+    case CN_CONVOLVER: ctor = convolvernode_ctor; break;
+    case CN_WAVESHAPER: ctor = waveshapernode_ctor; break;
+    case CN_DYNAMICSCOMPRESSOR: ctor = dynamicscompressornode_ctor; break;
+    case CN_STEREOPANNER: ctor = stereopannernode_ctor; break;
+    case CN_CONSTANTSOURCE: ctor = constantsourcenode_ctor; break;
+    case CN_ANALYSER: ctor = analysernode_ctor; break;
+    default: return JS_ThrowInternalError(ctx, "unknown node factory");
+  }
+
+  JSValue opts = JS_UNDEFINED;
+  if(magic == CN_DELAY && argc > 0 && JS_IsNumber(argv[0])) {
+    opts = JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx, opts, "maxDelayTime", JS_DupValue(ctx, argv[0]));
+  }
+  JSValueConst args[2] = {this_val, opts};
+  JSValue ret = JS_CallConstructor(ctx, ctor, JS_IsObject(opts) ? 2 : 1, args);
+  JS_FreeValue(ctx, opts);
+  return ret;
+}
+
+static JSValue
+js_audiocontext_create_iirfilter(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
+  if(!JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id))
+    return JS_EXCEPTION;
+  if(argc < 2)
+    return JS_ThrowTypeError(ctx, "createIIRFilter requires (feedforward, feedback)");
+
+  JSValue opts = JS_NewObject(ctx);
+  JS_SetPropertyStr(ctx, opts, "feedforward", JS_DupValue(ctx, argv[0]));
+  JS_SetPropertyStr(ctx, opts, "feedback", JS_DupValue(ctx, argv[1]));
+  JSValueConst args[2] = {this_val, opts};
+  JSValue ret = JS_CallConstructor(ctx, iirfilternode_ctor, 2, args);
+  JS_FreeValue(ctx, opts);
+  return ret;
+}
+
+static JSValue
+js_audiocontext_create_buffer(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
+  if(!JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id))
+    return JS_EXCEPTION;
+  if(argc < 3)
+    return JS_ThrowTypeError(ctx, "createBuffer requires (numberOfChannels, length, sampleRate)");
+
+  const char* keys[3] = {"numberOfChannels", "length", "sampleRate"};
+  JSValue opts = JS_NewObject(ctx);
+  for(int i = 0; i < 3; i++)
+    JS_SetPropertyStr(ctx, opts, keys[i], JS_DupValue(ctx, argv[i]));
+  JSValue ret = JS_CallConstructor(ctx, audiobuffer_ctor, 1, &opts);
+  JS_FreeValue(ctx, opts);
+  return ret;
+}
+
+static JSValue
+resolved_promise(JSContext* ctx) {
+  JSValue resolving[2], undef = JS_UNDEFINED;
+  JSValue promise = JS_NewPromiseCapability(ctx, resolving);
+  JS_FreeValue(ctx, JS_Call(ctx, resolving[0], JS_UNDEFINED, 1, &undef));
+  JS_FreeValue(ctx, resolving[0]);
+  JS_FreeValue(ctx, resolving[1]);
+  return promise;
+}
+
+enum { CL_RESUME, CL_SUSPEND, CL_CLOSE };
+
+/* An offline context is driven only by startRendering(), so these are no-ops there. */
+static JSValue
+js_audiocontext_lifecycle(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+  AudioContextPtr* sac = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id));
+  if(!sac)
+    return JS_EXCEPTION;
+  if(!(*sac)->isOfflineContext()) {
+    switch(magic) {
+      /* lazyInitialize also spawns the graph update thread; resume() alone would only restart the device stream. */
+      case CL_RESUME: (*sac)->lazyInitialize(); (*sac)->resume(); break;
+      case CL_SUSPEND: (*sac)->suspend(); break;
+      case CL_CLOSE: (*sac)->close(); break;
+    }
+  }
+  return resolved_promise(ctx);
+}
+
 static JSValue
 js_audiocontext_start_rendering(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
   AudioContextPtr* sac = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id));
@@ -689,6 +927,22 @@ static const JSCFunctionListEntry js_baseaudiocontext_funcs[] = {
     JS_CFUNC_DEF("connect", 2, js_audiocontext_connect),
     JS_CFUNC_DEF("decodeAudioData", 1, js_audiocontext_decode_audio_data),
     JS_CFUNC_DEF("createBufferFromFile", 1, js_audiocontext_create_buffer_from_file),
+    JS_CGETSET_MAGIC_DEF("state", js_audiocontext_get, 0, AC_PROP_STATE),
+    JS_CFUNC_MAGIC_DEF("resume", 0, js_audiocontext_lifecycle, CL_RESUME),
+    JS_CFUNC_MAGIC_DEF("suspend", 0, js_audiocontext_lifecycle, CL_SUSPEND),
+    JS_CFUNC_MAGIC_DEF("close", 0, js_audiocontext_lifecycle, CL_CLOSE),
+    JS_CFUNC_DEF("createBuffer", 3, js_audiocontext_create_buffer),
+    JS_CFUNC_MAGIC_DEF("createOscillator", 0, js_audiocontext_create_node, CN_OSCILLATOR),
+    JS_CFUNC_MAGIC_DEF("createGain", 0, js_audiocontext_create_node, CN_GAIN),
+    JS_CFUNC_MAGIC_DEF("createBiquadFilter", 0, js_audiocontext_create_node, CN_BIQUADFILTER),
+    JS_CFUNC_DEF("createIIRFilter", 2, js_audiocontext_create_iirfilter),
+    JS_CFUNC_MAGIC_DEF("createDelay", 0, js_audiocontext_create_node, CN_DELAY),
+    JS_CFUNC_MAGIC_DEF("createConvolver", 0, js_audiocontext_create_node, CN_CONVOLVER),
+    JS_CFUNC_MAGIC_DEF("createWaveShaper", 0, js_audiocontext_create_node, CN_WAVESHAPER),
+    JS_CFUNC_MAGIC_DEF("createDynamicsCompressor", 0, js_audiocontext_create_node, CN_DYNAMICSCOMPRESSOR),
+    JS_CFUNC_MAGIC_DEF("createStereoPanner", 0, js_audiocontext_create_node, CN_STEREOPANNER),
+    JS_CFUNC_MAGIC_DEF("createConstantSource", 0, js_audiocontext_create_node, CN_CONSTANTSOURCE),
+    JS_CFUNC_MAGIC_DEF("createAnalyser", 0, js_audiocontext_create_node, CN_ANALYSER),
 };
 
 // AudioContext-only.
@@ -727,7 +981,7 @@ js_audionode_connect(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
 
   JsAudioParam* dstParam = any_audio_param(argv[0]);
   if(dstParam) {
-    // AudioNode.connect(destinationParam, output) — no chaining return value,
+    // AudioNode.connect(destinationParam, output) -no chaining return value,
     // matching the spec (an AudioParam isn't itself connectable further).
     int srcIdx = 0;
     if(argc > 1)
@@ -739,19 +993,42 @@ js_audionode_connect(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
   return JS_ThrowTypeError(ctx, "destination must be an AudioNode or AudioParam");
 }
 
+/* The engine's queued disconnect is deferred and ramps the node out, so a connect() issued right after it is applied
+   first and then wiped by the pending disconnect (and the ramp leaves a pass-through node stopped). WebAudio code
+   calls disconnect() and connect() back to back, so flush the queued connections and cut the edges here, in program
+   order. A null `dst` cuts every output of `src`. */
+static void
+disconnect_now(const AudioContextPtr& ac, const std::shared_ptr<lab::AudioNode>& src, const std::shared_ptr<lab::AudioNode>& dst, int srcIdx, int dstIdx) {
+  lab::ContextRenderLock rLock(ac.get(), "AudioNode.disconnect");
+  ac->handlePreRenderTasks(rLock);
+  lab::ContextGraphLock gLock(ac.get(), "AudioNode.disconnect");
+  if(dst) {
+    auto in = dst->input(dstIdx);
+    auto out = src->output(srcIdx);
+    if(in && out)
+      lab::AudioNodeInput::disconnect(gLock, in, out);
+    return;
+  }
+  for(int i = 0; i < src->numberOfOutputs(); i++) {
+    auto out = src->output(i);
+    if(out)
+      lab::AudioNodeOutput::disconnectAll(gLock, out);
+  }
+}
+
 static JSValue
 js_audionode_disconnect(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
   JsAudioNode* src = any_audio_node(this_val);
   if(!src)
     return JS_ThrowTypeError(ctx, "this is not an AudioNode");
   if(argc < 1) {
-    src->ctx->disconnect(src->node, 0);
+    disconnect_now(src->ctx, src->node, nullptr, 0, 0);
     return JS_UNDEFINED;
   }
 
   JsAudioNode* dst = any_audio_node(argv[0]);
   if(dst) {
-    src->ctx->disconnect(dst->node, src->node, 0, 0);
+    disconnect_now(src->ctx, src->node, dst->node, 0, 0);
     return JS_UNDEFINED;
   }
 
@@ -797,7 +1074,7 @@ js_scheduledsource_start(JSContext* ctx, JSValueConst this_val, int argc, JSValu
     double t;
     if(JS_ToFloat64(ctx, &t, argv[0]))
       return JS_EXCEPTION;
-    when = (float)t;
+    when = engine_when(*s, t);
   }
   s->start(when);
   return JS_UNDEFINED;
@@ -816,7 +1093,7 @@ js_scheduledsource_stop(JSContext* ctx, JSValueConst this_val, int argc, JSValue
     double t;
     if(JS_ToFloat64(ctx, &t, argv[0]))
       return JS_EXCEPTION;
-    when = (float)t;
+    when = engine_when(*s, t);
   }
   s->stop(when);
   return JS_UNDEFINED;
@@ -1115,14 +1392,6 @@ js_biquadfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
     return JS_EXCEPTION;
   AudioContextPtr ac = *acptr;
   auto f = std::make_shared<lab::BiquadFilterNode>(*ac);
-
-  // lab's BiquadFilterNode descriptor sets initialChannelCount=0, so the
-  // AudioNode base class doesn't add an output and any connection sourced
-  // from it would silently no-op. Add a stereo output under a graph lock.
-  if(f->numberOfOutputs() == 0) {
-    lab::ContextGraphLock gLock(ac.get(), "BiquadFilterNode.addOutput");
-    f->addOutput(gLock, std::unique_ptr<lab::AudioNodeOutput>(new lab::AudioNodeOutput(f.get(), 2)));
-  }
 
   if(argc > 1 && JS_IsObject(argv[1])) {
     JSValue v;
@@ -1757,9 +2026,9 @@ js_absource_start(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst 
   int loopCount = wantLoop ? -1 : 0;
 
   if(offset > 0)
-    src->start((float)when, (float)offset, loopCount);
+    src->start(engine_when(*src, when), (float)offset, loopCount);
   else
-    src->start((float)when, loopCount);
+    src->start(engine_when(*src, when), loopCount);
   return JS_UNDEFINED;
 }
 
@@ -1993,11 +2262,6 @@ js_delay_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueC
 
   auto d = std::make_shared<lab::DelayNode>(*ac, maxDelay);
 
-  if(d->numberOfOutputs() == 0) {
-    lab::ContextGraphLock gLock(ac.get(), "DelayNode.addOutput");
-    d->addOutput(gLock, std::unique_ptr<lab::AudioNodeOutput>(new lab::AudioNodeOutput(d.get(), 2)));
-  }
-
   if(haveInitial)
     d->delayTime()->setFloat(static_cast<float>(initialDelay));
 
@@ -2038,6 +2302,134 @@ static JSClassDef js_delaynode_class = {
 static const JSCFunctionListEntry js_delaynode_funcs[] = {
     JS_CGETSET_DEF("delayTime", js_delay_get_delaytime, NULL),
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "DelayNode", JS_PROP_CONFIGURABLE),
+};
+
+/* ---------- IIRFilterNode ---------- */
+
+/* Coefficients stay double: pole locations near the unit circle are lost in float32. */
+static int
+read_double_array(JSContext* ctx, JSValueConst val, std::vector<double>& out) {
+  JSValue lenv = JS_GetPropertyStr(ctx, val, "length");
+  uint32_t len = 0;
+  int r = JS_ToUint32(ctx, &len, lenv);
+  JS_FreeValue(ctx, lenv);
+  if(r)
+    return -1;
+  out.resize(len);
+  for(uint32_t i = 0; i < len; i++) {
+    JSValue e = JS_GetPropertyUint32(ctx, val, i);
+    r = JS_ToFloat64(ctx, &out[i], e);
+    JS_FreeValue(ctx, e);
+    if(r)
+      return -1;
+  }
+  return 0;
+}
+
+static JSValue
+js_iirfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+  if(argc < 2 || !JS_IsObject(argv[1]))
+    return JS_ThrowTypeError(ctx, "IIRFilterNode requires (context, {feedforward, feedback})");
+  AudioContextPtr* acptr = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, argv[0], js_audiocontext_class_id));
+  if(!acptr)
+    return JS_EXCEPTION;
+  AudioContextPtr ac = *acptr;
+
+  std::vector<double> feedforward, feedback;
+  const char* keys[2] = {"feedforward", "feedback"};
+  std::vector<double>* dst[2] = {&feedforward, &feedback};
+  for(int i = 0; i < 2; i++) {
+    JSValue v = JS_GetPropertyStr(ctx, argv[1], keys[i]);
+    if(!JS_IsObject(v)) {
+      JS_FreeValue(ctx, v);
+      return JS_ThrowTypeError(ctx, "IIRFilterNode %s must be an array of numbers", keys[i]);
+    }
+    int r = read_double_array(ctx, v, *dst[i]);
+    JS_FreeValue(ctx, v);
+    if(r)
+      return JS_EXCEPTION;
+  }
+
+  std::shared_ptr<lab::IIRFilterNode> f;
+  try {
+    f = std::make_shared<lab::IIRFilterNode>(*ac, feedforward, feedback);
+  } catch(const std::invalid_argument& e) {
+    return JS_ThrowRangeError(ctx, "%s", e.what());
+  }
+
+  JSValue proto = JS_GetPropertyStr(ctx, new_target, "prototype");
+  if(JS_IsException(proto))
+    return JS_EXCEPTION;
+  if(!JS_IsObject(proto)) {
+    JS_FreeValue(ctx, proto);
+    proto = JS_DupValue(ctx, iirfilternode_proto);
+  }
+  JSValue obj = make_audio_node_js(ctx, proto, js_iirfilternode_class_id, std::static_pointer_cast<lab::AudioNode>(f), ac);
+  JS_FreeValue(ctx, proto);
+  anchor_node_in_context(ctx, argv[0], obj);
+  return obj;
+}
+
+/* Float32Array backing store, or null with a TypeError thrown. */
+static float*
+float32_array_data(JSContext* ctx, JSValueConst val, size_t* count) {
+  size_t byte_offset = 0, byte_length = 0, bytes_per_element = 0;
+  JSValue buf = JS_GetTypedArrayBuffer(ctx, val, &byte_offset, &byte_length, &bytes_per_element);
+  if(JS_IsException(buf))
+    return nullptr;
+  size_t ab_size = 0;
+  uint8_t* ab_data = bytes_per_element == sizeof(float) ? JS_GetArrayBuffer(ctx, &ab_size, buf) : nullptr;
+  JS_FreeValue(ctx, buf);
+  if(!ab_data) {
+    JS_ThrowTypeError(ctx, "expected a Float32Array");
+    return nullptr;
+  }
+  *count = byte_length / sizeof(float);
+  return reinterpret_cast<float*>(ab_data + byte_offset);
+}
+
+static JSValue
+js_iirfilter_get_frequency_response(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
+  JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_iirfilternode_class_id));
+  if(!w)
+    return JS_EXCEPTION;
+  auto f = std::dynamic_pointer_cast<lab::IIRFilterNode>(w->node);
+  if(!f)
+    return JS_ThrowInternalError(ctx, "not an IIRFilterNode");
+  if(argc < 3)
+    return JS_ThrowTypeError(ctx, "getFrequencyResponse requires (frequencyHz, magResponse, phaseResponse)");
+
+  size_t nf = 0, nm = 0, np = 0;
+  float* freq = float32_array_data(ctx, argv[0], &nf);
+  float* mag = freq ? float32_array_data(ctx, argv[1], &nm) : nullptr;
+  float* phase = mag ? float32_array_data(ctx, argv[2], &np) : nullptr;
+  if(!phase)
+    return JS_EXCEPTION;
+
+  size_t n = std::min(nf, std::min(nm, np));
+  std::vector<float> hz(freq, freq + n), m(n), p(n);
+  {
+    lab::ContextRenderLock rLock(w->ctx.get(), "IIRFilterNode.getFrequencyResponse");
+    f->getFrequencyResponse(rLock, hz, m, p);
+  }
+  memcpy(mag, m.data(), n * sizeof(float));
+  memcpy(phase, p.data(), n * sizeof(float));
+  return JS_UNDEFINED;
+}
+
+static void
+js_iirfilternode_finalizer(JSRuntime* rt, JSValue val) {
+  js_audionode_finalize_with(rt, val, js_iirfilternode_class_id);
+}
+
+static JSClassDef js_iirfilternode_class = {
+    .class_name = "IIRFilterNode",
+    .finalizer = js_iirfilternode_finalizer,
+};
+
+static const JSCFunctionListEntry js_iirfilternode_funcs[] = {
+    JS_CFUNC_DEF("getFrequencyResponse", 3, js_iirfilter_get_frequency_response),
+    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "IIRFilterNode", JS_PROP_CONFIGURABLE),
 };
 
 /* ---------- WaveShaperNode ---------- */
@@ -2808,6 +3200,15 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   noisenode_ctor = JS_NewCFunction2(ctx, js_noise_constructor, "NoiseNode", 2, JS_CFUNC_constructor, 0);
   JS_SetConstructor(ctx, noisenode_ctor, noisenode_proto);
 
+  JS_NewClassID(&js_iirfilternode_class_id);
+  JS_NewClass(JS_GetRuntime(ctx), js_iirfilternode_class_id, &js_iirfilternode_class);
+  iirfilternode_proto = JS_NewObject(ctx);
+  JS_SetPrototype(ctx, iirfilternode_proto, audionode_proto);
+  JS_SetPropertyFunctionList(ctx, iirfilternode_proto, js_iirfilternode_funcs, countof(js_iirfilternode_funcs));
+  JS_SetClassProto(ctx, js_iirfilternode_class_id, iirfilternode_proto);
+  iirfilternode_ctor = JS_NewCFunction2(ctx, js_iirfilter_constructor, "IIRFilterNode", 2, JS_CFUNC_constructor, 0);
+  JS_SetConstructor(ctx, iirfilternode_ctor, iirfilternode_proto);
+
   JS_NewClassID(&js_delaynode_class_id);
   JS_NewClass(JS_GetRuntime(ctx), js_delaynode_class_id, &js_delaynode_class);
   delaynode_proto = JS_NewObject(ctx);
@@ -2885,7 +3286,7 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
 
   // audionode_proto/audioscheduledsourcenode_proto aren't a real node's
   // class proto (no JS_SetClassProto to hand off their JS_NewObject ref),
-  // just shared link objects in the prototype chain — drop our extra ref
+  // just shared link objects in the prototype chain -drop our extra ref
   // now that every node proto above holds its own via JS_SetPrototype.
   JS_FreeValue(ctx, audioscheduledsourcenode_proto);
   JS_FreeValue(ctx, audionode_proto);
@@ -2899,6 +3300,7 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
     JS_SetModuleExport(ctx, m, "OscillatorNode", oscillatornode_ctor);
     JS_SetModuleExport(ctx, m, "GainNode", gainnode_ctor);
     JS_SetModuleExport(ctx, m, "BiquadFilterNode", biquadfilternode_ctor);
+    JS_SetModuleExport(ctx, m, "IIRFilterNode", iirfilternode_ctor);
     JS_SetModuleExport(ctx, m, "AudioBufferSourceNode", audiobuffersourcenode_ctor);
     JS_SetModuleExport(ctx, m, "NoiseNode", noisenode_ctor);
     JS_SetModuleExport(ctx, m, "DelayNode", delaynode_ctor);
@@ -2924,6 +3326,7 @@ js_init_module_labsound(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "OscillatorNode");
   JS_AddModuleExport(ctx, m, "GainNode");
   JS_AddModuleExport(ctx, m, "BiquadFilterNode");
+  JS_AddModuleExport(ctx, m, "IIRFilterNode");
   JS_AddModuleExport(ctx, m, "AudioBufferSourceNode");
   JS_AddModuleExport(ctx, m, "NoiseNode");
   JS_AddModuleExport(ctx, m, "DelayNode");

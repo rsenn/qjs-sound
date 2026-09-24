@@ -19,3 +19,18 @@
 [submodule "third_party/miniaudio"]
 	path = third_party/miniaudio
 	url = git@github.com:mackron/miniaudio.git
+[submodule "third_party/portaudio"]
+	path = third_party/portaudio
+	url = https://github.com/PortAudio/portaudio.git
+[submodule "third_party/portmidi"]
+	path = third_party/portmidi
+	url = https://github.com/PortMidi/portmidi.git
+[submodule "third_party/libsamplerate"]
+	path = third_party/libsamplerate
+	url = https://github.com/libsndfile/libsamplerate.git
+[submodule "third_party/soundtouch"]
+	path = third_party/soundtouch
+	url = https://codeberg.org/soundtouch/soundtouch.git
+[submodule "third_party/rubberband"]
+	path = third_party/rubberband
+	url = https://github.com/breakfastquay/rubberband.git

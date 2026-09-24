@@ -1,11 +1,11 @@
 /*
  * Drum sampler with sample-based AND procedural voices.
  *
- * Sample-based: kick / snare / hihat etc. — load a WAV via AudioContext and
+ * Sample-based: kick / snare / hihat etc. -load a WAV via AudioContext and
  * register it with loadSample(name, buffer). Every trigger() spawns a fresh
  * AudioBufferSourceNode (the WebAudio idiom for sample playback).
  *
- * Procedural: tom / cymbal / conga / djembe — synthesized from oscillators
+ * Procedural: tom / cymbal / conga / djembe -synthesized from oscillators
  * + noise + filters + envelopes. Each defineVoice(name, fn) registers a
  * function that, on trigger, builds the per-hit graph and returns its
  * output AudioNode.

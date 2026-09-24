@@ -1,6 +1,6 @@
 /*
  * Reusable effect helpers built on the new WebAudio nodes.
- * Runtime-agnostic — pass the env in.
+ * Runtime-agnostic -pass the env in.
  */
 
 /*
@@ -32,7 +32,7 @@ export function makeFuzzCurve(drive = 30, steps = 16, size = 1024) {
 /*
  * Mono delay with feedback loop. Returns an effect block exposing `input`
  * (where source signal goes) and `output` (the delayed signal). The dry
- * signal is NOT mixed in here — connect both the dry source and `output` to
+ * signal is NOT mixed in here -connect both the dry source and `output` to
  * the destination for the classic dry+wet send.
  *
  *   source ──┬──> dest

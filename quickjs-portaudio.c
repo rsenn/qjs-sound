@@ -255,8 +255,10 @@ js_pastream_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVal
   if(JS_IsException(proto))
     goto fail;
 
-  if(!JS_IsObject(proto))
-    proto = pastream_proto;
+  if(!JS_IsObject(proto)) {
+    JS_FreeValue(ctx, proto);
+    proto = JS_DupValue(ctx, pastream_proto);
+  }
 
   /* using new_target to get the prototype is necessary when the class is
    * extended. */
@@ -537,8 +539,10 @@ js_padeviceinfo_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
   if(JS_IsException(proto))
     goto fail;
 
-  if(!JS_IsObject(proto))
-    proto = padeviceinfo_proto;
+  if(!JS_IsObject(proto)) {
+    JS_FreeValue(ctx, proto);
+    proto = JS_DupValue(ctx, padeviceinfo_proto);
+  }
 
   /* using new_target to get the prototype is necessary when the class is
    * extended. */
@@ -777,8 +781,10 @@ js_hostapiinfo_constructor(JSContext* ctx, JSValueConst new_target, int argc, JS
   if(JS_IsException(proto))
     goto fail;
 
-  if(!JS_IsObject(proto))
-    proto = hostapiinfo_proto;
+  if(!JS_IsObject(proto)) {
+    JS_FreeValue(ctx, proto);
+    proto = JS_DupValue(ctx, hostapiinfo_proto);
+  }
 
   /* using new_target to get the prototype is necessary when the class is
    * extended. */

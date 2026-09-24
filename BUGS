@@ -26,21 +26,106 @@
 
     let s = new portaudio.PaStream(0, 2); s.close(); s.stopped; // true, not because it's meaningfully "stopped"
 
-- devices-hostapis-interleave-segfault: a specific call sequence involving no PaStream at all
-  reliably segfaults - iterate every `devices[i]` (or just access enough of them), then call
-  `new PaDeviceInfo(index)`, then iterate `hostApis[i]` reading `.typeName`, then access
-  `devices[...]` again afterward. Any one of these steps alone, or most pairs, are fine; only
-  this specific interleaving crashes. Root cause not identified (does not reproduce with a
-  plain devices-loop + hostApis-loop with no constructor call in between, and does not
-  reproduce if the `PaDeviceInfo`/`HostApiInfo` constructor calls are moved to run last, after
-  both collections are otherwise fully read - see the workaround note above
-  `testDeviceInfoAndHostApiInfoConstructors()` in portaudio-test.js). Likely the same general
-  class of environment/heap issue as pastream-reopen-after-close-segfault above, but confirmed
-  as a distinct trigger (no stream ever opened here).
+- pastream-buffer-format-not-validated (quickjs-portaudio.c: js_pastream_get_buffer,
+  js_pastream_method METHOD_READ/METHOD_WRITE): `.read()`/`.write()` accept any
+  ArrayBuffer/TypedArray and just extract its raw pointer+byte length - the caller's TypedArray
+  kind is never checked against the stream's own negotiated `sampleFormat` (`paFloat32`/
+  `paInt16`/etc, set at open time). Found while surveying every module's buffer-handling code
+  for the zero-copy interop investigation (comparing against `sndfile`/`samplerate`/
+  `soundtouch`, which all validate the TypedArray kind via `js_bufferview_get`/
+  `js_bufferview_get_kind` in `quickjs-typedarray.h` before touching the pointer). A stream
+  opened with `paFloat32` handed a `Float64Array` (or `Int16Array`, etc.) writes/reads the wrong
+  number of frames and reinterprets every sample's bytes as the wrong type - no error, no crash,
+  just silently wrong audio. The `frames` default (when the frame count isn't given explicitly)
+  also divides `buffer.byteLength` by `Pa_GetSampleSize(w->sampleFormat)`, which is *coincidentally*
+  correct only when the caller's TypedArray kind actually does match `sampleFormat`.
 
     import * as pa from 'portaudio';
     pa.Pa_Initialize();
-    for(let i = 0; i < pa.devices.length; i++) pa.devices[i];
-    new pa.PaDeviceInfo(pa.devices.defaultOutput);
-    for(let i = 0; i < pa.hostApis.length; i++) pa.hostApis[i].typeName;
-    pa.devices[pa.devices.defaultOutput].hostApi; // segfaults here
+    const s = new pa.PaStream({ output: { channelCount: 1, sampleFormat: pa.paFloat32 } });
+    s.start();
+    s.write(new Float64Array(256)); // half as many "frames" as intended, every sample garbage
+
+- aubio-pitch-confidence-reads-zero (third_party/aubio/src/pitch/pitchyinfft.c:193, also
+  affects pitchyin.c's equivalent): AubioPitch's `.confidence` getter (quickjs-aubio.c
+  PROP_PITCH_CONFIDENCE, a thin passthrough to aubio_pitch_get_confidence) reads back ~0 for
+  both the 'yin' and 'yinfft' methods even on a clean, high-amplitude synthetic sine tone with
+  no noise - found while building xi-build.js's pitch-detection step, which originally tried to
+  gate hops on confidence >= 0.8 and got zero usable readings. `aubio_pitchyinfft_get_confidence`
+  computes `1 - yinfft->data[peak_pos]`; per the surrounding code in pitchyinfft.c, `peak_pos`
+  should land on a genuine low-difference candidate whenever a pitch was found at all (the
+  function still returns a nonzero Hz value on every hop in this repro), so a confidence of
+  exactly/near 0 alongside a valid pitch reading looks inconsistent with the algorithm's own
+  logic - not yet root-caused past that. Worked around in xi-build.js by dropping the confidence
+  gate entirely and taking the median Hz across many hops instead (outlier-robust without it).
+
+    import { AubioPitch } from 'aubio';
+    const pitch = new AubioPitch('yinfft', 4096, 2048, 44100);
+    pitch.setUnit('Hz');
+    const hop = new Float32Array(2048);
+    for (let i = 0; i < 2048; i++) hop[i] = 0.8 * Math.sin(2 * Math.PI * 440 * i / 44100);
+    const [hz] = pitch.process(hop);
+    console.log(hz, pitch.confidence); // hz ~440 (valid), confidence ~0 (unexpected)
+
+- console-error-warn-undefined-qjsm (environment, not this project's own code): under `qjsm`
+  (quickjs-ng's `-m --std` module runner) in this environment, `console.error` and
+  `console.warn` are both `undefined` - only `console.log` works. Root cause traced one level:
+  `qjsm`'s own bundled `console` module imports `util`, which imports `timers`, and `timers`
+  fails to load (`ReferenceError: could not load module 'timers'`) on every single run,
+  regardless of what script is being executed - not caused by anything in this project's own
+  `quickjs-*.c` modules or `.js` scripts. Found while writing `xi-build.js`, which originally
+  called `console.error()` for its stereo-downmix notice/warnings and threw `TypeError: not a
+  function` the first time a real (non-mono-synthetic) test file was tried; worked around
+  there by using `console.log` everywhere instead. Other existing scripts in this directory
+  (e.g. `aubio-test.js`'s usage-error path) call `console.error` too and would hit the same
+  throw if that code path were ever exercised.
+
+    qjsm -e "console.log(typeof console.error, typeof console.warn)"
+    // prints "undefined undefined" (and a "could not load module 'timers'" ReferenceError
+    // on every invocation, unconditionally, even for this one-line script)
+
+- labsound-disconnect-deferred-wipes-later-connect (third_party/LabSound/src/core/AudioContext.cpp:343):
+  AudioContext::disconnect only enqueues a Disconnect that is requeued as FinishDisconnect and
+  applied a tick later after ramping the node out (scheduleDisconnect stops its scheduler),
+  while a Connect enqueued right after it is applied immediately. A disconnect() followed by
+  connect() on the same node, the normal WebAudio idiom, therefore loses the new connection and
+  leaves a pass-through GainNode stopped: a rack pad went silent after the first 0.5 s. Also, the
+  two-argument overload disconnect(node, index) cuts the node's INPUTS, not its outputs. Worked
+  around in quickjs-labsound.cpp (disconnect_now flushes queued connections and cuts the edges
+  under the graph lock); the engine's deferred disconnect is still there for other callers.
+
+    const { OfflineAudioContext } = await import('labsound');
+    const ctx = new OfflineAudioContext(2, 22050, 22050);
+    const osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination); osc.start();
+    // engine calls, bypassing the binding: disconnect all outputs of gain, then connect again
+    // -> gain.connect(ctx.destination) is wiped by the pending disconnect and the output goes silent
+
+
+- labsound-scheduler-epoch-inconsistent-start-stop (third_party/LabSound/src/core/AudioNode.cpp:236,262):
+  AudioNodeScheduler::start/stop compute _startWhen/_stopWhen as _epoch + when * sampleRate, but _epoch stays
+  0 until the audio thread first processes the node and then tracks the context clock. The same call therefore
+  means absolute context time on a fresh node and "seconds from now" on a playing one: stop(now + 0.5) on a
+  playing oscillator fired 3.5 s late after 3 s of context time. Worked around in quickjs-labsound.cpp
+  (engine_when subtracts the node's epoch, read through SchedulerAccess); initialising _epoch to the context's
+  current sample frame at node construction would fix it in the engine.
+
+    const ctx = new AudioContext(); await ctx.resume(); // let currentTime reach ~3 s
+    const o = ctx.createOscillator(); o.connect(ctx.destination); o.start();
+    // once it is playing: engine-level stop(ctx.currentTime + 0.5) stops after ~3.5 s, not 0.5 s
+
+- labsound-stopped-source-stuck-stopping (third_party/LabSound/src/core/AudioNode.cpp:190): some oscillators
+  reach STOPPING and are never pulled again, so they never become UNSCHEDULED and their scheduler epoch stays
+  frozen at the moment they stopped. Seen while playing FM voices (oscillator -> gain -> gain chain, 12-voice
+  cap stopping the oldest early) on the LabSound binding; not root-caused. quickjs-labsound.cpp releases such
+  nodes once their stop time has passed, but they still cost graph edges until the next sweep.
+
+    // tonnetz/lib/synth.js Rack.chordHit([48, 52, 55, 59], ctx.currentTime, 0.6) every 200 ms for 20 s;
+    // .tmp/labsound-soak.mjs shows ctx.__nodes staying bounded only because of the release sweep
+
+- labsound-functionnode-offline-silent (third_party/LabSound/src/extended/FunctionNode.cpp:31): on an offline
+  context a FunctionNode -> GainNode -> destination graph calls the function (its counter advances every quantum
+  after the first) but the destination receives only zeros, while OscillatorNode -> GainNode -> destination
+  renders. Not root-caused; the offline scheduler also starts sources one quantum late.
+
+    // C++: FunctionNode writing 1.f at its first sample, start(0), offlineRender() 8 quanta: peak is 0

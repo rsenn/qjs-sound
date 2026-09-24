@@ -1,5 +1,5 @@
 /*
- * twint2-test.js — the same Twin-T drum design as TwinTDrum
+ * twint2-test.js -the same Twin-T drum design as TwinTDrum
  * (analog-drums.hpp), rebuilt from scratch using only WebAudio's
  * node graph, entirely in JS. No native C++ class involved: this is
  * a genuine port of the DSP idea, not a wrapper around the STK one.

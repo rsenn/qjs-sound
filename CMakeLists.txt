@@ -7,9 +7,14 @@ option(USE_STK "Use Stk library" ON)
 option(USE_PORTAUDIO "Use PortAudio library" ON)
 option(USE_AUBIO "Use aubio library" ON)
 option(USE_PORTMIDI "Use PortMidi library" ON)
+option(USE_SNDFILE "Use libsndfile library" ON)
+option(USE_SAMPLERATE "Use libsamplerate library" ON)
+option(USE_SOUNDTOUCH "Use SoundTouch library" ON)
+option(USE_RUBBERBAND "Use Rubber Band library" ON)
 
 include(FindPkgConfig)
 include(CheckLibraryExists)
+include(CheckSymbolExists)
 
 #add_subdirectory(stk)
 #add_subdirectory(sndobj)
@@ -171,43 +176,14 @@ if(USE_STK)
 endif(USE_STK)
 
 if(USE_AUBIO)
-  # Upstream third_party/aubio hardcodes `add_library (aubio SHARED)`,
-  # ignoring BUILD_SHARED_LIBS, so it can't produce the static libaubio.a
-  # this project links into qjs-aubio. Rather than carrying a local commit
-  # in the submodule, apply that one-line fix as a patch at configure time,
-  # so third_party/aubio can stay a plain checkout of upstream.
-  find_package(Git REQUIRED)
+  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindAubio.cmake")
 
-  set(AUBIO_STATIC_LIB_PATCH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/patches/aubio-static-lib.patch")
-  execute_process(
-    COMMAND "${GIT_EXECUTABLE}" apply --reverse --check "${AUBIO_STATIC_LIB_PATCH}"
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/third_party/aubio"
-    RESULT_VARIABLE AUBIO_STATIC_LIB_PATCH_APPLIED
-    OUTPUT_QUIET ERROR_QUIET)
-
-  if(NOT AUBIO_STATIC_LIB_PATCH_APPLIED EQUAL 0)
-    message(STATUS "Patching third_party/aubio to build a static library")
-    execute_process(
-      COMMAND "${GIT_EXECUTABLE}" apply "${AUBIO_STATIC_LIB_PATCH}"
-      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/third_party/aubio"
-      RESULT_VARIABLE AUBIO_STATIC_LIB_PATCH_RESULT)
-    if(NOT AUBIO_STATIC_LIB_PATCH_RESULT EQUAL 0)
-      message(FATAL_ERROR "Failed to apply ${AUBIO_STATIC_LIB_PATCH} to third_party/aubio")
-    endif()
-  endif()
-
-  set(CMAKE_POSITION_INDEPENDENT_CODE_SAVE "${CMAKE_POSITION_INDEPENDENT_CODE}")
-  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-  add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/third_party/aubio/src" "${CMAKE_CURRENT_BINARY_DIR}/third_party/aubio/src")
-  set(CMAKE_POSITION_INDEPENDENT_CODE "${CMAKE_POSITION_INDEPENDENT_CODE_SAVE}")
-
-  set(aubio_LIBRARIES aubio)
+  set(aubio_LIBRARIES ${AUBIO_LIBRARIES})
 
   make_module(aubio c)
 
-  include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third_party/aubio/src")
-  set_target_properties(
-    qjs-aubio PROPERTIES INCLUDE_DIRECTORIES "${QUICKJS_INCLUDE_DIR};${CMAKE_CURRENT_SOURCE_DIR}/third_party/aubio/src")
+  include_directories(${AUBIO_INCLUDE_DIRS})
+  set_target_properties(qjs-aubio PROPERTIES INCLUDE_DIRECTORIES "${QUICKJS_INCLUDE_DIR};${AUBIO_INCLUDE_DIRS}")
 endif(USE_AUBIO)
 
 if(USE_LABSOUND)
@@ -234,31 +210,94 @@ if(USE_LABSOUND)
 endif(USE_LABSOUND)
 
 if(USE_PORTAUDIO)
-  pkg_search_module(PORTAUDIO REQUIRED portaudio-2.0)
+  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindPortAudio.cmake")
 
   make_module(portaudio c)
 
-  check_library_exists("${pkgcfg_lib_PORTAUDIO_portaudio}" Pa_GetStreamHostApiType "" HAVE_GETSTREAMHOSTAPITYPE)
+  # check_symbol_exists (a header check) rather than check_library_exists
+  # (a compiled-library check): the latter needs an already-built library
+  # file/name it can hand the linker, which doesn't exist yet at configure
+  # time when BUILD_PORTAUDIO is ON (PORTAUDIO_LIBRARIES is
+  # just the not-yet-built CMake target name `portaudio` in that case) -
+  # confirmed by testing BUILD_PORTAUDIO=ON, which silently
+  # left HAVE_GETSTREAMHOSTAPITYPE unset under the old check even though
+  # the vendored PortAudio (19.7) does export the symbol.
+  set(CMAKE_REQUIRED_INCLUDES "${PORTAUDIO_INCLUDE_DIRS}")
+  check_symbol_exists(Pa_GetStreamHostApiType "portaudio.h" HAVE_GETSTREAMHOSTAPITYPE)
+  unset(CMAKE_REQUIRED_INCLUDES)
 
   if(HAVE_GETSTREAMHOSTAPITYPE)
     target_compile_definitions(qjs-portaudio PRIVATE HAVE_GETSTREAMHOSTAPITYPE=1)
   endif(HAVE_GETSTREAMHOSTAPITYPE)
 
-  target_link_libraries(qjs-portaudio PRIVATE ${pkgcfg_lib_PORTAUDIO_portaudio})
+  target_include_directories(qjs-portaudio PRIVATE ${PORTAUDIO_INCLUDE_DIRS})
+  target_link_libraries(qjs-portaudio PRIVATE ${PORTAUDIO_LIBRARIES})
 endif(USE_PORTAUDIO)
 
 if(USE_PORTMIDI)
-  # No .pc file ships for libportmidi on Debian/Ubuntu, unlike portaudio-2.0
-  # above, so it's located directly instead of through pkg_search_module().
-  find_path(PORTMIDI_INCLUDE_DIR NAMES portmidi.h)
-  find_library(PORTMIDI_LIBRARY NAMES portmidi)
-
-  if(NOT PORTMIDI_INCLUDE_DIR OR NOT PORTMIDI_LIBRARY)
-    message(FATAL_ERROR "USE_PORTMIDI is ON but portmidi.h/libportmidi could not be found")
-  endif(NOT PORTMIDI_INCLUDE_DIR OR NOT PORTMIDI_LIBRARY)
+  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindPortMIDI.cmake")
 
   make_module(portmidi c)
 
-  target_include_directories(qjs-portmidi PRIVATE "${PORTMIDI_INCLUDE_DIR}")
-  target_link_libraries(qjs-portmidi PRIVATE "${PORTMIDI_LIBRARY}")
+  target_include_directories(qjs-portmidi PRIVATE ${PORTMIDI_INCLUDE_DIRS})
+  target_link_libraries(qjs-portmidi PRIVATE ${PORTMIDI_LIBRARIES})
 endif(USE_PORTMIDI)
+
+if(USE_SNDFILE)
+  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindSndFile.cmake")
+
+  set(sndfile_LIBRARIES ${SNDFILE_LIBRARIES})
+  # quickjs-typedarray.c is shared TypedArray/ArrayBuffer marshalling
+  # code, not part of libsndfile itself - see doc/sndfile.md's "Shared
+  # TypedArray/buffer interop" section.
+  set(COMMON_SOURCES quickjs-typedarray.c)
+
+  make_module(sndfile c)
+
+  unset(COMMON_SOURCES)
+
+  include_directories(${SNDFILE_INCLUDE_DIRS})
+  set_target_properties(qjs-sndfile PROPERTIES INCLUDE_DIRECTORIES "${QUICKJS_INCLUDE_DIR};${SNDFILE_INCLUDE_DIRS}")
+endif(USE_SNDFILE)
+
+if(USE_SAMPLERATE)
+  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindSampleRate.cmake")
+
+  set(samplerate_LIBRARIES ${SAMPLERATE_LIBRARIES})
+  set(COMMON_SOURCES quickjs-typedarray.c)
+
+  make_module(samplerate c)
+
+  unset(COMMON_SOURCES)
+
+  include_directories(${SAMPLERATE_INCLUDE_DIRS})
+  set_target_properties(qjs-samplerate PROPERTIES INCLUDE_DIRECTORIES "${QUICKJS_INCLUDE_DIR};${SAMPLERATE_INCLUDE_DIRS}")
+endif(USE_SAMPLERATE)
+
+if(USE_SOUNDTOUCH)
+  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindSoundTouch.cmake")
+
+  set(soundtouch_LIBRARIES ${SOUNDTOUCH_LIBRARIES})
+  set(COMMON_SOURCES quickjs-typedarray.c)
+
+  make_module(soundtouch cpp)
+
+  unset(COMMON_SOURCES)
+
+  include_directories(${SOUNDTOUCH_INCLUDE_DIRS})
+  set_target_properties(qjs-soundtouch PROPERTIES INCLUDE_DIRECTORIES "${QUICKJS_INCLUDE_DIR};${SOUNDTOUCH_INCLUDE_DIRS}")
+endif(USE_SOUNDTOUCH)
+
+if(USE_RUBBERBAND)
+  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindRubberBand.cmake")
+
+  set(rubberband_LIBRARIES ${RUBBERBAND_LIBRARIES})
+  set(COMMON_SOURCES quickjs-typedarray.c)
+
+  make_module(rubberband c)
+
+  unset(COMMON_SOURCES)
+
+  include_directories(${RUBBERBAND_INCLUDE_DIRS})
+  set_target_properties(qjs-rubberband PROPERTIES INCLUDE_DIRECTORIES "${QUICKJS_INCLUDE_DIR};${RUBBERBAND_INCLUDE_DIRS}")
+endif(USE_RUBBERBAND)

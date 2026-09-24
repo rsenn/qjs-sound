@@ -1,0 +1,665 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#07080d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tonnetz">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>Tonnetz Table</title>
+<style>
+:root { --bg: #07080d; --fg: #d8def0; --dim: #6b7391; --panel: #141726; --edge: #2a2f4a; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 14px/1.35 system-ui, sans-serif; overflow: hidden; overscroll-behavior: none; -webkit-user-select: none; user-select: none; }
+canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+.bar { position: fixed; top: calc(8px + env(safe-area-inset-top)); display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+#add { left: 8px; max-width: 46%; }
+#ctl { right: 8px; justify-content: flex-end; max-width: 52%; }
+button { background: var(--panel); color: var(--fg); border: 1px solid var(--edge); border-radius: 999px; padding: 6px 10px; font: 13px system-ui, sans-serif; cursor: pointer; touch-action: manipulation; }
+button:active { background: #232842; }
+.val { min-width: 3.6em; text-align: center; color: var(--dim); font-size: 13px; }
+#start { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(7, 8, 13, .92); text-align: center; cursor: pointer; z-index: 10; }
+#start > div { max-width: 34em; padding: 0 24px; }
+#start h1 { margin: 0 0 12px; font-size: 28px; letter-spacing: .04em; }
+#start p { color: var(--dim); margin: 6px 0; }
+#start b { display: inline-block; margin-top: 18px; padding: 10px 22px; border: 1px solid var(--edge); border-radius: 999px; background: var(--panel); }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="add" class="bar">
+  <button data-add="fmp">+ PIANO</button>
+  <button data-add="dist">+ DIST</button>
+  <button data-add="vco">+ VCO</button>
+  <button data-add="vcf">+ VCF</button>
+  <button data-add="pad">+ PAD</button>
+  <button data-add="delay">+ DELAY</button>
+  <button data-add="reverb">+ REVERB</button>
+</div>
+<div id="ctl" class="bar">
+  <button id="mode">Mode: auto</button>
+  <button id="play">Pause</button>
+  <button id="style">Style: auto</button>
+  <button id="len">Chord: 2 bars</button>
+  <button id="bpmd">-</button><span id="bpmv" class="val"></span><button id="bpmu">+</button>
+  <button id="octd">Oct -</button><span id="octv" class="val"></span><button id="octu">Oct +</button>
+</div>
+<div id="start">
+  <div>
+    <h1>TONNETZ TABLE</h1>
+    <p>Touch a triangle on the tonnetz (or a node, or the line between two nodes) and slide across it to play chords on a distorted FM electric piano.</p>
+    <p>Whatever you leave latched becomes the starting point: an invisible arpeggiator keeps churning out a voice-led chord progression from it, plays the chords on the piano and arpeggiates them on an acid VCO/VCF voice. It resolves back to your chord at the end of every phrase. Dashed triangles show where it may go next.</p>
+    <p>Switch Mode to direct for no sequencer at all: exactly the notes you touch sound while your finger is down.</p>
+    <p>Space pauses. To patch: tap a module, then the module (or OUT) it should feed. Tap the x on a cable to disconnect. Each ring around a module is one parameter: the knob follows your finger's angle. Drag the middle to move it, double-tap to remove it.</p>
+    <b>Touch to start</b>
+  </div>
+</div>
+<script type="module">
+import { NOTES, MODES, STYLES, clamp, mod12, cname } from './lib/theory.js';
+import { TonnetzGeometry } from './lib/geometry.js';
+import { Harmony } from './lib/harmony.js';
+import { Rack, TYPES } from './lib/synth.js';
+import { Player } from './lib/player.js';
+
+const cv = document.getElementById('cv');
+const g = cv.getContext('2d');
+const $ = id => document.getElementById(id);
+
+const al = (hex, a) => hex + Math.round(clamp(a, 0, 1) * 255).toString(16).padStart(2, '0');
+const pcHue = pc => mod12(pc * 7) * 30;
+
+let ctx, rack, player, master, mods = [];
+let W, H, DPR, tableH, tonTop, tonS, U;
+const stripH = 22;
+const ptr = new Map();
+let selected = null;
+let lastTap = { t: 0, m: null };
+let hintTris = [];
+let pulse = 0;
+
+const geo = new TonnetzGeometry();
+const harmony = new Harmony({ locate: (id, from) => geo.findTri(id, from), onChange: refreshHintTris });
+const direct = () => !!player && player.mode === 'direct';
+
+const ringInner = i => U * (1 + 0.5 * i);
+const outerR = m => ringInner(TYPES[m.type].params.length) + 3;
+
+const nameOf = s => (s.kind === 'tri' ? cname(s.id) : s.kind === 'node' ? NOTES[s.root] : `${NOTES[s.pcs[0]]}+${NOTES[s.pcs[1]]}`);
+
+function refreshHintTris() {
+  hintTris = [];
+  if (!geo.width || direct()) return;
+  harmony.hints.forEach((h, rank) => {
+    for (const c of geo.copiesOf(h.id)) hintTris.push({ ...c, rank, name: (h.back ? '↩' : '') + cname(h.id) });
+  });
+}
+
+/* ---------- modules ---------- */
+
+function clampModule(m) {
+  const R = outerR(m), lo = R + 34, hi = tableH - R - TYPES[m.type].params.length * Math.round(U * 0.28) * 1.2 - 8;
+  m.x = clamp(m.x, Math.min(R, W / 2), Math.max(W - R, W / 2));
+  m.y = lo > hi ? (lo + hi) / 2 : clamp(m.y, lo, hi);
+}
+
+function addModule(type, x, y) {
+  const m = rack.makeModule(type, x, y);
+  clampModule(m);
+  if (type === 'pad' && player.seq.running) rack.padSet(m, harmony.padVoicing());
+  return m;
+}
+
+function removeModule(m) {
+  rack.removeModule(m);
+  if (selected === m) selected = null;
+}
+
+/* ---------- layout ---------- */
+
+function placeMaster() {
+  master.x = W - U * 2.6;
+  master.y = tableH * 0.5;
+}
+
+function resize() {
+  const ow = W, ot = tableH;
+  W = innerWidth; H = innerHeight; DPR = Math.min(devicePixelRatio || 1, 1.5);
+  cv.width = W * DPR; cv.height = H * DPR;
+  tonS = Math.min(W / 8, H * 0.4 / 3.35);
+  tonTop = H - Math.round(tonS * 3.35);
+  tableH = tonTop - stripH;
+  U = clamp(Math.min(W / 13, (tableH - 30) / 7.6), 20, 44);
+  geo.layout(W, tonS, tonTop);
+  if (ow) for (const m of mods) { m.x *= W / ow; m.y *= tableH / ot; clampModule(m); }
+  if (master) placeMaster();
+  refreshHintTris();
+  buildCache();
+}
+
+/* ---------- input ---------- */
+
+const pos = e => ({ x: e.clientX, y: e.clientY });
+
+/* The module whose centre is closest wins, so overlapping rings of neighbours never steal a touch from the nearer one. */
+function hitModule(p) {
+  let best = null, bd = Infinity;
+  for (const m of mods) {
+    const d = Math.hypot(p.x - m.x, p.y - m.y);
+    let zone = -1;
+    if (d >= U) {
+      zone = Math.floor((d - U) / (U * 0.5));
+      if (zone >= TYPES[m.type].params.length) continue;
+    }
+    if (d <= bd) { bd = d; best = { m, zone }; }
+  }
+  return best;
+}
+
+const A0 = 0.75 * Math.PI, SPAN = 1.5 * Math.PI;
+
+/* The knob follows the finger's angle directly. In the gap at the bottom of the arc the value holds the end it came from,
+   so a sweep can never wrap from max to min. */
+function setRing(s, p) {
+  const dx = p.x - s.m.x, dy = p.y - s.m.y;
+  if (Math.hypot(dx, dy) < U * 0.5) return;
+  let t = ((Math.atan2(dy, dx) - A0) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) / SPAN;
+  if (t > 1) t = s.m.p[s.key] > 0.5 ? 1 : 0;
+  s.m.p[s.key] = t;
+  rack.apply(s.m);
+}
+
+const handleAt = m => ({ x: (m.x + m.target.x) / 2, y: (m.y + m.target.y) / 2 });
+
+function hitHandle(p) {
+  for (const m of mods) {
+    if (!m.target) continue;
+    const h = handleAt(m);
+    if (Math.hypot(p.x - h.x, p.y - h.y) < U * 0.5) return m;
+  }
+  return null;
+}
+
+function tapModule(m) {
+  const now = performance.now();
+  if (lastTap.m === m && now - lastTap.t < 350) { removeModule(m); lastTap = { t: 0, m: null }; return; }
+  lastTap = { t: now, m };
+  if (selected && selected !== m && !selected.target && rack.canConnect(selected, m)) {
+    rack.connect(selected, m);
+    selected = null;
+  } else {
+    selected = selected === m ? null : m;
+  }
+}
+
+cv.addEventListener('pointerdown', e => {
+  if (!ctx) return;
+  if (ctx.state !== 'running') ctx.resume();
+  const p = pos(e);
+  cv.setPointerCapture(e.pointerId);
+  if (p.y > tonTop) {
+    ptr.set(e.pointerId, { kind: 'ton' });
+    player.press(geo.hit(p));
+    if (direct()) pulse = 1;
+    return;
+  }
+  const cable = hitHandle(p);
+  if (cable) { rack.disconnect(cable); return; }
+  const hit = hitModule(p);
+  if (!hit) {
+    if (Math.hypot(p.x - master.x, p.y - master.y) < U * 1.5) {
+      if (selected && !selected.target) { rack.connect(selected, master); selected = null; }
+    } else {
+      selected = null;
+    }
+    return;
+  }
+  const { m, zone } = hit;
+  mods.splice(mods.indexOf(m), 1); mods.push(m);
+  if (zone < 0) {
+    ptr.set(e.pointerId, { kind: 'move', m, dx: m.x - p.x, dy: m.y - p.y, x0: p.x, y0: p.y, t0: performance.now(), moved: false });
+  } else {
+    const s = { kind: 'ring', m, key: zone };
+    ptr.set(e.pointerId, s);
+    setRing(s, p);
+  }
+});
+
+cv.addEventListener('pointermove', e => {
+  const s = ptr.get(e.pointerId);
+  if (!s) return;
+  const p = pos(e);
+  if (s.kind === 'ton') {
+    const before = harmony.sel.key;
+    player.slide(geo.hit(p));
+    if (direct() && harmony.sel.key !== before) pulse = 1;
+  } else if (s.kind === 'move') {
+    if (Math.hypot(p.x - s.x0, p.y - s.y0) > 8) s.moved = true;
+    s.m.x = p.x + s.dx; s.m.y = p.y + s.dy;
+    clampModule(s.m);
+  } else {
+    setRing(s, p);
+  }
+});
+
+const tonTouches = () => [...ptr.values()].filter(s => s.kind === 'ton').length;
+
+function release(e) {
+  if (ctx && ctx.state !== 'running') ctx.resume();
+  const s = ptr.get(e.pointerId);
+  if (!s) return;
+  ptr.delete(e.pointerId);
+  if (s.kind === 'ton') player.lift(tonTouches());
+  else if (s.kind === 'move' && !s.moved && performance.now() - s.t0 < 300) tapModule(s.m);
+}
+cv.addEventListener('pointerup', release);
+cv.addEventListener('pointercancel', release);
+cv.addEventListener('contextmenu', e => e.preventDefault());
+addEventListener('blur', () => { ptr.clear(); if (player) player.lift(0); });
+
+const HIDDEN_IN_DIRECT = ['play', 'style', 'len', 'bpmd', 'bpmv', 'bpmu'];
+function syncButtons() {
+  $('play').textContent = player && player.paused ? 'Play' : 'Pause';
+  $('mode').textContent = 'Mode: ' + (direct() ? 'direct' : 'auto');
+  for (const id of HIDDEN_IN_DIRECT) $(id).style.display = direct() ? 'none' : '';
+}
+
+const togglePause = () => { if (!player || direct()) return; player.setPaused(!player.paused); syncButtons(); };
+
+/* Preventing keyup too stops a focused button from also firing its own click on space. */
+addEventListener('keydown', e => {
+  if (e.code !== 'Space') return;
+  e.preventDefault();
+  if (e.repeat) return;
+  togglePause();
+});
+addEventListener('keyup', e => { if (e.code === 'Space') e.preventDefault(); });
+
+const setOctave = o => {
+  harmony.octave = clamp(o, 0, 5);
+  $('octv').textContent = 'oct ' + harmony.octave;
+  if (ctx) harmony.recompute();
+};
+const setBpm = b => {
+  const v = clamp(b, 60, 200);
+  if (player) player.seq.bpm = v;
+  $('bpmv').textContent = v + ' bpm';
+};
+const STYLE_OPTS = ['auto', ...STYLES], LEN_OPTS = [1, 2, 4];
+$('octd').onclick = () => setOctave(harmony.octave - 1);
+$('octu').onclick = () => setOctave(harmony.octave + 1);
+$('bpmd').onclick = () => player && setBpm(player.seq.bpm - 4);
+$('bpmu').onclick = () => player && setBpm(player.seq.bpm + 4);
+$('play').onclick = togglePause;
+$('mode').onclick = () => {
+  if (!player) return;
+  player.setMode(direct() ? 'auto' : 'direct');
+  syncButtons();
+  refreshHintTris();
+};
+$('style').onclick = () => {
+  if (!player) return;
+  const seq = player.seq;
+  seq.setStyle(STYLE_OPTS[(STYLE_OPTS.indexOf(seq.styleSel) + 1) % STYLE_OPTS.length]);
+  $('style').textContent = 'Style: ' + seq.styleSel;
+};
+$('len').onclick = () => {
+  if (!player) return;
+  const seq = player.seq;
+  seq.chordBars = LEN_OPTS[(LEN_OPTS.indexOf(seq.chordBars) + 1) % LEN_OPTS.length];
+  $('len').textContent = `Chord: ${seq.chordBars} bar${seq.chordBars > 1 ? 's' : ''}`;
+};
+setOctave(harmony.octave);
+$('bpmv').textContent = '116 bpm';
+
+for (const b of document.querySelectorAll('[data-add]')) {
+  b.onclick = () => {
+    if (!ctx) return;
+    addModule(b.dataset.add, W * (0.15 + Math.random() * 0.4), tableH * (0.25 + Math.random() * 0.5));
+  };
+}
+
+/* ---------- drawing ---------- */
+
+function analyse(m) {
+  m.an.getFloatTimeDomainData(m.buf);
+  let pk = 0, sum = 0;
+  for (const v of m.buf) { const a = Math.abs(v); if (a > pk) pk = a; sum += v * v; }
+  m.pk = pk; m.rms = Math.sqrt(sum / m.buf.length);
+}
+
+const norm = (m, v) => (m.pk > 1e-4 ? v / m.pk : 0);
+
+function drawCable(m) {
+  const t = m.target;
+  const dx = t.x - m.x, dy = t.y - m.y, d = Math.hypot(dx, dy);
+  const ux = dx / d, uy = dy / d, nx = -uy, ny = ux;
+  const s0 = outerR(m), s1 = d - (t === master ? U * 1.9 : outerR(t));
+  const c0 = TYPES[m.type].color, c1 = t === master ? '#ffffff' : TYPES[t.type].color;
+  if (s1 > s0) {
+    const amp = Math.min(14, 3 + m.rms * 70);
+    const grad = g.createLinearGradient(m.x, m.y, t.x, t.y);
+    grad.addColorStop(0, c0); grad.addColorStop(1, c1);
+    g.strokeStyle = grad; g.lineWidth = 2 + Math.min(3, m.rms * 20); g.lineCap = 'round'; g.lineJoin = 'round';
+    g.beginPath();
+    const n = clamp(Math.round((s1 - s0) / 4), 40, 160);
+    const win = Math.min(m.buf.length, n * 6);
+    for (let k = 0; k <= n; k++) {
+      const f = k / n, s = s0 + (s1 - s0) * f;
+      const off = norm(m, m.buf[Math.floor(f * (win - 1))]) * amp * Math.sin(Math.PI * f);
+      const x = m.x + ux * s + nx * off, y = m.y + uy * s + ny * off;
+      if (k) g.lineTo(x, y); else g.moveTo(x, y);
+    }
+    g.stroke();
+  }
+  const h = handleAt(m), r = U * 0.3;
+  g.fillStyle = '#0d1020'; g.strokeStyle = '#ffffffcc'; g.lineWidth = 1.5;
+  g.beginPath(); g.arc(h.x, h.y, r, 0, 7); g.fill(); g.stroke();
+  g.beginPath();
+  g.moveTo(h.x - r * 0.45, h.y - r * 0.45); g.lineTo(h.x + r * 0.45, h.y + r * 0.45);
+  g.moveTo(h.x + r * 0.45, h.y - r * 0.45); g.lineTo(h.x - r * 0.45, h.y + r * 0.45);
+  g.stroke();
+}
+
+function drawRing(c, r, w, v, active, dim) {
+  g.lineWidth = w; g.lineCap = 'round';
+  g.strokeStyle = al(c, dim ? 0.06 : active ? 0.3 : 0.14);
+  g.beginPath(); g.arc(0, 0, r, A0, A0 + SPAN); g.stroke();
+  g.strokeStyle = al(c, dim ? 0.3 : active ? 1 : 0.7);
+  g.beginPath(); g.arc(0, 0, r, A0, A0 + SPAN * Math.max(v, 0.001)); g.stroke();
+  const a = A0 + SPAN * v;
+  g.fillStyle = dim ? '#ffffff55' : '#fff';
+  g.beginPath(); g.arc(Math.cos(a) * r, Math.sin(a) * r, w * (active ? 0.7 : 0.45), 0, 7); g.fill();
+}
+
+/* The pill sits above the module so the dragging finger never covers the reading. */
+function drawBubble(m, label, value) {
+  const fs = Math.round(clamp(U * 0.5, 13, 20));
+  g.font = `600 ${fs}px system-ui, sans-serif`;
+  const text = `${label}  ${value}`, w = g.measureText(text).width + fs, h = fs * 1.7;
+  const x = clamp(m.x, w / 2 + 4, W - w / 2 - 4), y = Math.max(4, m.y - outerR(m) - h - 6);
+  g.fillStyle = 'rgba(7,8,13,0.92)'; g.strokeStyle = '#ffffffcc'; g.lineWidth = 1.5;
+  g.beginPath(); g.roundRect(x - w / 2, y, w, h, h / 2); g.fill(); g.stroke();
+  g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(text, x, y + h / 2 + 1);
+}
+
+function dashRing(x, y, r, alpha, now) {
+  g.strokeStyle = `rgba(255,255,255,${alpha})`; g.lineWidth = 1.5;
+  g.setLineDash([5, 6]); g.lineDashOffset = -now / 40;
+  g.beginPath(); g.arc(x, y, r, 0, 7); g.stroke();
+  g.setLineDash([]);
+}
+
+function drawModule(m, touched, now) {
+  const T = TYPES[m.type], c = T.color, n = T.params.length;
+  g.save(); g.translate(m.x, m.y);
+  const halo = g.createRadialGradient(0, 0, U * 0.5, 0, 0, outerR(m) + U);
+  halo.addColorStop(0, al(c, 0.1 + Math.min(0.5, m.rms * 3)));
+  halo.addColorStop(1, al(c, 0));
+  g.fillStyle = halo; g.beginPath(); g.arc(0, 0, outerR(m) + U, 0, 7); g.fill();
+
+  g.fillStyle = '#0d1020'; g.strokeStyle = m === selected ? '#ffffff' : c; g.lineWidth = m === selected ? 3 : 2;
+  g.beginPath(); g.arc(0, 0, U, 0, 7); g.fill(); g.stroke();
+
+  g.strokeStyle = al(c, 0.9); g.lineWidth = 1.5; g.lineJoin = 'round';
+  g.beginPath();
+  const pts = 128, r0 = U * 0.62, amp = U * 0.3;
+  for (let i = 0; i <= pts; i++) {
+    const a = (i / pts) * 2 * Math.PI;
+    const r = r0 + norm(m, m.buf[Math.floor((i % pts) / pts * 511)]) * amp;
+    if (i) g.lineTo(Math.cos(a) * r, Math.sin(a) * r); else g.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  g.stroke();
+
+  T.params.forEach((q, i) => drawRing(c, U * (1.25 + 0.5 * i), U * 0.34, m.p[i], touched.has(i), touched.size > 0 && !touched.has(i)));
+
+  g.fillStyle = al(c, 0.95);
+  g.font = `600 ${Math.round(U * 0.3)}px system-ui, sans-serif`;
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(T.name, 0, 0);
+
+  const fs = Math.round(U * 0.28);
+  g.font = `${fs}px system-ui, sans-serif`;
+  g.textBaseline = 'top';
+  T.params.forEach((q, i) => {
+    g.fillStyle = touched.has(i) ? '#fff' : al('#d8def0', 0.55);
+    g.fillText(`${q.label} ${q.fmt(m.p[i])}`, 0, outerR(m) + 4 + i * fs * 1.2);
+  });
+  g.restore();
+
+  for (const i of touched) drawBubble(m, T.params[i].label, T.params[i].fmt(m.p[i]));
+  if (m === selected) dashRing(m.x, m.y, U * (1 + 0.5 * n) + 8, 0.9, now);
+  else if (selected && !selected.target && rack.canConnect(selected, m)) dashRing(m.x, m.y, U * 1.12, 0.35 + 0.25 * Math.sin(now / 200), now);
+}
+
+const dbOf = v => (v > 1e-5 ? 20 * Math.log10(v) : -100);
+
+function drawMeter() {
+  master.an.getFloatTimeDomainData(master.tb);
+  let pk = 0;
+  for (const v of master.tb) { const a = Math.abs(v); if (a > pk) pk = a; }
+  const now = performance.now();
+  master.level = Math.max(pk, master.level * 0.9);
+  if (pk >= master.hold || now - master.holdT > 1200) { master.hold = pk; master.holdT = now; }
+
+  const w = U * 3, h = Math.max(6, U * 0.2), segs = 24, y = U * 2.15;
+  const frac = v => clamp((dbOf(v) + 60) / 60, 0, 1);
+  const lit = frac(master.level) * segs, holdSeg = Math.min(segs - 1, Math.floor(frac(master.hold) * segs));
+  const sw = w / segs;
+  g.save(); g.translate(master.x, master.y);
+  for (let k = 0; k < segs; k++) {
+    const hue = 130 - (k / segs) * 130;
+    const on = k < lit || k === holdSeg;
+    g.fillStyle = on ? `hsl(${hue},85%,55%)` : 'rgba(255,255,255,0.07)';
+    g.fillRect(-w / 2 + k * sw + 1, y, sw - 2, h);
+  }
+  const db = dbOf(master.hold);
+  g.fillStyle = db > -1 ? '#ff5050' : al('#d8def0', 0.7);
+  g.font = `${Math.round(U * 0.3)}px system-ui, sans-serif`;
+  g.textAlign = 'center'; g.textBaseline = 'top';
+  g.fillText(db <= -99 ? '-inf dB' : db.toFixed(1) + ' dB', 0, y + h + 4);
+  g.restore();
+}
+
+function drawMaster(now) {
+  master.an.getByteFrequencyData(master.fr);
+  g.save(); g.translate(master.x, master.y);
+  const bars = 32, r = U * 1.1;
+  g.lineCap = 'round'; g.lineWidth = 4;
+  for (let k = 0; k < bars; k++) {
+    const a = (k / bars) * 2 * Math.PI - Math.PI / 2;
+    const v = master.fr[Math.floor(k * 1.4)] / 255;
+    g.strokeStyle = `hsla(${190 + k * 4},90%,${50 + v * 25}%,${0.35 + v * 0.65})`;
+    g.beginPath();
+    g.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+    g.lineTo(Math.cos(a) * (r + 3 + v * U * 0.7), Math.sin(a) * (r + 3 + v * U * 0.7));
+    g.stroke();
+  }
+  g.fillStyle = '#0d1020'; g.strokeStyle = '#ffffff'; g.lineWidth = 2;
+  g.beginPath(); g.arc(0, 0, r, 0, 7); g.fill(); g.stroke();
+  g.fillStyle = '#fff'; g.font = `600 ${Math.round(U * 0.3)}px system-ui, sans-serif`;
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('OUT', 0, 0);
+  g.restore();
+  if (selected && !selected.target) dashRing(master.x, master.y, r + 6, 0.35 + 0.25 * Math.sin(now / 200), now);
+  drawMeter();
+}
+
+function drawStrip() {
+  const fs = Math.round(clamp(U * 0.34, 11, 14)), y = tableH + stripH / 2 + 1;
+  g.font = `${fs}px system-ui, sans-serif`;
+  g.textBaseline = 'middle'; g.textAlign = 'left'; g.fillStyle = '#d8def0';
+  const { sel, analysis, hints } = harmony;
+  const mode = MODES[analysis.mode] || '';
+  g.fillText(`${nameOf(sel)}  ${NOTES[sel.root]} ${mode}${W > 560 ? ` (${NOTES[analysis.key]} major)` : ''}`, 8, y);
+  g.textAlign = 'right'; g.fillStyle = al('#d8def0', 0.7);
+  if (direct()) { g.fillText('direct play', W - 8, y); return; }
+  const next = hints.length ? 'next: ' + hints.map(h => (h.back ? '↩' : '') + cname(h.id)).join('  ') : '';
+  const seq = player && player.seq;
+  g.fillText(`${next}   bar ${Math.max(1, seq ? seq.barsInChord : 0)}/${seq ? seq.chordBars : 2}`, W - 8, y);
+}
+
+function tracePath(c, pts) {
+  c.beginPath();
+  c.moveTo(pts[0][0], pts[0][1]); c.lineTo(pts[1][0], pts[1][1]); c.lineTo(pts[2][0], pts[2][1]); c.closePath();
+}
+
+function paintNode(c, i, j, on) {
+  const [x, y] = geo.np(i, j), pc = mod12(7 * i + 4 * j);
+  c.fillStyle = on ? `hsl(${pcHue(pc)},90%,62%)` : `hsla(${pcHue(pc)},45%,35%,0.9)`;
+  c.beginPath(); c.arc(x, y, geo.s * (on ? 0.29 : 0.24), 0, 7); c.fill();
+  if (on) { c.strokeStyle = '#fff'; c.lineWidth = 2; c.stroke(); }
+  c.fillStyle = on ? '#07080d' : 'rgba(255,255,255,0.8)';
+  c.fillText(NOTES[pc], x, y + 1);
+}
+
+/* Everything that never changes between frames is painted once; phones can't repaint the lattice at 60 fps. */
+let cache;
+function buildCache() {
+  cache = document.createElement('canvas');
+  cache.width = Math.round(W * DPR); cache.height = Math.round(H * DPR);
+  const c = cache.getContext('2d');
+  c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  c.fillStyle = '#07080d'; c.fillRect(0, 0, W, H);
+
+  c.fillStyle = 'rgba(255,255,255,0.05)';
+  const stepPx = U * 0.8;
+  for (let y = stepPx; y < tableH; y += stepPx) for (let x = stepPx / 2; x < W; x += stepPx) c.fillRect(x, y, 1.5, 1.5);
+
+  c.fillStyle = '#090b13'; c.fillRect(0, tableH, W, stripH);
+  c.fillStyle = '#0b0d16'; c.fillRect(0, tonTop, W, H - tonTop);
+  c.strokeStyle = '#2a2f4a'; c.lineWidth = 1;
+  c.beginPath();
+  c.moveTo(0, tableH + 0.5); c.lineTo(W, tableH + 0.5);
+  c.moveTo(0, tonTop + 0.5); c.lineTo(W, tonTop + 0.5);
+  c.stroke();
+
+  const { imin, imax } = geo.latticeRange();
+  c.lineJoin = 'round';
+  c.fillStyle = 'rgba(255,255,255,0.025)'; c.strokeStyle = 'rgba(255,255,255,0.09)';
+  for (let j = 0; j < 3; j++) for (let i = imin; i <= imax; i++) for (const up of [true, false]) {
+    tracePath(c, geo.triPts(i, j, up)); c.fill(); c.stroke();
+  }
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.font = `600 ${Math.round(geo.s * 0.2)}px system-ui, sans-serif`;
+  for (let j = 0; j <= 3; j++) for (let i = imin; i <= imax + 1; i++) {
+    const [x] = geo.np(i, j);
+    if (x > -geo.s && x < W + geo.s) paintNode(c, i, j, false);
+  }
+}
+
+function drawTonnetz(now) {
+  const sel = harmony.sel;
+
+  for (const h of hintTris) {
+    const pts = geo.triPts(h.i, h.j, h.up);
+    const a = h.rank === 0 ? 0.55 + 0.35 * Math.sin(now / 220) : 0.3;
+    g.fillStyle = `rgba(255,255,255,${a * 0.12})`;
+    g.strokeStyle = `rgba(255,255,255,${a})`; g.lineWidth = h.rank === 0 ? 2.5 : 1.5;
+    g.setLineDash([4, 4]);
+    tracePath(g, pts); g.fill(); g.stroke();
+    g.setLineDash([]);
+    g.fillStyle = `rgba(255,255,255,${h.rank === 0 ? 0.9 : 0.6})`;
+    g.font = `600 ${Math.round(geo.s * 0.22)}px system-ui, sans-serif`;
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(h.name, (pts[0][0] + pts[1][0] + pts[2][0]) / 3, (pts[0][1] + pts[1][1] + pts[2][1]) / 3);
+  }
+
+  if (sel.kind === 'tri') {
+    const { i, j, up } = sel.tri, hue = pcHue(sel.root);
+    g.fillStyle = `hsla(${hue},80%,55%,${0.3 + 0.35 * pulse})`;
+    g.strokeStyle = `hsla(${hue},90%,70%,0.9)`; g.lineWidth = 1.5;
+    tracePath(g, geo.triPts(i, j, up)); g.fill(); g.stroke();
+  } else if (sel.kind === 'edge') {
+    const [a, b] = sel.edge.map(n => geo.np(...n));
+    g.strokeStyle = `hsla(${pcHue(sel.root)},90%,65%,${0.6 + 0.4 * pulse})`; g.lineWidth = 5; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
+  }
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = `600 ${Math.round(geo.s * 0.2)}px system-ui, sans-serif`;
+  for (const k of sel.nodes) {
+    const n = /^n(-?\d+),(-?\d+)$/.exec(k);
+    paintNode(g, +n[1], +n[2], true);
+  }
+}
+
+function statusText() {
+  if (selected && !selected.target) return `${TYPES[selected.type].name} selected: tap a module or OUT to send its output there`;
+  if (selected) return `${TYPES[selected.type].name} is patched: tap the x on its cable to disconnect, or tap another module`;
+  return '';
+}
+
+let lastFrame = 0;
+function frame() {
+  requestAnimationFrame(frame);
+  const now = performance.now();
+  if (now - lastFrame < 30) return;
+  lastFrame = now;
+  g.setTransform(DPR, 0, 0, DPR, 0, 0);
+  g.drawImage(cache, 0, 0, W, H);
+  if (!ctx) return;
+
+  const q = player.seq.stepQueue;
+  while (q.length && q[0].t <= ctx.currentTime) {
+    if (q.shift().note) pulse = 1;
+  }
+  pulse *= 0.92;
+
+  for (const m of mods) analyse(m);
+  for (const m of mods) if (m.target) drawCable(m);
+  drawMaster(now);
+  for (const m of mods) {
+    const touched = new Set();
+    for (const s of ptr.values()) if (s.kind === 'ring' && s.m === m) touched.add(s.key);
+    drawModule(m, touched, now);
+  }
+  g.fillStyle = 'rgba(216,222,240,0.5)';
+  g.font = `${Math.round(U * 0.3)}px system-ui, sans-serif`;
+  g.textAlign = 'center'; g.textBaseline = 'bottom';
+  g.fillText(statusText(), W / 2, 34);
+  drawStrip();
+  drawTonnetz(now);
+}
+
+/* ---------- start ---------- */
+
+function start() {
+  ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'playback' });
+  rack = new Rack(ctx);
+  mods = rack.mods;
+  master = rack.master;
+  player = new Player(harmony, rack);
+  placeMaster();
+
+  const types = ['vco', 'vcf', 'fmp', 'dist', 'delay'], usable = master.x - U * 3.2;
+  const [vco, vcf, piano, dist, delay] = types.map((type, k) => addModule(type, usable * (k + 0.5) / types.length, tableH / 2));
+  rack.connect(vco, vcf); rack.connect(vcf, dist); rack.connect(piano, dist); rack.connect(dist, delay); rack.connect(delay, master);
+
+  player.start();
+  ctx.resume();
+  $('start').remove();
+}
+
+$('start').addEventListener('click', start, { once: true });
+addEventListener('resize', resize);
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+  navigator.serviceWorker.addEventListener('message', e => {
+    if (e.data !== 'updated' || $('upd')) return;
+    const b = document.createElement('button');
+    b.id = 'upd'; b.textContent = 'New version ready: tap to reload';
+    b.style.cssText = 'position:fixed;left:50%;bottom:calc(12px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:20;border-color:#7dffb0';
+    b.onclick = () => location.reload();
+    document.body.append(b);
+  });
+}
+try { indexedDB.deleteDatabase('tonnetz'); } catch (e) { /* older versions stored a pattern and a song there; both features are gone */ }
+resize();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

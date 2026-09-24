@@ -1,5 +1,5 @@
 /*
- * Reusable synth building blocks. Pure JS, no runtime imports — runs
+ * Reusable synth building blocks. Pure JS, no runtime imports -runs
  * unchanged in qjs (with our labsound module) and in browsers.
  */
 
@@ -54,7 +54,7 @@ export class ADSR {
 
 /*
  * Resonant low-pass voltage-controlled filter built from N cascaded
- * BiquadFilters (each is 2-pole, so poles=4 gives a 24 dB/oct slope —
+ * BiquadFilters (each is 2-pole, so poles=4 gives a 24 dB/oct slope -
  * closer to the TB-303 ladder character than a single biquad).
  *
  * Pass the runtime's BiquadFilterNode in via opts so the class stays
@@ -84,7 +84,7 @@ export class VCF {
     this.output = this.stages[nStages - 1];
     /*
      * Cutoff is broadcast across all stages so the envelope sweeps the whole
-     * cascade. Resonance lives on the last stage only — broadcasting Q at
+     * cascade. Resonance lives on the last stage only -broadcasting Q at
      * values like 14+ across 2 cascaded biquads compounds into an extremely
      * narrow filter that nukes the signal.
      */
@@ -139,7 +139,7 @@ export class Synth {
     const freq = mtof(midi);
 
     /*
-     * VCO pitch — slide = portamento from previous note
+     * VCO pitch -slide = portamento from previous note
      */
     this.vco.frequency.cancelScheduledValues(t);
     if(slide) this.vco.frequency.exponentialRampToValueAtTime(freq, t + 0.05);
@@ -158,7 +158,7 @@ export class Synth {
     this.vcf.Q.setValueAtTime(accent ? 10 : 5, t);
 
     /*
-     * VCA envelope — skip on slide so the note ties to the previous one
+     * VCA envelope -skip on slide so the note ties to the previous one
      */
     if(!slide) {
       const peakGain = accent ? 0.85 : 0.55;

@@ -149,7 +149,7 @@ async function main() {
     }
 
     /*
-     * Synth — start the bassline from bar 2 so the drums establish first
+     * Synth -start the bassline from bar 2 so the drums establish first
      */
     if(i >= stepsPerBar) {
       const [midi, accent, slide] = synthPattern[stepInBar];
