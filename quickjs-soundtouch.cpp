@@ -3,7 +3,7 @@
 #include <string.h>
 #include <cmath>
 #include "defines.h"
-#include "quickjs-typedarray.h"
+#include "quickjs-cpp.hpp"
 #include <soundtouch/SoundTouch.h>
 
 using namespace soundtouch;
@@ -183,26 +183,26 @@ js_soundtouch_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
 
   switch(magic) {
     case METHOD_PUTSAMPLES: {
-      JSBufferView view;
+      qjsx::array_view<float> view;
       uint channels = w->st->numChannels();
 
-      if(argc < 1 || !js_bufferview_get_kind(ctx, argv[0], JS_TYPEDARRAY_FLOAT32, &view))
+      if(argc < 1 || !qjsx::get_array(ctx, argv[0], view))
         return JS_EXCEPTION;
 
-      uint numSamples = (uint)(view.byte_length / sizeof(float) / (channels ? channels : 1));
-      w->st->putSamples((const float*)view.ptr, numSamples);
+      uint numSamples = (uint)(view.size / (channels ? channels : 1));
+      w->st->putSamples(view.data, numSamples);
       break;
     }
 
     case METHOD_RECEIVESAMPLES: {
-      JSBufferView view;
+      qjsx::array_view<float> view;
       uint channels = w->st->numChannels();
 
-      if(argc < 1 || !js_bufferview_get_kind(ctx, argv[0], JS_TYPEDARRAY_FLOAT32, &view))
+      if(argc < 1 || !qjsx::get_array(ctx, argv[0], view))
         return JS_EXCEPTION;
 
-      uint maxSamples = (uint)(view.byte_length / sizeof(float) / (channels ? channels : 1));
-      uint got = w->st->receiveSamples((float*)view.ptr, maxSamples);
+      uint maxSamples = (uint)(view.size / (channels ? channels : 1));
+      uint got = w->st->receiveSamples(view.data, maxSamples);
       ret = JS_NewUint32(ctx, got);
       break;
     }
