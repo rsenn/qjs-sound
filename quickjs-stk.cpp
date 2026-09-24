@@ -7,6 +7,7 @@
 #include <cstring>
 
 #include "defines.h"
+#include "quickjs-cpp.hpp"
 #include "Stk.h"
 #include "Generator.h"
 #include "Filter.h"
@@ -147,60 +148,6 @@ js_set_tostringtag(JSContext* ctx, JSValueConst obj, const char* name) {
   JS_DeleteProperty(ctx, obj, tst, 0);
   JS_DefinePropertyValue(ctx, obj, tst, str, JS_PROP_CONFIGURABLE | JS_PROP_WRITABLE);
   JS_FreeAtom(ctx, tst);
-}
-
-static int64_t
-array_length(JSContext* ctx, JSValueConst arr) {
-  int64_t len = -1;
-  JSValue lprop = JS_GetPropertyStr(ctx, arr, "length");
-
-  if(!JS_IsException(lprop))
-    JS_ToInt64(ctx, &len, lprop);
-
-  JS_FreeValue(ctx, lprop);
-  return len;
-}
-
-static void
-array_to_vector(JSContext* ctx, JSValueConst arr, std::vector<double>& vec) {
-  int64_t len = array_length(ctx, arr);
-
-  for(int64_t i = 0; i < len; i++) {
-    JSValue v = JS_GetPropertyUint32(ctx, arr, i);
-    double f;
-    JS_ToFloat64(ctx, &f, v);
-    JS_FreeValue(ctx, v);
-
-    vec.push_back(f);
-  }
-}
-
-static void
-array_to_vector(JSContext* ctx, JSValueConst arr, std::vector<unsigned long>& vec) {
-  int64_t len = array_length(ctx, arr);
-
-  for(int64_t i = 0; i < len; i++) {
-    JSValue v = JS_GetPropertyUint32(ctx, arr, i);
-    uint32_t u;
-    JS_ToUint32(ctx, &u, v);
-    JS_FreeValue(ctx, v);
-
-    vec.push_back(u);
-  }
-}
-
-static void
-array_to_bytes(JSContext* ctx, JSValueConst arr, std::vector<unsigned char>& vec) {
-  int64_t len = array_length(ctx, arr);
-
-  for(int64_t i = 0; i < len; i++) {
-    JSValue v = JS_GetPropertyUint32(ctx, arr, i);
-    uint32_t u;
-    JS_ToUint32(ctx, &u, v);
-    JS_FreeValue(ctx, v);
-
-    vec.push_back(static_cast<unsigned char>(u));
-  }
 }
 
 /* stk::StkError and RtMidiError both derive from std::exception; the
@@ -833,7 +780,10 @@ js_stkfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
     case INSTANCE_FIR: {
       if(argc > 0) {
         std::vector<double> coeff;
-        array_to_vector(ctx, argv[0], coeff);
+        if(!qjsx::read_array(ctx, argv[0], coeff)) {
+          js_free(ctx, f);
+          return JS_EXCEPTION;
+        }
         *f = std::make_shared<stk::Fir>(coeff);
       } else {
         *f = std::make_shared<stk::Fir>();
@@ -845,9 +795,10 @@ js_stkfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
       std::vector<double> acoeff, bcoeff;
 
       if(argc > 0) {
-        array_to_vector(ctx, argv[0], bcoeff);
-        if(argc > 1)
-          array_to_vector(ctx, argv[1], acoeff);
+        if(!qjsx::read_array(ctx, argv[0], bcoeff) || (argc > 1 && !qjsx::read_array(ctx, argv[1], acoeff))) {
+          js_free(ctx, f);
+          return JS_EXCEPTION;
+        }
 
         *f = std::make_shared<stk::Iir>(bcoeff, acoeff);
       } else {
@@ -861,8 +812,13 @@ js_stkfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
 
       if(argc > 0) {
         uint32_t maxDelay = 4095;
+        std::vector<uint32_t> tapValues;
 
-        array_to_vector(ctx, argv[0], taps);
+        if(!qjsx::read_array(ctx, argv[0], tapValues)) {
+          js_free(ctx, f);
+          return JS_EXCEPTION;
+        }
+        taps.assign(tapValues.begin(), tapValues.end());
         if(argc > 1)
           JS_ToUint32(ctx, &maxDelay, argv[1]);
 
@@ -3204,7 +3160,8 @@ js_rtmidiout_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
     }
     case METHOD_RTMIDIOUT_SEND_MESSAGE: {
       std::vector<unsigned char> message;
-      array_to_bytes(ctx, argv[0], message);
+      if(argc < 1 || !qjsx::read_array(ctx, argv[0], message))
+        return JS_EXCEPTION;
       try {
         r->sendMessage(&message);
       } catch(const std::exception& e) {

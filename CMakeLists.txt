@@ -163,7 +163,11 @@ if(USE_STK)
 
   add_definitions(-DUSE_STK)
 
+  set(COMMON_SOURCES quickjs-typedarray.c)
+
   make_module(stk cpp)
+
+  unset(COMMON_SOURCES)
 
   include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/include"
                       "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/src/include")
