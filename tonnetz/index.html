@@ -64,6 +64,7 @@ button.off { opacity: .45; }
   <button id="mode">Mode: auto</button>
   <button id="play">Pause</button>
   <button id="style">Style: auto</button>
+  <button id="blues">Blues riff</button>
   <button id="len">Chord: 2 bars</button>
   <button id="bpmd">-</button><span id="bpmv" class="val"></span><button id="bpmu">+</button>
   <button id="octd">Oct -</button><span id="octv" class="val"></span><button id="octu">Oct +</button>
@@ -93,6 +94,7 @@ import { Harmony } from './lib/harmony.js';
 import { Rack, TYPES } from './lib/synth.js';
 import { Player } from './lib/player.js';
 import { stockPresets } from './lib/presets.js';
+import { fillBluesImprov } from './lib/improv.js';
 
 const cv = document.getElementById('cv');
 const g = cv.getContext('2d');
@@ -522,7 +524,7 @@ addEventListener('blur', () => {
   player.noteOff();
 });
 
-const HIDDEN_IN_DIRECT = ['play', 'style', 'len', 'bpmd', 'bpmv', 'bpmu', 'tseq'];
+const HIDDEN_IN_DIRECT = ['play', 'style', 'blues', 'len', 'bpmd', 'bpmv', 'bpmu', 'tseq'];
 function syncButtons() {
   $('play').textContent = player && player.paused ? 'Play' : 'Pause';
   $('mode').textContent = 'Mode: ' + (direct() ? 'direct' : 'auto');
@@ -592,7 +594,17 @@ $('style').onclick = () => {
   seq.setStyle(STYLE_OPTS[(STYLE_OPTS.indexOf(seq.styleSel) + 1) % STYLE_OPTS.length]);
   syncStyle();
 };
-$('fit').onclick = () => { if (master) fitView(); };
+/* Every press deals a new riff; it keeps the scale root if one is locked, else it takes the current chord's root. */
+$('blues').onclick = () => {
+  if (!player) return;
+  const root = harmony.lock ? harmony.lock.root : harmony.sel.root;
+  fillBluesImprov(player.seq, harmony, { root, seed: (Math.random() * 0x7fffffff) | 0 });
+  scaleIdx = SCALE_OPTS.findIndex(s => s && s.name === 'blues');
+  scaleRoot = root;
+  applyScale();
+  syncSeqUi();
+};
+$('fit').onclick =() => { if (master) fitView(); };
 $('tseq').onclick = () => togglePane(panes.seq);
 $('tkeys').onclick = () => togglePane(panes.keys);
 $('tton').onclick = () => togglePane(panes.ton);
