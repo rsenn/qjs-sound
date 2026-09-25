@@ -1,7 +1,7 @@
 {
   "id": "/tonnetz/",
-  "name": "Tonnetz Table",
-  "short_name": "Tonnetz",
+  "name": "Chordloom",
+  "short_name": "Chordloom",
   "description": "Touch-controlled modular acid synth with a tonnetz-driven arpeggiator",
   "start_url": "./",
   "scope": "./",

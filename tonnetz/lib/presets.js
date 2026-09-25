@@ -39,5 +39,8 @@ export function stockPresets(area) {
       ['vcf', [0.55, 0.3, 0.2, 0.6]],
       ['reverb', [0.55, 0.7]],
     ], { style: 'up', seed: 21, bpm: 90, chordBars: 4 }, area),
+    preset('Hexachord FM', [
+      ['fm', [0, 0.8, 0.5, 0.5]],
+    ], { style: 'rolling', seed: 3, bpm: 96, chordBars: 2 }, area),
   ];
 }

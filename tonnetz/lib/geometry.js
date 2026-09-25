@@ -15,13 +15,19 @@ export class TonnetzGeometry {
     this.width = 0; this.s = 0; this.hh = 0; this.x0 = 0; this.y0 = 0;
   }
 
-  /* `top` is the y of the lattice area's upper edge; `s` the triangle side length in pixels. */
-  layout(width, s, top) {
-    this.width = width; this.s = s; this.hh = s * 0.866;
+  /* `top` is the y of the lattice area's upper edge; `s` the triangle side length in pixels.
+     With `frame` {x, y} the lattice runs down the screen instead: `width` is then the length along y, `top` the offset across x. */
+  layout(width, s, top, frame = null) {
+    this.width = width; this.s = s; this.hh = s * 0.866; this.frame = frame;
     this.x0 = width / 2; this.y0 = top + s * 0.4 + 3 * this.hh;
   }
 
-  np(i, j) { return [this.x0 + (i + j / 2) * this.s, this.y0 - j * this.hh]; }
+  vnp(i, j) { return [this.x0 + (i + j / 2) * this.s, this.y0 - j * this.hh]; }
+
+  np(i, j) {
+    const [x, y] = this.vnp(i, j);
+    return this.frame ? [this.frame.x + y, this.frame.y + x] : [x, y];
+  }
 
   triPts(i, j, up) { return triNodes(i, j, up).map(([a, b]) => this.np(a, b)); }
 
@@ -62,10 +68,11 @@ export class TonnetzGeometry {
   }
 
   hit(p) {
+    if (this.frame) p = { x: p.y - this.frame.y, y: p.x - this.frame.x };
     let best = null, bd = this.s * 0.3;
     for (let j = 0; j <= 3; j++) {
       const i = Math.round((p.x - this.x0) / this.s - j / 2);
-      const [x, y] = this.np(i, j), d = Math.hypot(p.x - x, p.y - y);
+      const [x, y] = this.vnp(i, j), d = Math.hypot(p.x - x, p.y - y);
       if (d < bd) { bd = d; best = [i, j]; }
     }
     if (best) return nodeSel(...best);
@@ -77,7 +84,7 @@ export class TonnetzGeometry {
     let edge = null, ed = this.s * 0.2;
     for (let a = 0; a < 3; a++) {
       const A = pts[a], B = pts[(a + 1) % 3];
-      const d = segDist(p, this.np(...A), this.np(...B));
+      const d = segDist(p, this.vnp(...A), this.vnp(...B));
       if (d < ed) { ed = d; edge = [A, B]; }
     }
     return edge ? edgeSel(...edge) : triSel(fi, fj, up);

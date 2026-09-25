@@ -7,11 +7,11 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Tonnetz">
+<meta name="apple-mobile-web-app-title" content="Chordloom">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<title>Tonnetz Table</title>
+<title>Chordloom</title>
 <style>
 :root { --bg: #07080d; --fg: #d8def0; --dim: #6b7391; --panel: #141726; --edge: #2a2f4a; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 14px/1.35 system-ui, sans-serif; overflow: hidden; overscroll-behavior: none; -webkit-user-select: none; user-select: none; }
@@ -77,10 +77,11 @@ button.off { opacity: .45; }
   <button id="tseq">Sequencer</button>
   <button id="tkeys" class="off">Piano</button>
   <button id="tton">Tonnetz</button>
+  <button id="tside" title="Dock the tonnetz below or to the right">Dock: bottom</button>
 </div>
 <div id="start">
   <div>
-    <h1>TONNETZ TABLE</h1>
+    <h1>CHORDLOOM</h1>
     <p>Touch a triangle to play a chord, then let the engine carry on.</p>
     <p>Tap a module, then another, to patch. Rings are knobs.</p>
     <p>Keys ZXCVBNM / QWERTYU play notes. Space pauses.</p>
@@ -108,6 +109,8 @@ const pcHue = pc => mod12(pc * 7) * 30;
 
 let ctx, rack, player, master, mods = [];
 let W, H, DPR, tableH, tonS;
+/* Width of everything but the docked-right tonnetz; equals W otherwise. */
+let LW;
 /* The table lives in world coordinates with a fixed module size; `view` maps them to the screen. */
 const U = 34, Z_MIN = 0.3, Z_MAX = 3;
 const view = { z: 1, x: 0, y: 0 };
@@ -118,9 +121,10 @@ const panes = {
   seq: { want: true, show: true, h: 0, min: 100, split: 0, top: 0 },
   arp: { want: true, show: false, h: 0, min: 100, split: 0, top: 0 },
   keys: { want: false, show: false, h: 0, min: 60, split: 0, top: 0 },
-  ton: { want: true, show: true, h: 0, min: 80, split: 0, top: 0 },
+  ton: { want: true, show: true, h: 0, min: 80, split: 0, top: 0, side: false, w: 0 },
 };
-const paneList = [panes.seq, panes.arp, panes.keys, panes.ton];
+let paneList = [panes.seq, panes.arp, panes.keys, panes.ton];
+const sideOn = () => panes.ton.show && panes.ton.side;
 let layoutDirty = false, curStep = -1;
 const arpHits = [];
 const trail = [];
@@ -160,7 +164,7 @@ function zoomAt(sx, sy, z) {
 
 /* Sized so the default patch fills the table the way it did before the view could move. */
 function defaultView() {
-  view.z = clamp(Math.min(W / 13, (tableH - 30) / 7.6), 20, 44) / U;
+  view.z = clamp(Math.min(LW / 13, (tableH - 30) / 7.6), 20, 44) / U;
   view.x = view.y = 0;
 }
 
@@ -172,9 +176,9 @@ function fitView() {
     x0 = Math.min(x0, m.x - r); x1 = Math.max(x1, m.x + r);
     y0 = Math.min(y0, m.y - r - (isMod ? U * 0.9 : 0)); y1 = Math.max(y1, m.y + r + (isMod ? U * 2 : U * 1.5));
   }
-  const z = clamp(Math.min(W / (x1 - x0 + U), tableH / (y1 - y0 + U)), Z_MIN, 1.6);
+  const z = clamp(Math.min(LW / (x1 - x0 + U), tableH / (y1 - y0 + U)), Z_MIN, 1.6);
   view.z = z;
-  view.x = W / 2 - (x0 + x1) / 2 * z; view.y = tableH / 2 - (y0 + y1) / 2 * z;
+  view.x = LW / 2 - (x0 + x1) / 2 * z; view.y = tableH / 2 - (y0 + y1) / 2 * z;
 }
 
 function addModule(type, x, y) {
@@ -204,14 +208,27 @@ function fitPanes() {
 }
 
 function relayout() {
+  const side = sideOn();
+  panes.ton.w = clamp(panes.ton.w, 160, Math.max(160, W - 300));
+  LW = side ? W - panes.ton.w - SPL : W;
+  $('ctl').style.right = side ? panes.ton.w + SPL + 8 + 'px' : '';
+  $('ctl').style.maxWidth = side ? Math.round(LW * 0.55) + 'px' : '';
+  $('add').style.maxWidth = side ? Math.round(LW * 0.42) + 'px' : '';
+  paneList = [panes.seq, panes.arp, panes.keys, ...(side ? [] : [panes.ton])];
   fitPanes();
   tableH = H - stripH - paneList.reduce((a, p) => a + (p.show ? SPL + p.h : 0), 0);
   let y = tableH + stripH;
   for (const p of paneList) {
     if (p.show) { p.split = y; p.top = y + SPL; y = p.top + p.h; } else p.split = p.top = H;
   }
-  tonS = clamp(Math.min(W / 5, panes.ton.h / 3.35), 20, W / 5);
-  geo.layout(W, tonS, panes.ton.top + (panes.ton.h - 3.35 * tonS) / 2);
+  if (side) {
+    panes.ton.split = panes.ton.top = H;
+    tonS = clamp(Math.min(H / 5, panes.ton.w / 3.5), 20, 140);
+    geo.layout(H, tonS, (panes.ton.w - 3.35 * tonS) / 2, { x: LW + SPL, y: 0 });
+  } else {
+    tonS = clamp(Math.min(W / 5, panes.ton.h / 3.35), 20, W / 5);
+    geo.layout(W, tonS, panes.ton.top + (panes.ton.h - 3.35 * tonS) / 2);
+  }
   refreshHintTris();
   buildCache();
 }
@@ -224,6 +241,7 @@ function resize() {
   else {
     panes.seq.h = panes.arp.h = clamp(Math.round(H * 0.24), 110, 220);
     panes.keys.h = clamp(Math.round(H * 0.15), 90, 150);
+    panes.ton.w = clamp(Math.round(W * 0.28), 200, 360);
     panes.ton.h = Math.round(Math.min(W / 8, H * 0.4 / 3.35) * 3.35);
   }
   relayout();
@@ -231,7 +249,7 @@ function resize() {
 }
 
 const seqGeo = () => {
-  const p = panes.seq, lw = 26, x0 = lw + 8, cw = (W - x0 - 8) / STEPS;
+  const p = panes.seq, lw = 26, x0 = lw + 8, cw = (LW - x0 - 8) / STEPS;
   const th = clamp(Math.round(p.h * 0.1), 12, 18);
   const sy = p.top + p.h - th - 4, ay = sy - th - 2, gy0 = p.top + 4;
   return { lw, x0, cw, th, sy, ay, gy0, rh: (ay - 4 - gy0) / 8 };
@@ -243,8 +261,8 @@ const BLACK_KEYS = [[1, 1], [3, 2], [6, 4], [8, 5], [10, 6]];
 
 /* Whole octaves from C, as many as fit at a comfortable key width. */
 const keysGeo = () => {
-  const p = panes.keys, oct = clamp(Math.floor(W / 210), 1, 6);
-  return { top: p.top, h: p.h, oct, ww: W / (7 * oct), bh: p.h * 0.62, base: 12 * (harmony.octave + 1) };
+  const p = panes.keys, oct = clamp(Math.floor(LW / 210), 1, 6);
+  return { top: p.top, h: p.h, oct, ww: LW / (7 * oct), bh: p.h * 0.62, base: 12 * (harmony.octave + 1) };
 };
 
 /* Black keys overlap the white ones, so they get first claim on the upper part of the keyboard. */
@@ -278,7 +296,8 @@ const KEY_NOTES = (() => {
   return map;
 })();
 
-const splitAt = p => paneList.find(q => q.show && p.y >= q.split - 4 && p.y < q.top + 4);
+const splitAt = p => p.x < LW && paneList.find(q => q.show && p.y >= q.split - 4 && p.y < q.top + 4);
+const sideSplitAt = p => sideOn() && p.x >= LW - 4 && p.x < LW + SPL + 4;
 
 /* Dragging a splitter moves the boundary above its pane: the pane above (or the table) gives or takes the difference. */
 function dragSplit(s, p) {
@@ -369,6 +388,10 @@ cv.addEventListener('pointerdown', e => {
   if (ctx.state !== 'running') ctx.resume();
   const p = pos(e);
   cv.setPointerCapture(e.pointerId);
+  if (sideSplitAt(p)) {
+    ptr.set(e.pointerId, { kind: 'vsplit', x0: p.x, w0: panes.ton.w });
+    return;
+  }
   const sp = splitAt(p);
   if (sp) {
     for (const q of paneList) q.h0 = q.h;
@@ -376,7 +399,7 @@ cv.addEventListener('pointerdown', e => {
     ptr.set(e.pointerId, { kind: 'split', pane: sp, prev, y0: p.y, table0: tableH });
     return;
   }
-  if (panes.ton.show && p.y >= panes.ton.top) {
+  if (sideOn() ? p.x >= LW + SPL : panes.ton.show && p.y >= panes.ton.top) {
     ptr.set(e.pointerId, { kind: 'ton' });
     player.press(geo.hit(p));
     if (player.live) pulse = 1;
@@ -460,7 +483,7 @@ function moveGesture(s, p) {
 
 cv.addEventListener('wheel', e => {
   const p = pos(e);
-  if (p.y >= tableH) return;
+  if (p.y >= tableH || p.x >= LW) return;
   e.preventDefault();
   zoomAt(p.x, p.y, view.z * Math.exp(-e.deltaY * 0.0015));
 }, { passive: false });
@@ -481,9 +504,12 @@ function paintStep(s, col, p) {
 
 cv.addEventListener('pointermove', e => {
   const s = ptr.get(e.pointerId);
-  if (!s) { cv.style.cursor = splitAt(pos(e)) ? 'row-resize' : ''; return; }
+  if (!s) { cv.style.cursor = sideSplitAt(pos(e)) ? 'col-resize' : splitAt(pos(e)) ? 'row-resize' : ''; return; }
   const p = pos(e);
-  if (s.kind === 'split') {
+  if (s.kind === 'vsplit') {
+    panes.ton.w = s.w0 + s.x0 - p.x;
+    layoutDirty = true;
+  } else if (s.kind === 'split') {
     dragSplit(s, p);
   } else if (s.kind === 'keys') {
     const m = harmony.snapMidi(keysMidiAt(p));
@@ -643,6 +669,13 @@ $('fit').onclick =() => { if (master) fitView(); };
 $('tseq').onclick = () => togglePane(panes.seq);
 $('tkeys').onclick = () => togglePane(panes.keys);
 $('tton').onclick = () => togglePane(panes.ton);
+$('tside').onclick = () => {
+  panes.ton.side = !panes.ton.side;
+  $('tside').textContent = 'Dock: ' + (panes.ton.side ? 'right' : 'bottom');
+  try { localStorage.setItem('tonnetz.dock', panes.ton.side ? 'right' : 'bottom'); } catch {}
+  applyPanes();
+};
+try { if (localStorage.getItem('tonnetz.dock') === 'right') { panes.ton.side = true; $('tside').textContent = 'Dock: right'; } } catch {}
 
 const ROOT_NAMES = NOTES, SCALE_OPTS = [null, ...SCALES];
 let scaleIdx = 0, scaleRoot = 0;
@@ -668,7 +701,7 @@ $('bpmv').textContent = '116 bpm';
 for (const b of document.querySelectorAll('[data-add]')) {
   b.onclick = () => {
     if (!ctx) return;
-    const at = toWorld({ x: W * (0.15 + Math.random() * 0.4), y: tableH * (0.25 + Math.random() * 0.5) });
+    const at = toWorld({ x: LW * (0.15 + Math.random() * 0.4), y: tableH * (0.25 + Math.random() * 0.5) });
     addModule(b.dataset.add, at.x, at.y);
   };
 }
@@ -731,7 +764,7 @@ function drawBubble(m, label, value) {
   const fs = Math.round(clamp(U * 0.5, 13, 20));
   g.font = `600 ${fs}px system-ui, sans-serif`;
   const text = `${label}  ${value}`, w = g.measureText(text).width + fs, h = fs * 1.7;
-  const vl = -view.x / view.z, vr = (W - view.x) / view.z;
+  const vl = -view.x / view.z, vr = (LW - view.x) / view.z;
   const x = clamp(m.x, vl + w / 2 + 4, vr - w / 2 - 4), y = Math.max(-view.y / view.z + 4, m.y - outerR(m) - h - 6);
   g.fillStyle = 'rgba(7,8,13,0.92)'; g.strokeStyle = '#ffffffcc'; g.lineWidth = 1.5;
   g.beginPath(); g.roundRect(x - w / 2, y, w, h, h / 2); g.fill(); g.stroke();
@@ -847,14 +880,14 @@ function drawStrip() {
   g.textBaseline = 'middle'; g.textAlign = 'left'; g.fillStyle = '#d8def0';
   const { sel, analysis, hints } = harmony;
   const mode = MODES[analysis.mode] || '';
-  const scale = harmony.lock ? `scale ${NOTES[harmony.lock.root]} ${SCALE_OPTS[scaleIdx].name}` : `${NOTES[sel.root]} ${mode}${W > 560 ? ` (${NOTES[analysis.key]} major)` : ''}`;
+  const scale = harmony.lock ? `scale ${NOTES[harmony.lock.root]} ${SCALE_OPTS[scaleIdx].name}` : `${NOTES[sel.root]} ${mode}${LW > 560 ? ` (${NOTES[analysis.key]} major)` : ''}`;
   g.fillText(`${nameOf(sel)}  ${scale}`, 8, y);
   g.textAlign = 'right'; g.fillStyle = al('#d8def0', 0.7);
-  if (direct()) { g.fillText('direct play', W - 8, y); return; }
+  if (direct()) { g.fillText('direct play', LW - 8, y); return; }
   const next = hints.length ? 'next: ' + hints.map(h => (h.back ? '↩' : '') + cname(h.id)).join('  ') : '';
   const seq = player && player.seq, song = harmony.song;
   const bars = song ? `song bar ${(song.bar + song.chords.length - 1) % song.chords.length + 1}/${song.chords.length}` : `bar ${Math.max(1, seq ? seq.barsInChord : 0)}/${seq ? seq.chordBars : 2}`;
-  g.fillText(`${next}   ${bars}`, W - 8, y);
+  g.fillText(`${next}   ${bars}`, LW - 8, y);
 }
 
 function drawSeq() {
@@ -955,7 +988,7 @@ function drawArp() {
   };
 
   const rowA = p.top + 6;
-  let x = W - PAD;
+  let x = LW - PAD;
   for (const o of [4, 3, 2, 1]) {
     x -= 26;
     chip(x, rowA, 24, chH, String(o), { active: seq.arp.octaves === o, action: () => seq.setArp({ octaves: o }) });
@@ -968,14 +1001,16 @@ function drawArp() {
     x -= w + 4;
     chip(x, rowA, w, chH, st, { active: seq.arp.style === st, action: () => seq.setArp({ style: st }) });
   }
+  x -= 56;
+  chip(x, rowA, 52, chH, 'Save', { action: saveArpPreset });
   const tonality = harmony.lock ? `${NOTES[harmony.lock.root]} ${SCALE_OPTS[scaleIdx].name}` : `${NOTES[key]} major`;
   g.fillStyle = '#d8def0'; g.textAlign = 'left';
-  g.fillText(W > 700 ? `ARPEGGIATOR  ${tonality}` : tonality, PAD, rowA + chH / 2 + 1);
+  g.fillText(LW > 700 ? `ARPEGGIATOR  ${tonality}` : tonality, PAD, rowA + chH / 2 + 1);
 
   const rowB = rowA + chH + 8, ids = [0, 1, 2, 3, 4, 5].map(i => cid(KEYS[key][i], [1, 2, 5].includes(i)));
   const cur = harmony.sel.kind === 'tri' ? harmony.sel.id : null, next = harmony.hints.length ? harmony.hints[0].id : null;
   if (cur !== null && !ids.includes(cur)) ids.push(cur);
-  const cw = clamp((W - 2 * PAD - 6 * (ids.length - 1)) / ids.length, 36, 72);
+  const cw = clamp((LW - 2 * PAD - 6 * (ids.length - 1)) / ids.length, 36, 72);
   ids.forEach((id, i) => chip(PAD + i * (cw + 6), rowB, cw, 28, cname(id), {
     active: id === cur, hue: pcHue(id >> 1), mark: id === next,
     action: () => player.pickChord(harmony.locate(id, harmony.sel)),
@@ -983,9 +1018,9 @@ function drawArp() {
 
   const y0 = rowB + 28 + 10, h = p.top + p.h - 6 - y0;
   if (h < 28) return;
-  const n = 3 * seq.arp.octaves, colW = (W - 2 * PAD) / STEPS, pill = clamp(h / (n + 1), 3, 8);
+  const n = 3 * seq.arp.octaves, colW = (LW - 2 * PAD) / STEPS, pill = clamp(h / (n + 1), 3, 8);
   const yOf = d => y0 + h - pill - (n > 1 ? d / (n - 1) : 0) * (h - pill);
-  g.fillStyle = 'rgba(255,255,255,0.04)'; g.fillRect(PAD, y0, W - 2 * PAD, h);
+  g.fillStyle = 'rgba(255,255,255,0.04)'; g.fillRect(PAD, y0, LW - 2 * PAD, h);
   seq.pattern.forEach((s, k) => {
     const cx = PAD + k * colW, y = yOf(Math.min(s.deg, n - 1));
     if (seq.running && k === curStep) { g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(cx, y0, colW, h); }
@@ -1023,20 +1058,30 @@ function buildCache() {
   c.setTransform(DPR, 0, 0, DPR, 0, 0);
   c.fillStyle = '#07080d'; c.fillRect(0, 0, W, H);
 
-  c.fillStyle = '#090b13'; c.fillRect(0, tableH, W, stripH);
+  c.fillStyle = '#090b13'; c.fillRect(0, tableH, LW, stripH);
   c.strokeStyle = '#2a2f4a'; c.lineWidth = 1;
   c.beginPath();
-  c.moveTo(0, tableH + 0.5); c.lineTo(W, tableH + 0.5);
+  c.moveTo(0, tableH + 0.5); c.lineTo(LW, tableH + 0.5);
   c.stroke();
   for (const p of paneList) {
     if (!p.show) continue;
-    c.fillStyle = '#10131f'; c.fillRect(0, p.split, W, SPL);
-    c.fillStyle = p === panes.ton ? '#0b0d16' : '#090b13'; c.fillRect(0, p.top, W, p.h);
+    c.fillStyle = '#10131f'; c.fillRect(0, p.split, LW, SPL);
+    c.fillStyle = p === panes.ton ? '#0b0d16' : '#090b13'; c.fillRect(0, p.top, LW, p.h);
     c.fillStyle = '#4a5178';
-    for (let k = -2; k <= 2; k++) c.fillRect(Math.round(W / 2 + k * 10) - 2, p.split + SPL / 2 - 1, 4, 2);
+    for (let k = -2; k <= 2; k++) c.fillRect(Math.round(LW / 2 + k * 10) - 2, p.split + SPL / 2 - 1, 4, 2);
     c.beginPath();
-    c.moveTo(0, p.split + 0.5); c.lineTo(W, p.split + 0.5);
-    c.moveTo(0, p.top - 0.5); c.lineTo(W, p.top - 0.5);
+    c.moveTo(0, p.split + 0.5); c.lineTo(LW, p.split + 0.5);
+    c.moveTo(0, p.top - 0.5); c.lineTo(LW, p.top - 0.5);
+    c.stroke();
+  }
+  if (sideOn()) {
+    c.fillStyle = '#10131f'; c.fillRect(LW, 0, SPL, H);
+    c.fillStyle = '#0b0d16'; c.fillRect(LW + SPL, 0, panes.ton.w, H);
+    c.fillStyle = '#4a5178';
+    for (let k = -2; k <= 2; k++) c.fillRect(LW + SPL / 2 - 1, Math.round(H / 2 + k * 10) - 2, 2, 4);
+    c.beginPath();
+    c.moveTo(LW + 0.5, 0); c.lineTo(LW + 0.5, H);
+    c.moveTo(LW + SPL - 0.5, 0); c.lineTo(LW + SPL - 0.5, H);
     c.stroke();
   }
   if (!panes.ton.show) return;
@@ -1050,8 +1095,38 @@ function buildCache() {
   c.textAlign = 'center'; c.textBaseline = 'middle';
   c.font = `600 ${Math.round(geo.s * 0.2)}px system-ui, sans-serif`;
   for (let j = 0; j <= 3; j++) for (let i = imin; i <= imax + 1; i++) {
-    const [x] = geo.np(i, j);
-    if (x > -geo.s && x < W + geo.s) paintNode(c, i, j, false);
+    const [x, y] = geo.np(i, j);
+    if (x > -geo.s && x < W + geo.s && y > -geo.s && y < H + geo.s) paintNode(c, i, j, false);
+  }
+}
+
+const FLASH_MS = 450;
+
+/* Every sounding or just-released note lights all copies of its pitch class on the lattice, fading out after release. */
+function drawFlashes(now) {
+  const lit = new Array(12).fill(0);
+  for (const n of trail) {
+    if (n.t0 > now) continue;
+    const a = n.t1 === null || now <= n.t1 ? 1 : 1 - (now - n.t1) / FLASH_MS;
+    if (a > 0) lit[mod12(n.midi)] = Math.max(lit[mod12(n.midi)], a);
+  }
+  if (!lit.some(a => a > 0)) return;
+  const { imin, imax } = geo.latticeRange();
+  for (let j = 0; j <= 3; j++) for (let i = imin; i <= imax + 1; i++) {
+    const pc = mod12(7 * i + 4 * j), a = lit[pc];
+    if (a <= 0) continue;
+    const [x, y] = geo.np(i, j);
+    if (x < -geo.s || x > W + geo.s || y < -geo.s || y > H + geo.s) continue;
+    const hue = pcHue(pc);
+    g.fillStyle = `hsla(${hue},95%,70%,${0.45 * a})`;
+    g.beginPath(); g.arc(x, y, geo.s * (0.25 + 0.08 * a), 0, 7); g.fill();
+    g.fillStyle = `hsla(${hue},95%,75%,${a})`;
+    g.beginPath(); g.arc(x, y, geo.s * 0.24, 0, 7); g.fill();
+    g.strokeStyle = `rgba(255,255,255,${a})`; g.lineWidth = 2; g.stroke();
+    g.fillStyle = '#07080d';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = `600 ${Math.round(geo.s * 0.2)}px system-ui, sans-serif`;
+    g.fillText(NOTES[pc], x, y + 1);
   }
 }
 
@@ -1088,6 +1163,7 @@ function drawTonnetz(now) {
     const n = /^n(-?\d+),(-?\d+)$/.exec(k);
     paintNode(g, +n[1], +n[2], true);
   }
+  drawFlashes(now);
 }
 
 function statusText() {
@@ -1100,7 +1176,7 @@ function statusText() {
 function drawGrid() {
   const step = U * 0.8;
   if (step * view.z < 16) return;
-  const x1 = (W - view.x) / view.z, y1 = (tableH - view.y) / view.z;
+  const x1 = (LW - view.x) / view.z, y1 = (tableH - view.y) / view.z;
   g.fillStyle = 'rgba(255,255,255,0.05)';
   for (let y = Math.floor(-view.y / view.z / step) * step; y < y1; y += step) {
     for (let x = Math.floor(-view.x / view.z / step) * step; x < x1; x += step) g.fillRect(x, y, 1.5, 1.5);
@@ -1133,7 +1209,7 @@ function frame() {
 
   for (const m of mods) analyse(m);
   g.save();
-  g.beginPath(); g.rect(0, 0, W, tableH); g.clip();
+  g.beginPath(); g.rect(0, 0, LW, tableH); g.clip();
   g.translate(view.x, view.y); g.scale(view.z, view.z);
   drawGrid();
   for (const m of mods) if (m.target) drawCable(m);
@@ -1147,7 +1223,7 @@ function frame() {
   g.fillStyle = 'rgba(216,222,240,0.5)';
   g.font = `${Math.round(U * 0.3)}px system-ui, sans-serif`;
   g.textAlign = 'center'; g.textBaseline = 'bottom';
-  g.fillText(statusText(), W / 2, 34);
+  g.fillText(statusText(), LW / 2, 34);
   drawStrip();
   if (panes.seq.show) drawSeq();
   if (panes.arp.show) drawArp();
@@ -1156,7 +1232,7 @@ function frame() {
   for (const s of ptr.values()) {
     if (s.kind !== 'split') continue;
     g.fillStyle = 'rgba(255,255,255,0.14)';
-    g.fillRect(0, s.pane.split, W, SPL);
+    g.fillRect(0, s.pane.split, LW, SPL);
   }
 }
 
@@ -1256,6 +1332,12 @@ function savePreset(name) {
   renderPresets();
 }
 
+function saveArpPreset() {
+  let n = 1;
+  while (presets.some(p => p && p.name === 'Arp ' + n)) n++;
+  savePreset('Arp ' + n);
+}
+
 function deletePreset() {
   if (!presets[curPreset]) return;
   presets[curPreset] = null;
@@ -1300,7 +1382,7 @@ function start() {
   mods = rack.mods;
   master = rack.master;
   player = new Player(harmony, rack);
-  master.x = W / view.z - U * 2.6;
+  master.x = LW / view.z - U * 2.6;
   master.y = tableH / view.z / 2;
   loadPresets();
   renderPresets();
