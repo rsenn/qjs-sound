@@ -6,11 +6,5 @@
 include("${CMAKE_CURRENT_LIST_DIR}/VendoredLibrary.cmake")
 
 vendored_build_static_subdirectory(
-  SOUNDTOUCH
-  SUBMODULE_DIR
-  third_party/soundtouch
-  TARGETS
-  SoundTouch
-  OPTIONS
-  -DSOUNDSTRETCH=OFF
-  -DSOUNDTOUCH_DLL=OFF)
+  SOUNDTOUCH SUBMODULE_DIR third_party/soundtouch TARGETS SoundTouch OPTIONS
+  -DSOUNDSTRETCH=OFF -DSOUNDTOUCH_DLL=OFF)

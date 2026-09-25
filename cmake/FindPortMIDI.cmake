@@ -9,8 +9,10 @@
 
 include("${CMAKE_CURRENT_LIST_DIR}/VendoredLibrary.cmake")
 
-option(BUILD_PORTMIDI
-       "Build PortMIDI from the vendored third_party/portmidi submodule instead of using the system library" OFF)
+option(
+  BUILD_PORTMIDI
+  "Build PortMIDI from the vendored third_party/portmidi submodule instead of using the system library"
+  OFF)
 
 # PortMIDI's Linux backend (pm_linux/pmlinuxalsa.c) calls directly into
 # ALSA; a system libportmidi.so already carries that as a DT_NEEDED
@@ -34,8 +36,8 @@ else()
   # finer-grained -DPORTMIDI_INCLUDE_DIR=/usr/include
   # -DPORTMIDI_LIBRARY_DIR=/usr/lib/x86_64-linux-gnu; with neither given,
   # falls back to the default system search paths.
-  vendored_find_system_library(PORTMIDI HEADER portmidi.h LIBRARY_NAMES portmidi EXTRA_LIBRARIES
-                                ${PORTMIDI_SYSTEM_DEPS})
+  vendored_find_system_library(PORTMIDI HEADER portmidi.h LIBRARY_NAMES
+                               portmidi EXTRA_LIBRARIES ${PORTMIDI_SYSTEM_DEPS})
 
   if(NOT PORTMIDI_FOUND)
     message(

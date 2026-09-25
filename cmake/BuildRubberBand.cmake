@@ -25,7 +25,10 @@ find_package(Threads REQUIRED)
 set(RUBBERBAND_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/rubberband")
 
 if(NOT EXISTS "${RUBBERBAND_SRC_DIR}/meson.build")
-  message(FATAL_ERROR "third_party/rubberband is empty - run 'git submodule update --init third_party/rubberband' first")
+  message(
+    FATAL_ERROR
+      "third_party/rubberband is empty - run 'git submodule update --init third_party/rubberband' first"
+  )
 endif()
 
 # meson.build's 'library_sources' (public-API + faster/finer engine
@@ -83,23 +86,20 @@ add_library(rubberband STATIC ${RUBBERBAND_SOURCES})
 # correctness.
 target_compile_definitions(
   rubberband
-  PRIVATE USE_BUILTIN_FFT
-          USE_BQRESAMPLER
-          USE_PTHREADS
-          HAVE_POSIX_MEMALIGN
-          NO_THREAD_CHECKS
-          NO_TIMING
-          NDEBUG
-          LACK_SINCOS)
+  PRIVATE USE_BUILTIN_FFT USE_BQRESAMPLER USE_PTHREADS HAVE_POSIX_MEMALIGN
+          NO_THREAD_CHECKS NO_TIMING NDEBUG LACK_SINCOS)
 
 # "rubberband" (public headers) and "src" (so the handful of
 # not-relative-to-their-own-directory #includes inside src/*.cpp still
 # resolve, matching meson.build's own general_include_dirs) - both
 # PRIVATE, since a consumer only ever needs the public "rubberband" dir
 # (that's what RUBBERBAND_INCLUDE_DIRS below actually points at).
-target_include_directories(rubberband PRIVATE "${RUBBERBAND_SRC_DIR}" "${RUBBERBAND_SRC_DIR}/src")
+target_include_directories(rubberband PRIVATE "${RUBBERBAND_SRC_DIR}"
+                                              "${RUBBERBAND_SRC_DIR}/src")
 
-set_target_properties(rubberband PROPERTIES POSITION_INDEPENDENT_CODE ON CXX_STANDARD 11 CXX_STANDARD_REQUIRED ON)
+set_target_properties(
+  rubberband PROPERTIES POSITION_INDEPENDENT_CODE ON CXX_STANDARD 11
+                        CXX_STANDARD_REQUIRED ON)
 
 target_link_libraries(rubberband PRIVATE Threads::Threads)
 

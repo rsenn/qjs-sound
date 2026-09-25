@@ -10,8 +10,10 @@
 
 include("${CMAKE_CURRENT_LIST_DIR}/VendoredLibrary.cmake")
 
-option(BUILD_PORTAUDIO
-       "Build PortAudio from the vendored third_party/portaudio submodule instead of using the system library" OFF)
+option(
+  BUILD_PORTAUDIO
+  "Build PortAudio from the vendored third_party/portaudio submodule instead of using the system library"
+  OFF)
 
 if(BUILD_PORTAUDIO)
   include("${CMAKE_CURRENT_LIST_DIR}/BuildPortAudio.cmake")
@@ -20,7 +22,8 @@ else()
   # finer-grained -DPORTAUDIO_INCLUDE_DIR=.../-DPORTAUDIO_LIBRARY_DIR=...);
   # with neither given, falls back to pkg-config's portaudio-2.0 module,
   # then the default system search paths.
-  vendored_find_system_library(PORTAUDIO HEADER portaudio.h LIBRARY_NAMES portaudio PKGCONFIG_MODULE portaudio-2.0)
+  vendored_find_system_library(PORTAUDIO HEADER portaudio.h LIBRARY_NAMES
+                               portaudio PKGCONFIG_MODULE portaudio-2.0)
 
   if(NOT PORTAUDIO_FOUND)
     message(

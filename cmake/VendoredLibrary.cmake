@@ -31,7 +31,8 @@
 # located library/libraries plus EXTRA_LIBRARIES, e.g. asound for
 # portmidi - see FindPortMIDI.cmake), <NAME>_LIBRARY_DIRS, <NAME>_FOUND.
 function(vendored_find_system_library NAME)
-  cmake_parse_arguments(VFSL "" "HEADER;PKGCONFIG_MODULE" "LIBRARY_NAMES;EXTRA_LIBRARIES" ${ARGN})
+  cmake_parse_arguments(VFSL "" "HEADER;PKGCONFIG_MODULE"
+                        "LIBRARY_NAMES;EXTRA_LIBRARIES" ${ARGN})
 
   if(${NAME}_PREFIX)
     if(NOT ${NAME}_INCLUDE_DIR)
@@ -45,10 +46,12 @@ function(vendored_find_system_library NAME)
   if(${NAME}_INCLUDE_DIR AND ${NAME}_LIBRARY_DIR)
     # Hints given explicitly (or derived from _PREFIX above) - search
     # only there, no silent fallback to some other copy on the system.
-    find_path(${NAME}_INCLUDE_DIRS NAMES "${VFSL_HEADER}" PATHS "${${NAME}_INCLUDE_DIR}" NO_DEFAULT_PATH)
+    find_path(${NAME}_INCLUDE_DIRS NAMES "${VFSL_HEADER}"
+              PATHS "${${NAME}_INCLUDE_DIR}" NO_DEFAULT_PATH)
     set(${NAME}_LIBRARIES "")
     foreach(LIB ${VFSL_LIBRARY_NAMES})
-      find_library(${NAME}_LIBRARY_${LIB} NAMES "${LIB}" PATHS "${${NAME}_LIBRARY_DIR}" NO_DEFAULT_PATH)
+      find_library(${NAME}_LIBRARY_${LIB} NAMES "${LIB}"
+                   PATHS "${${NAME}_LIBRARY_DIR}" NO_DEFAULT_PATH)
       list(APPEND ${NAME}_LIBRARIES "${${NAME}_LIBRARY_${LIB}}")
     endforeach()
     set(${NAME}_LIBRARY_DIRS "${${NAME}_LIBRARY_DIR}")
@@ -108,26 +111,31 @@ endfunction()
 # target_link_libraries() against them directly rather than a resolved
 # file path), <NAME>_FOUND.
 function(vendored_build_static_subdirectory NAME)
-  cmake_parse_arguments(VBSS "" "SUBMODULE_DIR;CMAKE_SUBDIR;PATCH" "TARGETS;OPTIONS;EXTRA_LIBRARIES" ${ARGN})
+  cmake_parse_arguments(VBSS "" "SUBMODULE_DIR;CMAKE_SUBDIR;PATCH"
+                        "TARGETS;OPTIONS;EXTRA_LIBRARIES" ${ARGN})
 
   set(SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/${VBSS_SUBMODULE_DIR}")
   if(NOT EXISTS "${SRC_DIR}/CMakeLists.txt" AND NOT VBSS_CMAKE_SUBDIR)
-    message(FATAL_ERROR "${VBSS_SUBMODULE_DIR} is empty - run 'git submodule update --init ${VBSS_SUBMODULE_DIR}' first")
+    message(
+      FATAL_ERROR
+        "${VBSS_SUBMODULE_DIR} is empty - run 'git submodule update --init ${VBSS_SUBMODULE_DIR}' first"
+    )
   endif()
 
   if(VBSS_PATCH)
     find_package(Git REQUIRED)
     execute_process(
       COMMAND "${GIT_EXECUTABLE}" apply --reverse --check "${VBSS_PATCH}"
-      WORKING_DIRECTORY "${SRC_DIR}"
-      RESULT_VARIABLE PATCH_ALREADY_APPLIED
+      WORKING_DIRECTORY "${SRC_DIR}" RESULT_VARIABLE PATCH_ALREADY_APPLIED
       OUTPUT_QUIET ERROR_QUIET)
     if(NOT PATCH_ALREADY_APPLIED EQUAL 0)
       message(STATUS "Patching ${VBSS_SUBMODULE_DIR} (${VBSS_PATCH})")
-      execute_process(COMMAND "${GIT_EXECUTABLE}" apply "${VBSS_PATCH}" WORKING_DIRECTORY "${SRC_DIR}"
-                      RESULT_VARIABLE PATCH_RESULT)
+      execute_process(
+        COMMAND "${GIT_EXECUTABLE}" apply "${VBSS_PATCH}"
+        WORKING_DIRECTORY "${SRC_DIR}" RESULT_VARIABLE PATCH_RESULT)
       if(NOT PATCH_RESULT EQUAL 0)
-        message(FATAL_ERROR "Failed to apply ${VBSS_PATCH} to ${VBSS_SUBMODULE_DIR}")
+        message(
+          FATAL_ERROR "Failed to apply ${VBSS_PATCH} to ${VBSS_SUBMODULE_DIR}")
       endif()
     endif()
   endif()
@@ -168,9 +176,11 @@ function(vendored_build_static_subdirectory NAME)
   set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
   if(VBSS_CMAKE_SUBDIR)
-    add_subdirectory("${SRC_DIR}/${VBSS_CMAKE_SUBDIR}" "${CMAKE_CURRENT_BINARY_DIR}/${VBSS_SUBMODULE_DIR}")
+    add_subdirectory("${SRC_DIR}/${VBSS_CMAKE_SUBDIR}"
+                     "${CMAKE_CURRENT_BINARY_DIR}/${VBSS_SUBMODULE_DIR}")
   else()
-    add_subdirectory("${SRC_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/${VBSS_SUBMODULE_DIR}")
+    add_subdirectory("${SRC_DIR}"
+                     "${CMAKE_CURRENT_BINARY_DIR}/${VBSS_SUBMODULE_DIR}")
   endif()
 
   set(CMAKE_POSITION_INDEPENDENT_CODE "${CMAKE_POSITION_INDEPENDENT_CODE_SAVE}")
@@ -180,7 +190,8 @@ function(vendored_build_static_subdirectory NAME)
   else()
     set(HEADER_DIR "${SRC_DIR}")
   endif()
-  set(${NAME}_INCLUDE_DIRS "${HEADER_DIR}" ${${NAME}_EXTRA_INCLUDE_DIRS} PARENT_SCOPE)
+  set(${NAME}_INCLUDE_DIRS "${HEADER_DIR}" ${${NAME}_EXTRA_INCLUDE_DIRS}
+      PARENT_SCOPE)
   set(${NAME}_LIBRARIES ${VBSS_TARGETS} ${VBSS_EXTRA_LIBRARIES} PARENT_SCOPE)
   set(${NAME}_FOUND TRUE PARENT_SCOPE)
 endfunction()

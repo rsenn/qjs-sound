@@ -8,11 +8,5 @@
 include("${CMAKE_CURRENT_LIST_DIR}/VendoredLibrary.cmake")
 
 vendored_build_static_subdirectory(
-  SAMPLERATE
-  SUBMODULE_DIR
-  third_party/libsamplerate
-  TARGETS
-  samplerate
-  OPTIONS
-  -DLIBSAMPLERATE_EXAMPLES=OFF
-  -DLIBSAMPLERATE_INSTALL=OFF)
+  SAMPLERATE SUBMODULE_DIR third_party/libsamplerate TARGETS samplerate OPTIONS
+  -DLIBSAMPLERATE_EXAMPLES=OFF -DLIBSAMPLERATE_INSTALL=OFF)

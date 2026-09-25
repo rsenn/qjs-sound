@@ -12,8 +12,10 @@
 
 include("${CMAKE_CURRENT_LIST_DIR}/VendoredLibrary.cmake")
 
-option(BUILD_SOUNDTOUCH
-       "Build SoundTouch from the vendored third_party/soundtouch submodule instead of using the system library" OFF)
+option(
+  BUILD_SOUNDTOUCH
+  "Build SoundTouch from the vendored third_party/soundtouch submodule instead of using the system library"
+  OFF)
 
 if(BUILD_SOUNDTOUCH)
   include("${CMAKE_CURRENT_LIST_DIR}/BuildSoundTouch.cmake")
@@ -25,8 +27,9 @@ else()
   # search paths. The header lives under soundtouch/SoundTouch.h - see
   # doc/soundtouch.md's own note on this - but HEADER only needs to name
   # the leaf file for find_path() to locate the parent include dir.
-  vendored_find_system_library(SOUNDTOUCH HEADER soundtouch/SoundTouch.h LIBRARY_NAMES SoundTouch
-                                PKGCONFIG_MODULE soundtouch)
+  vendored_find_system_library(
+    SOUNDTOUCH HEADER soundtouch/SoundTouch.h LIBRARY_NAMES SoundTouch
+    PKGCONFIG_MODULE soundtouch)
 
   if(NOT SOUNDTOUCH_FOUND)
     message(

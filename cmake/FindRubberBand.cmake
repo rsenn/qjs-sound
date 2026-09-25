@@ -18,7 +18,8 @@ include("${CMAKE_CURRENT_LIST_DIR}/VendoredLibrary.cmake")
 
 option(
   BUILD_RUBBERBAND
-  "Build Rubber Band from the vendored third_party/rubberband submodule instead of using the system library" OFF)
+  "Build Rubber Band from the vendored third_party/rubberband submodule instead of using the system library"
+  OFF)
 
 if(BUILD_RUBBERBAND)
   include("${CMAKE_CURRENT_LIST_DIR}/BuildRubberBand.cmake")
@@ -32,8 +33,9 @@ else()
   # own stated design choice, not the C++ RubberBandStretcher class
   # directly - same header/library either way, just documenting why a
   # C-linkage header name isn't required here.
-  vendored_find_system_library(RUBBERBAND HEADER rubberband/rubberband-c.h LIBRARY_NAMES rubberband
-                                PKGCONFIG_MODULE rubberband)
+  vendored_find_system_library(
+    RUBBERBAND HEADER rubberband/rubberband-c.h LIBRARY_NAMES rubberband
+    PKGCONFIG_MODULE rubberband)
 
   if(NOT RUBBERBAND_FOUND)
     message(

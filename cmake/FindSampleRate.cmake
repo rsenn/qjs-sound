@@ -28,7 +28,8 @@ else()
   # finer-grained -DSAMPLERATE_INCLUDE_DIR=.../-DSAMPLERATE_LIBRARY_DIR=...);
   # with neither given, falls back to pkg-config's samplerate module,
   # then the default system search paths.
-  vendored_find_system_library(SAMPLERATE HEADER samplerate.h LIBRARY_NAMES samplerate PKGCONFIG_MODULE samplerate)
+  vendored_find_system_library(SAMPLERATE HEADER samplerate.h LIBRARY_NAMES
+                               samplerate PKGCONFIG_MODULE samplerate)
 
   if(NOT SAMPLERATE_FOUND)
     message(

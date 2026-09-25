@@ -16,12 +16,5 @@ include("${CMAKE_CURRENT_LIST_DIR}/VendoredLibrary.cmake")
 # top-level CMakeLists.txt, which also pulls in examples/ and tests/
 # (extra dependencies aubio's own build needs but this binding doesn't).
 vendored_build_static_subdirectory(
-  AUBIO
-  SUBMODULE_DIR
-  third_party/aubio
-  CMAKE_SUBDIR
-  src
-  TARGETS
-  aubio
-  PATCH
+  AUBIO SUBMODULE_DIR third_party/aubio CMAKE_SUBDIR src TARGETS aubio PATCH
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake/patches/aubio-static-lib.patch")

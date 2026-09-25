@@ -12,8 +12,10 @@
 
 include("${CMAKE_CURRENT_LIST_DIR}/VendoredLibrary.cmake")
 
-option(BUILD_SNDFILE
-       "Build libsndfile from the vendored third_party/libsndfile submodule instead of using the system library" OFF)
+option(
+  BUILD_SNDFILE
+  "Build libsndfile from the vendored third_party/libsndfile submodule instead of using the system library"
+  OFF)
 
 if(BUILD_SNDFILE)
   include("${CMAKE_CURRENT_LIST_DIR}/BuildSndFile.cmake")
@@ -22,7 +24,8 @@ else()
   # finer-grained -DSNDFILE_INCLUDE_DIR=.../-DSNDFILE_LIBRARY_DIR=...);
   # with neither given, falls back to pkg-config's sndfile module, then
   # the default system search paths.
-  vendored_find_system_library(SNDFILE HEADER sndfile.h LIBRARY_NAMES sndfile PKGCONFIG_MODULE sndfile)
+  vendored_find_system_library(SNDFILE HEADER sndfile.h LIBRARY_NAMES sndfile
+                               PKGCONFIG_MODULE sndfile)
 
   if(NOT SNDFILE_FOUND)
     message(

@@ -11,12 +11,5 @@ include("${CMAKE_CURRENT_LIST_DIR}/VendoredLibrary.cmake")
 # - more format support at no cost when the system already has them,
 # and no build failure when it doesn't.
 vendored_build_static_subdirectory(
-  SNDFILE
-  SUBMODULE_DIR
-  third_party/libsndfile
-  TARGETS
-  sndfile
-  OPTIONS
-  -DBUILD_PROGRAMS=OFF
-  -DBUILD_EXAMPLES=OFF
-  -DBUILD_TESTING=OFF)
+  SNDFILE SUBMODULE_DIR third_party/libsndfile TARGETS sndfile OPTIONS
+  -DBUILD_PROGRAMS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_TESTING=OFF)
