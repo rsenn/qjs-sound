@@ -144,7 +144,7 @@ if(USE_STK)
 
   #link_directories(${STK_LIBRARY_DIR})
 
-  set(stk_LIBRARIES libstk)
+  set(stk_LIBRARIES libstk ${ALSA_LIBRARY})
   if(LINUX OR ANDROID)
     # RtAudio/RtMidi (ALSA + JACK backends) and Thread/Mutex are compiled
     # into libstk.a; the JS bindings now call into them, so their runtime
