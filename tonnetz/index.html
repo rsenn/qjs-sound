@@ -35,7 +35,7 @@ button.off { opacity: .45; }
 #prename { flex: 1; min-width: 0; background: var(--bg); color: var(--fg); border: 1px solid var(--edge); border-radius: 999px; padding: 5px 10px; font: 13px system-ui, sans-serif; -webkit-user-select: text; user-select: text; }
 .val { min-width: 3.6em; text-align: center; color: var(--dim); font-size: 13px; }
 #start { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(7, 8, 13, .92); text-align: center; cursor: pointer; z-index: 10; }
-#start > div { max-width: 34em; padding: 0 24px; }
+#start > div { max-width: 22em; font-size: 13px; padding: 0 24px; }
 #start h1 { margin: 0 0 12px; font-size: 28px; letter-spacing: .04em; }
 #start p { color: var(--dim); margin: 6px 0; }
 #start b { display: inline-block; margin-top: 18px; padding: 10px 22px; border: 1px solid var(--edge); border-radius: 999px; background: var(--panel); }
@@ -63,8 +63,11 @@ button.off { opacity: .45; }
   </div>
   <button id="mode">Mode: auto</button>
   <button id="play">Pause</button>
+  <button id="engine">Engine: steps</button>
   <button id="style">Style: auto</button>
   <button id="blues">Blues riff</button>
+  <button id="song">Song</button>
+  <button id="songoff" style="display:none">Free walk</button>
   <button id="len">Chord: 2 bars</button>
   <button id="bpmd">-</button><span id="bpmv" class="val"></span><button id="bpmu">+</button>
   <button id="octd">Oct -</button><span id="octv" class="val"></span><button id="octu">Oct +</button>
@@ -78,23 +81,23 @@ button.off { opacity: .45; }
 <div id="start">
   <div>
     <h1>TONNETZ TABLE</h1>
-    <p>Touch a triangle on the tonnetz (or a node, or the line between two nodes) and slide across it to play chords on a distorted FM electric piano.</p>
-    <p>Whatever you leave latched becomes the starting point: an invisible arpeggiator keeps churning out a voice-led chord progression from it, plays the chords on the piano and arpeggiates them on an acid VCO/VCF voice. It resolves back to your chord at the end of every phrase. Dashed triangles show where it may go next.</p>
-    <p>Switch Mode to direct for no sequencer at all: exactly the notes you touch sound while your finger is down.</p>
-    <p>Paint the sequencer grid to edit the arpeggio (notes, ACC accents, SLD slides); an edited pattern stays until you pick a style. Drag the bars between the panes to resize them, and hide the sequencer or tonnetz with their buttons.</p>
-    <p>Play from the keyboard: ZXCVBNM (or QWERTYU) are the white keys, S D G H J (or 2 3 5 6 7) the sharps. Pick a Scale and Root to lock everything that sounds to it, and show the Piano keyboard: keys in the current scale are coloured like the tonnetz, the rest stay white and black. Drag the table background to pan, pinch or scroll to zoom, double-tap it (or Fit) to see everything. Presets store the whole setup and are saved from the Preset menu.</p>
-    <p>Space pauses. To patch: tap a module, then the module (or OUT) it should feed. Tap the x on a cable to disconnect. Each ring around a module is one parameter: the knob follows your finger's angle. Drag the middle to move it, double-tap to remove it.</p>
+    <p>Touch a triangle to play a chord, then let the engine carry on.</p>
+    <p>Tap a module, then another, to patch. Rings are knobs.</p>
+    <p>Keys ZXCVBNM / QWERTYU play notes. Space pauses.</p>
+    <p>Presets, Scale lock and Engine (steps or arp) are up top.</p>
     <b>Touch to start</b>
   </div>
 </div>
 <script type="module">
-import { NOTES, MODES, STYLES, STEPS, SCALES, clamp, mod12, cname } from './lib/theory.js';
+import { NOTES, MODES, STYLES, STEPS, SCALES, KEYS, clamp, mod12, cname, cid } from './lib/theory.js';
 import { TonnetzGeometry } from './lib/geometry.js';
 import { Harmony } from './lib/harmony.js';
 import { Rack, TYPES } from './lib/synth.js';
 import { Player } from './lib/player.js';
 import { stockPresets } from './lib/presets.js';
 import { fillBluesImprov } from './lib/improv.js';
+import { generateSong, songToChords } from './lib/song.js';
+import { ARP_STYLES } from './lib/arp.js';
 
 const cv = document.getElementById('cv');
 const g = cv.getContext('2d');
@@ -113,11 +116,13 @@ const stripH = 22, SPL = 10;
 /* Panes stack below the table in this order, each under its own splitter; hidden ones keep their height for when they return. */
 const panes = {
   seq: { want: true, show: true, h: 0, min: 100, split: 0, top: 0 },
+  arp: { want: true, show: false, h: 0, min: 100, split: 0, top: 0 },
   keys: { want: false, show: false, h: 0, min: 60, split: 0, top: 0 },
   ton: { want: true, show: true, h: 0, min: 80, split: 0, top: 0 },
 };
-const paneList = [panes.seq, panes.keys, panes.ton];
+const paneList = [panes.seq, panes.arp, panes.keys, panes.ton];
 let layoutDirty = false, curStep = -1;
+const arpHits = [];
 const trail = [];
 const keysDown = new Map();
 const ptr = new Map();
@@ -217,7 +222,7 @@ function resize() {
   cv.width = W * DPR; cv.height = H * DPR;
   if (oh) for (const p of paneList) p.h = Math.round(p.h * H / oh);
   else {
-    panes.seq.h = clamp(Math.round(H * 0.24), 110, 220);
+    panes.seq.h = panes.arp.h = clamp(Math.round(H * 0.24), 110, 220);
     panes.keys.h = clamp(Math.round(H * 0.15), 90, 150);
     panes.ton.h = Math.round(Math.min(W / 8, H * 0.4 / 3.35) * 3.35);
   }
@@ -285,11 +290,17 @@ function dragSplit(s, p) {
 }
 
 /* Direct mode plays no pattern, so the sequencer hides itself there and returns with the user's own choice on going back to auto. */
+const arpMode = () => !!player && player.seq.mode === 'arp';
+
+/* The arpeggiator pane takes the sequencer grid's place while the engine is in arp mode; both share one show/hide choice. */
 function applyPanes() {
-  panes.seq.show = panes.seq.want && !direct();
+  const engine = panes.seq.want && !direct();
+  panes.seq.show = engine && !arpMode();
+  panes.arp.show = engine && arpMode();
   panes.keys.show = panes.keys.want;
   panes.ton.show = panes.ton.want;
-  for (const [id, btn] of [['seq', 'tseq'], ['keys', 'tkeys'], ['ton', 'tton']]) $(btn).classList.toggle('off', !panes[id].show);
+  for (const [id, btn] of [['seq', 'tseq'], ['keys', 'tkeys'], ['ton', 'tton']]) $(btn).classList.toggle('off', !(id === 'seq' ? engine : panes[id].show));
+  $('tseq').textContent = arpMode() ? 'Arpeggiator' : 'Sequencer';
   layoutDirty = true;
 }
 
@@ -375,6 +386,11 @@ cv.addEventListener('pointerdown', e => {
     const s = { kind: 'keys', midi: keysMidiAt(p) };
     s.entry = startNote(s.midi, false);
     ptr.set(e.pointerId, s);
+    return;
+  }
+  if (panes.arp.show && p.y >= panes.arp.top) {
+    const hit = arpHits.find(h => p.x >= h.x && p.x < h.x + h.w && p.y >= h.y && p.y < h.y + h.h);
+    if (hit) hit.action();
     return;
   }
   if (panes.seq.show && p.y >= panes.seq.top) {
@@ -524,11 +540,13 @@ addEventListener('blur', () => {
   player.noteOff();
 });
 
-const HIDDEN_IN_DIRECT = ['play', 'style', 'blues', 'len', 'bpmd', 'bpmv', 'bpmu', 'tseq'];
+const HIDDEN_IN_DIRECT = ['play', 'engine', 'style', 'blues', 'song', 'len', 'bpmd', 'bpmv', 'bpmu', 'tseq'];
 function syncButtons() {
   $('play').textContent = player && player.paused ? 'Play' : 'Pause';
   $('mode').textContent = 'Mode: ' + (direct() ? 'direct' : 'auto');
   for (const id of HIDDEN_IN_DIRECT) $(id).style.display = direct() ? 'none' : '';
+  if (arpMode()) for (const id of ['style', 'blues']) $(id).style.display = 'none';
+  $('songoff').style.display = harmony.song && !direct() ? '' : 'none';
   applyPanes();
 }
 
@@ -595,6 +613,23 @@ $('style').onclick = () => {
   syncStyle();
 };
 /* Every press deals a new riff; it keeps the scale root if one is locked, else it takes the current chord's root. */
+$('engine').onclick = () => {
+  if (!player) return;
+  player.seq.setMode(arpMode() ? 'steps' : 'arp');
+  syncSeqUi();
+  syncButtons();
+};
+
+/* Every press deals a new arrangement in the current key and plays it from the top, one chord per bar. */
+$('song').onclick = () => {
+  if (!player) return;
+  const tonic = harmony.lock ? harmony.lock.root : harmony.sel.root;
+  harmony.setSong(songToChords(generateSong({ seed: (Math.random() * 0x7fffffff) | 0, bars: 16 }), tonic));
+  player.seq.barsInChord = 0;
+  syncButtons();
+};
+$('songoff').onclick = () => { harmony.setSong(null); syncButtons(); };
+
 $('blues').onclick = () => {
   if (!player) return;
   const root = harmony.lock ? harmony.lock.root : harmony.sel.root;
@@ -817,8 +852,9 @@ function drawStrip() {
   g.textAlign = 'right'; g.fillStyle = al('#d8def0', 0.7);
   if (direct()) { g.fillText('direct play', W - 8, y); return; }
   const next = hints.length ? 'next: ' + hints.map(h => (h.back ? '↩' : '') + cname(h.id)).join('  ') : '';
-  const seq = player && player.seq;
-  g.fillText(`${next}   bar ${Math.max(1, seq ? seq.barsInChord : 0)}/${seq ? seq.chordBars : 2}`, W - 8, y);
+  const seq = player && player.seq, song = harmony.song;
+  const bars = song ? `song bar ${(song.bar + song.chords.length - 1) % song.chords.length + 1}/${song.chords.length}` : `bar ${Math.max(1, seq ? seq.barsInChord : 0)}/${seq ? seq.chordBars : 2}`;
+  g.fillText(`${next}   ${bars}`, W - 8, y);
 }
 
 function drawSeq() {
@@ -899,6 +935,69 @@ function drawKeys(now) {
   for (let o = 0; o < K.oct; o++) {
     for (const [pc, wi] of BLACK_KEYS) paint(K.base + 12 * o + pc, (o * 7 + wi) * K.ww - K.ww * 0.3, K.ww * 0.6, K.bh, true);
   }
+}
+
+/* The arpeggiator pane: the tonality's chords to pick from, the run style and octave range, and the run that is playing. */
+function drawArp() {
+  const p = panes.arp, seq = player.seq, key = harmony.analysis.key, PAD = 8, chH = 24;
+  arpHits.length = 0;
+  g.font = `${Math.round(clamp(U * 0.36, 11, 13))}px system-ui, sans-serif`;
+  g.textBaseline = 'middle';
+
+  const chip = (x, y, w, h, label, { active, hue, mark, action }) => {
+    g.fillStyle = hue === undefined ? (active ? '#232842' : '#141726') : `hsl(${hue},${active ? 85 : 55}%,${active ? 62 : 32}%)`;
+    g.beginPath(); g.roundRect(x, y, w, h, h / 2); g.fill();
+    g.strokeStyle = active ? '#fff' : '#2a2f4a'; g.lineWidth = active ? 2 : 1; g.stroke();
+    g.fillStyle = hue !== undefined && active ? '#07080d' : '#d8def0'; g.textAlign = 'center';
+    g.fillText(label, x + w / 2, y + h / 2 + 1);
+    if (mark) { g.fillStyle = '#fff'; g.beginPath(); g.arc(x + w - 7, y + 7, 3, 0, 7); g.fill(); }
+    arpHits.push({ x, y, w, h, action });
+  };
+
+  const rowA = p.top + 6;
+  let x = W - PAD;
+  for (const o of [4, 3, 2, 1]) {
+    x -= 26;
+    chip(x, rowA, 24, chH, String(o), { active: seq.arp.octaves === o, action: () => seq.setArp({ octaves: o }) });
+  }
+  g.fillStyle = al('#d8def0', 0.5); g.textAlign = 'right';
+  g.fillText('oct', x - 6, rowA + chH / 2 + 1);
+  x -= g.measureText('oct').width + 16;
+  for (const st of [...ARP_STYLES].reverse()) {
+    const w = g.measureText(st).width + 18;
+    x -= w + 4;
+    chip(x, rowA, w, chH, st, { active: seq.arp.style === st, action: () => seq.setArp({ style: st }) });
+  }
+  const tonality = harmony.lock ? `${NOTES[harmony.lock.root]} ${SCALE_OPTS[scaleIdx].name}` : `${NOTES[key]} major`;
+  g.fillStyle = '#d8def0'; g.textAlign = 'left';
+  g.fillText(W > 700 ? `ARPEGGIATOR  ${tonality}` : tonality, PAD, rowA + chH / 2 + 1);
+
+  const rowB = rowA + chH + 8, ids = [0, 1, 2, 3, 4, 5].map(i => cid(KEYS[key][i], [1, 2, 5].includes(i)));
+  const cur = harmony.sel.kind === 'tri' ? harmony.sel.id : null, next = harmony.hints.length ? harmony.hints[0].id : null;
+  if (cur !== null && !ids.includes(cur)) ids.push(cur);
+  const cw = clamp((W - 2 * PAD - 6 * (ids.length - 1)) / ids.length, 36, 72);
+  ids.forEach((id, i) => chip(PAD + i * (cw + 6), rowB, cw, 28, cname(id), {
+    active: id === cur, hue: pcHue(id >> 1), mark: id === next,
+    action: () => player.pickChord(harmony.locate(id, harmony.sel)),
+  }));
+
+  const y0 = rowB + 28 + 10, h = p.top + p.h - 6 - y0;
+  if (h < 28) return;
+  const n = 3 * seq.arp.octaves, colW = (W - 2 * PAD) / STEPS, pill = clamp(h / (n + 1), 3, 8);
+  const yOf = d => y0 + h - pill - (n > 1 ? d / (n - 1) : 0) * (h - pill);
+  g.fillStyle = 'rgba(255,255,255,0.04)'; g.fillRect(PAD, y0, W - 2 * PAD, h);
+  seq.pattern.forEach((s, k) => {
+    const cx = PAD + k * colW, y = yOf(Math.min(s.deg, n - 1));
+    if (seq.running && k === curStep) { g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(cx, y0, colW, h); }
+    if (s.rest) { g.strokeStyle = 'rgba(255,255,255,0.3)'; g.lineWidth = 1; g.strokeRect(cx + 2.5, y + 0.5, colW - 5, pill - 1); return; }
+    g.fillStyle = s.accent ? '#ff4fd8' : '#39d5ff';
+    g.fillRect(cx + 1, y, colW - 2, pill);
+    const prev = seq.pattern[k - 1];
+    if (s.slide && prev && !prev.rest) {
+      g.strokeStyle = '#fff'; g.lineWidth = 2;
+      g.beginPath(); g.moveTo(cx, yOf(Math.min(prev.deg, n - 1)) + pill / 2); g.lineTo(cx + colW / 2, y + pill / 2); g.stroke();
+    }
+  });
 }
 
 function tracePath(c, pts) {
@@ -1051,6 +1150,7 @@ function frame() {
   g.fillText(statusText(), W / 2, 34);
   drawStrip();
   if (panes.seq.show) drawSeq();
+  if (panes.arp.show) drawArp();
   if (panes.keys.show) drawKeys(now);
   if (panes.ton.show) drawTonnetz(now);
   for (const s of ptr.values()) {
@@ -1071,12 +1171,14 @@ function captureState() {
     v: 2,
     mods: rack.serialize(), master: { x: master.x, y: master.y }, view: { ...view },
     seq: player.seq.getState(), scale: { idx: scaleIdx, root: scaleRoot }, octave: harmony.octave,
+    song: harmony.song ? harmony.song.chords : null,
   };
 }
 
 function syncSeqUi() {
   const seq = player.seq;
   syncStyle();
+  $('engine').textContent = 'Engine: ' + (seq.mode === 'arp' ? 'arp' : 'steps');
   $('len').textContent = `Chord: ${seq.chordBars} bar${seq.chordBars > 1 ? 's' : ''}`;
   $('bpmv').textContent = seq.bpm + ' bpm';
 }
@@ -1092,12 +1194,15 @@ function applyState(st) {
   if (V && [V.z, V.x, V.y].every(Number.isFinite)) { view.z = clamp(V.z, Z_MIN, Z_MAX); view.x = V.x; view.y = V.y; }
   else if (st.fit) fitView();
   player.seq.setState(st.seq);
+  const song = Array.isArray(st.song) && st.song.length <= 128 && st.song.every(id => Number.isInteger(id) && id >= 0 && id < 24);
+  harmony.setSong(song ? st.song : null);
   if (S && Number.isInteger(S.idx) && S.idx >= 0 && S.idx < SCALE_OPTS.length && Number.isInteger(S.root)) {
     scaleIdx = S.idx; scaleRoot = mod12(S.root);
     applyScale();
   }
   if (Number.isFinite(st.octave)) setOctave(st.octave);
   syncSeqUi();
+  syncButtons();
   if (player.seq.running) rack.padsSet(harmony.padVoicing());
   return true;
 }

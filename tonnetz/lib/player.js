@@ -75,6 +75,14 @@ export class Player {
     this.rack.vcoStop();
   }
 
+  /* Picks a chord from the arpeggiator pane: it sounds and, with the sequencer running, becomes the chord the engine plays on from. */
+  pickChord(sel) {
+    if (!sel) return;
+    this.h.setSel(sel);
+    this.strike(0.9, false);
+    this.lift(0);
+  }
+
   /* Free notes from the piano roll; in auto mode the engine keeps running underneath, so only the piano sounds. */
   noteOn(midi, sliding) {
     const { rack } = this, t = rack.ctx.currentTime + 0.01;

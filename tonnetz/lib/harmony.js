@@ -17,6 +17,7 @@ export class Harmony {
     this.phraseCount = 0;
     this.trail = [];
     this.lock = null;
+    this.song = null;
     this.remember();
     this.compute();
   }
@@ -49,7 +50,31 @@ export class Harmony {
 
   compute() {
     this.analysis = this.analyse();
-    this.hints = this.scoreCands().slice(0, 3);
+    this.hints = this.song ? [{ id: this.songNext(), score: 1, back: false }] : this.scoreCands().slice(0, 3);
+  }
+
+  /* A song replaces the random walk: `chords` holds one chord id per bar and plays in order, looping. `bar` is the
+     index of the next bar to play. */
+  setSong(chords) {
+    this.song = chords && chords.length ? { chords: [...chords], bar: 0 } : null;
+    this.recompute();
+  }
+
+  songNext() { return this.song.chords[this.song.bar % this.song.chords.length]; }
+
+  /* Called at the start of every bar in song mode; returns true when the chord changed. */
+  songStep() {
+    const id = this.songNext();
+    this.song.bar++;
+    if (this.sel.kind === 'tri' && this.sel.id === id) {
+      this.recompute();
+      return false;
+    }
+    const next = this.locate(id, this.sel);
+    if (!next) return false;
+    this.setSel(next);
+    this.commit();
+    return true;
   }
 
   recompute() {
@@ -147,6 +172,22 @@ export class Harmony {
     this.home = this.sel.kind === 'tri' ? this.sel.id : null;
     this.trail.length = 0;
     this.phraseCount = 0;
+  }
+
+  /* The notes of the current triad stacked over `octaves` octaves, lowest first, for arpeggio runs. A node or an edge is
+     filled up to three notes, and a scale lock may merge notes, so the ladder can be shorter than 3 * octaves. */
+  ladder(octaves) {
+    const sel = this.sel, root = this.snapPc(sel.root);
+    const pcs = sel.kind === 'tri' ? this.snapPcs(sel.pcs) : this.chordPcs();
+    const offs = [...new Set(pcs.map(pc => mod12(pc - root)))].sort((a, b) => a - b);
+    const base = 12 * (this.octave + 1) + root, out = [];
+    for (let o = 0; o < octaves; o++) for (const off of offs) out.push(base + off + 12 * o);
+    return out;
+  }
+
+  ladderPitch(deg, octaves) {
+    const l = this.ladder(octaves);
+    return l[deg % l.length];
   }
 
   pitchOf(deg) {
