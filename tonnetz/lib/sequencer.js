@@ -94,7 +94,7 @@ export class Sequencer {
     const tie = !next.rest && next.slide;
     for (const m of rack.mods) {
       if (m.type === 'vco') rack.vcoNote(m, t, midi, eff, tie, dur);
-      else if (m.type === 'fmp' && (k % 2 === 0 || s.accent)) rack.fmNote(m, midi + 12, t, s.accent ? 0.85 : 0.55);
+      else if ((m.type === 'fmp' || m.type === 'fm') && (k % 2 === 0 || s.accent)) rack.strike(m, midi + 12, t, s.accent ? 0.85 : 0.55);
     }
   }
 

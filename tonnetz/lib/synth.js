@@ -18,7 +18,35 @@ const distTone = v => 800 * Math.pow(16, v);
 const fmtHz = f => (f < 1000 ? Math.round(f) + ' Hz' : (f / 1000).toFixed(1) + ' kHz');
 const fmtMs = s => Math.round(s * 1000) + ' ms';
 
+/* Two-operator FM patches in the model of webaudio-tinysynth's General MIDI piano family (MIT, g200kg / jazz-soft), the
+   synth behind the web-hexachord tonnetz. Each patch is [carrier, modulator]; the modulator's frequency is the carrier's
+   times `t` plus `f` Hz, and its depth is `v` times the carrier frequency, so `v` is the modulation index.
+   w waveform, v level (carrier) or index (modulator), a attack, h hold, d decay time constant, s level the decay settles to
+   as a fraction of the peak, k octaves-per-octave key follow of the level: a negative k mellows high notes. */
+const FM_DEFAULTS = { w: 'sine', t: 1, f: 0, v: 0.5, a: 0, h: 0.01, d: 0.01, s: 0, k: 0 };
+const fmPatch = (name, ...ops) => ({ name, ops: ops.map(o => ({ ...FM_DEFAULTS, ...o })) });
+const FM_PATCHES = [
+  fmPatch('grand piano', { v: 0.4, d: 0.7 }, { w: 'triangle', v: 3, d: 0.7, s: 0.1, a: 0.01, k: -1.2 }),
+  fmPatch('bright piano', { w: 'triangle', v: 0.4, d: 0.7 }, { w: 'triangle', v: 4, t: 3, d: 0.4, s: 0.1, k: -1, a: 0.01 }),
+  fmPatch('e-grand', { d: 0.7 }, { w: 'triangle', v: 4, f: 2, d: 0.5, s: 0.5, k: -1 }),
+  fmPatch('honky-tonk', { v: 0.2, d: 0.7 }, { w: 'triangle', v: 4, t: 3, f: 2, d: 0.3, k: -1, a: 0.01, s: 0.5 }),
+  fmPatch('e-piano 1', { v: 0.35, d: 0.7 }, { v: 3, t: 7, f: 1, d: 1, s: 1, k: -0.7 }),
+  fmPatch('e-piano 2', { v: 0.35, d: 0.7 }, { v: 8, t: 7, f: 1, d: 0.5, s: 1, k: -0.7 }),
+  fmPatch('harpsichord', { w: 'sawtooth', v: 0.34, d: 2 }, { v: 8, f: 0.1, d: 2, s: 1 }),
+  fmPatch('clavi', { w: 'triangle', v: 0.34, d: 1.5 }, { w: 'square', v: 6, f: 0.1, d: 1.5, s: 0.5 }),
+];
+const fmPatchOf = v => FM_PATCHES[Math.min(FM_PATCHES.length - 1, Math.floor(v * FM_PATCHES.length))];
+
 export const TYPES = {
+  fm: {
+    name: 'FM', color: '#6f8bff',
+    params: [
+      { label: 'patch', def: 0, fmt: v => fmPatchOf(v).name },
+      { label: 'level', def: 0.7, fmt: pct },
+      { label: 'bright', def: 0.5, fmt: v => 'index x' + (0.25 + v * 1.5).toFixed(2) },
+      { label: 'decay', def: 0.5, fmt: v => 'x' + (0.4 + v * 1.2).toFixed(2) },
+    ],
+  },
   vco: {
     name: 'VCO', color: '#39d5ff',
     params: [
@@ -133,6 +161,10 @@ export class Rack {
       m.out = this.ctx.createGain();
       m.live = [];
     },
+    fm: m => {
+      m.out = this.ctx.createGain();
+      m.live = [];
+    },
     /* The bias before the saturator makes it asymmetric, adding even harmonics next to the odd ones. */
     dist: m => {
       const ctx = this.ctx;
@@ -206,6 +238,9 @@ export class Rack {
         break;
       case 'fmp':
         set(m.out.gain, a * a);
+        break;
+      case 'fm':
+        set(m.out.gain, b * b);
         break;
       case 'dist':
         set(m.in.gain, driveOf(a));
@@ -395,8 +430,47 @@ export class Rack {
     }
   }
 
+  /* One struck note on a keyed voice module, whichever piano-like type it is. */
+  strike(m, midi, t, vel) {
+    if (m.type === 'fm') this.fmVoice(m, midi, t, vel);
+    else this.fmNote(m, midi, t, vel);
+  }
+
+  /* The selected patch's carrier is swung by its modulator, whose index is scaled down as the pitch rises (`k`),
+     so low notes are bright and high ones stay round. Voices ring out on their own decay, like fmNote. */
+  fmVoice(m, midi, t, vel) {
+    const ctx = this.ctx, [patch, , bright, decay] = m.p;
+    const [cp, mp] = fmPatchOf(patch).ops;
+    const dScale = 0.4 + decay * 1.2, iScale = 0.25 + bright * 1.5;
+    const fc = midiHz(midi) * cp.t + cp.f, fm = fc * mp.t + mp.f;
+    const key = op => Math.pow(2, (midi - 60) / 12 * op.k);
+    const shape = (g, op, peak) => {
+      if (op.a) { g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + op.a); } else g.gain.setValueAtTime(peak, t);
+      g.gain.setTargetAtTime(op.s * peak, t + op.a + op.h, op.d * dScale);
+    };
+    const car = ctx.createOscillator(), mod = ctx.createOscillator(), amp = ctx.createGain(), idx = ctx.createGain();
+    car.type = cp.w; mod.type = mp.w;
+    car.frequency.value = fc; mod.frequency.value = fm;
+    shape(amp, cp, cp.v * vel * vel * key(cp));
+    shape(idx, mp, mp.v * fc * iScale * key(mp));
+    mod.connect(idx); idx.connect(car.frequency);
+    car.connect(amp); amp.connect(m.out);
+    const end = t + cp.a + cp.h + cp.d * dScale * 6 + 0.1;
+    car.start(t); mod.start(t); car.stop(end); mod.stop(end);
+
+    const now = ctx.currentTime;
+    m.live = m.live.filter(v => v.end > now);
+    m.live.push({ car, mod, amp, end });
+    while (m.live.length > 12) {
+      const old = m.live.shift();
+      old.amp.gain.cancelScheduledValues(now);
+      old.amp.gain.setTargetAtTime(0, now, 0.02);
+      old.car.stop(now + 0.2); old.mod.stop(now + 0.2);
+    }
+  }
+
   chordHit(notes, t, vel) {
-    for (const m of this.ofType('fmp')) notes.forEach((n, i) => this.fmNote(m, n, t + i * 0.014, vel));
+    for (const m of [...this.ofType('fmp'), ...this.ofType('fm')]) notes.forEach((n, i) => this.strike(m, n, t + i * 0.014, vel));
   }
 
   padOn(m, n) {
