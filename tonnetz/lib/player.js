@@ -35,6 +35,9 @@ export class Player {
     this.seq.setRunning(false);
   }
 
+  /* With the sequencer off, whether by direct mode or by pause, exactly the touched notes sound. */
+  get live() { return this.mode === 'direct' || this.paused; }
+
   applyRunning() {
     this.seq.setRunning(this.mode === 'auto' && !this.paused);
   }
@@ -65,7 +68,7 @@ export class Player {
 
   /* `fingersLeft` counts the tonnetz touches still down after this one lifted. */
   lift(fingersLeft) {
-    if (this.mode === 'auto') { this.seq.relatch(); return; }
+    if (!this.live) { this.seq.relatch(); return; }
     if (fingersLeft > 0 || !this.held) return;
     this.held = false;
     this.rack.padsSet([]);
@@ -76,7 +79,7 @@ export class Player {
   noteOn(midi, sliding) {
     const { rack } = this, t = rack.ctx.currentTime + 0.01;
     rack.chordHit([midi], t, 0.85);
-    if (this.mode === 'direct') {
+    if (this.live) {
       rack.padsSet([{ midi: midi - 12 }]);
       rack.vcoHold(midi, t, sliding && this.noteHeld);
     }
@@ -86,14 +89,14 @@ export class Player {
   noteOff() {
     if (!this.noteHeld) return;
     this.noteHeld = false;
-    if (this.mode !== 'direct') return;
+    if (!this.live) return;
     this.rack.padsSet([]);
     this.rack.vcoStop();
   }
 
   strike(vel, sliding) {
     const { h, rack } = this, t = rack.ctx.currentTime + 0.01;
-    if (this.mode === 'auto') {
+    if (!this.live) {
       rack.chordHit(h.pianoVoicing(), t, vel);
       return;
     }

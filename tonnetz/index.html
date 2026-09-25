@@ -70,7 +70,7 @@ button.off { opacity: .45; }
   <button id="scale">Scale: free</button>
   <button id="fit">Fit</button>
   <button id="tseq">Sequencer</button>
-  <button id="troll" class="off">Piano roll</button>
+  <button id="tkeys" class="off">Piano</button>
   <button id="tton">Tonnetz</button>
 </div>
 <div id="start">
@@ -80,7 +80,7 @@ button.off { opacity: .45; }
     <p>Whatever you leave latched becomes the starting point: an invisible arpeggiator keeps churning out a voice-led chord progression from it, plays the chords on the piano and arpeggiates them on an acid VCO/VCF voice. It resolves back to your chord at the end of every phrase. Dashed triangles show where it may go next.</p>
     <p>Switch Mode to direct for no sequencer at all: exactly the notes you touch sound while your finger is down.</p>
     <p>Paint the sequencer grid to edit the arpeggio (notes, ACC accents, SLD slides); an edited pattern stays until you pick a style. Drag the bars between the panes to resize them, and hide the sequencer or tonnetz with their buttons.</p>
-    <p>Play from the keyboard: ZXCVBNM (or QWERTYU) are the white keys, S D G H J (or 2 3 5 6 7) the sharps. Pick a Scale and Root to lock everything that sounds to it, and show the Piano roll to play and watch it. Drag the table background to pan, pinch or scroll to zoom, double-tap it (or Fit) to see everything. Presets store the whole setup and are saved from the Preset menu.</p>
+    <p>Play from the keyboard: ZXCVBNM (or QWERTYU) are the white keys, S D G H J (or 2 3 5 6 7) the sharps. Pick a Scale and Root to lock everything that sounds to it, and show the Piano keyboard: keys in the current scale are coloured like the tonnetz, the rest stay white and black. Drag the table background to pan, pinch or scroll to zoom, double-tap it (or Fit) to see everything. Presets store the whole setup and are saved from the Preset menu.</p>
     <p>Space pauses. To patch: tap a module, then the module (or OUT) it should feed. Tap the x on a cable to disconnect. Each ring around a module is one parameter: the knob follows your finger's angle. Drag the middle to move it, double-tap to remove it.</p>
     <b>Touch to start</b>
   </div>
@@ -91,6 +91,7 @@ import { TonnetzGeometry } from './lib/geometry.js';
 import { Harmony } from './lib/harmony.js';
 import { Rack, TYPES } from './lib/synth.js';
 import { Player } from './lib/player.js';
+import { stockPresets } from './lib/presets.js';
 
 const cv = document.getElementById('cv');
 const g = cv.getContext('2d');
@@ -109,10 +110,10 @@ const stripH = 22, SPL = 10;
 /* Panes stack below the table in this order, each under its own splitter; hidden ones keep their height for when they return. */
 const panes = {
   seq: { want: true, show: true, h: 0, min: 100, split: 0, top: 0 },
-  roll: { want: false, show: false, h: 0, min: 80, split: 0, top: 0 },
+  keys: { want: false, show: false, h: 0, min: 60, split: 0, top: 0 },
   ton: { want: true, show: true, h: 0, min: 80, split: 0, top: 0 },
 };
-const paneList = [panes.seq, panes.roll, panes.ton];
+const paneList = [panes.seq, panes.keys, panes.ton];
 let layoutDirty = false, curStep = -1;
 const trail = [];
 const keysDown = new Map();
@@ -214,7 +215,7 @@ function resize() {
   if (oh) for (const p of paneList) p.h = Math.round(p.h * H / oh);
   else {
     panes.seq.h = clamp(Math.round(H * 0.24), 110, 220);
-    panes.roll.h = clamp(Math.round(H * 0.27), 150, 260);
+    panes.keys.h = clamp(Math.round(H * 0.15), 90, 150);
     panes.ton.h = Math.round(Math.min(W / 8, H * 0.4 / 3.35) * 3.35);
   }
   relayout();
@@ -228,19 +229,26 @@ const seqGeo = () => {
   return { lw, x0, cw, th, sy, ay, gy0, rh: (ay - 4 - gy0) / 8 };
 };
 
-const ROLL_ROWS = 41, KEY_W = 34, TRAIL_PX_S = 90;
+const WHITE_OFFS = [0, 2, 4, 5, 7, 9, 11];
+/* Black keys sit on the boundary after the white key with this index. */
+const BLACK_KEYS = [[1, 1], [3, 2], [6, 4], [8, 5], [10, 6]];
 
-const rollGeo = () => {
-  const p = panes.roll, rh = (p.h - 2) / ROLL_ROWS, base = 12 * (harmony.octave + 1);
-  return { top: p.top, rh, base, x0: KEY_W, y: m => p.top + p.h - 1 - (m - base + 1) * rh };
+/* Whole octaves from C, as many as fit at a comfortable key width. */
+const keysGeo = () => {
+  const p = panes.keys, oct = clamp(Math.floor(W / 210), 1, 6);
+  return { top: p.top, h: p.h, oct, ww: W / (7 * oct), bh: p.h * 0.62, base: 12 * (harmony.octave + 1) };
 };
 
-const rollMidiAt = y => {
-  const R = rollGeo();
-  return R.base + clamp(Math.floor((R.top + panes.roll.h - 1 - y) / R.rh), 0, ROLL_ROWS - 1);
+/* Black keys overlap the white ones, so they get first claim on the upper part of the keyboard. */
+const keysMidiAt = p => {
+  const K = keysGeo(), o = clamp(Math.floor(p.x / (7 * K.ww)), 0, K.oct - 1), xi = p.x - o * 7 * K.ww;
+  if (p.y - K.top < K.bh) {
+    for (const [pc, wi] of BLACK_KEYS) if (Math.abs(xi - wi * K.ww) < K.ww * 0.3) return K.base + 12 * o + pc;
+  }
+  return K.base + 12 * o + WHITE_OFFS[clamp(Math.floor(xi / K.ww), 0, 6)];
 };
 
-/* Notes from the roll and the computer keyboard are snapped to the locked scale, the same as everything else the player sounds. */
+/* Notes from the piano and the computer keyboard are snapped to the locked scale, the same as everything else the player sounds. */
 function startNote(midi, sliding) {
   const m = harmony.snapMidi(midi), entry = { midi: m, t0: performance.now(), t1: null };
   player.noteOn(m, sliding);
@@ -276,9 +284,9 @@ function dragSplit(s, p) {
 /* Direct mode plays no pattern, so the sequencer hides itself there and returns with the user's own choice on going back to auto. */
 function applyPanes() {
   panes.seq.show = panes.seq.want && !direct();
-  panes.roll.show = panes.roll.want;
+  panes.keys.show = panes.keys.want;
   panes.ton.show = panes.ton.want;
-  for (const [id, btn] of [['seq', 'tseq'], ['roll', 'troll'], ['ton', 'tton']]) $(btn).classList.toggle('off', !panes[id].show);
+  for (const [id, btn] of [['seq', 'tseq'], ['keys', 'tkeys'], ['ton', 'tton']]) $(btn).classList.toggle('off', !panes[id].show);
   layoutDirty = true;
 }
 
@@ -357,11 +365,11 @@ cv.addEventListener('pointerdown', e => {
   if (panes.ton.show && p.y >= panes.ton.top) {
     ptr.set(e.pointerId, { kind: 'ton' });
     player.press(geo.hit(p));
-    if (direct()) pulse = 1;
+    if (player.live) pulse = 1;
     return;
   }
-  if (panes.roll.show && p.y >= panes.roll.top) {
-    const s = { kind: 'roll', midi: rollMidiAt(p.y) };
+  if (panes.keys.show && p.y >= panes.keys.top) {
+    const s = { kind: 'keys', midi: keysMidiAt(p) };
     s.entry = startNote(s.midi, false);
     ptr.set(e.pointerId, s);
     return;
@@ -458,8 +466,8 @@ cv.addEventListener('pointermove', e => {
   const p = pos(e);
   if (s.kind === 'split') {
     dragSplit(s, p);
-  } else if (s.kind === 'roll') {
-    const m = harmony.snapMidi(rollMidiAt(p.y));
+  } else if (s.kind === 'keys') {
+    const m = harmony.snapMidi(keysMidiAt(p));
     if (m !== s.entry.midi) { endNote(s.entry); s.entry = startNote(m, true); }
   } else if (s.kind === 'seq') {
     const S = seqGeo(), col = clamp(Math.floor((p.x - S.x0) / S.cw), 0, STEPS - 1), dir = col >= s.col ? 1 : -1;
@@ -469,7 +477,7 @@ cv.addEventListener('pointermove', e => {
   } else if (s.kind === 'ton') {
     const before = harmony.sel.key;
     player.slide(geo.hit(p));
-    if (direct() && harmony.sel.key !== before) pulse = 1;
+    if (player.live && harmony.sel.key !== before) pulse = 1;
   } else if (s.kind === 'pan') {
     moveGesture(s, p);
   } else if (s.kind === 'move') {
@@ -489,7 +497,7 @@ function release(e) {
   if (!s) return;
   ptr.delete(e.pointerId);
   if (s.kind === 'ton') player.lift(tonTouches());
-  else if (s.kind === 'roll') { endNote(s.entry); noteOffIfIdle(); }
+  else if (s.kind === 'keys') { endNote(s.entry); noteOffIfIdle(); }
   else if (s.kind === 'pan') {
     beginGesture();
     if (!s.moved && performance.now() - s.t0 < 300) {
@@ -529,7 +537,7 @@ const togglePause = () => { if (!player || direct()) return; player.setPaused(!p
 
 /* Preventing keyup too stops a focused button from also firing its own click on space. */
 const noteOffIfIdle = () => {
-  if (!keysDown.size && ![...ptr.values()].some(s => s.kind === 'roll')) player.noteOff();
+  if (!keysDown.size && ![...ptr.values()].some(s => s.kind === 'keys')) player.noteOff();
 };
 
 addEventListener('keydown', e => {
@@ -585,7 +593,7 @@ $('style').onclick = () => {
 };
 $('fit').onclick = () => { if (master) fitView(); };
 $('tseq').onclick = () => togglePane(panes.seq);
-$('troll').onclick = () => togglePane(panes.roll);
+$('tkeys').onclick = () => togglePane(panes.keys);
 $('tton').onclick = () => togglePane(panes.ton);
 
 const ROOT_NAMES = NOTES, SCALE_OPTS = [null, ...SCALES];
@@ -847,34 +855,36 @@ function drawSeq() {
   g.fillText('SLD', S.x0 - 4, S.sy + S.th / 2);
 }
 
-const BLACK_PCS = [1, 3, 6, 8, 10];
+/* Free mode has no scale to colour, so no key is marked. */
+const scaleSet = () => new Set(harmony.lock ? harmony.lock.pcs : []);
 
-function drawRoll(now) {
-  const R = rollGeo(), p = panes.roll, lock = harmony.lock, right = W - 8;
-  g.textBaseline = 'middle';
-  for (let i = 0; i < ROLL_ROWS; i++) {
-    const m = R.base + i, pc = mod12(m), y = R.y(m);
-    const allowed = !lock || lock.pcs.includes(pc), root = lock && pc === lock.root;
-    g.fillStyle = root ? 'rgba(125,255,176,0.16)' : allowed ? (BLACK_PCS.includes(pc) ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.07)') : 'rgba(0,0,0,0.45)';
-    g.fillRect(R.x0, y, W - R.x0, R.rh);
-    g.fillStyle = BLACK_PCS.includes(pc) ? '#1a1e33' : allowed ? '#c9d0ea' : '#454b6b';
-    g.fillRect(0, y + 0.5, KEY_W - (BLACK_PCS.includes(pc) ? 10 : 2), Math.max(1, R.rh - 1));
-    if (pc === 0 && R.rh >= 3.5) {
-      g.font = `${Math.round(clamp(R.rh * 1.6, 8, 11))}px system-ui, sans-serif`;
-      g.fillStyle = '#07080d'; g.textAlign = 'right';
-      g.fillText('C' + (Math.floor(m / 12) - 1), KEY_W - 4, y + R.rh / 2);
-    }
+function drawKeys(now) {
+  const K = keysGeo(), inScale = scaleSet();
+  const sounding = new Set(trail.filter(n => n.t0 <= now && (n.t1 === null || n.t1 >= now)).map(n => n.midi));
+  const paint = (m, x, w, h, black) => {
+    const pc = mod12(m), on = inScale.has(pc);
+    g.fillStyle = on ? `hsl(${pcHue(pc)},${black ? 75 : 85}%,${black ? 40 : 62}%)` : black ? '#14172a' : '#e9ecf5';
+    g.fillRect(x, K.top, w, h);
+    if (!sounding.has(m)) return;
+    g.strokeStyle = '#fff'; g.lineWidth = 3;
+    g.strokeRect(x + 1.5, K.top + 1.5, w - 3, h - 3);
+    g.fillStyle = 'rgba(255,255,255,0.35)';
+    g.fillRect(x, K.top, w, h);
+  };
+  g.font = `${Math.round(clamp(K.ww * 0.4, 8, 11))}px system-ui, sans-serif`;
+  g.textAlign = 'center'; g.textBaseline = 'bottom';
+  for (let o = 0; o < K.oct; o++) {
+    WHITE_OFFS.forEach((off, wi) => {
+      const m = K.base + 12 * o + off, x = (o * 7 + wi) * K.ww;
+      paint(m, x + 1, K.ww - 2, K.h - 1, false);
+      if (off === 0) {
+        g.fillStyle = '#07080d';
+        g.fillText('C' + (Math.floor(m / 12) - 1), x + K.ww / 2, K.top + K.h - 4);
+      }
+    });
   }
-  g.strokeStyle = 'rgba(255,255,255,0.1)'; g.lineWidth = 1;
-  g.beginPath(); g.moveTo(R.x0 + 0.5, p.top); g.lineTo(R.x0 + 0.5, p.top + p.h); g.stroke();
-
-  for (const n of trail) {
-    if (n.midi < R.base || n.midi >= R.base + ROLL_ROWS) continue;
-    const x0 = Math.max(R.x0, right - (now - n.t0) * TRAIL_PX_S / 1000);
-    const x1 = n.t1 === null ? right : Math.min(right, right - (now - n.t1) * TRAIL_PX_S / 1000);
-    if (x1 <= x0) continue;
-    g.fillStyle = `hsl(${pcHue(n.midi)},85%,${n.t1 === null ? 68 : 55}%)`;
-    g.fillRect(x0, R.y(n.midi) + 0.5, x1 - x0, Math.max(2, R.rh - 1));
+  for (let o = 0; o < K.oct; o++) {
+    for (const [pc, wi] of BLACK_KEYS) paint(K.base + 12 * o + pc, (o * 7 + wi) * K.ww - K.ww * 0.3, K.ww * 0.6, K.bh, true);
   }
 }
 
@@ -1006,8 +1016,7 @@ function frame() {
       trail.push({ midi: e.midi, t0, t1: t0 + e.dur * 1000 });
     }
   }
-  const maxAge = W / TRAIL_PX_S * 1000;
-  while (trail.length && trail[0].t1 !== null && now - trail[0].t1 > maxAge) trail.shift();
+  while (trail.length && trail[0].t1 !== null && now - trail[0].t1 > 1000) trail.shift();
   pulse *= 0.92;
 
   for (const m of mods) analyse(m);
@@ -1029,7 +1038,7 @@ function frame() {
   g.fillText(statusText(), W / 2, 34);
   drawStrip();
   if (panes.seq.show) drawSeq();
-  if (panes.roll.show) drawRoll(now);
+  if (panes.keys.show) drawKeys(now);
   if (panes.ton.show) drawTonnetz(now);
   for (const s of ptr.values()) {
     if (s.kind !== 'split') continue;
@@ -1068,6 +1077,7 @@ function applyState(st) {
   const M = st.master, V = st.view, S = st.scale;
   if (M && Number.isFinite(M.x) && Number.isFinite(M.y)) { master.x = M.x; master.y = M.y; }
   if (V && [V.z, V.x, V.y].every(Number.isFinite)) { view.z = clamp(V.z, Z_MIN, Z_MAX); view.x = V.x; view.y = V.y; }
+  else if (st.fit) fitView();
   player.seq.setState(st.seq);
   if (S && Number.isInteger(S.idx) && S.idx >= 0 && S.idx < SCALE_OPTS.length && Number.isInteger(S.root)) {
     scaleIdx = S.idx; scaleRoot = mod12(S.root);
@@ -1092,8 +1102,13 @@ function restoreSession() {
 /* A preset's slot is its MIDI program number, so deleting leaves a hole instead of renumbering the ones after it. */
 function loadPresets() {
   try {
-    const a = JSON.parse(localStorage.getItem(PRESET_KEY));
+    const raw = localStorage.getItem(PRESET_KEY);
+    const a = JSON.parse(raw);
     presets = (Array.isArray(a) ? a : []).slice(0, MAX_PRESETS).map(p => (p && typeof p.name === 'string' && p.state ? p : null));
+    if (raw === null) {
+      presets = stockPresets({ x0: 0, x1: master.x - U * 3.2, y: master.y });
+      storePresets();
+    }
   } catch (e) {
     presets = [];
   }
