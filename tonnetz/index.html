@@ -1119,9 +1119,9 @@ function drawFlashes(now) {
     if (x < -geo.s || x > W + geo.s || y < -geo.s || y > H + geo.s) continue;
     const hue = pcHue(pc);
     g.fillStyle = `hsla(${hue},95%,70%,${0.45 * a})`;
-    g.beginPath(); g.arc(x, y, geo.s * (0.25 + 0.08 * a), 0, 7); g.fill();
+    g.beginPath(); g.arc(x, y, geo.s * (0.2 + 0.04 * a), 0, 7); g.fill();
     g.fillStyle = `hsla(${hue},95%,75%,${a})`;
-    g.beginPath(); g.arc(x, y, geo.s * 0.24, 0, 7); g.fill();
+    g.beginPath(); g.arc(x, y, geo.s * 0.18, 0, 7); g.fill();
     g.strokeStyle = `rgba(255,255,255,${a})`; g.lineWidth = 2; g.stroke();
     g.fillStyle = '#07080d';
     g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -1299,8 +1299,12 @@ function loadPresets() {
     const raw = localStorage.getItem(PRESET_KEY);
     const a = JSON.parse(raw);
     presets = (Array.isArray(a) ? a : []).slice(0, MAX_PRESETS).map(p => (p && typeof p.name === 'string' && p.state ? p : null));
-    if (raw === null) {
-      presets = stockPresets({ x0: 0, x1: master.x - U * 3.2, y: master.y });
+    /* Bump STOCK_VERSION when a stock preset changes: slots still holding a stock name or nothing are refreshed, other slots are the user's. */
+    const STOCK_VERSION = '2';
+    if (raw === null || localStorage.getItem('tonnetz.stockv') !== STOCK_VERSION) {
+      const stock = stockPresets({ x0: 0, x1: master.x - U * 3.2, y: master.y });
+      stock.forEach((s, i) => { if (!presets[i] || stock.some(t => t.name === presets[i].name)) presets[i] = s; });
+      localStorage.setItem('tonnetz.stockv', STOCK_VERSION);
       storePresets();
     }
   } catch (e) {
