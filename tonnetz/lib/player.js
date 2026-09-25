@@ -13,6 +13,7 @@ export class Player {
     this.mode = 'auto';
     this.paused = false;
     this.held = false;
+    this.noteHeld = false;
     this.timer = null;
 
     const prev = harmony.onChange;
@@ -67,6 +68,25 @@ export class Player {
     if (this.mode === 'auto') { this.seq.relatch(); return; }
     if (fingersLeft > 0 || !this.held) return;
     this.held = false;
+    this.rack.padsSet([]);
+    this.rack.vcoStop();
+  }
+
+  /* Free notes from the piano roll; in auto mode the engine keeps running underneath, so only the piano sounds. */
+  noteOn(midi, sliding) {
+    const { rack } = this, t = rack.ctx.currentTime + 0.01;
+    rack.chordHit([midi], t, 0.85);
+    if (this.mode === 'direct') {
+      rack.padsSet([{ midi: midi - 12 }]);
+      rack.vcoHold(midi, t, sliding && this.noteHeld);
+    }
+    this.noteHeld = true;
+  }
+
+  noteOff() {
+    if (!this.noteHeld) return;
+    this.noteHeld = false;
+    if (this.mode !== 'direct') return;
     this.rack.padsSet([]);
     this.rack.vcoStop();
   }

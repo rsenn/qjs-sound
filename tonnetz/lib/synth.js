@@ -1,6 +1,6 @@
 /* The modular synth rack. Talks to any WebAudio-shaped context passed in; owns no timers of its own except through `timers`. */
 
-import { midiHz } from './theory.js';
+import { midiHz, clamp } from './theory.js';
 
 const pct = v => Math.round(v * 100) + '%';
 export const glideOf = v => 0.01 + v * 0.14;
@@ -284,6 +284,39 @@ export class Rack {
     }
     if (m.live) for (const v of m.live) { v.car.stop(); v.mod.stop(); }
     this.mods.splice(this.mods.indexOf(m), 1);
+  }
+
+  clear() {
+    for (const m of [...this.mods]) this.removeModule(m);
+  }
+
+  /* Cables are stored as the target's index in the list, or 'out' for the master. */
+  serialize() {
+    return this.mods.map(m => ({
+      type: m.type, x: m.x, y: m.y, p: [...m.p],
+      to: m.target === this.master ? 'out' : m.target ? this.mods.indexOf(m.target) : null,
+    }));
+  }
+
+  /* Rebuilds a rack from stored data. Anything unusable is skipped instead of throwing, because the record may come
+     from another version. Returns false when nothing could be restored. */
+  restore(list) {
+    if (!Array.isArray(list)) return false;
+    const made = list.map(r => {
+      if (!r || !TYPES[r.type] || !Number.isFinite(r.x) || !Number.isFinite(r.y)) return null;
+      const m = this.makeModule(r.type, r.x, r.y);
+      if (Array.isArray(r.p)) {
+        m.p = m.p.map((def, i) => (Number.isFinite(r.p[i]) ? clamp(r.p[i], 0, 1) : def));
+        this.apply(m);
+      }
+      return m;
+    });
+    made.forEach((m, i) => {
+      if (!m) return;
+      const to = list[i].to, t = to === 'out' ? this.master : made[to];
+      if (t && this.canConnect(m, t)) this.connect(m, t);
+    });
+    return made.some(Boolean);
   }
 
   /* ---------- voices ---------- */

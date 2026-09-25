@@ -16,9 +16,30 @@ export class Harmony {
     this.home = null;
     this.phraseCount = 0;
     this.trail = [];
+    this.lock = null;
     this.remember();
     this.compute();
   }
+
+  /* Restricts everything the player sounds to one scale; `iv` null frees it again. */
+  setLock(root, iv) {
+    this.lock = iv ? { root, pcs: iv.map(o => mod12(root + o)) } : null;
+    this.recompute();
+  }
+
+  /* The nearest allowed note, preferring the lower one on a tie. */
+  snapMidi(m) {
+    if (!this.lock) return m;
+    for (let d = 0; d <= 6; d++) {
+      if (this.lock.pcs.includes(mod12(m - d))) return m - d;
+      if (this.lock.pcs.includes(mod12(m + d))) return m + d;
+    }
+    return m;
+  }
+
+  snapPc(pc) { return mod12(this.snapMidi(pc)); }
+
+  snapPcs(pcs) { return [...new Set(pcs.map(pc => this.snapPc(pc)))]; }
 
   remember() {
     const s = this.sel, e = { id: s.id, pcs: s.pcs, tri: s.kind === 'tri' };
@@ -59,9 +80,9 @@ export class Harmony {
       if (sc > best) { best = sc; bk = k; }
     }
     this.lastKey = bk;
-    const set = KEYS[bk];
+    const set = this.lock ? this.lock.pcs : KEYS[bk];
     const offs = set.map(pc => mod12(pc - sel.root)).sort((a, b) => a - b);
-    if (offs[0] !== 0) offs.unshift(0);
+    if (offs[0] !== 0 && !this.lock) offs.unshift(0);
     return { key: bk, mode: set.indexOf(sel.root), offs };
   }
 
@@ -74,7 +95,8 @@ export class Harmony {
   /* Smooth voice leading and diatonic fit make a move likely; the phrase position bends the walk so that every
      fourth chord cadences back home, and recently played chords are penalised so it keeps travelling. */
   scoreCands() {
-    const sel = this.sel, curId = sel.kind === 'tri' ? sel.id : null, set = KEYS[this.analysis.key], hm = this.homeId();
+    const sel = this.sel, curId = sel.kind === 'tri' ? sel.id : null, hm = this.homeId();
+    const set = this.lock ? this.lock.pcs : KEYS[this.analysis.key];
     const seen = [];
     for (const h of this.hist) if (h.tri && h.id !== curId && !seen.includes(h.id)) seen.push(h.id);
     const pos = this.phraseCount % 4, out = [];
@@ -135,36 +157,36 @@ export class Harmony {
   /* The selected notes plus colour from the generated scale: a triad gains its diatonic 7th,
      a lone node or edge is filled up to a triad. */
   chordPcs() {
-    const sel = this.sel, offs = this.analysis.offs;
+    const sel = this.sel, offs = this.analysis.offs, at = d => offs[d % offs.length];
     const tones = [...new Set(sel.pcs.map(pc => mod12(pc - sel.root)))];
-    if (sel.kind === 'tri') tones.push(offs[6]);
-    else for (const d of [2, 4, 6]) if (tones.length < 3 && !tones.includes(offs[d])) tones.push(offs[d]);
-    return [...new Set(tones.map(t => mod12(sel.root + t)))].sort((a, b) => a - b);
+    if (sel.kind === 'tri') tones.push(at(6));
+    else for (const d of [2, 4, 6]) if (tones.length < 3 && !tones.includes(at(d))) tones.push(at(d));
+    return this.snapPcs(tones.map(t => mod12(sel.root + t))).sort((a, b) => a - b);
   }
 
   /* Upper voices are placed by pitch class in a fixed octave window so notes shared by two chords keep the same pitch. */
   pianoVoicing() {
     const lo = 12 * (this.octave + 3);
-    return [lo - 12 + this.sel.root, ...this.chordPcs().map(pc => lo + pc)];
+    return [lo - 12 + this.snapPc(this.sel.root), ...this.chordPcs().map(pc => lo + pc)];
   }
 
   padVoicing() {
     const lo = 12 * (this.octave + 2);
-    return [{ midi: lo - 12 + this.sel.root, bass: true }, ...this.chordPcs().map(pc => ({ midi: lo + pc }))];
+    return [{ midi: lo - 12 + this.snapPc(this.sel.root), bass: true }, ...this.chordPcs().map(pc => ({ midi: lo + pc }))];
   }
 
   /* Direct play sounds exactly the touched notes: one for a node, two for an edge, three for a triangle. */
   directPiano() {
     const lo = 12 * (this.octave + 3);
-    return this.sel.pcs.map(pc => lo + pc);
+    return this.snapPcs(this.sel.pcs).map(pc => lo + pc);
   }
 
   directPad() {
     const lo = 12 * (this.octave + 2);
-    return this.sel.pcs.map(pc => ({ midi: lo + pc }));
+    return this.snapPcs(this.sel.pcs).map(pc => ({ midi: lo + pc }));
   }
 
   directLead() {
-    return 12 * (this.octave + 1) + this.sel.root;
+    return 12 * (this.octave + 1) + this.snapPc(this.sel.root);
   }
 }

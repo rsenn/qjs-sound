@@ -7,6 +7,19 @@ export const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 export const mod12 = n => ((n % 12) + 12) % 12;
 export const midiHz = m => 440 * Math.pow(2, (m - 69) / 12);
 
+/* Scales a player can be locked to for improvisation; intervals are semitones above the root. */
+export const SCALES = [
+  { name: 'major', iv: [0, 2, 4, 5, 7, 9, 11] },
+  { name: 'minor', iv: [0, 2, 3, 5, 7, 8, 10] },
+  { name: 'major pent', iv: [0, 2, 4, 7, 9] },
+  { name: 'minor pent', iv: [0, 3, 5, 7, 10] },
+  { name: 'blues', iv: [0, 3, 5, 6, 7, 10] },
+  { name: 'dorian', iv: [0, 2, 3, 5, 7, 9, 10] },
+  { name: 'mixolydian', iv: [0, 2, 4, 5, 7, 9, 10] },
+  { name: 'harmonic minor', iv: [0, 2, 3, 5, 7, 8, 11] },
+  { name: 'whole tone', iv: [0, 2, 4, 6, 8, 10] },
+];
+
 export const KEYS = [...Array(12)].map((_, k) => [0, 2, 4, 5, 7, 9, 11].map(o => mod12(k + o)));
 export const ROOT_PRIOR = [0.6, 0.25, 0.1, 0.25, 0.35, 0.5, 0];
 
