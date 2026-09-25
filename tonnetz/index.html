@@ -301,10 +301,14 @@ const sideSplitAt = p => sideOn() && p.x >= LW - 4 && p.x < LW + SPL + 4;
 
 /* Dragging a splitter moves the boundary above its pane: the pane above (or the table) gives or takes the difference. */
 function dragSplit(s, p) {
-  const room = s.prev ? s.prev.h0 - s.prev.min : s.table0 - minTable();
-  const d = clamp(s.y0 - p.y, s.pane.min - s.pane.h0, room);
+  const want = s.y0 - p.y, room = s.prev ? s.prev.h0 - s.prev.min : s.table0 - minTable();
+  /* Once the space above is used up, growing takes from the pane below instead of stalling. */
+  const fromAbove = clamp(want, 0, room);
+  const fromBelow = s.next ? clamp(want - fromAbove, 0, s.next.h0 - s.next.min) : 0;
+  const d = want < 0 ? Math.max(want, s.pane.min - s.pane.h0) : fromAbove + fromBelow;
   s.pane.h = s.pane.h0 + d;
-  if (s.prev) s.prev.h = s.prev.h0 - d;
+  if (s.prev) s.prev.h = s.prev.h0 - (want < 0 ? d : fromAbove);
+  if (s.next) s.next.h = s.next.h0 - fromBelow;
   layoutDirty = true;
 }
 
@@ -396,7 +400,8 @@ cv.addEventListener('pointerdown', e => {
   if (sp) {
     for (const q of paneList) q.h0 = q.h;
     const prev = paneList.slice(0, paneList.indexOf(sp)).reverse().find(q => q.show) || null;
-    ptr.set(e.pointerId, { kind: 'split', pane: sp, prev, y0: p.y, table0: tableH });
+    const next = paneList.slice(paneList.indexOf(sp) + 1).find(q => q.show) || null;
+    ptr.set(e.pointerId, { kind: 'split', pane: sp, prev, next, y0: p.y, table0: tableH });
     return;
   }
   if (sideOn() ? p.x >= LW + SPL : panes.ton.show && p.y >= panes.ton.top) {
