@@ -1283,7 +1283,9 @@ function frame() {
 /* ---------- persistence ---------- */
 
 const SESSION_KEY = 'tonnetz.rack', PRESET_KEY = 'tonnetz.presets', MAX_PRESETS = 128;
+const AUTOSAVE_MS = 10 * 60 * 1000, AUTOSAVE_PREFIX = 'autosave ';
 let savedSession = null, presets = [], curPreset = -1;
+let lastPresetSave = Date.now(), lastPresetJson = null;
 
 /* One snapshot serves the autosaved session and every preset: rack (parameters, wiring, positions), table view, sequencer, scale lock. */
 function captureState() {
@@ -1376,6 +1378,27 @@ function savePreset(name) {
   if (i >= MAX_PRESETS) return;
   presets[i] = { name, state: captureState() };
   curPreset = i;
+  lastPresetSave = Date.now(); lastPresetJson = presetJson();
+  storePresets();
+  renderPresets();
+}
+
+/* Panning and zooming alone don't count as work worth saving. */
+const presetJson = () => JSON.stringify({ ...captureState(), view: null });
+
+/* One rolling slot, renamed with the date each time, so autosaves never eat the numbered preset slots. */
+function autosavePreset() {
+  if (!player || Date.now() - lastPresetSave < AUTOSAVE_MS) return;
+  const json = presetJson();
+  if (json === lastPresetJson) return;
+  const d = new Date(), pad = n => String(n).padStart(2, '0');
+  const name = `${AUTOSAVE_PREFIX}${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  let i = presets.findIndex(p => p && p.name.startsWith(AUTOSAVE_PREFIX));
+  if (i < 0) i = presets.indexOf(null);
+  if (i < 0) i = presets.length;
+  if (i >= MAX_PRESETS) return;
+  presets[i] = { name, state: captureState() };
+  lastPresetSave = Date.now(); lastPresetJson = json;
   storePresets();
   renderPresets();
 }
@@ -1440,7 +1463,9 @@ function start() {
     const [vco, vcf, piano, dist, delay] = types.map((type, k) => addModule(type, usable * (k + 0.5) / types.length, master.y));
     rack.connect(vco, vcf); rack.connect(vcf, dist); rack.connect(piano, dist); rack.connect(dist, delay); rack.connect(delay, master);
   }
+  lastPresetJson = presetJson();
   setInterval(saveSession, 1000);
+  setInterval(autosavePreset, 30000);
   addEventListener('pagehide', saveSession);
 
   player.start();
