@@ -35,6 +35,14 @@ button.off { opacity: .45; }
 .pempty { padding: 8px; color: var(--dim); }
 .pedit { display: flex; gap: 5px; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--edge); }
 #prename { flex: 1; min-width: 0; background: var(--bg); color: var(--fg); border: 1px solid var(--edge); border-radius: 999px; padding: 5px 10px; font: 13px system-ui, sans-serif; -webkit-user-select: text; user-select: text; }
+.grp { display: flex; gap: 5px; align-items: center; }
+.grp + .grp { margin-left: 6px; padding-left: 8px; border-left: 1px solid var(--edge); }
+.grp:not(:has(> :not([style*="display: none"]))) { display: none; }
+.step { display: flex; align-items: center; }
+.step button { padding: 6px 9px; }
+.step button:first-child { border-radius: 999px 0 0 999px; }
+.step button:last-child { border-radius: 0 999px 999px 0; }
+.step .val { min-width: 4.6em; border-block: 1px solid var(--edge); align-self: stretch; display: flex; align-items: center; justify-content: center; background: var(--panel); }
 .val { min-width: 3.6em; text-align: center; color: var(--dim); font-size: 13px; }
 #start { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(7, 8, 13, .92); text-align: center; cursor: pointer; z-index: 10; }
 #start > div { max-width: 22em; font-size: 13px; padding: 0 24px; }
@@ -64,18 +72,26 @@ button.off { opacity: .45; }
       <div class="pedit"><input id="prename" placeholder="preset name" maxlength="32"><button id="presave">Save</button><button id="predel">Delete</button></div>
     </div>
   </div>
-  <button id="mode">Mode: auto</button>
-  <button id="play">Pause</button>
-  <button id="engine">Engine: steps</button>
-  <button id="style">Style: auto</button>
-  <button id="blues">Blues riff</button>
-  <button id="song">Song</button>
-  <button id="songoff" style="display:none">Free walk</button>
-  <button id="len">Chord: 2 bars</button>
-  <button id="bpmd">-</button><span id="bpmv" class="val"></span><button id="bpmu">+</button>
-  <button id="octd">Oct -</button><span id="octv" class="val"></span><button id="octu">Oct +</button>
-  <button id="root">Root: C</button>
-  <button id="scale">Scale: free</button>
+  <div class="grp">
+    <button id="mode">Mode: auto</button>
+    <button id="play">Pause</button>
+    <button id="engine">Engine: steps</button>
+  </div>
+  <div class="grp">
+    <button id="style">Style: auto</button>
+    <button id="blues">Blues riff</button>
+    <button id="song">Song</button>
+    <button id="songoff" style="display:none">Free walk</button>
+    <button id="len">Chord: 2 bars</button>
+  </div>
+  <div class="grp">
+    <div class="step" id="bpmg"><button id="bpmd">-</button><span id="bpmv" class="val"></span><button id="bpmu">+</button></div>
+    <div class="step"><button id="octd">-</button><span id="octv" class="val"></span><button id="octu">+</button></div>
+  </div>
+  <div class="grp">
+    <button id="root">Root: C</button>
+    <button id="scale">Scale: free</button>
+  </div>
 </div>
 <div id="start">
   <div>
@@ -569,7 +585,7 @@ addEventListener('blur', () => {
   player.noteOff();
 });
 
-const HIDDEN_IN_DIRECT = ['play', 'engine', 'style', 'blues', 'song', 'len', 'bpmd', 'bpmv', 'bpmu', 'tseq'];
+const HIDDEN_IN_DIRECT = ['play', 'engine', 'style', 'blues', 'song', 'len', 'bpmg', 'tseq'];
 function syncButtons() {
   $('play').textContent = player && player.paused ? 'Play' : 'Pause';
   $('mode').textContent = 'Mode: ' + (direct() ? 'direct' : 'auto');
