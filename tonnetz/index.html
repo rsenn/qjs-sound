@@ -1283,7 +1283,7 @@ function frame() {
 /* ---------- persistence ---------- */
 
 const SESSION_KEY = 'tonnetz.rack', PRESET_KEY = 'tonnetz.presets', MAX_PRESETS = 128;
-const AUTOSAVE_MS = 10 * 60 * 1000, AUTOSAVE_PREFIX = 'autosave ';
+const AUTOSAVE_MS = 10 * 60 * 1000, AUTOSAVE_PREFIX = 'autosave ', AUTOSAVE_KEEP = 5;
 let savedSession = null, presets = [], curPreset = -1;
 let lastPresetSave = Date.now(), lastPresetJson = null;
 
@@ -1386,18 +1386,20 @@ function savePreset(name) {
 /* Panning and zooming alone don't count as work worth saving. */
 const presetJson = () => JSON.stringify({ ...captureState(), view: null });
 
-/* One rolling slot, renamed with the date each time, so autosaves never eat the numbered preset slots. */
+/* Only the newest AUTOSAVE_KEEP autosaves survive, so they can't eat all the preset slots. */
 function autosavePreset() {
   if (!player || Date.now() - lastPresetSave < AUTOSAVE_MS) return;
   const json = presetJson();
   if (json === lastPresetJson) return;
   const d = new Date(), pad = n => String(n).padStart(2, '0');
   const name = `${AUTOSAVE_PREFIX}${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  let i = presets.findIndex(p => p && p.name.startsWith(AUTOSAVE_PREFIX));
-  if (i < 0) i = presets.indexOf(null);
+  const autos = () => presets.map((p, i) => [p, i]).filter(([p]) => p && p.name.startsWith(AUTOSAVE_PREFIX)).sort((a, b) => (a[0].at || 0) - (b[0].at || 0));
+  while (autos().length >= AUTOSAVE_KEEP) presets[autos()[0][1]] = null;
+  let i = presets.indexOf(null);
   if (i < 0) i = presets.length;
   if (i >= MAX_PRESETS) return;
-  presets[i] = { name, state: captureState() };
+  presets[i] = { name, at: Date.now(), state: captureState() };
+  while (presets.length && !presets[presets.length - 1]) presets.pop();
   lastPresetSave = Date.now(); lastPresetJson = json;
   storePresets();
   renderPresets();
