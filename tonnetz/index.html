@@ -275,7 +275,7 @@ const BLACK_KEYS = [[1, 1], [3, 2], [6, 4], [8, 5], [10, 6]];
 
 /* Whole octaves from C, as many as fit at a comfortable key width. */
 const keysGeo = () => {
-  const p = panes.keys, oct = clamp(Math.floor(LW / 140), 1, 8);
+  const p = panes.keys, oct = clamp(Math.floor(LW / clamp(LW / 5, 140, 210)), 1, 8);
   return { top: p.top, h: p.h, oct, ww: LW / (7 * oct), bh: p.h * 0.62, base: 12 * (harmony.octave + 1) };
 };
 
