@@ -133,7 +133,7 @@ const stripH = 22, SPL = 10;
 /* Panes stack below the table in this order, each under its own splitter; hidden ones keep their height for when they return. */
 const panes = {
   seq: { want: true, show: true, h: 0, min: 100, split: 0, top: 0 },
-  arp: { want: true, show: false, h: 0, min: 100, split: 0, top: 0 },
+  arp: { want: true, show: false, h: 0, min: 130, split: 0, top: 0 },
   keys: { want: false, show: false, h: 0, min: 60, split: 0, top: 0 },
   ton: { want: true, show: true, h: 0, min: 80, split: 0, top: 0, side: false, w: 0 },
 };
@@ -265,8 +265,9 @@ function resize() {
 const seqGeo = () => {
   const p = panes.seq, lw = 26, x0 = lw + 8, cw = (LW - x0 - 8) / STEPS;
   const th = clamp(Math.round(p.h * 0.1), 12, 18);
-  const sy = p.top + p.h - th - 4, ay = sy - th - 2, gy0 = p.top + 4;
-  return { lw, x0, cw, th, sy, ay, gy0, rh: (ay - 4 - gy0) / 8 };
+  const hh = p.h >= 130 ? 20 : 0;
+  const sy = p.top + p.h - th - 4, ay = sy - th - 2, gy0 = p.top + 4 + hh;
+  return { lw, x0, cw, th, sy, ay, gy0, hh, rh: (ay - 4 - gy0) / 8 };
 };
 
 const WHITE_OFFS = [0, 2, 4, 5, 7, 9, 11];
@@ -921,6 +922,12 @@ function drawStrip() {
 function drawSeq() {
   const S = seqGeo(), seq = player.seq, pattern = seq.pattern;
   g.textBaseline = 'middle';
+  if (S.hh) {
+    g.font = `${Math.round(clamp(U * 0.36, 11, 13))}px system-ui, sans-serif`;
+    g.textAlign = 'left'; g.fillStyle = '#d8def0';
+    const tonality = harmony.lock ? `${NOTES[harmony.lock.root]} ${SCALE_OPTS[scaleIdx].name}` : `${NOTES[harmony.analysis.key]} major`;
+    g.fillText(LW > 700 ? `SEQUENCER  ${tonality}` : tonality, 8, panes.seq.top + 4 + S.hh / 2);
+  }
   for (let r = 0; r < 8; r++) {
     const y = S.gy0 + (7 - r) * S.rh, tone = [0, 2, 4].includes(r % 7);
     g.fillStyle = tone ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.025)';
@@ -930,10 +937,13 @@ function drawSeq() {
     g.textAlign = 'right';
     g.fillText(NOTES[mod12(harmony.pitchOf(r))], S.x0 - 4, y + S.rh / 2);
   }
-  g.strokeStyle = 'rgba(255,255,255,0.12)'; g.lineWidth = 1;
-  g.beginPath();
-  for (let b = 0; b <= 4; b++) { const x = Math.round(S.x0 + b * 4 * S.cw) + 0.5; g.moveTo(x, S.gy0); g.lineTo(x, S.sy + S.th); }
-  g.stroke();
+  g.lineWidth = 1;
+  for (const [alpha, from, every] of [[0.05, 0, 1], [0.28, 0, 4]]) {
+    g.strokeStyle = `rgba(255,255,255,${alpha})`;
+    g.beginPath();
+    for (let k = from; k <= STEPS; k += every) { const x = Math.round(S.x0 + k * S.cw) + 0.5; g.moveTo(x, S.gy0); g.lineTo(x, S.sy + S.th); }
+    g.stroke();
+  }
 
   for (let k = 0; k < STEPS; k++) {
     const st = pattern[k], x = S.x0 + k * S.cw, y = S.gy0 + (7 - st.deg) * S.rh;
@@ -955,8 +965,10 @@ function drawSeq() {
     if (st.accent) { g.fillStyle = '#ff4fd8'; g.fillRect(x + 1, S.ay, S.cw - 2, S.th - 1); }
     if (st.slide) { g.fillStyle = '#7dffb0'; g.fillRect(x + 1, S.sy, S.cw - 2, S.th - 1); }
     if (seq.running && k === curStep) {
-      g.fillStyle = 'rgba(255,255,255,0.12)';
+      g.fillStyle = 'rgba(255,255,255,0.18)';
       g.fillRect(x, S.gy0, S.cw, S.sy + S.th - S.gy0);
+      g.fillStyle = '#fff';
+      g.fillRect(x, S.gy0 - 3, S.cw, 3);
     }
   }
   g.font = `${Math.round(clamp(S.th * 0.6, 8, 10))}px system-ui, sans-serif`;
@@ -1016,26 +1028,30 @@ function drawArp() {
   };
 
   const rowA = p.top + 6;
+  const tonality = harmony.lock ? `${NOTES[harmony.lock.root]} ${SCALE_OPTS[scaleIdx].name}` : `${NOTES[key]} major`;
+  const title = LW > 700 ? `ARPEGGIATOR  ${tonality}` : tonality;
+  const styleW = ARP_STYLES.reduce((a, st) => a + g.measureText(st).width + 22, 0);
+  const need = 2 * PAD + g.measureText(title).width + 16 + styleW + g.measureText('oct').width + 16 + 4 * 26 + 56;
+  /* Too narrow for one line: the title and Save keep the first row, styles and octaves drop to a second. */
+  const wrap = need > LW, rowS = wrap ? rowA + chH + 6 : rowA;
   let x = LW - PAD;
   for (const o of [4, 3, 2, 1]) {
     x -= 26;
-    chip(x, rowA, 24, chH, String(o), { active: seq.arp.octaves === o, action: () => seq.setArp({ octaves: o }) });
+    chip(x, rowS, 24, chH, String(o), { active: seq.arp.octaves === o, action: () => seq.setArp({ octaves: o }) });
   }
   g.fillStyle = al('#d8def0', 0.5); g.textAlign = 'right';
-  g.fillText('oct', x - 6, rowA + chH / 2 + 1);
+  g.fillText('oct', x - 6, rowS + chH / 2 + 1);
   x -= g.measureText('oct').width + 16;
   for (const st of [...ARP_STYLES].reverse()) {
     const w = g.measureText(st).width + 18;
     x -= w + 4;
-    chip(x, rowA, w, chH, st, { active: seq.arp.style === st, action: () => seq.setArp({ style: st }) });
+    chip(x, rowS, w, chH, st, { active: seq.arp.style === st, action: () => seq.setArp({ style: st }) });
   }
-  x -= 56;
-  chip(x, rowA, 52, chH, 'Save', { action: saveArpPreset });
-  const tonality = harmony.lock ? `${NOTES[harmony.lock.root]} ${SCALE_OPTS[scaleIdx].name}` : `${NOTES[key]} major`;
+  chip(wrap ? LW - PAD - 52 : x - 56, rowA, 52, chH, 'Save', { action: saveArpPreset });
   g.fillStyle = '#d8def0'; g.textAlign = 'left';
-  g.fillText(LW > 700 ? `ARPEGGIATOR  ${tonality}` : tonality, PAD, rowA + chH / 2 + 1);
+  g.fillText(title, PAD, rowA + chH / 2 + 1);
 
-  const rowB = rowA + chH + 8, ids = [0, 1, 2, 3, 4, 5].map(i => cid(KEYS[key][i], [1, 2, 5].includes(i)));
+  const rowB = rowS + chH + 8, ids = [0, 1, 2, 3, 4, 5].map(i => cid(KEYS[key][i], [1, 2, 5].includes(i)));
   const cur = harmony.sel.kind === 'tri' ? harmony.sel.id : null, next = harmony.hints.length ? harmony.hints[0].id : null;
   if (cur !== null && !ids.includes(cur)) ids.push(cur);
   const cw = clamp((LW - 2 * PAD - 6 * (ids.length - 1)) / ids.length, 36, 72);
