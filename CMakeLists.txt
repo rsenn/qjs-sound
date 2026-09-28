@@ -11,6 +11,7 @@ option(USE_SNDFILE "Use libsndfile library" ON)
 option(USE_SAMPLERATE "Use libsamplerate library" ON)
 option(USE_SOUNDTOUCH "Use SoundTouch library" ON)
 option(USE_RUBBERBAND "Use Rubber Band library" ON)
+option(USE_SNDOBJ "Use SndObj library" ON)
 
 include(FindPkgConfig)
 include(CheckLibraryExists)
@@ -352,3 +353,43 @@ if(USE_RUBBERBAND)
                INCLUDE_DIRECTORIES
                "${QUICKJS_INCLUDE_DIR};${RUBBERBAND_INCLUDE_DIRS}")
 endif(USE_RUBBERBAND)
+
+if(USE_SNDOBJ)
+  # Only the sources needed by the 11 classes this module binds (see
+  # doc/sndobj.md) - not a glob, since most of third_party/sndobj/src
+  # (file/realtime/MIDI IO, the FFT/phase-vocoder family) is out of scope
+  # and the FFT family additionally needs a vendored rfftw/rfftw.h this
+  # tree doesn't ship in its include path.
+  set(sndobj_SOURCES
+      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/SndObj.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/HarmTable.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Oscil.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Oscili.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Buzz.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Rand.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Randh.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Randi.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/ADSR.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Filter.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Reson.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/DelayLine.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Comb.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Allpass.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/VDelay.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Gain.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Mix.cpp)
+
+  set(COMMON_SOURCES quickjs-typedarray.c)
+
+  make_module(sndobj cpp)
+
+  unset(COMMON_SOURCES)
+
+  include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src")
+  set_target_properties(
+    qjs-sndobj
+    PROPERTIES
+      COMPILE_FLAGS ${MODULE_COMPILE_FLAGS}
+      INCLUDE_DIRECTORIES
+      "${QUICKJS_INCLUDE_DIR};${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src")
+endif(USE_SNDOBJ)
