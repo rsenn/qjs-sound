@@ -1218,7 +1218,36 @@ js_stkfm_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueC
   if(argc > 0)
     JS_ToFloat64(ctx, &arg, argv[0]);
 
-  switch(magic) {}
+  switch(magic) {
+    case INSTANCE_BEETHREE: {
+      *fm = std::make_shared<stk::BeeThree>();
+      break;
+    }
+    case INSTANCE_FMVOICES: {
+      *fm = std::make_shared<stk::FMVoices>();
+      break;
+    }
+    case INSTANCE_HEVYMETL: {
+      *fm = std::make_shared<stk::HevyMetl>();
+      break;
+    }
+    case INSTANCE_PERCFLUT: {
+      *fm = std::make_shared<stk::PercFlut>();
+      break;
+    }
+    case INSTANCE_RHODEY: {
+      *fm = std::make_shared<stk::Rhodey>();
+      break;
+    }
+    case INSTANCE_TUBEBELL: {
+      *fm = std::make_shared<stk::TubeBell>();
+      break;
+    }
+    case INSTANCE_WURLEY: {
+      *fm = std::make_shared<stk::Wurley>();
+      break;
+    }
+  }
 
   /* using new_target to get the prototype is necessary when the class is
    * extended. */
@@ -1240,11 +1269,94 @@ js_stkfm_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueC
     goto fail;
 
   JS_SetOpaque(obj, fm);
+  js_set_tostringtag(ctx,
+                     obj,
+                     ((const char*[]){
+                         "BeeThree",
+                         "FMVoices",
+                         "HevyMetl",
+                         "PercFlut",
+                         "Rhodey",
+                         "TubeBell",
+                         "Wurley",
+                     })[magic]);
   return obj;
 
 fail:
   JS_FreeValue(ctx, obj);
   return JS_EXCEPTION;
+}
+
+enum {
+  METHOD_FM_TICK = 0,
+  METHOD_FM_NOTE_ON,
+  METHOD_FM_NOTE_OFF,
+  METHOD_FM_CONTROL_CHANGE,
+};
+
+/* stk::FM extends stk::Instrmnt (FM.h), so tick/noteOn/noteOff/
+ * controlChange are the same inherited Instrmnt API js_stkinstrmnt_method
+ * dispatches - mirrored here rather than shared since the opaque payload
+ * type (StkFMPtr vs StkInstrmntPtr) differs. */
+static JSValue
+js_stkfm_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+  StkFMPtr* fm;
+  JSValue ret = JS_UNDEFINED;
+
+  if(!(fm = static_cast<StkFMPtr*>(JS_GetOpaque2(ctx, this_val, js_stkfm_class_id))))
+    return JS_EXCEPTION;
+
+  switch(magic) {
+    case METHOD_FM_TICK: {
+      StkFramesPtr* a;
+      uint32_t channel = 0;
+
+      if(argc > 0 && (a = static_cast<StkFramesPtr*>(JS_GetOpaque(argv[0], js_stkframes_class_id)))) {
+        if(argc > 1)
+          JS_ToUint32(ctx, &channel, argv[1]);
+
+        (*fm)->tick(*a->get(), channel);
+
+        ret = JS_DupValue(ctx, argv[0]);
+        break;
+      }
+
+      if(argc > 0)
+        JS_ToUint32(ctx, &channel, argv[0]);
+
+      ret = JS_NewFloat64(ctx, (*fm)->tick(channel));
+      break;
+    }
+    case METHOD_FM_NOTE_ON: {
+      double frequency = 0, amplitude = 0;
+      JS_ToFloat64(ctx, &frequency, argv[0]);
+      if(argc > 1)
+        JS_ToFloat64(ctx, &amplitude, argv[1]);
+
+      (*fm)->noteOn(frequency, amplitude);
+      break;
+    }
+    case METHOD_FM_NOTE_OFF: {
+      double amplitude = 0;
+      if(argc > 0)
+        JS_ToFloat64(ctx, &amplitude, argv[0]);
+
+      (*fm)->noteOff(amplitude);
+      break;
+    }
+    case METHOD_FM_CONTROL_CHANGE: {
+      int32_t number = 0;
+      double value = 0;
+      JS_ToInt32(ctx, &number, argv[0]);
+      if(argc > 1)
+        JS_ToFloat64(ctx, &value, argv[1]);
+
+      (*fm)->controlChange(number, value);
+      break;
+    }
+  }
+
+  return ret;
 }
 
 static void
@@ -1263,6 +1375,10 @@ static JSClassDef js_stkfm_class = {
 };
 
 static const JSCFunctionListEntry js_stkfm_funcs[] = {
+    JS_CFUNC_MAGIC_DEF("tick", 0, js_stkfm_method, METHOD_FM_TICK),
+    JS_CFUNC_MAGIC_DEF("noteOn", 2, js_stkfm_method, METHOD_FM_NOTE_ON),
+    JS_CFUNC_MAGIC_DEF("noteOff", 1, js_stkfm_method, METHOD_FM_NOTE_OFF),
+    JS_CFUNC_MAGIC_DEF("controlChange", 2, js_stkfm_method, METHOD_FM_CONTROL_CHANGE),
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "StkFM", JS_PROP_CONFIGURABLE),
 };
 
@@ -3556,6 +3672,35 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
     JS_SetModuleExport(ctx, m, "Effect", stkeffect_ctor);
   }
 
+  JS_NewClassID(&js_stkfm_class_id);
+  JS_NewClass(JS_GetRuntime(ctx), js_stkfm_class_id, &js_stkfm_class);
+
+  stkfm_ctor = JS_NewObject(ctx);
+  stkfm_proto = JS_NewObject(ctx);
+
+  JS_SetPropertyFunctionList(ctx, stkfm_proto, js_stkfm_funcs, countof(js_stkfm_funcs));
+
+  JS_SetClassProto(ctx, js_stkfm_class_id, stkfm_proto);
+
+  if(m) {
+    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfm_constructor, "BeeThree", 0, JS_CFUNC_constructor_magic, INSTANCE_BEETHREE);
+    JS_SetModuleExport(ctx, m, "BeeThree", ctor);
+    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfm_constructor, "FMVoices", 0, JS_CFUNC_constructor_magic, INSTANCE_FMVOICES);
+    JS_SetModuleExport(ctx, m, "FMVoices", ctor);
+    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfm_constructor, "HevyMetl", 0, JS_CFUNC_constructor_magic, INSTANCE_HEVYMETL);
+    JS_SetModuleExport(ctx, m, "HevyMetl", ctor);
+    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfm_constructor, "PercFlut", 0, JS_CFUNC_constructor_magic, INSTANCE_PERCFLUT);
+    JS_SetModuleExport(ctx, m, "PercFlut", ctor);
+    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfm_constructor, "Rhodey", 0, JS_CFUNC_constructor_magic, INSTANCE_RHODEY);
+    JS_SetModuleExport(ctx, m, "Rhodey", ctor);
+    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfm_constructor, "TubeBell", 0, JS_CFUNC_constructor_magic, INSTANCE_TUBEBELL);
+    JS_SetModuleExport(ctx, m, "TubeBell", ctor);
+    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfm_constructor, "Wurley", 0, JS_CFUNC_constructor_magic, INSTANCE_WURLEY);
+    JS_SetModuleExport(ctx, m, "Wurley", ctor);
+
+    JS_SetModuleExport(ctx, m, "FM", stkfm_ctor);
+  }
+
   stkinstrmnt_ctor = JS_NewObject(ctx); // JS_NewCFunction2(ctx, js_stkinstrmnt_constructor,
                                         // "Generator", 1, JS_CFUNC_constructor, 0);
   stkinstrmnt_proto = JS_NewObject(ctx);
@@ -3822,6 +3967,14 @@ js_init_module_stk(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "PitShift");
   JS_AddModuleExport(ctx, m, "PRCRev");
   JS_AddModuleExport(ctx, m, "Effect");
+  JS_AddModuleExport(ctx, m, "BeeThree");
+  JS_AddModuleExport(ctx, m, "FMVoices");
+  JS_AddModuleExport(ctx, m, "HevyMetl");
+  JS_AddModuleExport(ctx, m, "PercFlut");
+  JS_AddModuleExport(ctx, m, "Rhodey");
+  JS_AddModuleExport(ctx, m, "TubeBell");
+  JS_AddModuleExport(ctx, m, "Wurley");
+  JS_AddModuleExport(ctx, m, "FM");
   JS_AddModuleExport(ctx, m, "TwinTDrum");
   JS_AddModuleExport(ctx, m, "Tr909BassDrum");
   JS_AddModuleExport(ctx, m, "Tr909Percussion");

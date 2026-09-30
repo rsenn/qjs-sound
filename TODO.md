@@ -324,3 +324,38 @@ other nodes derive from), `AudioProcessor`, `AudioNodeDescriptor`,
 `WindowFunctions`, `Mixing`, `Util`, `Logging`, `Profiler`, `Registry`,
 `AudioFileReader` (already used internally by `decodeAudioData`/
 `createBufferFromFile`).
+
+---
+
+## sndobj module bindings
+
+`quickjs-sndobj.cpp` wraps a first pass of `third_party/sndobj` - 11 classes
+across a `Table` family, a generator family, and an effect family (see
+`doc/sndobj.md`). 114 headers exist under
+`third_party/sndobj/include/SndObj/`; 18 are touched by the current binding
+(11 exported, plus `DelayLine`/`Filter`/`Oscil`/`Rand`/`Randh`/`SndObj`/`Table`
+used internally as bases, not exported directly). The other 96 are listed
+below, grouped by what they'd need to bind.
+
+### ✅ Bound
+
+`HarmTable`, `Oscili`, `Buzz`, `Randi`, `ADSR`, `Reson`, `Comb`, `Allpass`,
+`VDelay`, `Gain`, `Mixer` (plus internal-only bases `DelayLine`, `Filter`,
+`Oscil`, `Rand`, `Randh`, `SndObj`, `Table`).
+
+### Not yet bound
+
+| Group | Classes | Notes |
+|---|---|---|
+| Oscillators/generators | `Osc`, `Osci`, `Oscilt`, `PhOscili`, `FastOsc`, `SyncGrain` | Same shape as `Oscili`/`Buzz`; cheap additions to the existing generator family. `FastOsc`/`Osc`/`Osci` are `Oscili`'s own ancestors (truncating/alternate lookup) - lower priority than genuinely new generators (`SyncGrain`, granular). |
+| Envelope | `IADSR` | Interpolating `ADSR` variant - trivial addition alongside `ADSR`. |
+| Wavetables | `EnvTable`, `HammingTable`, `ImpulseTable`, `LoPassTable`, `NoteTable`, `PlnTable`, `PVEnvTable`, `PVTable`, `SndTable`, `SpecEnvTable`, `TrisegTable`, `UsrDefTable`, `UsrHarmTable` | All extend the same `Table` base already wired up for `HarmTable`; each is one more magic-dispatched constructor case in the existing `Table` family. `SndTable` needs `sndfile`-style file loading; `PVEnvTable`/`PVTable`/`SpecEnvTable` depend on the FFT family below. |
+| Filters | `Ap`, `ButtBP`, `ButtBR`, `ButtHP`, `ButtLP`, `Fir`, `HiPass`, `Hilb`, `LowPass`, `Lp`, `TpTz` | Same shape as `Reson`/`Filter`; extends the existing effect family with more filter constructor cases. |
+| Delay/tap utilities | `Loop`, `Tap`, `Tapi` | Extend `DelayLine` like `Comb`/`Allpass`/`VDelay` already do. |
+| Physical modeling | `StringFlt`, `Pluck` | Karplus-Strong string; `Pluck` extends `StringFlt`. Good next addition for a plucked-string voice. |
+| Pitch tracking/shifting | `Pitch`, `Ptrack` | Pitch analysis/shifting; `Pitch` depends on the FFT/phase-vocoder family below. |
+| Mixing/utility | `Balance`, `Interp`, `Lookup`, `Lookupi`, `Phase`, `Ring`, `Unit` | Small standalone utility `SndObj`s - `Ring` (ring modulation) is the most directly synth-relevant. |
+| Stereo pan | `Pan` | Deliberately deferred (see `doc/sndobj.md`'s "Not bound" section) - its constructor manufactures two extra live `SndObj` taps (`left`/`right`), a different lifetime shape than every class bound so far. |
+| MIDI | `Bend`, `MidiIn`, `MidiMap` | MIDI input classes; project already has a separate `portmidi` module - only worth binding if driving an sndobj graph directly from MIDI (bypassing JS) becomes useful. |
+| FFT/phase-vocoder family | `AdSyn`, `Convol`, `FFT`, `FFT_alt`, `IFAdd`, `IFFT`, `IFFT_alt`, `IFGram`, `PVA`, `PVBlur`, `PVFilter`, `PVMask`, `PVMix`, `PVMorph`, `PVRead`, `PVS`, `PVTransp`, `ReSyn`, `SinAnal`, `SinSyn`, `SpecCart`, `SpecCombine`, `SpecIn`, `SpecInterp`, `SpecMult`, `SpecPolar`, `SpecSplit`, `SpecThresh`, `SpecVoc` | Blocked: needs a vendored `rfftw/rfftw.h` this tree doesn't ship on its include path (see `CMakeLists.txt`'s `sndobj_SOURCES` comment). Would need either vendoring `rfftw` properly or porting these to a different FFT backend before any of this group can compile. |
+| File/realtime/MIDI I/O | `SndASIO`, `SndAiff`, `SndBuffer`, `SndCoreAudio`, `SndFIO`, `SndIO`, `SndIn`, `SndJackIO`, `SndMidi`, `SndMidiIn`, `SndPVOCEX`, `SndRTIO`, `SndRTThread`, `SndRead`, `SndSinIO`, `SndThread`, `SndWave`, `SndWaveX` | Out of scope by design - `sndfile`/`portaudio`/`portmidi` modules already cover file I/O, realtime audio, and MIDI I/O respectively; binding sndobj's own IO layer would duplicate them. |

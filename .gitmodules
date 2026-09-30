@@ -34,3 +34,6 @@
 [submodule "third_party/rubberband"]
 	path = third_party/rubberband
 	url = https://github.com/breakfastquay/rubberband.git
+[submodule "third_party/marsyas"]
+	path = third_party/marsyas
+	url = git@github.com:marsyas/marsyas.git
