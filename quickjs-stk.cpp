@@ -239,6 +239,33 @@ static const JSCFunctionListEntry js_stk_funcs[] = {
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "Stk", JS_PROP_CONFIGURABLE),
 };
 
+/* Several STK classes (the FM family, SingWave, Whistle, Brass, Flute, ...)
+ * load .raw wavetable files from disk at construction time, resolved
+ * relative to stk::Stk::rawwavePath() (default "../../rawwaves/", relative
+ * to the process cwd) - a missing/incorrect path throws a raw stk::StkError
+ * that terminates the process (uncaught C++ exception), not a catchable JS
+ * error. Expose it so JS can point it at third_party/stk/rawwaves (or
+ * wherever rawwaves/ was installed) before constructing such a class. */
+static JSValue
+js_stk_set_rawwave_path(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
+  const char* path = JS_ToCString(ctx, argv[0]);
+  if(!path)
+    return JS_EXCEPTION;
+  stk::Stk::setRawwavePath(path);
+  JS_FreeCString(ctx, path);
+  return JS_UNDEFINED;
+}
+
+static JSValue
+js_stk_get_rawwave_path(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
+  return JS_NewString(ctx, stk::Stk::rawwavePath().c_str());
+}
+
+static const JSCFunctionListEntry js_stk_static_funcs[] = {
+    JS_CFUNC_DEF("setRawwavePath", 1, js_stk_set_rawwave_path),
+    JS_CFUNC_DEF("rawwavePath", 0, js_stk_get_rawwave_path),
+};
+
 static JSValue
 js_stkframes_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
   JSValue proto, obj = JS_UNDEFINED;
@@ -3547,6 +3574,7 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
 
   stk_ctor = JS_NewObject(ctx); // JS_NewCFunction2(ctx, js_stk_constructor,
                                 // "Stk", 1, JS_CFUNC_constructor, 0);
+  JS_SetPropertyFunctionList(ctx, stk_ctor, js_stk_static_funcs, countof(js_stk_static_funcs));
   stk_proto = JS_NewObject(ctx);
 
   JS_SetPropertyFunctionList(ctx, stk_proto, js_stk_funcs, countof(js_stk_funcs));
