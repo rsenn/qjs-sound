@@ -25,7 +25,9 @@ set(_NQR_CXX_FLAGS "${_NQR_CXX_FLAGS} -fPIC -w")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -w")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -w")]]
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/functions.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Functions.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Compat.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Checks.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/check-flags.cmake)
 
 check_flag("-w" F_NOWARN MODULE_COMPILE_FLAGS)
