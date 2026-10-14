@@ -763,19 +763,25 @@ js_portmidi_init(JSContext* ctx, JSModuleDef* m) {
 }
 
 VISIBLE void
-js_init_module_portmidi(JSContext* ctx, JSModuleDef* m) {
+js_portmidi_add_exports(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "PortMidiStream");
   JS_AddModuleExport(ctx, m, "PmDeviceInfo");
   JS_AddModuleExport(ctx, m, "devices");
   JS_AddModuleExportList(ctx, m, js_portmidi_funcs, countof(js_portmidi_funcs));
 }
 
+#ifdef JS_SHARED_LIBRARY
+#define JS_INIT_MODULE js_init_module
+#else
+#define JS_INIT_MODULE js_init_module_portmidi
+#endif
+
 VISIBLE JSModuleDef*
-js_init_module(JSContext* ctx, const char* module_name) {
+JS_INIT_MODULE(JSContext* ctx, const char* module_name) {
   JSModuleDef* m;
 
   if((m = JS_NewCModule(ctx, module_name, js_portmidi_init))) {
-    js_init_module_portmidi(ctx, m);
+    js_portmidi_add_exports(ctx, m);
   }
 
   return m;

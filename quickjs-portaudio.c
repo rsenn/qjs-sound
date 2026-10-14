@@ -1225,7 +1225,7 @@ js_portaudio_init(JSContext* ctx, JSModuleDef* m) {
 }
 
 VISIBLE void
-js_init_module_portaudio(JSContext* ctx, JSModuleDef* m) {
+js_portaudio_add_exports(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "PaStream");
   JS_AddModuleExport(ctx, m, "PaDeviceInfo");
   JS_AddModuleExport(ctx, m, "HostApiInfo");
@@ -1234,12 +1234,18 @@ js_init_module_portaudio(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExportList(ctx, m, js_portaudio_funcs, countof(js_portaudio_funcs));
 }
 
+#ifdef JS_SHARED_LIBRARY
+#define JS_INIT_MODULE js_init_module
+#else
+#define JS_INIT_MODULE js_init_module_portaudio
+#endif
+
 VISIBLE JSModuleDef*
-js_init_module(JSContext* ctx, const char* module_name) {
+JS_INIT_MODULE(JSContext* ctx, const char* module_name) {
   JSModuleDef* m;
 
   if((m = JS_NewCModule(ctx, module_name, js_portaudio_init))) {
-    js_init_module_portaudio(ctx, m);
+    js_portaudio_add_exports(ctx, m);
   }
 
   return m;

@@ -399,17 +399,23 @@ js_sndfile_init(JSContext* ctx, JSModuleDef* m) {
 }
 
 VISIBLE void
-js_init_module_sndfile(JSContext* ctx, JSModuleDef* m) {
+js_sndfile_add_exports(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "SndFile");
   JS_AddModuleExportList(ctx, m, js_sndfile_module_funcs, countof(js_sndfile_module_funcs));
 }
 
+#ifdef JS_SHARED_LIBRARY
+#define JS_INIT_MODULE js_init_module
+#else
+#define JS_INIT_MODULE js_init_module_sndfile
+#endif
+
 VISIBLE JSModuleDef*
-js_init_module(JSContext* ctx, const char* module_name) {
+JS_INIT_MODULE(JSContext* ctx, const char* module_name) {
   JSModuleDef* m;
 
   if((m = JS_NewCModule(ctx, module_name, js_sndfile_init)))
-    js_init_module_sndfile(ctx, m);
+    js_sndfile_add_exports(ctx, m);
 
   return m;
 }

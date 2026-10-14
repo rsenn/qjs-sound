@@ -19,7 +19,7 @@ typedef struct {
 
 /* Resolves a JS array of Float32Arrays (one per channel, per Rubber
  * Band's own planar - never interleaved - calling convention, see
- * doc/rubberband.md) into `ptrs[0..channels)`. `*out_frames` is set to
+ * doc/native/rubberband.md) into `ptrs[0..channels)`. `*out_frames` is set to
  * the shortest length (in samples) across all channel buffers, matching
  * how `samples`/capacity is derived elsewhere in this project (e.g.
  * SndFile.read()'s default-frames convention). */
@@ -402,17 +402,23 @@ js_rubberband_init(JSContext* ctx, JSModuleDef* m) {
 }
 
 VISIBLE void
-js_init_module_rubberband(JSContext* ctx, JSModuleDef* m) {
+js_rubberband_add_exports(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "RubberBandStretcher");
   JS_AddModuleExportList(ctx, m, js_rubberband_module_funcs, countof(js_rubberband_module_funcs));
 }
 
+#ifdef JS_SHARED_LIBRARY
+#define JS_INIT_MODULE js_init_module
+#else
+#define JS_INIT_MODULE js_init_module_rubberband
+#endif
+
 VISIBLE JSModuleDef*
-js_init_module(JSContext* ctx, const char* module_name) {
+JS_INIT_MODULE(JSContext* ctx, const char* module_name) {
   JSModuleDef* m;
 
   if((m = JS_NewCModule(ctx, module_name, js_rubberband_init)))
-    js_init_module_rubberband(ctx, m);
+    js_rubberband_add_exports(ctx, m);
 
   return m;
 }

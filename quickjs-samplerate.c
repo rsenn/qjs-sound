@@ -10,7 +10,7 @@
  * sizing an internally-allocated output buffer (no `output` argument
  * passed to .process()/.simple()) - libsamplerate does not report in
  * advance exactly how many frames a given input+ratio will produce, see
- * doc/samplerate.md's "output-sizing heuristic" open question. */
+ * doc/native/samplerate.md's "output-sizing heuristic" open question. */
 #define SRC_OUTPUT_HEADROOM_FRAMES 256
 
 static JSClassID js_srcstate_class_id;
@@ -344,17 +344,23 @@ js_samplerate_init(JSContext* ctx, JSModuleDef* m) {
 }
 
 VISIBLE void
-js_init_module_samplerate(JSContext* ctx, JSModuleDef* m) {
+js_samplerate_add_exports(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "SampleRateConverter");
   JS_AddModuleExportList(ctx, m, js_samplerate_funcs, countof(js_samplerate_funcs));
 }
 
+#ifdef JS_SHARED_LIBRARY
+#define JS_INIT_MODULE js_init_module
+#else
+#define JS_INIT_MODULE js_init_module_samplerate
+#endif
+
 VISIBLE JSModuleDef*
-js_init_module(JSContext* ctx, const char* module_name) {
+JS_INIT_MODULE(JSContext* ctx, const char* module_name) {
   JSModuleDef* m;
 
   if((m = JS_NewCModule(ctx, module_name, js_samplerate_init)))
-    js_init_module_samplerate(ctx, m);
+    js_samplerate_add_exports(ctx, m);
 
   return m;
 }

@@ -3941,7 +3941,7 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
 }
 
 extern "C" VISIBLE void
-js_init_module_stk(JSContext* ctx, JSModuleDef* m) {
+js_stk_add_exports(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "BiQuad");
   JS_AddModuleExport(ctx, m, "DelayA");
   JS_AddModuleExport(ctx, m, "DelayL");
@@ -4022,13 +4022,19 @@ js_init_module_stk(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "RtAudio");
 }
 
+#ifdef JS_SHARED_LIBRARY
+#define JS_INIT_MODULE js_init_module
+#else
+#define JS_INIT_MODULE js_init_module_stk
+#endif
+
 extern "C" VISIBLE JSModuleDef*
-js_init_module(JSContext* ctx, const char* module_name) {
+JS_INIT_MODULE(JSContext* ctx, const char* module_name) {
   JSModuleDef* m;
 
   if((m = JS_NewCModule(ctx, module_name, js_stk_init))) {
 #ifdef USE_STK
-    js_init_module_stk(ctx, m);
+    js_stk_add_exports(ctx, m);
 #endif
   }
 

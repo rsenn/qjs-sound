@@ -102,6 +102,47 @@ endif(USE_STK)
 include(CheckCCompilerFlag)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindQuickJS.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/QuickJSModule.cmake)
+quickjs_module_options(SHARED_DEFAULT ON STATIC_DEFAULT OFF)
+
+# module_include_directories <name> [dirs...]
+#
+# Set the include directories of the shared (qjs-<name>) and static (qjs-<name>-static)
+# target of a module, whichever of them BUILD_SHARED/BUILD_STATIC created. Replaces the
+# directory-wide ones, so another library's same-named header (stk's ADSR.h) is not found.
+function(module_include_directories NAME)
+  foreach(T qjs-${NAME} qjs-${NAME}-static)
+    if(TARGET ${T})
+      set_target_properties(${T} PROPERTIES INCLUDE_DIRECTORIES "${QUICKJS_INCLUDE_DIR};${ARGN}")
+    endif(TARGET ${T})
+  endforeach(T)
+endfunction(module_include_directories)
+
+# module_link_libraries <name> [libs...]
+#
+# Link libs into the shared and static target of a module.
+function(module_link_libraries NAME)
+  foreach(T qjs-${NAME} qjs-${NAME}-static)
+    if(TARGET ${T})
+      target_link_libraries(${T} PRIVATE ${ARGN})
+    endif(TARGET ${T})
+  endforeach(T)
+
+  # make_module() wrote quickjs-<name>.module.cmake before these libraries were known
+  if(TARGET qjs-${NAME}-static AND ARGN)
+    file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/quickjs-${NAME}.module.cmake"
+         "list(APPEND ${NAME}_MODULE_LIBRARIES \"${ARGN}\")\n"
+         "set(${NAME}_MODULE \"\${${NAME}_MODULE_LIBRARY};\${${NAME}_MODULE_LIBRARIES}\")\n")
+  endif()
+endfunction(module_link_libraries)
+
+# module_compile_definitions <name> [defs...]
+function(module_compile_definitions NAME)
+  foreach(T qjs-${NAME} qjs-${NAME}-static)
+    if(TARGET ${T})
+      target_compile_definitions(${T} PRIVATE ${ARGN})
+    endif(TARGET ${T})
+  endforeach(T)
+endfunction(module_compile_definitions)
 
 set(labsound_LINK_DIRECTORIES ${LABSOUND_BINARY_DIR}/bin
                               ${LABSOUND_BINARY_DIR}/third_party/libnyquist/lib)
@@ -183,19 +224,13 @@ if(USE_STK)
 
   set(COMMON_SOURCES quickjs-typedarray.c)
 
-  make_module(stk cpp)
+  make_module(stk quickjs-stk.cpp)
 
   unset(COMMON_SOURCES)
 
   include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/include"
                       "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/src/include")
-  set_target_properties(
-    qjs-stk
-    PROPERTIES
-      COMPILE_FLAGS ${MODULE_COMPILE_FLAGS}
-      INCLUDE_DIRECTORIES
-      "${QUICKJS_INCLUDE_DIR};${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/include;${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/src/include"
-  )
+  module_include_directories(stk "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/include" "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/src/include")
 endif(USE_STK)
 
 if(USE_AUBIO)
@@ -203,12 +238,10 @@ if(USE_AUBIO)
 
   set(aubio_LIBRARIES ${AUBIO_LIBRARIES})
 
-  make_module(aubio c)
+  make_module(aubio)
 
   include_directories(${AUBIO_INCLUDE_DIRS})
-  set_target_properties(
-    qjs-aubio PROPERTIES INCLUDE_DIRECTORIES
-                         "${QUICKJS_INCLUDE_DIR};${AUBIO_INCLUDE_DIRS}")
+  module_include_directories(aubio ${AUBIO_INCLUDE_DIRS})
 endif(USE_AUBIO)
 
 if(USE_LABSOUND)
@@ -224,7 +257,7 @@ if(USE_LABSOUND)
 
   set(COMMON_SOURCES quickjs-typedarray.c)
 
-  make_module(labsound cpp)
+  make_module(labsound quickjs-labsound.cpp)
 
   unset(COMMON_SOURCES)
 
@@ -232,13 +265,7 @@ if(USE_LABSOUND)
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/third_party/libnyquist/include"
   )
-  set_target_properties(
-    qjs-labsound
-    PROPERTIES
-      COMPILE_FLAGS ${MODULE_COMPILE_FLAGS}
-      INCLUDE_DIRECTORIES
-      "${QUICKJS_INCLUDE_DIR};${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include;${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/third_party/libnyquist/include"
-  )
+  module_include_directories(labsound "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include" "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/third_party/libnyquist/include")
 
   add_executable(test-labsound test-labsound.cpp)
 
@@ -248,7 +275,7 @@ endif(USE_LABSOUND)
 if(USE_PORTAUDIO)
   include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindPortAudio.cmake")
 
-  make_module(portaudio c)
+  make_module(portaudio)
 
   # check_symbol_exists (a header check) rather than check_library_exists
   # (a compiled-library check): the latter needs an already-built library
@@ -264,21 +291,20 @@ if(USE_PORTAUDIO)
   unset(CMAKE_REQUIRED_INCLUDES)
 
   if(HAVE_GETSTREAMHOSTAPITYPE)
-    target_compile_definitions(qjs-portaudio
-                               PRIVATE HAVE_GETSTREAMHOSTAPITYPE=1)
+    module_compile_definitions(portaudio HAVE_GETSTREAMHOSTAPITYPE=1)
   endif(HAVE_GETSTREAMHOSTAPITYPE)
 
-  target_include_directories(qjs-portaudio PRIVATE ${PORTAUDIO_INCLUDE_DIRS})
-  target_link_libraries(qjs-portaudio PRIVATE ${PORTAUDIO_LIBRARIES})
+  module_include_directories(portaudio ${PORTAUDIO_INCLUDE_DIRS})
+  module_link_libraries(portaudio ${PORTAUDIO_LIBRARIES})
 endif(USE_PORTAUDIO)
 
 if(USE_PORTMIDI)
   include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindPortMIDI.cmake")
 
-  make_module(portmidi c)
+  make_module(portmidi)
 
-  target_include_directories(qjs-portmidi PRIVATE ${PORTMIDI_INCLUDE_DIRS})
-  target_link_libraries(qjs-portmidi PRIVATE ${PORTMIDI_LIBRARIES})
+  module_include_directories(portmidi ${PORTMIDI_INCLUDE_DIRS})
+  module_link_libraries(portmidi ${PORTMIDI_LIBRARIES})
 endif(USE_PORTMIDI)
 
 if(USE_SNDFILE)
@@ -286,20 +312,16 @@ if(USE_SNDFILE)
 
   set(sndfile_LIBRARIES ${SNDFILE_LIBRARIES})
   # quickjs-typedarray.c is shared TypedArray/ArrayBuffer marshalling
-  # code, not part of libsndfile itself - see doc/sndfile.md's "Shared
+  # code, not part of libsndfile itself - see doc/native/sndfile.md's "Shared
   # TypedArray/buffer interop" section.
   set(COMMON_SOURCES quickjs-typedarray.c)
 
-  make_module(sndfile c)
+  make_module(sndfile)
 
   unset(COMMON_SOURCES)
 
   include_directories(${SNDFILE_INCLUDE_DIRS})
-  set_target_properties(
-    qjs-sndfile
-    PROPERTIES COMPILE_FLAGS ${MODULE_COMPILE_FLAGS}
-               INCLUDE_DIRECTORIES
-               "${QUICKJS_INCLUDE_DIR};${SNDFILE_INCLUDE_DIRS}")
+  module_include_directories(sndfile ${SNDFILE_INCLUDE_DIRS})
 endif(USE_SNDFILE)
 
 if(USE_SAMPLERATE)
@@ -308,16 +330,12 @@ if(USE_SAMPLERATE)
   set(samplerate_LIBRARIES ${SAMPLERATE_LIBRARIES})
   set(COMMON_SOURCES quickjs-typedarray.c)
 
-  make_module(samplerate c)
+  make_module(samplerate)
 
   unset(COMMON_SOURCES)
 
   include_directories(${SAMPLERATE_INCLUDE_DIRS})
-  set_target_properties(
-    qjs-samplerate
-    PROPERTIES COMPILE_FLAGS ${MODULE_COMPILE_FLAGS}
-               INCLUDE_DIRECTORIES
-               "${QUICKJS_INCLUDE_DIR};${SAMPLERATE_INCLUDE_DIRS}")
+  module_include_directories(samplerate ${SAMPLERATE_INCLUDE_DIRS})
 endif(USE_SAMPLERATE)
 
 if(USE_SOUNDTOUCH)
@@ -326,16 +344,12 @@ if(USE_SOUNDTOUCH)
   set(soundtouch_LIBRARIES ${SOUNDTOUCH_LIBRARIES})
   set(COMMON_SOURCES quickjs-typedarray.c)
 
-  make_module(soundtouch cpp)
+  make_module(soundtouch quickjs-soundtouch.cpp)
 
   unset(COMMON_SOURCES)
 
   include_directories(${SOUNDTOUCH_INCLUDE_DIRS})
-  set_target_properties(
-    qjs-soundtouch
-    PROPERTIES COMPILE_FLAGS ${MODULE_COMPILE_FLAGS}
-               INCLUDE_DIRECTORIES
-               "${QUICKJS_INCLUDE_DIR};${SOUNDTOUCH_INCLUDE_DIRS}")
+  module_include_directories(soundtouch ${SOUNDTOUCH_INCLUDE_DIRS})
 endif(USE_SOUNDTOUCH)
 
 if(USE_RUBBERBAND)
@@ -344,21 +358,17 @@ if(USE_RUBBERBAND)
   set(rubberband_LIBRARIES ${RUBBERBAND_LIBRARIES})
   set(COMMON_SOURCES quickjs-typedarray.c)
 
-  make_module(rubberband c)
+  make_module(rubberband)
 
   unset(COMMON_SOURCES)
 
   include_directories(${RUBBERBAND_INCLUDE_DIRS})
-  set_target_properties(
-    qjs-rubberband
-    PROPERTIES COMPILE_FLAGS ${MODULE_COMPILE_FLAGS}
-               INCLUDE_DIRECTORIES
-               "${QUICKJS_INCLUDE_DIR};${RUBBERBAND_INCLUDE_DIRS}")
+  module_include_directories(rubberband ${RUBBERBAND_INCLUDE_DIRS})
 endif(USE_RUBBERBAND)
 
 if(USE_SNDOBJ)
   # Only the sources needed by the 11 classes this module binds (see
-  # doc/sndobj.md) - not a glob, since most of third_party/sndobj/src
+  # doc/native/sndobj.md) - not a glob, since most of third_party/sndobj/src
   # (file/realtime/MIDI IO, the FFT/phase-vocoder family) is out of scope
   # and the FFT family additionally needs a vendored rfftw/rfftw.h this
   # tree doesn't ship in its include path.
@@ -383,15 +393,10 @@ if(USE_SNDOBJ)
 
   set(COMMON_SOURCES quickjs-typedarray.c)
 
-  make_module(sndobj cpp)
+  make_module(sndobj quickjs-sndobj.cpp)
 
   unset(COMMON_SOURCES)
 
   include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src")
-  set_target_properties(
-    qjs-sndobj
-    PROPERTIES
-      COMPILE_FLAGS ${MODULE_COMPILE_FLAGS}
-      INCLUDE_DIRECTORIES
-      "${QUICKJS_INCLUDE_DIR};${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src")
+  module_include_directories(sndobj "${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src")
 endif(USE_SNDOBJ)

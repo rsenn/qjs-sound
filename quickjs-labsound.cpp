@@ -27,7 +27,6 @@
 #include <utility>
 
 extern int js_stk_init(JSContext* ctx, JSModuleDef* m);
-extern "C" void js_init_module_stk(JSContext* ctx, JSModuleDef*);
 
 static JSClassID js_audiocontext_class_id;
 static JSClassID js_audiodestinationnode_class_id;
@@ -3272,7 +3271,7 @@ js_labsound_init(JSContext* ctx, JSModuleDef* m) {
 }
 
 extern "C" VISIBLE void
-js_init_module_labsound(JSContext* ctx, JSModuleDef* m) {
+js_labsound_add_exports(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "AudioContext");
   JS_AddModuleExport(ctx, m, "OfflineAudioContext");
   JS_AddModuleExport(ctx, m, "AudioDestinationNode");
@@ -3294,11 +3293,17 @@ js_init_module_labsound(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "ConstantSourceNode");
 }
 
+#ifdef JS_SHARED_LIBRARY
+#define JS_INIT_MODULE js_init_module
+#else
+#define JS_INIT_MODULE js_init_module_labsound
+#endif
+
 extern "C" VISIBLE JSModuleDef*
-js_init_module(JSContext* ctx, const char* module_name) {
+JS_INIT_MODULE(JSContext* ctx, const char* module_name) {
   JSModuleDef* m;
   if((m = JS_NewCModule(ctx, module_name, js_labsound_init))) {
-    js_init_module_labsound(ctx, m);
+    js_labsound_add_exports(ctx, m);
   }
   return m;
 }

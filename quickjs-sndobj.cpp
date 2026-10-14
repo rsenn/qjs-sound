@@ -1427,7 +1427,7 @@ js_sndobj_init(JSContext* ctx, JSModuleDef* m) {
 }
 
 extern "C" VISIBLE void
-js_init_module_sndobj(JSContext* ctx, JSModuleDef* m) {
+js_sndobj_add_exports(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "HarmTable");
   JS_AddModuleExport(ctx, m, "Oscili");
   JS_AddModuleExport(ctx, m, "Buzz");
@@ -1441,12 +1441,18 @@ js_init_module_sndobj(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "Mixer");
 }
 
+#ifdef JS_SHARED_LIBRARY
+#define JS_INIT_MODULE js_init_module
+#else
+#define JS_INIT_MODULE js_init_module_sndobj
+#endif
+
 extern "C" VISIBLE JSModuleDef*
-js_init_module(JSContext* ctx, const char* module_name) {
+JS_INIT_MODULE(JSContext* ctx, const char* module_name) {
   JSModuleDef* m;
 
   if((m = JS_NewCModule(ctx, module_name, js_sndobj_init)))
-    js_init_module_sndobj(ctx, m);
+    js_sndobj_add_exports(ctx, m);
 
   return m;
 }

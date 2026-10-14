@@ -692,18 +692,24 @@ js_aubio_init(JSContext* ctx, JSModuleDef* m) {
 }
 
 VISIBLE void
-js_init_module_aubio(JSContext* ctx, JSModuleDef* m) {
+js_aubio_add_exports(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "AubioNotes");
   JS_AddModuleExport(ctx, m, "AubioOnset");
   JS_AddModuleExport(ctx, m, "AubioPitch");
 }
 
+#ifdef JS_SHARED_LIBRARY
+#define JS_INIT_MODULE js_init_module
+#else
+#define JS_INIT_MODULE js_init_module_aubio
+#endif
+
 VISIBLE JSModuleDef*
-js_init_module(JSContext* ctx, const char* module_name) {
+JS_INIT_MODULE(JSContext* ctx, const char* module_name) {
   JSModuleDef* m;
 
   if((m = JS_NewCModule(ctx, module_name, js_aubio_init))) {
-    js_init_module_aubio(ctx, m);
+    js_aubio_add_exports(ctx, m);
   }
 
   return m;

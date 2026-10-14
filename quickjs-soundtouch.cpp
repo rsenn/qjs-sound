@@ -13,7 +13,7 @@ static JSValue soundtouch_proto, soundtouch_ctor;
 
 /* tempo/pitch/rate have no native getter in SoundTouch's own C++ API
  * (only setters) - cached here at the last successful set, per
- * doc/soundtouch.md's "Properties" section. */
+ * doc/native/soundtouch.md's "Properties" section. */
 typedef struct {
   SoundTouch* st;
   double cachedTempo;
@@ -301,17 +301,23 @@ js_soundtouch_init(JSContext* ctx, JSModuleDef* m) {
 }
 
 extern "C" VISIBLE void
-js_init_module_soundtouch(JSContext* ctx, JSModuleDef* m) {
+js_soundtouch_add_exports(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "SoundTouch");
   JS_AddModuleExportList(ctx, m, js_soundtouch_module_funcs, countof(js_soundtouch_module_funcs));
 }
 
+#ifdef JS_SHARED_LIBRARY
+#define JS_INIT_MODULE js_init_module
+#else
+#define JS_INIT_MODULE js_init_module_soundtouch
+#endif
+
 extern "C" VISIBLE JSModuleDef*
-js_init_module(JSContext* ctx, const char* module_name) {
+JS_INIT_MODULE(JSContext* ctx, const char* module_name) {
   JSModuleDef* m;
 
   if((m = JS_NewCModule(ctx, module_name, js_soundtouch_init)))
-    js_init_module_soundtouch(ctx, m);
+    js_soundtouch_add_exports(ctx, m);
 
   return m;
 }
