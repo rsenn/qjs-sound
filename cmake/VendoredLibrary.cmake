@@ -97,6 +97,9 @@ endfunction()
 #   [EXTRA_LIBRARIES <lib1> ...]
 #   [PATCH <path/to/some.patch>])
 #
+# PATCH is applied to a copy in the build tree; the submodule itself is
+# never modified.
+#
 # Builds a vendored git-submodule copy of a library as a static, -fPIC
 # archive, via add_subdirectory() (in-process, one configure pass - not
 # ExternalProject_Add, which needs a second configure+build pass; every
@@ -122,22 +125,64 @@ function(vendored_build_static_subdirectory NAME)
     )
   endif()
 
+  # The submodule is someone else's repository: never edit it. With PATCH,
+  # the (sub)directory is copied to the build tree, the patch is applied to
+  # the copy, and that copy is what add_subdirectory() sees.
+  #
+  #   third_party/aubio/src  ->  <build>/third_party/aubio-patched/src
+  #
+  # A stamp of the submodule commit and the patch hash makes re-runs a no-op,
+  # so no file is rewritten (a rewritten CMakeLists.txt would re-trigger
+  # configure on every build).
+  set(BUILD_SRC_DIR "${SRC_DIR}")
   if(VBSS_PATCH)
     find_package(Git REQUIRED)
-    execute_process(
-      COMMAND "${GIT_EXECUTABLE}" apply --reverse --check "${VBSS_PATCH}"
-      WORKING_DIRECTORY "${SRC_DIR}" RESULT_VARIABLE PATCH_ALREADY_APPLIED
-      OUTPUT_QUIET ERROR_QUIET)
-    if(NOT PATCH_ALREADY_APPLIED EQUAL 0)
-      message(STATUS "Patching ${VBSS_SUBMODULE_DIR} (${VBSS_PATCH})")
-      execute_process(
-        COMMAND "${GIT_EXECUTABLE}" apply "${VBSS_PATCH}"
-        WORKING_DIRECTORY "${SRC_DIR}" RESULT_VARIABLE PATCH_RESULT)
-      if(NOT PATCH_RESULT EQUAL 0)
-        message(
-          FATAL_ERROR "Failed to apply ${VBSS_PATCH} to ${VBSS_SUBMODULE_DIR}")
-      endif()
+    set(PATCHED_ROOT "${CMAKE_CURRENT_BINARY_DIR}/${VBSS_SUBMODULE_DIR}-patched")
+    if(VBSS_CMAKE_SUBDIR)
+      set(COPY_FROM "${SRC_DIR}/${VBSS_CMAKE_SUBDIR}")
+      set(COPY_TO "${PATCHED_ROOT}/${VBSS_CMAKE_SUBDIR}")
+    else()
+      set(COPY_FROM "${SRC_DIR}")
+      set(COPY_TO "${PATCHED_ROOT}")
     endif()
+
+    execute_process(
+      COMMAND "${GIT_EXECUTABLE}" rev-parse HEAD WORKING_DIRECTORY "${SRC_DIR}"
+      OUTPUT_VARIABLE SUBMODULE_HEAD OUTPUT_STRIP_TRAILING_WHITESPACE
+      ERROR_QUIET)
+    file(SHA1 "${VBSS_PATCH}" PATCH_HASH)
+    set(PATCH_STAMP "${PATCHED_ROOT}/.patched")
+    set(STAMP_WANTED "${SUBMODULE_HEAD} ${PATCH_HASH}")
+    set(STAMP_HAVE "")
+    if(EXISTS "${PATCH_STAMP}")
+      file(READ "${PATCH_STAMP}" STAMP_HAVE)
+    endif()
+
+    if(NOT "${STAMP_HAVE}" STREQUAL "${STAMP_WANTED}")
+      message(STATUS "Patching a copy of ${VBSS_SUBMODULE_DIR} (${VBSS_PATCH})")
+      file(REMOVE_RECURSE "${PATCHED_ROOT}")
+      file(COPY "${COPY_FROM}/" DESTINATION "${COPY_TO}")
+
+      # GIT_CEILING_DIRECTORIES keeps git from finding the enclosing
+      # repository: inside one, `git apply` skips files it does not track
+      # and still exits 0.
+      set(GIT_APPLY ${CMAKE_COMMAND} -E env
+          "GIT_CEILING_DIRECTORIES=${CMAKE_CURRENT_BINARY_DIR}"
+          "${GIT_EXECUTABLE}" apply)
+      execute_process(COMMAND ${GIT_APPLY} "${VBSS_PATCH}"
+                      WORKING_DIRECTORY "${PATCHED_ROOT}" RESULT_VARIABLE PATCH_RESULT)
+      execute_process(COMMAND ${GIT_APPLY} --reverse --check "${VBSS_PATCH}"
+                      WORKING_DIRECTORY "${PATCHED_ROOT}" RESULT_VARIABLE PATCH_VERIFY
+                      OUTPUT_QUIET ERROR_QUIET)
+      if(NOT PATCH_RESULT EQUAL 0 OR NOT PATCH_VERIFY EQUAL 0)
+        file(REMOVE_RECURSE "${PATCHED_ROOT}")
+        message(FATAL_ERROR
+                "Failed to apply ${VBSS_PATCH} to a copy of ${VBSS_SUBMODULE_DIR}")
+      endif()
+      file(WRITE "${PATCH_STAMP}" "${STAMP_WANTED}")
+    endif()
+
+    set(BUILD_SRC_DIR "${PATCHED_ROOT}")
   endif()
 
   # Every OPTIONS entry is a real -DFOO=BAR string; force each into the
@@ -176,10 +221,10 @@ function(vendored_build_static_subdirectory NAME)
   set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
   if(VBSS_CMAKE_SUBDIR)
-    add_subdirectory("${SRC_DIR}/${VBSS_CMAKE_SUBDIR}"
+    add_subdirectory("${BUILD_SRC_DIR}/${VBSS_CMAKE_SUBDIR}"
                      "${CMAKE_CURRENT_BINARY_DIR}/${VBSS_SUBMODULE_DIR}")
   else()
-    add_subdirectory("${SRC_DIR}"
+    add_subdirectory("${BUILD_SRC_DIR}"
                      "${CMAKE_CURRENT_BINARY_DIR}/${VBSS_SUBMODULE_DIR}")
   endif()
 
