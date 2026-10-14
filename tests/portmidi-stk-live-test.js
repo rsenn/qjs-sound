@@ -6,7 +6,7 @@
  * realtime audio output.
  *
  * Both bindings deliberately avoid ever calling into JS from a native
- * callback thread (see doc/portmidi.md and doc/stk-io.md, "Scope
+ * callback thread (see doc/native/portmidi.md and doc/native/stk-io.md, "Scope
  * limitations") -- everything here runs on the one JS/interpreter thread:
  * PortMidi's read()/poll() never block, and RtWvOut.tick() is STK's own
  * blocking wrapper around its realtime audio callback, so calling it
@@ -99,7 +99,7 @@ function main() {
 
   const pool = new VoicePool(POLYPHONY);
   /*
-   * Wider/deeper than doc/stk-io.md's own RtWvOut example (512, 4): the
+   * Wider/deeper than doc/native/stk-io.md's own RtWvOut example (512, 4): the
    * per-sample JS loop below (POLYPHONY tick() calls each) is slower than
    * native code, so it needs more buffered headroom to stay ahead of the
    * audio callback and avoid underruns.

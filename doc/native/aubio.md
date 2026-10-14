@@ -35,7 +35,7 @@ Input is read directly out of the passed buffer without copying; the
 returned array is always a fresh copy (all four output vectors are 1-3
 elements, so this copy is negligible - unlike the multi-kilosample audio
 buffers passed to `sndfile`/`soundtouch`/`samplerate`, where copying would
-actually matter; see `doc/sndfile.md`'s "Cross-binding zero-copy pipeline"
+actually matter; see `doc/native/sndfile.md`'s "Cross-binding zero-copy pipeline"
 section for how those three stay copy-free end to end. `aubio`'s classes
 can tap directly into any buffer moving through that pipeline - `process()`
 only reads it, never mutates it, so running e.g. `AubioTempo`/`AubioPitch`

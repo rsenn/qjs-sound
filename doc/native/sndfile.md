@@ -130,8 +130,8 @@ is float-only.
 
 The whole point of `quickjs-typedarray.h` existing as one *shared* header
 rather than being reinvented separately by each new binding is that
-`sndfile`, `soundtouch`, and `samplerate` (`doc/soundtouch.md`,
-`doc/samplerate.md`) can then be chained - decode, resample, process,
+`sndfile`, `soundtouch`, and `samplerate` (`doc/native/soundtouch.md`,
+`doc/native/samplerate.md`) can then be chained - decode, resample, process,
 re-encode - **without a single JS-side or native-side copy** anywhere in
 the steady-state loop, because every one of them already reads its input
 straight out of the caller's `ArrayBuffer` (via `js_bufferview_get*`) and,
@@ -144,8 +144,8 @@ its output straight into a caller-supplied buffer too:
 | `SndFile.write(buffer, frames?)` | yes (always) | - |
 | `SoundTouch.putSamples(buffer)` | yes (always) | - |
 | `SoundTouch.receiveSamples(buffer)` | - | yes (always) |
-| `SampleRateConverter.process(input, ratio, endOfInput, output?)` | yes (always) | yes, when `output` is passed (see `doc/samplerate.md`) |
-| `AubioOnset`/`AubioPitch`/`AubioNotes`/`AubioTempo`.`process(input)` (`doc/aubio.md`) | yes (always) | no (output is 1-3 floats, always a fresh copy - not worth optimizing) |
+| `SampleRateConverter.process(input, ratio, endOfInput, output?)` | yes (always) | yes, when `output` is passed (see `doc/native/samplerate.md`) |
+| `AubioOnset`/`AubioPitch`/`AubioNotes`/`AubioTempo`.`process(input)` (`doc/native/aubio.md`) | yes (always) | no (output is 1-3 floats, always a fresh copy - not worth optimizing) |
 
 Because every stage's *input* side is already zero-copy, and both
 `SndFile.read`/`.write` and `SoundTouch`'s push/pull pair write straight
@@ -187,7 +187,7 @@ const pitch = new AubioPitch('yinfft', CHUNK, CHUNK, TARGET_RATE); // bufSize ==
 // Allocated once, reused for the whole file - this is the entire
 // working-buffer footprint of the pipeline.
 const inBuf = new Float32Array(CHUNK * channels);
-const resampled = new Float32Array((Math.ceil(CHUNK * ratio) + 256) * channels); // headroom, see doc/samplerate.md
+const resampled = new Float32Array((Math.ceil(CHUNK * ratio) + 256) * channels); // headroom, see doc/native/samplerate.md
 const outBuf = new Float32Array(CHUNK * channels);
 
 let frames;
@@ -195,7 +195,7 @@ while ((frames = src.read(inBuf, CHUNK)) > 0) {
   const isLast = frames < CHUNK;
   const input = frames === CHUNK ? inBuf : inBuf.subarray(0, frames * channels);
 
-  // 1. Resample straight into `resampled` - no allocation (doc/samplerate.md).
+  // 1. Resample straight into `resampled` - no allocation (doc/native/samplerate.md).
   const produced = conv.process(input, ratio, isLast, resampled);
   const resampledView = resampled.subarray(0, produced * channels);
 

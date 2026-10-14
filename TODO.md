@@ -331,7 +331,7 @@ other nodes derive from), `AudioProcessor`, `AudioNodeDescriptor`,
 
 `quickjs-sndobj.cpp` wraps a first pass of `third_party/sndobj` - 11 classes
 across a `Table` family, a generator family, and an effect family (see
-`doc/sndobj.md`). 114 headers exist under
+`doc/native/sndobj.md`). 114 headers exist under
 `third_party/sndobj/include/SndObj/`; 18 are touched by the current binding
 (11 exported, plus `DelayLine`/`Filter`/`Oscil`/`Rand`/`Randh`/`SndObj`/`Table`
 used internally as bases, not exported directly). The other 96 are listed
@@ -355,7 +355,50 @@ below, grouped by what they'd need to bind.
 | Physical modeling | `StringFlt`, `Pluck` | Karplus-Strong string; `Pluck` extends `StringFlt`. Good next addition for a plucked-string voice. |
 | Pitch tracking/shifting | `Pitch`, `Ptrack` | Pitch analysis/shifting; `Pitch` depends on the FFT/phase-vocoder family below. |
 | Mixing/utility | `Balance`, `Interp`, `Lookup`, `Lookupi`, `Phase`, `Ring`, `Unit` | Small standalone utility `SndObj`s - `Ring` (ring modulation) is the most directly synth-relevant. |
-| Stereo pan | `Pan` | Deliberately deferred (see `doc/sndobj.md`'s "Not bound" section) - its constructor manufactures two extra live `SndObj` taps (`left`/`right`), a different lifetime shape than every class bound so far. |
+| Stereo pan | `Pan` | Deliberately deferred (see `doc/native/sndobj.md`'s "Not bound" section) - its constructor manufactures two extra live `SndObj` taps (`left`/`right`), a different lifetime shape than every class bound so far. |
 | MIDI | `Bend`, `MidiIn`, `MidiMap` | MIDI input classes; project already has a separate `portmidi` module - only worth binding if driving an sndobj graph directly from MIDI (bypassing JS) becomes useful. |
 | FFT/phase-vocoder family | `AdSyn`, `Convol`, `FFT`, `FFT_alt`, `IFAdd`, `IFFT`, `IFFT_alt`, `IFGram`, `PVA`, `PVBlur`, `PVFilter`, `PVMask`, `PVMix`, `PVMorph`, `PVRead`, `PVS`, `PVTransp`, `ReSyn`, `SinAnal`, `SinSyn`, `SpecCart`, `SpecCombine`, `SpecIn`, `SpecInterp`, `SpecMult`, `SpecPolar`, `SpecSplit`, `SpecThresh`, `SpecVoc` | Blocked: needs a vendored `rfftw/rfftw.h` this tree doesn't ship on its include path (see `CMakeLists.txt`'s `sndobj_SOURCES` comment). Would need either vendoring `rfftw` properly or porting these to a different FFT backend before any of this group can compile. |
 | File/realtime/MIDI I/O | `SndASIO`, `SndAiff`, `SndBuffer`, `SndCoreAudio`, `SndFIO`, `SndIO`, `SndIn`, `SndJackIO`, `SndMidi`, `SndMidiIn`, `SndPVOCEX`, `SndRTIO`, `SndRTThread`, `SndRead`, `SndSinIO`, `SndThread`, `SndWave`, `SndWaveX` | Out of scope by design - `sndfile`/`portaudio`/`portmidi` modules already cover file I/O, realtime audio, and MIDI I/O respectively; binding sndobj's own IO layer would duplicate them. |
+
+## STK mixed-precision build (probable, not started)
+
+**Goal:** `StkFrames` and every `tick()` interface become Float32, so
+`frames.buffer` is a `Float32Array` that goes straight to `PaStream`,
+`SampleRateConverter`, `SoundTouch`, `RubberBand` (per channel) and `Aubio*`
+with no copy (`doc/api-interoperability.md` section 4.4). Internal state that
+needs the precision stays Float64. Done so far: `StkFrames.toFloat32` /
+`fromFloat32` / `sampleType` as the no-patch bridge.
+
+**Do this only if** the per-block `toFloat32` copy shows up in a profile, or
+the Float64 view in `tests/*` keeps causing mistakes. Measure first: render a
+high-Q low-frequency `BiQuad`/`TwoPole` and a long `Asymp` decay with
+`StkFloat` as double and as float, and compare.
+
+**Design**
+- Add a second typedef in `third_party/stk/include/Stk.h`:
+  `StkFloat` (I/O, float) and `StkAccum` (double). Deliver as a guarded patch
+  in `cmake/patches/` (option `QJS_STK_FLOAT32`), applied at configure time
+  like `aubio-static-lib.patch`, so `third_party/stk` stays a plain checkout.
+- Required Float64 (`StkAccum`): filter coefficients and history. `Filter.h`
+  holds `b_`, `a_` and `inputs_`/`outputs_`, and the last two are `StkFrames`,
+  which would silently become float. Same members in `BiQuad`, `OnePole`,
+  `OneZero`, `TwoPole`, `TwoZero`, `PoleZero`, `Fir`, `Iir`, `FormSwep` and the
+  `Delay*`/`TapDelay` classes (14 headers). Also the allpass/interpolation
+  state of `DelayA`/`DelayL` and the feedback state of the reverbs
+  (`JCRev`, `NRev`, `PRCRev`, `FreeVerb`); listen for float error in long tails.
+- Optional: phase accumulators (`SineWave`, `Blit*`, `Modulate`), only if a
+  very slow LFO drifts. Envelope `value_` does not need it; at most keep
+  `rate_` and the `Asymp` factor in double.
+- Vector-taking constructors (`Fir(std::vector<StkFloat>&)`, `Iir(...)`)
+  change signature; `quickjs-stk.cpp` does not call them.
+- `analog-drums.hpp` follows `StkFloat`; move its filter/phase state to
+  `StkAccum` by hand.
+- Binding: `StkFrames.sampleType` already reports `'f32'`; `.buffer` already
+  sizes from `sizeof(stk::StkFloat)`. Update the callers that hard-code
+  `new Float64Array(frames.buffer)` (`tests/twintdrum-test.js`,
+  `tests/tr909*-test.js`, `doc/native/stk-io.md`) to check `sampleType`.
+
+**Risk:** a member left as `StkFloat` that should be `StkAccum` shows up only
+as an audible difference in long IIR tails; the comparison render above is the
+regression test.
+

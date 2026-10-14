@@ -5,7 +5,7 @@
  * software or hardware synth is listening.
  *
  * PortMidi itself is I/O only -- it has no synth engine (see
- * doc/portmidi.md), so this needs a real GM synth to actually hear
+ * doc/native/portmidi.md), so this needs a real GM synth to actually hear
  * anything. The easiest one to set up is FluidSynth against any .sf2
  * soundfont, registered as an ALSA sequencer client so PortMidi sees it as
  * an output device:

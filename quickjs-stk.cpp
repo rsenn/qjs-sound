@@ -8,6 +8,7 @@
 
 #include "defines.h"
 #include "quickjs-cpp.hpp"
+#include "quickjs-typedarray.h"
 #include "Stk.h"
 #include "Generator.h"
 #include "Filter.h"
@@ -322,6 +323,8 @@ enum {
   METHOD_INTERPOLATE,
   METHOD_GETCHANNEL,
   METHOD_SETCHANNEL,
+  METHOD_TO_FLOAT32,
+  METHOD_FROM_FLOAT32,
 };
 
 static JSValue
@@ -389,6 +392,53 @@ js_stkframes_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
       (*f)->setChannel(channel, *a->get(), srcChannel);
       break;
     }
+    case METHOD_TO_FLOAT32: {
+      /* toFloat32(out?): copies every sample into a Float32Array, narrowing
+       * from stk::StkFloat; allocates one when `out` is omitted. */
+      size_t n = (*f)->size();
+
+      if(argc > 0 && !JS_IsUndefined(argv[0])) {
+        JSBufferView view;
+        if(!js_bufferview_get_kind(ctx, argv[0], JS_TYPEDARRAY_FLOAT32, &view))
+          return JS_EXCEPTION;
+        if(view.byte_length / sizeof(float) < n)
+          return JS_ThrowRangeError(ctx, "output has %zu elements, need %zu", view.byte_length / sizeof(float), n);
+
+        float* dst = reinterpret_cast<float*>(view.ptr);
+        for(size_t i = 0; i < n; i++)
+          dst[i] = static_cast<float>((**f)[i]);
+
+        ret = JS_DupValue(ctx, argv[0]);
+        break;
+      }
+
+      float* dst = static_cast<float*>(js_malloc(ctx, (n ? n : 1) * sizeof(float)));
+      if(!dst)
+        return JS_EXCEPTION;
+      for(size_t i = 0; i < n; i++)
+        dst[i] = static_cast<float>((**f)[i]);
+
+      ret = js_typedarray_from_malloc(ctx, dst, n, JS_TYPEDARRAY_FLOAT32);
+      break;
+    }
+    case METHOD_FROM_FLOAT32: {
+      /* fromFloat32(src): copies a Float32Array into the first src.length
+       * samples, widening to stk::StkFloat; returns this. */
+      JSBufferView view;
+      if(argc < 1 || !js_bufferview_get_kind(ctx, argv[0], JS_TYPEDARRAY_FLOAT32, &view))
+        return JS_EXCEPTION;
+
+      size_t n = view.byte_length / sizeof(float);
+      if(n > (*f)->size())
+        return JS_ThrowRangeError(ctx, "source has %zu elements, StkFrames holds %zu", n, (size_t)(*f)->size());
+
+      const float* src = reinterpret_cast<const float*>(view.ptr);
+      for(size_t i = 0; i < n; i++)
+        (**f)[i] = static_cast<stk::StkFloat>(src[i]);
+
+      ret = JS_DupValue(ctx, this_val);
+      break;
+    }
   }
 
   return ret;
@@ -401,6 +451,7 @@ enum {
   PROP_FRAMES,
   PROP_DATA_RATE,
   PROP_BUFFER,
+  PROP_SAMPLE_TYPE,
 };
 
 static void
@@ -437,6 +488,11 @@ js_stkframes_get(JSContext* ctx, JSValueConst this_val, int magic) {
     }
     case PROP_DATA_RATE: {
       ret = JS_NewFloat64(ctx, (*f)->dataRate());
+      break;
+    }
+    case PROP_SAMPLE_TYPE: {
+      /* element type of `buffer`: Float64Array for 'f64', Float32Array for 'f32' */
+      ret = JS_NewString(ctx, sizeof(stk::StkFloat) == sizeof(double) ? "f64" : "f32");
       break;
     }
     case PROP_BUFFER: {
@@ -495,12 +551,15 @@ static const JSCFunctionListEntry js_stkframes_funcs[] = {
     JS_CFUNC_MAGIC_DEF("interpolate", 1, js_stkframes_method, METHOD_INTERPOLATE),
     JS_CFUNC_MAGIC_DEF("getChannel", 3, js_stkframes_method, METHOD_GETCHANNEL),
     JS_CFUNC_MAGIC_DEF("setChannel", 3, js_stkframes_method, METHOD_SETCHANNEL),
+    JS_CFUNC_MAGIC_DEF("toFloat32", 0, js_stkframes_method, METHOD_TO_FLOAT32),
+    JS_CFUNC_MAGIC_DEF("fromFloat32", 1, js_stkframes_method, METHOD_FROM_FLOAT32),
     JS_CGETSET_MAGIC_DEF("size", js_stkframes_get, 0, PROP_SIZE),
     JS_CGETSET_MAGIC_DEF("empty", js_stkframes_get, 0, PROP_EMPTY),
     JS_CGETSET_MAGIC_DEF("channels", js_stkframes_get, 0, PROP_CHANNELS),
     JS_CGETSET_MAGIC_DEF("frames", js_stkframes_get, 0, PROP_FRAMES),
     JS_CGETSET_MAGIC_DEF("dataRate", js_stkframes_get, js_stkframes_set, PROP_DATA_RATE),
     JS_CGETSET_MAGIC_DEF("buffer", js_stkframes_get, 0, PROP_BUFFER),
+    JS_CGETSET_MAGIC_DEF("sampleType", js_stkframes_get, 0, PROP_SAMPLE_TYPE),
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "StkFrames", JS_PROP_CONFIGURABLE),
 };
 

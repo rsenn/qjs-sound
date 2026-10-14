@@ -12,7 +12,7 @@ import { RubberBandStretcher } from 'rubberband';
 ```
 
 Rubber Band does the same conceptual job as `soundtouch`
-(`doc/soundtouch.md`) - independent tempo/pitch shifting - but with a
+(`doc/native/soundtouch.md`) - independent tempo/pitch shifting - but with a
 heavier, higher-quality phase-vocoder engine; it's a quality/CPU-cost
 alternative, not a duplicate. See "Relationship to `soundtouch`/
 `samplerate`" below.
@@ -246,7 +246,7 @@ error convention as `portaudio`/`sndfile`/`samplerate`.
 | `.study(input, final = false)` | `rubberband_study` | `input` an **array of `Float32Array`s, one per channel** (`input.length` must equal `.channels`, each element the same length) - planar, not interleaved, see "Naming" above. Offline analysis pass; call repeatedly over the whole signal before any `.process()` calls, with `final = true` on the last chunk. Optional in the sense that skipping straight to `.process()` still works (matches the C API's own documented behavior), just with lower quality on that first pass. |
 | `.process(input, final = false)` | `rubberband_process` | Same planar shape as `.study()`. Pushes input; does not itself return output - call `.retrieve()` afterward. |
 | `.available()` | `rubberband_available` | Number of samples ready to `.retrieve()`, or a negative sentinel value once processing is fully finished and drained (matches the C API's own documented return convention - surfaced as-is, not translated to a `boolean`/`null`, consistent with `sndfile`/`samplerate` keeping raw C return conventions rather than inventing JS-ier shapes). |
-| `.retrieve(output)` | `rubberband_retrieve` | `output` an **array of pre-allocated `Float32Array`s, one per channel** (same planar shape); fills each with up to that channel buffer's length, zero-copy, and returns the number of frames actually written - same caller-owned-buffer-plus-returned-count shape `sndfile`/`soundtouch`/`samplerate` already converged on (`doc/sndfile.md`'s "Cross-binding zero-copy pipeline"), just planar instead of interleaved. |
+| `.retrieve(output)` | `rubberband_retrieve` | `output` an **array of pre-allocated `Float32Array`s, one per channel** (same planar shape); fills each with up to that channel buffer's length, zero-copy, and returns the number of frames actually written - same caller-owned-buffer-plus-returned-count shape `sndfile`/`soundtouch`/`samplerate` already converged on (`doc/native/sndfile.md`'s "Cross-binding zero-copy pipeline"), just planar instead of interleaved. |
 | `.reset()` | `rubberband_reset` | Clears all buffered state, same role as `SoundTouch.clear()`/`SampleRateConverter.reset()`. |
 | `.calculateStretch()` | `rubberband_calculate_stretch` | Precomputes the stretch profile from the studied signal; only meaningful after a `.study()` pass, matches the C API's own doc note that this is normally called automatically but can be forced. |
 | `.setExpectedInputDuration(samples)` | `rubberband_set_expected_input_duration` | Offline-mode quality/memory hint - total input length in samples, if known up front. |
@@ -305,7 +305,7 @@ rb.close();
 
 `rubberband`'s planar buffers are a genuine seam in the otherwise fully
 zero-copy `sndfile` → `samplerate` → `soundtouch` → `sndfile` pipeline
-documented in `doc/sndfile.md` - `sndfile`/`samplerate`/`soundtouch` all
+documented in `doc/native/sndfile.md` - `sndfile`/`samplerate`/`soundtouch` all
 use a single interleaved `Float32Array`, while `rubberband` needs one
 `Float32Array` per channel. Slotting `rubberband` into that pipeline
 instead of (or alongside) `soundtouch` requires an explicit

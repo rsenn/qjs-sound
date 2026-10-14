@@ -4,7 +4,7 @@
  * `PaDeviceInfo`/`HostApiInfo` element classes, `PaStream.isFormatSupported`,
  * both `PaStream` constructor forms (positional -> Pa_OpenDefaultStream,
  * object -> Pa_OpenStream), every PaStream property/method, the closed-stream
- * guard, and idempotent close(). See doc/portaudio.md for the full API this
+ * guard, and idempotent close(). See doc/native/portaudio.md for the full API this
  * exercises.
  *
  * Only ONE real PaStream is ever successfully opened in this process. Opening

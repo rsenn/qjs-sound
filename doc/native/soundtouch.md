@@ -58,7 +58,7 @@ built for **float**, matching this project's own float-everywhere
 convention (`PaStream`'s default `paFloat32`, STK's `StkFloat`). All
 sample buffers below are `Float32Array` only - checked via
 `js_bufferview_get_kind(ctx, val, JS_TYPEDARRAY_FLOAT32, &view)` from the
-shared `quickjs-typedarray.h` (see `doc/sndfile.md`'s "Shared
+shared `quickjs-typedarray.h` (see `doc/native/sndfile.md`'s "Shared
 TypedArray/buffer interop" section, used unchanged here). Samples are
 interleaved per SoundTouch's own convention (a "sample" for a stereo
 stream is one L+R pair).

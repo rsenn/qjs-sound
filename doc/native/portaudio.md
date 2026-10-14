@@ -218,7 +218,7 @@ always a number.
 | `.start()` | `Pa_StartStream` | **Fixed**: now throws via the same `js_portaudio_error()` path as every other call, instead of returning a raw error code on failure. |
 | `.stop()` | `Pa_StopStream` | Same fix as `.start()`. |
 | `.abort()` | `Pa_AbortStream` | Same fix as `.start()`. |
-| `.close()` | `Pa_CloseStream` | Same throw-on-error fix. **Also**: idempotent - calling `.close()` again on an already-closed stream is a no-op, not an error (matches `PortMidiStream.close()`'s documented behavior in `doc/portmidi.md`). |
+| `.close()` | `Pa_CloseStream` | Same throw-on-error fix. **Also**: idempotent - calling `.close()` again on an already-closed stream is a no-op, not an error (matches `PortMidiStream.close()`'s documented behavior in `doc/native/portmidi.md`). |
 
 ## Example
 

@@ -3,7 +3,7 @@
   host API - reproduces with the plain positional constructor alone (`Pa_OpenDefaultStream`
   twice, closing in between), so it is not specific to the new object-form constructor or to
   this binding's C code. Confirmed present on the unmodified `quickjs-portaudio.c` too (tested
-  by stashing the doc/portaudio.md implementation changes and rebuilding). Likely an
+  by stashing the doc/native/portaudio.md implementation changes and rebuilding). Likely an
   ALSA/PortAudio-level issue specific to this sandboxed environment (no real audio hardware,
   JACK not running, only dummy/pulse ALSA devices - see the ALSA/JACK connection errors printed
   on every Pa_Initialize()), but not yet root-caused past that.
