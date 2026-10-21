@@ -123,7 +123,7 @@ js_sndobj_common_method(JSContext* ctx, SndObj* obj, int argc, JSValueConst argv
 
       if(obj->GetError())
         return JS_ThrowInternalError(ctx, "SndObj::DoProcess failed (error %d)", obj->GetError());
-    
+
       return JS_NewBool(ctx, ok != 0);
     }
 
@@ -139,10 +139,10 @@ js_sndobj_common_method(JSContext* ctx, SndObj* obj, int argc, JSValueConst argv
     case METHOD_BLOCK: {
       int n = obj->GetVectorSize();
       std::vector<float> buf(n);
-    
+
       for(int i = 0; i < n; i++)
         buf[i] = obj->Output(i);
-    
+
       return qjsx::new_array<float>(ctx, buf);
     }
 
@@ -233,7 +233,7 @@ js_sndobjtable_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
 
       if(argc > 0)
         JS_ToInt32(ctx, &pos, argv[0]);
-      
+
       return JS_NewFloat64(ctx, table->Lookup(pos));
     }
 
@@ -438,7 +438,7 @@ js_sndobjgenerator_method(JSContext* ctx, JSValueConst this_val, int argc, JSVal
 
       if(hasMod && !(mod = js_sndobj_arg(ctx, argv[1])))
         return JS_EXCEPTION;
-      
+
       if(auto* p = dynamic_cast<Oscil*>(obj))
         p->SetAmp((float)amp, mod);
       else if(auto* p = dynamic_cast<Buzz*>(obj))
@@ -542,30 +542,30 @@ js_sndobjgenerator_constructor(JSContext* ctx, JSValueConst new_target, int argc
         goto argfail;
 
       double fr = 440, amp = 1;
-    
+
       if(argc > 1)
         JS_ToFloat64(ctx, &fr, argv[1]);
-    
+
       if(argc > 2)
         JS_ToFloat64(ctx, &amp, argv[2]);
-    
+
       SndObj *freqMod = nullptr, *ampMod = nullptr;
-    
+
       if(argc > 3 && !JS_IsUndefined(argv[3]) && !JS_IsNull(argv[3]) && !(freqMod = js_sndobj_arg(ctx, argv[3])))
         goto argfail;
-    
+
       if(argc > 4 && !JS_IsUndefined(argv[4]) && !JS_IsNull(argv[4]) && !(ampMod = js_sndobj_arg(ctx, argv[4])))
         goto argfail;
-     
+
       int32_t vecsize = DEF_VECSIZE;
       double sr = DEF_SR;
-    
+
       if(argc > 5)
         JS_ToInt32(ctx, &vecsize, argv[5]);
-   
+
       if(argc > 6)
         JS_ToFloat64(ctx, &sr, argv[6]);
-     
+
       g->reset(new Oscili(table, (float)fr, (float)amp, freqMod, ampMod, vecsize, (float)sr));
       break;
     }
@@ -573,63 +573,63 @@ js_sndobjgenerator_constructor(JSContext* ctx, JSValueConst new_target, int argc
     case INSTANCE_BUZZ: {
       double fr = 440, amp = 1;
       int32_t harms = 1;
-    
+
       if(argc > 0)
         JS_ToFloat64(ctx, &fr, argv[0]);
-    
+
       if(argc > 1)
         JS_ToFloat64(ctx, &amp, argv[1]);
-    
+
       if(argc > 2)
         JS_ToInt32(ctx, &harms, argv[2]);
-    
+
       SndObj *freqMod = nullptr, *ampMod = nullptr;
-    
+
       if(argc > 3 && !JS_IsUndefined(argv[3]) && !JS_IsNull(argv[3]) && !(freqMod = js_sndobj_arg(ctx, argv[3])))
         goto argfail;
-    
+
       if(argc > 4 && !JS_IsUndefined(argv[4]) && !JS_IsNull(argv[4]) && !(ampMod = js_sndobj_arg(ctx, argv[4])))
         goto argfail;
-    
+
       int32_t vecsize = DEF_VECSIZE;
       double sr = DEF_SR;
-    
+
       if(argc > 5)
         JS_ToInt32(ctx, &vecsize, argv[5]);
-    
+
       if(argc > 6)
         JS_ToFloat64(ctx, &sr, argv[6]);
-    
+
       g->reset(new Buzz((float)fr, (float)amp, (short)harms, freqMod, ampMod, vecsize, (float)sr));
       break;
     }
 
     case INSTANCE_RANDI: {
       double fr = 1, amp = 1;
-    
+
       if(argc > 0)
         JS_ToFloat64(ctx, &fr, argv[0]);
-    
+
       if(argc > 1)
         JS_ToFloat64(ctx, &amp, argv[1]);
-    
+
       SndObj *freqMod = nullptr, *ampMod = nullptr;
-    
+
       if(argc > 2 && !JS_IsUndefined(argv[2]) && !JS_IsNull(argv[2]) && !(freqMod = js_sndobj_arg(ctx, argv[2])))
         goto argfail;
-    
+
       if(argc > 3 && !JS_IsUndefined(argv[3]) && !JS_IsNull(argv[3]) && !(ampMod = js_sndobj_arg(ctx, argv[3])))
         goto argfail;
-    
+
       int32_t vecsize = DEF_VECSIZE;
       double sr = DEF_SR;
-    
+
       if(argc > 4)
         JS_ToInt32(ctx, &vecsize, argv[4]);
-    
+
       if(argc > 5)
         JS_ToFloat64(ctx, &sr, argv[5]);
-    
+
       g->reset(new Randi((float)fr, (float)amp, freqMod, ampMod, vecsize, (float)sr));
       break;
     }
@@ -637,10 +637,10 @@ js_sndobjgenerator_constructor(JSContext* ctx, JSValueConst new_target, int argc
 
   {
     JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
- 
+
     if(JS_IsException(proto))
       goto fail;
- 
+
     if(!JS_IsObject(proto)) {
       JS_FreeValue(ctx, proto);
       proto = JS_DupValue(ctx, sndobjgenerator_proto);
@@ -756,11 +756,8 @@ js_sndobjmixer_inputs_push(JSContext* ctx, JSValueConst self, JSValueConst dep) 
     arr = JS_NewArray(ctx);
     JS_DefinePropertyValue(ctx, self, atom, JS_DupValue(ctx, arr), JS_PROP_CONFIGURABLE | JS_PROP_WRITABLE);
   }
- 
-  uint32_t len = 0;
-  JSValue lenv = JS_GetPropertyStr(ctx, arr, "length");
-  JS_ToUint32(ctx, &len, lenv);
-  JS_FreeValue(ctx, lenv);
+
+  int64_t len = js_array_length(ctx, arr);
   JS_SetPropertyUint32(ctx, arr, len, JS_DupValue(ctx, dep));
   JS_FreeValue(ctx, arr);
   JS_FreeAtom(ctx, atom);
@@ -770,28 +767,24 @@ static void
 js_sndobjmixer_inputs_remove(JSContext* ctx, JSValueConst self, SndObj* dep) {
   JSAtom atom = JS_NewAtom(ctx, "__inputs");
   JSValue arr = JS_GetProperty(ctx, self, atom);
- 
+
   if(JS_IsObject(arr)) {
-    uint32_t len = 0;
-    JSValue lenv = JS_GetPropertyStr(ctx, arr, "length");
- 
-    JS_ToUint32(ctx, &len, lenv);
-    JS_FreeValue(ctx, lenv);
-   
-    for(uint32_t i = 0; i < len; i++) {
+    int64_t len = js_array_length(ctx, arr);
+
+    for(int64_t i = 0; i < len; i++) {
       JSValue item = JS_GetPropertyUint32(ctx, arr, i);
-     
+
       if(js_sndobj_arg(ctx, item) == dep) {
-        for(uint32_t j = i; j + 1 < len; j++) {
+        for(int64_t j = i; j + 1 < len; j++) {
           JSValue next = JS_GetPropertyUint32(ctx, arr, j + 1);
           JS_SetPropertyUint32(ctx, arr, j, next);
         }
-      
+
         JS_SetPropertyStr(ctx, arr, "length", JS_NewUint32(ctx, len - 1));
         JS_FreeValue(ctx, item);
         break;
       }
-    
+
       JS_FreeValue(ctx, item);
     }
   } else {
@@ -817,58 +810,58 @@ js_sndobjeffect_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
   switch(magic) {
     case EMETHOD_SET_MAX_AMP: {
       double v = 0;
-     
+
       JS_ToFloat64(ctx, &v, argv[0]);
-     
+
       if(auto* p = dynamic_cast<ADSR*>(obj))
         p->SetMaxAmp((float)v);
-     
+
       return JS_UNDEFINED;
     }
 
     case EMETHOD_SUSTAIN: {
       if(auto* p = dynamic_cast<ADSR*>(obj))
         p->Sustain();
-     
+
       return JS_UNDEFINED;
     }
 
     case EMETHOD_RELEASE: {
       if(auto* p = dynamic_cast<ADSR*>(obj))
         p->Release();
-     
+
       return JS_UNDEFINED;
     }
 
     case EMETHOD_RESTART: {
       if(auto* p = dynamic_cast<ADSR*>(obj))
         p->Restart();
-    
+
       return JS_UNDEFINED;
     }
 
     case EMETHOD_SET_ADSR: {
       double a = 0, d = 0, s = 0, r = 0;
-      
+
       JS_ToFloat64(ctx, &a, argv[0]);
       JS_ToFloat64(ctx, &d, argv[1]);
       JS_ToFloat64(ctx, &s, argv[2]);
       JS_ToFloat64(ctx, &r, argv[3]);
-      
+
       if(auto* p = dynamic_cast<ADSR*>(obj))
         p->SetADSR((float)a, (float)d, (float)s, (float)r);
-   
+
       return JS_UNDEFINED;
     }
 
     case EMETHOD_SET_DUR: {
       double v = 0;
-    
+
       JS_ToFloat64(ctx, &v, argv[0]);
-    
+
       if(auto* p = dynamic_cast<ADSR*>(obj))
         p->SetDur((float)v);
-    
+
       return JS_UNDEFINED;
     }
 
@@ -877,13 +870,13 @@ js_sndobjeffect_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       JS_ToFloat64(ctx, &v, argv[0]);
       bool hasMod = argc > 1 && !JS_IsUndefined(argv[1]) && !JS_IsNull(argv[1]);
       SndObj* mod = nullptr;
-    
+
       if(hasMod && !(mod = js_sndobj_arg(ctx, argv[1])))
         return JS_EXCEPTION;
-    
+
       if(auto* p = dynamic_cast<Reson*>(obj))
         p->SetFreq((float)v, mod);
-    
+
       js_sndobj_retain(ctx, this_val, "__freqMod", hasMod ? argv[1] : JS_UNDEFINED);
       return JS_UNDEFINED;
     }
@@ -893,13 +886,13 @@ js_sndobjeffect_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       JS_ToFloat64(ctx, &v, argv[0]);
       bool hasMod = argc > 1 && !JS_IsUndefined(argv[1]) && !JS_IsNull(argv[1]);
       SndObj* mod = nullptr;
-    
+
       if(hasMod && !(mod = js_sndobj_arg(ctx, argv[1])))
         return JS_EXCEPTION;
-    
+
       if(auto* p = dynamic_cast<Reson*>(obj))
         p->SetBW((float)v, mod);
-    
+
       js_sndobj_retain(ctx, this_val, "__bwMod", hasMod ? argv[1] : JS_UNDEFINED);
       return JS_UNDEFINED;
     }
@@ -907,22 +900,22 @@ js_sndobjeffect_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
     case EMETHOD_SET_GAIN: {
       double v = 0;
       JS_ToFloat64(ctx, &v, argv[0]);
-   
+
       if(auto* p = dynamic_cast<Comb*>(obj))
         p->SetGain((float)v);
       else if(auto* p = dynamic_cast<Gain*>(obj))
         p->SetGain((float)v);
-    
+
       return JS_UNDEFINED;
     }
 
     case EMETHOD_SET_GAIN_M: {
       double v = 0;
       JS_ToFloat64(ctx, &v, argv[0]);
-   
+
       if(auto* p = dynamic_cast<Gain*>(obj))
         p->SetGainM((float)v);
-   
+
       return JS_UNDEFINED;
     }
 
@@ -930,30 +923,30 @@ js_sndobjeffect_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       double v = 0;
       JS_ToFloat64(ctx, &v, argv[0]);
       double r = 0;
-   
+
       if(auto* p = dynamic_cast<Gain*>(obj))
         r = p->dBToAmp((float)v);
-   
+
       return JS_NewFloat64(ctx, r);
     }
 
     case EMETHOD_SET_MAX_DELAY_TIME: {
       double v = 0;
       JS_ToFloat64(ctx, &v, argv[0]);
-    
+
       if(auto* p = dynamic_cast<VDelay*>(obj))
         p->SetMaxDelayTime((float)v);
-    
+
       return JS_UNDEFINED;
     }
 
     case EMETHOD_SET_DELAY_TIME: {
       double v = 0;
       JS_ToFloat64(ctx, &v, argv[0]);
-    
+
       if(auto* p = dynamic_cast<VDelay*>(obj))
         p->SetDelayTime((float)v);
-    
+
       return JS_UNDEFINED;
     }
 
@@ -962,13 +955,13 @@ js_sndobjeffect_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       JS_ToFloat64(ctx, &v, argv[0]);
       bool hasMod = argc > 1 && !JS_IsUndefined(argv[1]) && !JS_IsNull(argv[1]);
       SndObj* mod = nullptr;
- 
+
       if(hasMod && !(mod = js_sndobj_arg(ctx, argv[1])))
         return JS_EXCEPTION;
- 
+
       if(auto* p = dynamic_cast<VDelay*>(obj))
         p->SetFdbgain((float)v, mod);
- 
+
       js_sndobj_retain(ctx, this_val, "__fdbMod", hasMod ? argv[1] : JS_UNDEFINED);
       return JS_UNDEFINED;
     }
@@ -978,13 +971,13 @@ js_sndobjeffect_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       JS_ToFloat64(ctx, &v, argv[0]);
       bool hasMod = argc > 1 && !JS_IsUndefined(argv[1]) && !JS_IsNull(argv[1]);
       SndObj* mod = nullptr;
-    
+
       if(hasMod && !(mod = js_sndobj_arg(ctx, argv[1])))
         return JS_EXCEPTION;
-    
+
       if(auto* p = dynamic_cast<VDelay*>(obj))
         p->SetFwdgain((float)v, mod);
-     
+
       js_sndobj_retain(ctx, this_val, "__fwdMod", hasMod ? argv[1] : JS_UNDEFINED);
       return JS_UNDEFINED;
     }
@@ -994,13 +987,13 @@ js_sndobjeffect_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       JS_ToFloat64(ctx, &v, argv[0]);
       bool hasMod = argc > 1 && !JS_IsUndefined(argv[1]) && !JS_IsNull(argv[1]);
       SndObj* mod = nullptr;
-     
+
       if(hasMod && !(mod = js_sndobj_arg(ctx, argv[1])))
         return JS_EXCEPTION;
-    
+
       if(auto* p = dynamic_cast<VDelay*>(obj))
         p->SetDirgain((float)v, mod);
-    
+
       js_sndobj_retain(ctx, this_val, "__dirMod", hasMod ? argv[1] : JS_UNDEFINED);
       return JS_UNDEFINED;
     }
@@ -1009,11 +1002,11 @@ js_sndobjeffect_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       SndObj* dep = js_sndobj_arg(ctx, argv[0]);
       if(!dep)
         return JS_EXCEPTION;
-  
+
       Mixer* m = dynamic_cast<Mixer*>(obj);
       if(!m)
         return JS_ThrowTypeError(ctx, "addObj is only valid on a Mixer");
-   
+
       m->AddObj(dep);
       js_sndobjmixer_inputs_push(ctx, this_val, argv[0]);
       return JS_UNDEFINED;
@@ -1023,11 +1016,11 @@ js_sndobjeffect_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       SndObj* dep = js_sndobj_arg(ctx, argv[0]);
       if(!dep)
         return JS_EXCEPTION;
-     
+
       Mixer* m = dynamic_cast<Mixer*>(obj);
       if(!m)
         return JS_ThrowTypeError(ctx, "deleteObj is only valid on a Mixer");
-     
+
       m->DeleteObj(dep);
       js_sndobjmixer_inputs_remove(ctx, this_val, dep);
       return JS_UNDEFINED;
@@ -1120,7 +1113,7 @@ js_sndobjeffect_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
 
       if(argc > 5)
         JS_ToFloat64(ctx, &dur, argv[5]);
-     
+
       SndObj* input = nullptr;
 
       if(argc > 6 && !JS_IsUndefined(argv[6]) && !JS_IsNull(argv[6]) && !(input = js_sndobj_arg(ctx, argv[6])))
@@ -1340,9 +1333,7 @@ js_sndobjeffect_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
           js_sndobj_retain(ctx, obj, "__bwMod", argv[4]);
         break;
       case INSTANCE_COMB:
-      case INSTANCE_ALLPASS:
-        js_sndobj_retain(ctx, obj, "__input", argv[2]);
-        break;
+      case INSTANCE_ALLPASS: js_sndobj_retain(ctx, obj, "__input", argv[2]); break;
       case INSTANCE_VDELAY:
         js_sndobj_retain(ctx, obj, "__input", argv[5]);
         if(argc > 6 && !JS_IsUndefined(argv[6]) && !JS_IsNull(argv[6]))
@@ -1354,9 +1345,7 @@ js_sndobjeffect_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
         if(argc > 9 && !JS_IsUndefined(argv[9]) && !JS_IsNull(argv[9]))
           js_sndobj_retain(ctx, obj, "__dirMod", argv[9]);
         break;
-      case INSTANCE_GAIN:
-        js_sndobj_retain(ctx, obj, "__input", argv[1]);
-        break;
+      case INSTANCE_GAIN: js_sndobj_retain(ctx, obj, "__input", argv[1]); break;
     }
 
     return obj;

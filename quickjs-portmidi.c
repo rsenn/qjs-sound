@@ -2,6 +2,7 @@
 #include <cutils.h>
 #include <string.h>
 #include "defines.h"
+#include "quickjs-c.h"
 #include <portmidi.h>
 #include <porttime.h>
 
@@ -481,9 +482,7 @@ js_portmidistream_method(JSContext* ctx, JSValueConst this_val, int argc, JSValu
       if(argc < 1)
         return JS_ThrowTypeError(ctx, "argument 1 must be an array of events");
 
-      lenv = JS_GetPropertyStr(ctx, argv[0], "length");
-      JS_ToInt64(ctx, &len, lenv);
-      JS_FreeValue(ctx, lenv);
+      len = js_array_length(ctx, argv[0]);
 
       if(!(buf = js_mallocz(ctx, sizeof(PmEvent) * (len > 0 ? len : 1))))
         return JS_EXCEPTION;

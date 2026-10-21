@@ -3,6 +3,7 @@
 #include <string.h>
 #include "defines.h"
 #include "quickjs-typedarray.h"
+#include "quickjs-c.h"
 #include <rubberband/rubberband-c.h>
 
 /* Cap on channels for the stack-allocated array of channel pointers used
@@ -24,10 +25,10 @@ typedef struct {
  * how `samples`/capacity is derived elsewhere in this project (e.g.
  * SndFile.read()'s default-frames convention). */
 static BOOL
-js_rubberband_planar_get(JSContext* ctx, JSValueConst arr, uint32_t channels, float** ptrs, uint32_t* out_frames) {
+js_rubberband_planar_get(JSContext* ctx, JSValueConst arr, uint32_t channels, float* ptrs[], uint32_t* out_frames) {
   uint32_t i, min_frames = UINT32_MAX;
 
-  if(!JS_IsArray(ctx, arr))
+  if(!js_is_arraylike(ctx, arr))
     return FALSE;
 
   for(i = 0; i < channels; i++) {
@@ -338,43 +339,27 @@ static const JSCFunctionListEntry js_rubberband_funcs[] = {
 #define RB_CONST(name) JS_PROP_INT32_DEF(#name, name, JS_PROP_CONFIGURABLE)
 
 static const JSCFunctionListEntry js_rubberband_module_funcs[] = {
-    RB_CONST(RubberBandOptionProcessOffline),
-    RB_CONST(RubberBandOptionProcessRealTime),
+    RB_CONST(RubberBandOptionProcessOffline),   RB_CONST(RubberBandOptionProcessRealTime),
 
-    RB_CONST(RubberBandOptionTransientsCrisp),
-    RB_CONST(RubberBandOptionTransientsMixed),
-    RB_CONST(RubberBandOptionTransientsSmooth),
+    RB_CONST(RubberBandOptionTransientsCrisp),  RB_CONST(RubberBandOptionTransientsMixed),    RB_CONST(RubberBandOptionTransientsSmooth),
 
-    RB_CONST(RubberBandOptionDetectorCompound),
-    RB_CONST(RubberBandOptionDetectorPercussive),
-    RB_CONST(RubberBandOptionDetectorSoft),
+    RB_CONST(RubberBandOptionDetectorCompound), RB_CONST(RubberBandOptionDetectorPercussive), RB_CONST(RubberBandOptionDetectorSoft),
 
-    RB_CONST(RubberBandOptionPhaseLaminar),
-    RB_CONST(RubberBandOptionPhaseIndependent),
+    RB_CONST(RubberBandOptionPhaseLaminar),     RB_CONST(RubberBandOptionPhaseIndependent),
 
-    RB_CONST(RubberBandOptionThreadingAuto),
-    RB_CONST(RubberBandOptionThreadingNever),
-    RB_CONST(RubberBandOptionThreadingAlways),
+    RB_CONST(RubberBandOptionThreadingAuto),    RB_CONST(RubberBandOptionThreadingNever),     RB_CONST(RubberBandOptionThreadingAlways),
 
-    RB_CONST(RubberBandOptionWindowStandard),
-    RB_CONST(RubberBandOptionWindowShort),
-    RB_CONST(RubberBandOptionWindowLong),
+    RB_CONST(RubberBandOptionWindowStandard),   RB_CONST(RubberBandOptionWindowShort),        RB_CONST(RubberBandOptionWindowLong),
 
-    RB_CONST(RubberBandOptionSmoothingOff),
-    RB_CONST(RubberBandOptionSmoothingOn),
+    RB_CONST(RubberBandOptionSmoothingOff),     RB_CONST(RubberBandOptionSmoothingOn),
 
-    RB_CONST(RubberBandOptionFormantShifted),
-    RB_CONST(RubberBandOptionFormantPreserved),
+    RB_CONST(RubberBandOptionFormantShifted),   RB_CONST(RubberBandOptionFormantPreserved),
 
-    RB_CONST(RubberBandOptionPitchHighSpeed),
-    RB_CONST(RubberBandOptionPitchHighQuality),
-    RB_CONST(RubberBandOptionPitchHighConsistency),
+    RB_CONST(RubberBandOptionPitchHighSpeed),   RB_CONST(RubberBandOptionPitchHighQuality),   RB_CONST(RubberBandOptionPitchHighConsistency),
 
-    RB_CONST(RubberBandOptionChannelsApart),
-    RB_CONST(RubberBandOptionChannelsTogether),
+    RB_CONST(RubberBandOptionChannelsApart),    RB_CONST(RubberBandOptionChannelsTogether),
 
-    RB_CONST(RubberBandOptionEngineFaster),
-    RB_CONST(RubberBandOptionEngineFiner),
+    RB_CONST(RubberBandOptionEngineFaster),     RB_CONST(RubberBandOptionEngineFiner),
 };
 
 static JSClassDef js_rubberband_class = {

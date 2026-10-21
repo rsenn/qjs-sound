@@ -114,10 +114,9 @@ static JSClassID js_stkframes_class_id, js_stk_class_id, js_stkfilter_class_id, 
     js_stkinstrmnt_class_id, js_stkfunction_class_id, js_stkwvin_class_id, js_stkwvout_class_id, js_midifilein_class_id, js_rtmidiin_class_id,
     js_rtmidiout_class_id, js_rtaudio_class_id;
 static JSValue stkframes_proto, stkframes_ctor, stk_proto, stk_ctor, stkfilter_proto, stkfilter_ctor, stkgenerator_proto, stkgenerator_ctor, stkeffect_proto,
-    stkeffect_ctor, stkfm_proto, stkfm_ctor, stkinstrmnt_proto, stkinstrmnt_ctor, stkfunction_proto, stkfunction_ctor,
-    twintdrum_proto, tr909bassdrum_proto, tr909percussion_proto,
-    stkwvin_proto, rtwvin_proto, inetwvin_proto, stkwvout_proto, rtwvout_proto, inetwvout_proto,
-    midifilein_proto, rtmidiin_proto, rtmidiout_proto, rtaudio_proto;
+    stkeffect_ctor, stkfm_proto, stkfm_ctor, stkinstrmnt_proto, stkinstrmnt_ctor, stkfunction_proto, stkfunction_ctor, twintdrum_proto, tr909bassdrum_proto,
+    tr909percussion_proto, stkwvin_proto, rtwvin_proto, inetwvin_proto, stkwvout_proto, rtwvout_proto, inetwvout_proto, midifilein_proto, rtmidiin_proto,
+    rtmidiout_proto, rtaudio_proto;
 
 typedef std::shared_ptr<stk::Stk> StkPtr;
 typedef std::shared_ptr<stk::StkFrames> StkFramesPtr;
@@ -2595,9 +2594,7 @@ js_inetwvin_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
 
       try {
         n->listen(port, nChannels, format, (stk::Socket::ProtocolType)protocol);
-      } catch(const std::exception& e) {
-        return js_stk_throw(ctx, e);
-      }
+      } catch(const std::exception& e) { return js_stk_throw(ctx, e); }
       break;
     }
     case METHOD_INETWVIN_IS_CONNECTED: {
@@ -2852,9 +2849,7 @@ js_inetwvout_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
       JSValue exc = JS_UNDEFINED;
       try {
         n->connect(port, (stk::Socket::ProtocolType)protocol, hostname, nChannels, format);
-      } catch(const std::exception& e) {
-        exc = js_stk_throw(ctx, e);
-      }
+      } catch(const std::exception& e) { exc = js_stk_throw(ctx, e); }
 
       if(freeHostname)
         JS_FreeCString(ctx, hostname);
@@ -2943,9 +2938,7 @@ js_midifilein_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
         JS_ToUint32(ctx, &track, argv[0]);
       try {
         mf->rewindTrack(track);
-      } catch(const std::exception& e) {
-        return js_stk_throw(ctx, e);
-      }
+      } catch(const std::exception& e) { return js_stk_throw(ctx, e); }
       break;
     }
     case METHOD_MIDIFILE_GET_TICK_SECONDS: {
@@ -2954,9 +2947,7 @@ js_midifilein_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
         JS_ToUint32(ctx, &track, argv[0]);
       try {
         ret = JS_NewFloat64(ctx, mf->getTickSeconds(track));
-      } catch(const std::exception& e) {
-        return js_stk_throw(ctx, e);
-      }
+      } catch(const std::exception& e) { return js_stk_throw(ctx, e); }
       break;
     }
     case METHOD_MIDIFILE_GET_NEXT_EVENT:
@@ -2969,9 +2960,7 @@ js_midifilein_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
       unsigned long deltaTime;
       try {
         deltaTime = magic == METHOD_MIDIFILE_GET_NEXT_EVENT ? mf->getNextEvent(&event, track) : mf->getNextMidiEvent(&event, track);
-      } catch(const std::exception& e) {
-        return js_stk_throw(ctx, e);
-      }
+      } catch(const std::exception& e) { return js_stk_throw(ctx, e); }
 
       JSValue data = JS_NewArray(ctx);
       for(size_t i = 0; i < event.size(); i++)
@@ -3060,9 +3049,7 @@ js_rtmidiin_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVal
   RtMidiIn* r = nullptr;
   try {
     r = new RtMidiIn((RtMidi::Api)api, clientName, queueSizeLimit);
-  } catch(const std::exception& e) {
-    return js_stk_throw(ctx, e);
-  }
+  } catch(const std::exception& e) { return js_stk_throw(ctx, e); }
 
   JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
   if(JS_IsException(proto))
@@ -3124,9 +3111,7 @@ js_rtmidiin_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
       }
       try {
         r->openPort(portNumber, portName);
-      } catch(const std::exception& e) {
-        return js_stk_throw(ctx, e);
-      }
+      } catch(const std::exception& e) { return js_stk_throw(ctx, e); }
       break;
     }
     case METHOD_RTMIDIIN_OPEN_VIRTUAL_PORT: {
@@ -3140,9 +3125,7 @@ js_rtmidiin_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
       }
       try {
         r->openVirtualPort(portName);
-      } catch(const std::exception& e) {
-        return js_stk_throw(ctx, e);
-      }
+      } catch(const std::exception& e) { return js_stk_throw(ctx, e); }
       break;
     }
     case METHOD_RTMIDIIN_CLOSE_PORT: {
@@ -3164,9 +3147,7 @@ js_rtmidiin_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
       std::string name;
       try {
         name = r->getPortName(portNumber);
-      } catch(const std::exception& e) {
-        return js_stk_throw(ctx, e);
-      }
+      } catch(const std::exception& e) { return js_stk_throw(ctx, e); }
       ret = JS_NewStringLen(ctx, name.c_str(), name.size());
       break;
     }
@@ -3186,9 +3167,7 @@ js_rtmidiin_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
       double timeStamp;
       try {
         timeStamp = r->getMessage(&message);
-      } catch(const std::exception& e) {
-        return js_stk_throw(ctx, e);
-      }
+      } catch(const std::exception& e) { return js_stk_throw(ctx, e); }
 
       JSValue data = JS_NewArray(ctx);
       for(size_t i = 0; i < message.size(); i++)
@@ -3251,9 +3230,7 @@ js_rtmidiout_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
   RtMidiOut* r = nullptr;
   try {
     r = new RtMidiOut((RtMidi::Api)api, clientName);
-  } catch(const std::exception& e) {
-    return js_stk_throw(ctx, e);
-  }
+  } catch(const std::exception& e) { return js_stk_throw(ctx, e); }
 
   JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
   if(JS_IsException(proto))
@@ -3314,9 +3291,7 @@ js_rtmidiout_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
       }
       try {
         r->openPort(portNumber, portName);
-      } catch(const std::exception& e) {
-        return js_stk_throw(ctx, e);
-      }
+      } catch(const std::exception& e) { return js_stk_throw(ctx, e); }
       break;
     }
     case METHOD_RTMIDIOUT_OPEN_VIRTUAL_PORT: {
@@ -3330,9 +3305,7 @@ js_rtmidiout_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
       }
       try {
         r->openVirtualPort(portName);
-      } catch(const std::exception& e) {
-        return js_stk_throw(ctx, e);
-      }
+      } catch(const std::exception& e) { return js_stk_throw(ctx, e); }
       break;
     }
     case METHOD_RTMIDIOUT_CLOSE_PORT: {
@@ -3354,9 +3327,7 @@ js_rtmidiout_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
       std::string name;
       try {
         name = r->getPortName(portNumber);
-      } catch(const std::exception& e) {
-        return js_stk_throw(ctx, e);
-      }
+      } catch(const std::exception& e) { return js_stk_throw(ctx, e); }
       ret = JS_NewStringLen(ctx, name.c_str(), name.size());
       break;
     }
@@ -3366,9 +3337,7 @@ js_rtmidiout_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
         return JS_EXCEPTION;
       try {
         r->sendMessage(&message);
-      } catch(const std::exception& e) {
-        return js_stk_throw(ctx, e);
-      }
+      } catch(const std::exception& e) { return js_stk_throw(ctx, e); }
       break;
     }
     case METHOD_RTMIDIOUT_GET_CURRENT_API: {

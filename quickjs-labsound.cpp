@@ -176,16 +176,12 @@ read_float_array(JSContext* ctx, JSValueConst val, std::vector<float>& out) {
   if(!JS_IsException(buf))
     JS_FreeValue(ctx, buf);
 
-  JSValue lenv = JS_GetPropertyStr(ctx, val, "length");
-  if(JS_IsUndefined(lenv) || JS_IsException(lenv)) {
-    JS_FreeValue(ctx, lenv);
+  int64_t len = js_array_length(ctx, val);
+  if(len == -1) 
     return -1;
-  }
-  uint32_t len = 0;
-  JS_ToUint32(ctx, &len, lenv);
-  JS_FreeValue(ctx, lenv);
+  
   out.resize(len);
-  for(uint32_t i = 0; i < len; i++) {
+  for(int64_t i = 0; i < len; i++) {
     JSValue e = JS_GetPropertyUint32(ctx, val, i);
     double d = 0;
     JS_ToFloat64(ctx, &d, e);
@@ -277,11 +273,13 @@ write_bus_to_wav(lab::AudioBus* bus, const std::string& path, bool mixToMono) {
    "seconds from now" on a playing one. Subtracting the epoch gives WebAudio's absolute context time either way.
    _self is protected, so it is reached through a pointer-to-member named via a derived class. */
 struct SchedulerAccess : lab::AudioScheduledSourceNode {
-  static double epoch_seconds(lab::AudioScheduledSourceNode& n) {
+  static double
+  epoch_seconds(lab::AudioScheduledSourceNode& n) {
     auto& sched = (n.*(&SchedulerAccess::_self))->_scheduler;
     return static_cast<double>(sched._epoch.load()) / sched._sampleRate;
   }
-  static double stop_seconds(lab::AudioScheduledSourceNode& n) {
+  static double
+  stop_seconds(lab::AudioScheduledSourceNode& n) {
     auto& sched = (n.*(&SchedulerAccess::_self))->_scheduler;
     return static_cast<double>(sched._stopWhen) / sched._sampleRate;
   }
@@ -336,8 +334,8 @@ sweep_anchored_nodes(JSContext* ctx, JSValueConst ac_jsval, JSValueConst arr, ui
         if(nd->isScheduledNode()) {
           auto st = nd->schedulingState();
           /* A stopped node is no longer pulled by the engine, so it can sit in STOPPING forever; past its stop time it is silent. */
-          bool past_stop = st == lab::SchedulingState::STOPPING &&
-                           SchedulerAccess::stop_seconds(static_cast<lab::AudioScheduledSourceNode&>(*nd)) < ac->currentTime();
+          bool past_stop =
+              st == lab::SchedulingState::STOPPING && SchedulerAccess::stop_seconds(static_cast<lab::AudioScheduledSourceNode&>(*nd)) < ac->currentTime();
           releasable = st == lab::SchedulingState::UNSCHEDULED || st == lab::SchedulingState::FINISHED || past_stop;
         } else {
           for(int k = 0; k < nd->numberOfInputs() && releasable; k++) {
@@ -388,10 +386,8 @@ anchor_node_in_context(JSContext* ctx, JSValueConst ac_jsval, JSValueConst node_
     arr = JS_NewArray(ctx);
     JS_SetPropertyStr(ctx, ac_jsval, "__nodes", JS_DupValue(ctx, arr));
   }
-  uint32_t len = 0;
-  JSValue len_v = JS_GetPropertyStr(ctx, arr, "length");
-  JS_ToUint32(ctx, &len, len_v);
-  JS_FreeValue(ctx, len_v);
+
+  int64_t len = js_array_length(ctx, arr);
 
   /* Sweeping before the append keeps the node being created out of the sweep; the threshold doubles as a floor so a
      long-lived graph is not rescanned on every creation. */
@@ -404,9 +400,7 @@ anchor_node_in_context(JSContext* ctx, JSValueConst ac_jsval, JSValueConst node_
     sweep_anchored_nodes(ctx, ac_jsval, arr, len);
     JS_FreeValue(ctx, arr);
     arr = JS_GetPropertyStr(ctx, ac_jsval, "__nodes");
-    len_v = JS_GetPropertyStr(ctx, arr, "length");
-    JS_ToUint32(ctx, &len, len_v);
-    JS_FreeValue(ctx, len_v);
+    len = js_array_length(ctx, arr);
     JS_SetPropertyStr(ctx, ac_jsval, "__nextSweep", JS_NewUint32(ctx, len + 64));
   }
 
@@ -846,7 +840,10 @@ js_audiocontext_lifecycle(JSContext* ctx, JSValueConst this_val, int argc, JSVal
   if(!(*sac)->isOfflineContext()) {
     switch(magic) {
       /* lazyInitialize also spawns the graph update thread; resume() alone would only restart the device stream. */
-      case CL_RESUME: (*sac)->lazyInitialize(); (*sac)->resume(); break;
+      case CL_RESUME:
+        (*sac)->lazyInitialize();
+        (*sac)->resume();
+        break;
       case CL_SUSPEND: (*sac)->suspend(); break;
       case CL_CLOSE: (*sac)->close(); break;
     }
@@ -1975,14 +1972,16 @@ js_absource_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVal
 
     v = JS_GetPropertyStr(ctx, argv[1], "playbackRate");
     if(JS_IsNumber(v)) {
-      double d; JS_ToFloat64(ctx, &d, v);
+      double d;
+      JS_ToFloat64(ctx, &d, v);
       src->playbackRate()->setValue((float)d);
     }
     JS_FreeValue(ctx, v);
 
     v = JS_GetPropertyStr(ctx, argv[1], "detune");
     if(JS_IsNumber(v)) {
-      double d; JS_ToFloat64(ctx, &d, v);
+      double d;
+      JS_ToFloat64(ctx, &d, v);
       src->detune()->setValue((float)d);
     }
     JS_FreeValue(ctx, v);
@@ -2075,9 +2074,12 @@ static lab::NoiseNode::NoiseType
 parse_noise_type(const char* s) {
   if(!s)
     return lab::NoiseNode::WHITE;
-  if(!strcmp(s, "white")) return lab::NoiseNode::WHITE;
-  if(!strcmp(s, "pink")) return lab::NoiseNode::PINK;
-  if(!strcmp(s, "brown")) return lab::NoiseNode::BROWN;
+  if(!strcmp(s, "white"))
+    return lab::NoiseNode::WHITE;
+  if(!strcmp(s, "pink"))
+    return lab::NoiseNode::PINK;
+  if(!strcmp(s, "brown"))
+    return lab::NoiseNode::BROWN;
   return lab::NoiseNode::WHITE;
 }
 
@@ -2328,9 +2330,7 @@ js_iirfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
   std::shared_ptr<lab::IIRFilterNode> f;
   try {
     f = std::make_shared<lab::IIRFilterNode>(*ac, coeffs[0], coeffs[1]);
-  } catch(const std::invalid_argument& e) {
-    return JS_ThrowRangeError(ctx, "%s", e.what());
-  }
+  } catch(const std::invalid_argument& e) { return JS_ThrowRangeError(ctx, "%s", e.what()); }
 
   JSValue proto = JS_GetPropertyStr(ctx, new_target, "prototype");
   if(JS_IsException(proto))
@@ -2392,9 +2392,12 @@ static lab::OverSampleType
 parse_oversample(const char* s) {
   if(!s)
     return lab::OverSampleType::NONE;
-  if(!strcmp(s, "none")) return lab::OverSampleType::NONE;
-  if(!strcmp(s, "2x"))   return lab::OverSampleType::_2X;
-  if(!strcmp(s, "4x"))   return lab::OverSampleType::_4X;
+  if(!strcmp(s, "none"))
+    return lab::OverSampleType::NONE;
+  if(!strcmp(s, "2x"))
+    return lab::OverSampleType::_2X;
+  if(!strcmp(s, "4x"))
+    return lab::OverSampleType::_4X;
   return lab::OverSampleType::NONE;
 }
 
@@ -2525,7 +2528,8 @@ js_stereopanner_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
   if(argc > 1 && JS_IsObject(argv[1])) {
     JSValue v = JS_GetPropertyStr(ctx, argv[1], "pan");
     if(JS_IsNumber(v)) {
-      double d; JS_ToFloat64(ctx, &d, v);
+      double d;
+      JS_ToFloat64(ctx, &d, v);
       sp->pan()->setValue(static_cast<float>(d));
     }
     JS_FreeValue(ctx, v);
@@ -2702,21 +2706,24 @@ js_analyser_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVal
 
     v = JS_GetPropertyStr(ctx, argv[1], "minDecibels");
     if(JS_IsNumber(v)) {
-      double d; JS_ToFloat64(ctx, &d, v);
+      double d;
+      JS_ToFloat64(ctx, &d, v);
       an->setMinDecibels(d);
     }
     JS_FreeValue(ctx, v);
 
     v = JS_GetPropertyStr(ctx, argv[1], "maxDecibels");
     if(JS_IsNumber(v)) {
-      double d; JS_ToFloat64(ctx, &d, v);
+      double d;
+      JS_ToFloat64(ctx, &d, v);
       an->setMaxDecibels(d);
     }
     JS_FreeValue(ctx, v);
 
     v = JS_GetPropertyStr(ctx, argv[1], "smoothingTimeConstant");
     if(JS_IsNumber(v)) {
-      double d; JS_ToFloat64(ctx, &d, v);
+      double d;
+      JS_ToFloat64(ctx, &d, v);
       an->setSmoothingTimeConstant(d);
     }
     JS_FreeValue(ctx, v);
@@ -2782,17 +2789,20 @@ js_analyser_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int m
       break;
     }
     case AN_PROP_MINDECIBELS: {
-      double d; JS_ToFloat64(ctx, &d, value);
+      double d;
+      JS_ToFloat64(ctx, &d, value);
       an->setMinDecibels(d);
       break;
     }
     case AN_PROP_MAXDECIBELS: {
-      double d; JS_ToFloat64(ctx, &d, value);
+      double d;
+      JS_ToFloat64(ctx, &d, value);
       an->setMaxDecibels(d);
       break;
     }
     case AN_PROP_SMOOTHINGTIMECONSTANT: {
-      double d; JS_ToFloat64(ctx, &d, value);
+      double d;
+      JS_ToFloat64(ctx, &d, value);
       an->setSmoothingTimeConstant(d);
       break;
     }
@@ -2907,7 +2917,10 @@ js_compressor_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSV
   auto comp = std::make_shared<lab::DynamicsCompressorNode>(*ac);
 
   if(argc > 1 && JS_IsObject(argv[1])) {
-    static const struct { const char* name; std::shared_ptr<lab::AudioParam> (lab::DynamicsCompressorNode::*getter)(); } params[] = {
+    static const struct {
+      const char* name;
+      std::shared_ptr<lab::AudioParam> (lab::DynamicsCompressorNode::*getter)();
+    } params[] = {
         {"threshold", &lab::DynamicsCompressorNode::threshold},
         {"knee", &lab::DynamicsCompressorNode::knee},
         {"ratio", &lab::DynamicsCompressorNode::ratio},
@@ -2917,7 +2930,8 @@ js_compressor_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSV
     for(auto& p : params) {
       JSValue v = JS_GetPropertyStr(ctx, argv[1], p.name);
       if(JS_IsNumber(v)) {
-        double d; JS_ToFloat64(ctx, &d, v);
+        double d;
+        JS_ToFloat64(ctx, &d, v);
         (comp.get()->*p.getter)()->setValue(static_cast<float>(d));
       }
       JS_FreeValue(ctx, v);
@@ -3000,7 +3014,8 @@ js_constantsource_constructor(JSContext* ctx, JSValueConst new_target, int argc,
   if(argc > 1 && JS_IsObject(argv[1])) {
     JSValue v = JS_GetPropertyStr(ctx, argv[1], "offset");
     if(JS_IsNumber(v)) {
-      double d; JS_ToFloat64(ctx, &d, v);
+      double d;
+      JS_ToFloat64(ctx, &d, v);
       cs->offset()->setValue(static_cast<float>(d));
     }
     JS_FreeValue(ctx, v);
