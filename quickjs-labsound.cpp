@@ -1,7 +1,7 @@
 #include <quickjs.h>
 #include <cutils.h>
 #include "defines.h"
-#include "quickjs-cpp.hpp"
+#include "js-utils.hpp"
 #include "LabSound/LabSound.h"
 #include "LabSound/backends/AudioDevice_RtAudio.h"
 #include "LabSound/core/AudioNodeOutput.h"
@@ -49,7 +49,7 @@ static JSClassID js_audiobuffer_class_id;
 static JSClassID js_audiosetting_class_id;
 static JSClassID js_audioparam_class_id;
 
-// Shared prototypes so connect/disconnect (and start/stop for scheduled
+// Shared prototypes so connect/disconnect(and start/stop for scheduled
 // sources) are inherited via the JS prototype chain instead of duplicated
 // in every node's funcs table.
 static JSValue audionode_proto;
@@ -96,7 +96,7 @@ struct JsAudioBuffer {
 };
 
 // Shim so DelayNode.delayTime can be `delay.delayTime.value = 0.3` isomorphic
-// with browsers -lab uses AudioSetting (no automation) for it, so the
+// with browsers -lab uses AudioSetting(no automation) for it, so the
 // scheduling methods just collapse to immediate setFloat.
 struct JsAudioSetting {
   std::shared_ptr<lab::AudioSetting> setting;
@@ -104,48 +104,51 @@ struct JsAudioSetting {
 
 /* ---------- helpers ---------- */
 
-static JsAudioNode* any_audio_node(JSValueConst v) {
+static JsAudioNode*
+any_audio_node(JSValueConst v) {
   void* p;
-  if ((p = JS_GetOpaque(v, js_audiodestinationnode_class_id)))
+  if((p = JS_GetOpaque(v, js_audiodestinationnode_class_id)))
     return static_cast<JsAudioNode*>(p);
-  if ((p = JS_GetOpaque(v, js_oscillatornode_class_id)))
+  if((p = JS_GetOpaque(v, js_oscillatornode_class_id)))
     return static_cast<JsAudioNode*>(p);
-  if ((p = JS_GetOpaque(v, js_gainnode_class_id)))
+  if((p = JS_GetOpaque(v, js_gainnode_class_id)))
     return static_cast<JsAudioNode*>(p);
-  if ((p = JS_GetOpaque(v, js_biquadfilternode_class_id)))
+  if((p = JS_GetOpaque(v, js_biquadfilternode_class_id)))
     return static_cast<JsAudioNode*>(p);
-  if ((p = JS_GetOpaque(v, js_iirfilternode_class_id)))
+  if((p = JS_GetOpaque(v, js_iirfilternode_class_id)))
     return static_cast<JsAudioNode*>(p);
-  if ((p = JS_GetOpaque(v, js_audiobuffersourcenode_class_id)))
+  if((p = JS_GetOpaque(v, js_audiobuffersourcenode_class_id)))
     return static_cast<JsAudioNode*>(p);
-  if ((p = JS_GetOpaque(v, js_noisenode_class_id)))
+  if((p = JS_GetOpaque(v, js_noisenode_class_id)))
     return static_cast<JsAudioNode*>(p);
-  if ((p = JS_GetOpaque(v, js_delaynode_class_id)))
+  if((p = JS_GetOpaque(v, js_delaynode_class_id)))
     return static_cast<JsAudioNode*>(p);
-  if ((p = JS_GetOpaque(v, js_waveshapernode_class_id)))
+  if((p = JS_GetOpaque(v, js_waveshapernode_class_id)))
     return static_cast<JsAudioNode*>(p);
-  if ((p = JS_GetOpaque(v, js_stereopannernode_class_id)))
+  if((p = JS_GetOpaque(v, js_stereopannernode_class_id)))
     return static_cast<JsAudioNode*>(p);
-  if ((p = JS_GetOpaque(v, js_convolvernode_class_id)))
+  if((p = JS_GetOpaque(v, js_convolvernode_class_id)))
     return static_cast<JsAudioNode*>(p);
-  if ((p = JS_GetOpaque(v, js_analysernode_class_id)))
+  if((p = JS_GetOpaque(v, js_analysernode_class_id)))
     return static_cast<JsAudioNode*>(p);
-  if ((p = JS_GetOpaque(v, js_dynamicscompressornode_class_id)))
+  if((p = JS_GetOpaque(v, js_dynamicscompressornode_class_id)))
     return static_cast<JsAudioNode*>(p);
-  if ((p = JS_GetOpaque(v, js_constantsourcenode_class_id)))
+  if((p = JS_GetOpaque(v, js_constantsourcenode_class_id)))
     return static_cast<JsAudioNode*>(p);
   return nullptr;
 }
 
-static JsAudioParam* any_audio_param(JSValueConst v) {
+static JsAudioParam*
+any_audio_param(JSValueConst v) {
   return static_cast<JsAudioParam*>(JS_GetOpaque(v, js_audioparam_class_id));
 }
 
-static JSValue make_audio_setting_js(JSContext* ctx, std::shared_ptr<lab::AudioSetting> s) {
+static JSValue
+make_audio_setting_js(JSContext* ctx, std::shared_ptr<lab::AudioSetting> s) {
   auto* w = static_cast<JsAudioSetting*>(js_mallocz(ctx, sizeof(JsAudioSetting)));
-  new (w) JsAudioSetting{std::move(s)};
+  new(w) JsAudioSetting{ std::move(s) };
   JSValue obj = JS_NewObjectProtoClass(ctx, audiosetting_proto, js_audiosetting_class_id);
-  if (JS_IsException(obj)) {
+  if(JS_IsException(obj)) {
     w->~JsAudioSetting();
     js_free(ctx, w);
     return obj;
@@ -155,47 +158,21 @@ static JSValue make_audio_setting_js(JSContext* ctx, std::shared_ptr<lab::AudioS
 }
 
 // Read a 1-D float buffer from either a Float32Array or a plain Array.
-static int read_float_array(JSContext* ctx, JSValueConst val, std::vector<float>& out) {
-  size_t byte_offset = 0, byte_length = 0, bytes_per_element = 0;
-  JSValue buf = JS_GetTypedArrayBuffer(ctx, val, &byte_offset, &byte_length, &bytes_per_element);
-  if (!JS_IsException(buf) && bytes_per_element == sizeof(float)) {
-    size_t ab_size = 0;
-    uint8_t* ab_data = JS_GetArrayBuffer(ctx, &ab_size, buf);
-    if (ab_data) {
-      const float* floats = reinterpret_cast<const float*>(ab_data + byte_offset);
-      size_t count = byte_length / sizeof(float);
-      out.assign(floats, floats + count);
-      JS_FreeValue(ctx, buf);
-      return 0;
-    }
-  }
-  if (!JS_IsException(buf))
-    JS_FreeValue(ctx, buf);
-
-  int64_t len = js_array_length(ctx, val);
-  if (len == -1)
-    return -1;
-
-  out.resize(len);
-  for (int64_t i = 0; i < len; i++) {
-    JSValue e = JS_GetPropertyUint32(ctx, val, i);
-    double d = 0;
-    JS_ToFloat64(ctx, &d, e);
-    out[i] = static_cast<float>(d);
-    JS_FreeValue(ctx, e);
-  }
-  return 0;
+static int
+read_float_array(JSContext* ctx, JSValueConst val, std::vector<float>& out) {
+  return qjsx::copy_array(ctx, val, out) ? 0 : -1;
 }
 
 // quickjs.h has no JS_NewFloat32Array-style helper, so build one the same
 // way JS code would: wrap a copied ArrayBuffer with the global constructor.
-static JSValue make_float32_array(JSContext* ctx, const float* data, size_t count) {
+static JSValue
+make_float32_array(JSContext* ctx, const float* data, size_t count) {
   JSValue ab = JS_NewArrayBufferCopy(ctx, reinterpret_cast<const uint8_t*>(data), count * sizeof(float));
-  if (JS_IsException(ab))
+  if(JS_IsException(ab))
     return ab;
   JSValue global = JS_GetGlobalObject(ctx);
   JSValue ctor = JS_GetPropertyStr(ctx, global, "Float32Array");
-  JSValue args[1] = {ab};
+  JSValue args[1] = { ab };
   JSValue ta = JS_CallConstructor(ctx, ctor, 1, args);
   JS_FreeValue(ctx, ctor);
   JS_FreeValue(ctx, global);
@@ -203,11 +180,12 @@ static JSValue make_float32_array(JSContext* ctx, const float* data, size_t coun
   return ta;
 }
 
-static JSValue make_audio_buffer_js(JSContext* ctx, std::shared_ptr<lab::AudioBus> bus) {
+static JSValue
+make_audio_buffer_js(JSContext* ctx, std::shared_ptr<lab::AudioBus> bus) {
   auto* w = static_cast<JsAudioBuffer*>(js_mallocz(ctx, sizeof(JsAudioBuffer)));
-  new (w) JsAudioBuffer{std::move(bus)};
+  new(w) JsAudioBuffer{ std::move(bus) };
   JSValue obj = JS_NewObjectProtoClass(ctx, audiobuffer_proto, js_audiobuffer_class_id);
-  if (JS_IsException(obj)) {
+  if(JS_IsException(obj)) {
     w->~JsAudioBuffer();
     js_free(ctx, w);
     return obj;
@@ -216,27 +194,28 @@ static JSValue make_audio_buffer_js(JSContext* ctx, std::shared_ptr<lab::AudioBu
   return obj;
 }
 
-// Same recipe as RecorderNode::writeRecordingToWav (LabSound's only other
+// Same recipe as RecorderNode::writeRecordingToWav(LabSound's only other
 // WAV writer), generalized to write any AudioBus directly instead of an
 // accumulated recording.
-static bool write_bus_to_wav(lab::AudioBus* bus, const std::string& path, bool mixToMono) {
+static bool
+write_bus_to_wav(lab::AudioBus* bus, const std::string& path, bool mixToMono) {
   size_t numberOfChannels = bus->numberOfChannels();
   size_t numSamples = bus->length();
-  if (!numberOfChannels || !numSamples)
+  if(!numberOfChannels || !numSamples)
     return false;
 
   nqr::AudioData fileData;
-  if (numberOfChannels == 1) {
+  if(numberOfChannels == 1) {
     fileData.samples.resize(numSamples);
     fileData.channelCount = 1;
     memcpy(fileData.samples.data(), bus->channel(0)->data(), sizeof(float) * numSamples);
-  } else if (mixToMono) {
+  } else if(mixToMono) {
     fileData.samples.resize(numSamples);
     fileData.channelCount = 1;
     float* dst = fileData.samples.data();
-    for (size_t i = 0; i < numSamples; i++) {
+    for(size_t i = 0; i < numSamples; i++) {
       dst[i] = 0;
-      for (size_t c = 0; c < numberOfChannels; c++)
+      for(size_t c = 0; c < numberOfChannels; c++)
         dst[i] += bus->channel(static_cast<int>(c))->data()[i];
       dst[i] *= 1.f / float(numberOfChannels);
     }
@@ -244,14 +223,14 @@ static bool write_bus_to_wav(lab::AudioBus* bus, const std::string& path, bool m
     fileData.samples.resize(numSamples * numberOfChannels);
     fileData.channelCount = static_cast<int>(numberOfChannels);
     float* dst = fileData.samples.data();
-    for (size_t i = 0; i < numSamples; i++)
-      for (size_t c = 0; c < numberOfChannels; c++)
+    for(size_t i = 0; i < numSamples; i++)
+      for(size_t c = 0; c < numberOfChannels; c++)
         *dst++ = bus->channel(static_cast<int>(c))->data()[i];
   }
   fileData.sampleRate = static_cast<int>(bus->sampleRate());
   fileData.sourceFormat = nqr::PCM_FLT;
 
-  nqr::EncoderParams params = {fileData.channelCount, nqr::PCM_FLT, nqr::DITHER_NONE};
+  nqr::EncoderParams params = { fileData.channelCount, nqr::PCM_FLT, nqr::DITHER_NONE };
   return nqr::EncoderError::NoError == nqr::encode_wav_to_disk(params, &fileData, path);
 }
 
@@ -266,37 +245,41 @@ static bool write_bus_to_wav(lab::AudioBus* bus, const std::string& path, bool m
    "seconds from now" on a playing one. Subtracting the epoch gives WebAudio's absolute context time either way.
    _self is protected, so it is reached through a pointer-to-member named via a derived class. */
 struct SchedulerAccess : lab::AudioScheduledSourceNode {
-  static double epoch_seconds(lab::AudioScheduledSourceNode& n) {
+  static double
+  epoch_seconds(lab::AudioScheduledSourceNode& n) {
     auto& sched = (n.*(&SchedulerAccess::_self))->_scheduler;
     return static_cast<double>(sched._epoch.load()) / sched._sampleRate;
   }
-  static double stop_seconds(lab::AudioScheduledSourceNode& n) {
+  static double
+  stop_seconds(lab::AudioScheduledSourceNode& n) {
     auto& sched = (n.*(&SchedulerAccess::_self))->_scheduler;
     return static_cast<double>(sched._stopWhen) / sched._sampleRate;
   }
 };
 
-static float engine_when(lab::AudioScheduledSourceNode& n, double when) {
+static float
+engine_when(lab::AudioScheduledSourceNode& n, double when) {
   return static_cast<float>(std::max(0.0, when - SchedulerAccess::epoch_seconds(n)));
 }
 
-/* The anchor array is the only thing keeping a node alive once JS drops its references, so short-lived voices (a note's
+/* The anchor array is the only thing keeping a node alive once JS drops its references, so short-lived voices(a note's
    oscillators and gains) would pile up for the life of the context. A node can be released once JS can no longer reach
-   it (the array holds its last reference) AND the graph no longer needs it:
+   it(the array holds its last reference) AND the graph no longer needs it:
    - a scheduled source that has stopped is silent, so it is cut from the graph;
    - any other node with no connected inputs or params only produces silence, so it is cut too, which lets a stopped
      voice's gain chain follow its oscillators in the next pass of the loop.
    Nodes are only ever cut from the graph while nothing in JS can reach them, and the graph edges hold raw node
    pointers, so the edges are removed under the render and graph locks before the wrappers are freed. */
-static void sweep_anchored_nodes(JSContext* ctx, JSValueConst ac_jsval, JSValueConst arr, uint32_t len) {
+static void
+sweep_anchored_nodes(JSContext* ctx, JSValueConst ac_jsval, JSValueConst arr, uint32_t len) {
   AudioContextPtr* sac = static_cast<AudioContextPtr*>(JS_GetOpaque(ac_jsval, js_audiocontext_class_id));
-  if (!sac)
+  if(!sac)
     return;
   AudioContextPtr ac = *sac;
 
   std::vector<JSValue> vals(len);
   std::vector<char> dead(len, 0);
-  for (uint32_t i = 0; i < len; i++)
+  for(uint32_t i = 0; i < len; i++)
     vals[i] = JS_GetPropertyUint32(ctx, arr, i);
 
   /* The array's reference plus the one just taken above. */
@@ -313,16 +296,16 @@ static void sweep_anchored_nodes(JSContext* ctx, JSValueConst ac_jsval, JSValueC
     bool changed;
     do {
       changed = false;
-      for (uint32_t i = 0; i < len; i++) {
-        if (dead[i] || reachable_from_js(vals[i]))
+      for(uint32_t i = 0; i < len; i++) {
+        if(dead[i] || reachable_from_js(vals[i]))
           continue;
         JsAudioNode* w = any_audio_node(vals[i]);
-        if (!w || !w->node)
+        if(!w || !w->node)
           continue;
         const auto& nd = w->node;
 
         bool releasable = true;
-        if (nd->isScheduledNode()) {
+        if(nd->isScheduledNode()) {
           auto st = nd->schedulingState();
           /* A stopped node is no longer pulled by the engine, so it can sit in STOPPING forever; past its stop time it is
            * silent. */
@@ -330,49 +313,50 @@ static void sweep_anchored_nodes(JSContext* ctx, JSValueConst ac_jsval, JSValueC
                            SchedulerAccess::stop_seconds(static_cast<lab::AudioScheduledSourceNode&>(*nd)) < ac->currentTime();
           releasable = st == lab::SchedulingState::UNSCHEDULED || st == lab::SchedulingState::FINISHED || past_stop;
         } else {
-          for (int k = 0; k < nd->numberOfInputs() && releasable; k++) {
+          for(int k = 0; k < nd->numberOfInputs() && releasable; k++) {
             auto in = nd->input(k);
-            if (in && in->numberOfConnections() > 0)
+            if(in && in->numberOfConnections() > 0)
               releasable = false;
           }
-          for (const auto& p : nd->params()) {
-            if (p && p->numberOfConnections() > 0)
+          for(const auto& p : nd->params()) {
+            if(p && p->numberOfConnections() > 0)
               releasable = false;
           }
         }
-        if (!releasable)
+        if(!releasable)
           continue;
 
-        for (int k = 0; k < nd->numberOfOutputs(); k++) {
+        for(int k = 0; k < nd->numberOfOutputs(); k++) {
           auto out = nd->output(k);
-          if (out)
+          if(out)
             lab::AudioNodeOutput::disconnectAll(gLock, out);
         }
         dead[i] = 1;
         changed = true;
       }
-    } while (changed);
+    } while(changed);
   }
 
   JSValue kept = JS_NewArray(ctx);
   uint32_t n = 0;
-  for (uint32_t i = 0; i < len; i++)
-    if (!dead[i])
+  for(uint32_t i = 0; i < len; i++)
+    if(!dead[i])
       JS_SetPropertyUint32(ctx, kept, n++, JS_DupValue(ctx, vals[i]));
   JS_SetPropertyStr(ctx, ac_jsval, "__nodes", kept);
   /* Freeing the last references here runs the finalizers, outside the locks. */
-  for (uint32_t i = 0; i < len; i++)
+  for(uint32_t i = 0; i < len; i++)
     JS_FreeValue(ctx, vals[i]);
 }
 
-static void anchor_node_in_context(JSContext* ctx, JSValueConst ac_jsval, JSValueConst node_jsval) {
-  if (JS_IsUndefined(ac_jsval) || !JS_IsObject(ac_jsval))
+static void
+anchor_node_in_context(JSContext* ctx, JSValueConst ac_jsval, JSValueConst node_jsval) {
+  if(JS_IsUndefined(ac_jsval) || !JS_IsObject(ac_jsval))
     return;
 
   JS_SetPropertyStr(ctx, node_jsval, "context", JS_DupValue(ctx, ac_jsval));
 
   JSValue arr = JS_GetPropertyStr(ctx, ac_jsval, "__nodes");
-  if (JS_IsUndefined(arr) || JS_IsException(arr)) {
+  if(JS_IsUndefined(arr) || JS_IsException(arr)) {
     JS_FreeValue(ctx, arr);
     arr = JS_NewArray(ctx);
     JS_SetPropertyStr(ctx, ac_jsval, "__nodes", JS_DupValue(ctx, arr));
@@ -384,10 +368,10 @@ static void anchor_node_in_context(JSContext* ctx, JSValueConst ac_jsval, JSValu
      long-lived graph is not rescanned on every creation. */
   JSValue next_v = JS_GetPropertyStr(ctx, ac_jsval, "__nextSweep");
   uint32_t next = 64;
-  if (JS_IsNumber(next_v))
+  if(JS_IsNumber(next_v))
     JS_ToUint32(ctx, &next, next_v);
   JS_FreeValue(ctx, next_v);
-  if (len >= next) {
+  if(len >= next) {
     sweep_anchored_nodes(ctx, ac_jsval, arr, len);
     JS_FreeValue(ctx, arr);
     arr = JS_GetPropertyStr(ctx, ac_jsval, "__nodes");
@@ -399,13 +383,12 @@ static void anchor_node_in_context(JSContext* ctx, JSValueConst ac_jsval, JSValu
   JS_FreeValue(ctx, arr);
 }
 
-static JSValue make_audio_node_js(
-    JSContext* ctx, JSValueConst proto, JSClassID class_id, std::shared_ptr<lab::AudioNode> node, AudioContextPtr ac
-) {
+static JSValue
+make_audio_node_js(JSContext* ctx, JSValueConst proto, JSClassID class_id, std::shared_ptr<lab::AudioNode> node, AudioContextPtr ac) {
   auto* w = static_cast<JsAudioNode*>(js_mallocz(ctx, sizeof(JsAudioNode)));
-  new (w) JsAudioNode{std::move(node), std::move(ac)};
+  new(w) JsAudioNode{ std::move(node), std::move(ac) };
   JSValue obj = JS_NewObjectProtoClass(ctx, proto, class_id);
-  if (JS_IsException(obj)) {
+  if(JS_IsException(obj)) {
     w->~JsAudioNode();
     js_free(ctx, w);
     return obj;
@@ -414,11 +397,12 @@ static JSValue make_audio_node_js(
   return obj;
 }
 
-static JSValue make_audio_param_js(JSContext* ctx, std::shared_ptr<lab::AudioParam> param) {
+static JSValue
+make_audio_param_js(JSContext* ctx, std::shared_ptr<lab::AudioParam> param) {
   auto* w = static_cast<JsAudioParam*>(js_mallocz(ctx, sizeof(JsAudioParam)));
-  new (w) JsAudioParam{std::move(param)};
+  new(w) JsAudioParam{ std::move(param) };
   JSValue obj = JS_NewObjectProtoClass(ctx, audioparam_proto, js_audioparam_class_id);
-  if (JS_IsException(obj)) {
+  if(JS_IsException(obj)) {
     w->~JsAudioParam();
     js_free(ctx, w);
     return obj;
@@ -427,18 +411,19 @@ static JSValue make_audio_param_js(JSContext* ctx, std::shared_ptr<lab::AudioPar
   return obj;
 }
 
-static std::pair<lab::AudioStreamConfig, lab::AudioStreamConfig> get_default_device_config() {
+static std::pair<lab::AudioStreamConfig, lab::AudioStreamConfig>
+get_default_device_config() {
   const auto devices = lab::AudioDevice_RtAudio::MakeAudioDeviceList();
   lab::AudioDeviceInfo outInfo, inInfo;
-  for (const auto& info : devices) {
-    if (info.is_default_output)
+  for(const auto& info : devices) {
+    if(info.is_default_output)
       outInfo = info;
-    if (info.is_default_input)
+    if(info.is_default_input)
       inInfo = info;
   }
 
   lab::AudioStreamConfig outputConfig;
-  if (outInfo.index != -1) {
+  if(outInfo.index != -1) {
     outputConfig.device_index = outInfo.index;
     outputConfig.desired_channels = std::min(uint32_t(2), outInfo.num_output_channels);
     outputConfig.desired_samplerate = outInfo.nominal_samplerate;
@@ -449,12 +434,12 @@ static std::pair<lab::AudioStreamConfig, lab::AudioStreamConfig> get_default_dev
   }
 
   lab::AudioStreamConfig inputConfig;
-  if (inInfo.index != -1) {
+  if(inInfo.index != -1) {
     inputConfig.device_index = inInfo.index;
     inputConfig.desired_channels = std::min(uint32_t(1), inInfo.num_input_channels);
     inputConfig.desired_samplerate = outputConfig.desired_samplerate;
   }
-  return {inputConfig, outputConfig};
+  return { inputConfig, outputConfig };
 }
 
 /* ---------- AudioContext / OfflineAudioContext ---------- */
@@ -464,22 +449,23 @@ static std::pair<lab::AudioStreamConfig, lab::AudioStreamConfig> get_default_dev
 // realtime, OfflineAudioContext(numberOfChannels, length, sampleRate) (or
 // the equivalent contextOptions dictionary) always offline with a fixed
 // render length. Both produce objects backed by the same lab::AudioContext
-// and js_audiocontext_class_id (an implementation detail: nothing JS-visible
+// and js_audiocontext_class_id(an implementation detail: nothing JS-visible
 // depends on them being different native classes), but each gets its own
 // prototype so the exposed members and [Symbol.toStringTag] match spec --
 // e.g. only OfflineAudioContext instances have startRendering()/length.
 
-static JSValue js_audiocontext_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+static JSValue
+js_audiocontext_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
   JSValue proto, obj = JS_UNDEFINED;
 
   // contextOptions.sampleRate is honored as a best-effort request to the
-  // underlying device; latencyHint/sinkId are accepted (for API
+  // underlying device; latencyHint/sinkId are accepted(for API
   // compatibility with browser code) but not implemented by this fixed
   // default-RtAudio-device backend.
   double sampleRate = 0;
-  if (argc > 0 && JS_IsObject(argv[0])) {
+  if(argc > 0 && JS_IsObject(argv[0])) {
     JSValue v = JS_GetPropertyStr(ctx, argv[0], "sampleRate");
-    if (JS_IsNumber(v))
+    if(JS_IsNumber(v))
       JS_ToFloat64(ctx, &sampleRate, v);
     JS_FreeValue(ctx, v);
   }
@@ -487,7 +473,7 @@ static JSValue js_audiocontext_constructor(JSContext* ctx, JSValueConst new_targ
   auto ac = std::make_shared<lab::AudioContext>(/* isOffline */ false, /* autoDispatchEvents */ true);
 
   auto cfg = get_default_device_config();
-  if (sampleRate > 0)
+  if(sampleRate > 0)
     cfg.second.desired_samplerate = static_cast<float>(sampleRate);
   auto device = std::make_shared<lab::AudioDevice_RtAudio>(cfg.first, cfg.second);
   auto dest = std::make_shared<lab::AudioDestinationNode>(*ac, device);
@@ -495,17 +481,17 @@ static JSValue js_audiocontext_constructor(JSContext* ctx, JSValueConst new_targ
   ac->setDestinationNode(dest);
 
   auto* sac = static_cast<AudioContextPtr*>(js_mallocz(ctx, sizeof(AudioContextPtr)));
-  new (sac) AudioContextPtr(ac);
+  new(sac) AudioContextPtr(ac);
 
   proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if (JS_IsException(proto))
+  if(JS_IsException(proto))
     goto fail;
-  if (!JS_IsObject(proto))
+  if(!JS_IsObject(proto))
     proto = JS_DupValue(ctx, audiocontext_proto);
 
   obj = JS_NewObjectProtoClass(ctx, proto, js_audiocontext_class_id);
   JS_FreeValue(ctx, proto);
-  if (JS_IsException(obj))
+  if(JS_IsException(obj))
     goto fail;
 
   JS_SetOpaque(obj, sac);
@@ -518,13 +504,14 @@ fail:
   return JS_EXCEPTION;
 }
 
-static JSValue js_offlineaudiocontext_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+static JSValue
+js_offlineaudiocontext_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
   JSValue proto, obj = JS_UNDEFINED;
 
   int32_t numberOfChannels = 0, length = 0;
   double sampleRate = 0;
 
-  if (argc > 0 && JS_IsObject(argv[0])) {
+  if(argc > 0 && JS_IsObject(argv[0])) {
     // new OfflineAudioContext({numberOfChannels, length, sampleRate})
     JSValue v = JS_GetPropertyStr(ctx, argv[0], "numberOfChannels");
     JS_ToInt32(ctx, &numberOfChannels, v);
@@ -539,16 +526,16 @@ static JSValue js_offlineaudiocontext_constructor(JSContext* ctx, JSValueConst n
     JS_FreeValue(ctx, v);
   } else {
     // new OfflineAudioContext(numberOfChannels, length, sampleRate)
-    if (argc > 0)
+    if(argc > 0)
       JS_ToInt32(ctx, &numberOfChannels, argv[0]);
-    if (argc > 1)
+    if(argc > 1)
       JS_ToInt32(ctx, &length, argv[1]);
-    if (argc > 2)
+    if(argc > 2)
       JS_ToFloat64(ctx, &sampleRate, argv[2]);
   }
 
-  if (numberOfChannels <= 0 || length <= 0 || sampleRate <= 0)
-    return JS_ThrowTypeError(ctx, "OfflineAudioContext requires (numberOfChannels, length, sampleRate), all positive");
+  if(numberOfChannels <= 0 || length <= 0 || sampleRate <= 0)
+    return JS_ThrowTypeError(ctx, "OfflineAudioContext requires(numberOfChannels, length, sampleRate), all positive");
 
   auto ac = std::make_shared<lab::AudioContext>(/* isOffline */ true, /* autoDispatchEvents */ true);
 
@@ -564,17 +551,17 @@ static JSValue js_offlineaudiocontext_constructor(JSContext* ctx, JSValueConst n
   ac->setDestinationNode(dest);
 
   auto* sac = static_cast<AudioContextPtr*>(js_mallocz(ctx, sizeof(AudioContextPtr)));
-  new (sac) AudioContextPtr(ac);
+  new(sac) AudioContextPtr(ac);
 
   proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if (JS_IsException(proto))
+  if(JS_IsException(proto))
     goto fail;
-  if (!JS_IsObject(proto))
+  if(!JS_IsObject(proto))
     proto = JS_DupValue(ctx, offlineaudiocontext_proto);
 
   obj = JS_NewObjectProtoClass(ctx, proto, js_audiocontext_class_id);
   JS_FreeValue(ctx, proto);
-  if (JS_IsException(obj))
+  if(JS_IsException(obj))
     goto fail;
 
   JS_SetOpaque(obj, sac);
@@ -599,16 +586,17 @@ enum {
   AC_PROP_STATE,
 };
 
-static JSValue js_audiocontext_get(JSContext* ctx, JSValueConst this_val, int magic) {
+static JSValue
+js_audiocontext_get(JSContext* ctx, JSValueConst this_val, int magic) {
   AudioContextPtr* sac = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id));
-  if (!sac)
+  if(!sac)
     return JS_EXCEPTION;
 
-  switch (magic) {
+  switch(magic) {
     case AC_PROP_SAMPLERATE: return JS_NewFloat64(ctx, (*sac)->sampleRate());
     case AC_PROP_DESTINATION: {
       auto dest = (*sac)->destinationNode();
-      if (!dest)
+      if(!dest)
         return JS_NULL;
       return make_audio_node_js(ctx, audiodestinationnode_proto, js_audiodestinationnode_class_id, std::static_pointer_cast<lab::AudioNode>(dest), *sac);
     }
@@ -616,7 +604,7 @@ static JSValue js_audiocontext_get(JSContext* ctx, JSValueConst this_val, int ma
       auto al = (*sac)->listener();
       JSValue ret = JS_NewObjectProtoClass(ctx, audiolistener_proto, js_audiolistener_class_id);
       auto* p = static_cast<AudioListenerPtr*>(js_mallocz(ctx, sizeof(AudioListenerPtr)));
-      new (p) AudioListenerPtr(al);
+      new(p) AudioListenerPtr(al);
       JS_SetOpaque(ret, p);
       return ret;
     }
@@ -625,7 +613,7 @@ static JSValue js_audiocontext_get(JSContext* ctx, JSValueConst this_val, int ma
     case AC_PROP_PREDICTED_CURRENTTIME: return JS_NewFloat64(ctx, (*sac)->predictedCurrentTime());
     case AC_PROP_STATE: {
       auto dest = (*sac)->destinationNode();
-      if (!dest || !dest->device())
+      if(!dest || !dest->device())
         return JS_NewString(ctx, "closed");
       return JS_NewString(ctx, dest->device()->isRunning() ? "running" : "suspended");
     }
@@ -640,31 +628,32 @@ static JSValue js_audiocontext_get(JSContext* ctx, JSValueConst this_val, int ma
   return JS_UNDEFINED;
 }
 
-static JSValue js_audiocontext_connect(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
+static JSValue
+js_audiocontext_connect(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
   AudioContextPtr* sac = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id));
-  if (!sac)
+  if(!sac)
     return JS_EXCEPTION;
-  if (argc < 2)
-    return JS_ThrowTypeError(ctx, "AudioContext.connect requires (destination, source)");
+  if(argc < 2)
+    return JS_ThrowTypeError(ctx, "AudioContext.connect requires(destination, source)");
   JsAudioNode* src = any_audio_node(argv[1]);
-  if (!src)
+  if(!src)
     return JS_ThrowTypeError(ctx, "source must be an AudioNode");
 
   JsAudioNode* dst = any_audio_node(argv[0]);
-  if (dst) {
+  if(dst) {
     int destIdx = 0, srcIdx = 0;
-    if (argc > 2)
+    if(argc > 2)
       JS_ToInt32(ctx, &destIdx, argv[2]);
-    if (argc > 3)
+    if(argc > 3)
       JS_ToInt32(ctx, &srcIdx, argv[3]);
     (*sac)->connect(dst->node, src->node, destIdx, srcIdx);
     return JS_UNDEFINED;
   }
 
   JsAudioParam* dstParam = any_audio_param(argv[0]);
-  if (dstParam) {
+  if(dstParam) {
     int srcIdx = 0;
-    if (argc > 3)
+    if(argc > 3)
       JS_ToInt32(ctx, &srcIdx, argv[3]);
     (*sac)->connectParam(dstParam->param, src->node, srcIdx);
     return JS_UNDEFINED;
@@ -673,21 +662,21 @@ static JSValue js_audiocontext_connect(JSContext* ctx, JSValueConst this_val, in
   return JS_ThrowTypeError(ctx, "destination must be an AudioNode or AudioParam");
 }
 
-static JSValue js_audiocontext_decode_audio_data(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
+static JSValue
+js_audiocontext_decode_audio_data(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
   AudioContextPtr* sac = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id));
-  if (!sac)
+  if(!sac)
     return JS_EXCEPTION;
-  if (argc < 1)
+  if(argc < 1)
     return JS_ThrowTypeError(ctx, "decodeAudioData requires an ArrayBuffer");
 
-  size_t size = 0;
-  uint8_t* buf = JS_GetArrayBuffer(ctx, &size, argv[0]);
-  if (!buf)
-    return JS_ThrowTypeError(ctx, "argument must be an ArrayBuffer");
+  qjsx::array_view<uint8_t> bytes;
+  if(!qjsx::get_bytes(ctx, argv[0], bytes))
+    return JS_EXCEPTION;
 
-  std::vector<uint8_t> data(buf, buf + size);
+  std::vector<uint8_t> data(bytes.begin(), bytes.end());
   auto bus = lab::MakeBusFromMemory(data, false);
-  if (!bus)
+  if(!bus)
     return JS_ThrowInternalError(ctx, "decodeAudioData: failed to decode");
 
   JSValue ab = make_audio_buffer_js(ctx, bus);
@@ -703,24 +692,25 @@ static JSValue js_audiocontext_decode_audio_data(JSContext* ctx, JSValueConst th
   return promise;
 }
 
-static JSValue js_audiocontext_create_buffer_from_file(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
+static JSValue
+js_audiocontext_create_buffer_from_file(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
   AudioContextPtr* sac = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id));
-  if (!sac)
+  if(!sac)
     return JS_EXCEPTION;
-  if (argc < 1)
+  if(argc < 1)
     return JS_ThrowTypeError(ctx, "createBufferFromFile requires a path");
 
   const char* path = JS_ToCString(ctx, argv[0]);
-  if (!path)
+  if(!path)
     return JS_EXCEPTION;
 
   bool mixToMono = false;
-  if (argc > 1)
+  if(argc > 1)
     mixToMono = JS_ToBool(ctx, argv[1]);
 
   auto bus = lab::MakeBusFromFile(path, mixToMono);
   JS_FreeCString(ctx, path);
-  if (!bus)
+  if(!bus)
     return JS_ThrowInternalError(ctx, "createBufferFromFile: failed to load");
 
   return make_audio_buffer_js(ctx, bus);
@@ -740,12 +730,13 @@ enum {
   CN_ANALYSER,
 };
 
-static JSValue js_audiocontext_create_node(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
-  if (!JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id))
+static JSValue
+js_audiocontext_create_node(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+  if(!JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id))
     return JS_EXCEPTION;
 
   JSValueConst ctor;
-  switch (magic) {
+  switch(magic) {
     case CN_OSCILLATOR: ctor = oscillatornode_ctor; break;
     case CN_GAIN: ctor = gainnode_ctor; break;
     case CN_BIQUADFILTER: ctor = biquadfilternode_ctor; break;
@@ -760,47 +751,50 @@ static JSValue js_audiocontext_create_node(JSContext* ctx, JSValueConst this_val
   }
 
   JSValue opts = JS_UNDEFINED;
-  if (magic == CN_DELAY && argc > 0 && JS_IsNumber(argv[0])) {
+  if(magic == CN_DELAY && argc > 0 && JS_IsNumber(argv[0])) {
     opts = JS_NewObject(ctx);
     JS_SetPropertyStr(ctx, opts, "maxDelayTime", JS_DupValue(ctx, argv[0]));
   }
-  JSValueConst args[2] = {this_val, opts};
+  JSValueConst args[2] = { this_val, opts };
   JSValue ret = JS_CallConstructor(ctx, ctor, JS_IsObject(opts) ? 2 : 1, args);
   JS_FreeValue(ctx, opts);
   return ret;
 }
 
-static JSValue js_audiocontext_create_iirfilter(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
-  if (!JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id))
+static JSValue
+js_audiocontext_create_iirfilter(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
+  if(!JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id))
     return JS_EXCEPTION;
-  if (argc < 2)
-    return JS_ThrowTypeError(ctx, "createIIRFilter requires (feedforward, feedback)");
+  if(argc < 2)
+    return JS_ThrowTypeError(ctx, "createIIRFilter requires(feedforward, feedback)");
 
   JSValue opts = JS_NewObject(ctx);
   JS_SetPropertyStr(ctx, opts, "feedforward", JS_DupValue(ctx, argv[0]));
   JS_SetPropertyStr(ctx, opts, "feedback", JS_DupValue(ctx, argv[1]));
-  JSValueConst args[2] = {this_val, opts};
+  JSValueConst args[2] = { this_val, opts };
   JSValue ret = JS_CallConstructor(ctx, iirfilternode_ctor, 2, args);
   JS_FreeValue(ctx, opts);
   return ret;
 }
 
-static JSValue js_audiocontext_create_buffer(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
-  if (!JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id))
+static JSValue
+js_audiocontext_create_buffer(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
+  if(!JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id))
     return JS_EXCEPTION;
-  if (argc < 3)
-    return JS_ThrowTypeError(ctx, "createBuffer requires (numberOfChannels, length, sampleRate)");
+  if(argc < 3)
+    return JS_ThrowTypeError(ctx, "createBuffer requires(numberOfChannels, length, sampleRate)");
 
-  const char* keys[3] = {"numberOfChannels", "length", "sampleRate"};
+  const char* keys[3] = { "numberOfChannels", "length", "sampleRate" };
   JSValue opts = JS_NewObject(ctx);
-  for (int i = 0; i < 3; i++)
+  for(int i = 0; i < 3; i++)
     JS_SetPropertyStr(ctx, opts, keys[i], JS_DupValue(ctx, argv[i]));
   JSValue ret = JS_CallConstructor(ctx, audiobuffer_ctor, 1, &opts);
   JS_FreeValue(ctx, opts);
   return ret;
 }
 
-static JSValue resolved_promise(JSContext* ctx) {
+static JSValue
+resolved_promise(JSContext* ctx) {
   JSValue resolving[2], undef = JS_UNDEFINED;
   JSValue promise = JS_NewPromiseCapability(ctx, resolving);
   JS_FreeValue(ctx, JS_Call(ctx, resolving[0], JS_UNDEFINED, 1, &undef));
@@ -812,12 +806,13 @@ static JSValue resolved_promise(JSContext* ctx) {
 enum { CL_RESUME, CL_SUSPEND, CL_CLOSE };
 
 /* An offline context is driven only by startRendering(), so these are no-ops there. */
-static JSValue js_audiocontext_lifecycle(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+static JSValue
+js_audiocontext_lifecycle(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
   AudioContextPtr* sac = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id));
-  if (!sac)
+  if(!sac)
     return JS_EXCEPTION;
-  if (!(*sac)->isOfflineContext()) {
-    switch (magic) {
+  if(!(*sac)->isOfflineContext()) {
+    switch(magic) {
       /* lazyInitialize also spawns the graph update thread; resume() alone would only restart the device stream. */
       case CL_RESUME:
         (*sac)->lazyInitialize();
@@ -830,23 +825,24 @@ static JSValue js_audiocontext_lifecycle(JSContext* ctx, JSValueConst this_val, 
   return resolved_promise(ctx);
 }
 
-static JSValue js_audiocontext_start_rendering(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
+static JSValue
+js_audiocontext_start_rendering(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
   AudioContextPtr* sac = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id));
-  if (!sac)
+  if(!sac)
     return JS_EXCEPTION;
   AudioContextPtr ac = *sac;
-  if (!ac->isOfflineContext())
+  if(!ac->isOfflineContext())
     return JS_ThrowTypeError(ctx, "startRendering is only valid on an offline AudioContext");
 
   auto dest = ac->destinationNode();
-  if (!dest || !dest->device())
+  if(!dest || !dest->device())
     return JS_ThrowInternalError(ctx, "offline AudioContext has no destination");
 
   JSValue lenv = JS_GetPropertyStr(ctx, this_val, "__offlineLength");
   int32_t length = 0;
   JS_ToInt32(ctx, &length, lenv);
   JS_FreeValue(ctx, lenv);
-  if (length <= 0)
+  if(length <= 0)
     return JS_ThrowTypeError(ctx, "offline AudioContext has no render length");
 
   int numberOfChannels = static_cast<int>(dest->device()->getOutputConfig().desired_channels);
@@ -856,10 +852,10 @@ static JSValue js_audiocontext_start_rendering(JSContext* ctx, JSValueConst this
   const int quantum = lab::AudioNode::ProcessingSizeInFrames;
   lab::AudioBus scratch(numberOfChannels, quantum, true);
   int rendered = 0;
-  while (rendered < length) {
+  while(rendered < length) {
     dest->offlineRender(&scratch, quantum);
     int n = std::min(quantum, length - rendered);
-    for (int c = 0; c < numberOfChannels; c++)
+    for(int c = 0; c < numberOfChannels; c++)
       memcpy(result->channel(c)->mutableData() + rendered, scratch.channel(c)->data(), n * sizeof(float));
     rendered += n;
   }
@@ -875,89 +871,91 @@ static JSValue js_audiocontext_start_rendering(JSContext* ctx, JSValueConst this
   return promise;
 }
 
-static void js_audiocontext_finalizer(JSRuntime* rt, JSValue val) {
+static void
+js_audiocontext_finalizer(JSRuntime* rt, JSValue val) {
   AudioContextPtr* sac = static_cast<AudioContextPtr*>(JS_GetOpaque(val, js_audiocontext_class_id));
-  if (sac) {
+  if(sac) {
     sac->~AudioContextPtr();
     js_free_rt(rt, sac);
   }
 }
 
 static JSClassDef js_audiocontext_class = {
-    .class_name = "AudioContext",
-    .finalizer = js_audiocontext_finalizer,
+  .class_name = "AudioContext",
+  .finalizer = js_audiocontext_finalizer,
 };
 
 // Shared BaseAudioContext-equivalent members, applied to both
 // audiocontext_proto and offlineaudiocontext_proto.
 static const JSCFunctionListEntry js_baseaudiocontext_funcs[] = {
-    JS_CGETSET_MAGIC_DEF("sampleRate", js_audiocontext_get, 0, AC_PROP_SAMPLERATE),
-    JS_CGETSET_MAGIC_DEF("destination", js_audiocontext_get, 0, AC_PROP_DESTINATION),
-    JS_CGETSET_MAGIC_DEF("destinationNode", js_audiocontext_get, 0, AC_PROP_DESTINATION),
-    JS_CGETSET_MAGIC_DEF("listener", js_audiocontext_get, 0, AC_PROP_LISTENER),
-    JS_CGETSET_MAGIC_DEF("currentTime", js_audiocontext_get, 0, AC_PROP_CURRENTTIME),
-    JS_CGETSET_MAGIC_DEF("currentSampleFrame", js_audiocontext_get, 0, AC_PROP_CURRENTSAMPLEFRAME),
-    JS_CGETSET_MAGIC_DEF("predictedCurrentTime", js_audiocontext_get, 0, AC_PROP_PREDICTED_CURRENTTIME),
-    JS_CFUNC_DEF("connect", 2, js_audiocontext_connect),
-    JS_CFUNC_DEF("decodeAudioData", 1, js_audiocontext_decode_audio_data),
-    JS_CFUNC_DEF("createBufferFromFile", 1, js_audiocontext_create_buffer_from_file),
-    JS_CGETSET_MAGIC_DEF("state", js_audiocontext_get, 0, AC_PROP_STATE),
-    JS_CFUNC_MAGIC_DEF("resume", 0, js_audiocontext_lifecycle, CL_RESUME),
-    JS_CFUNC_MAGIC_DEF("suspend", 0, js_audiocontext_lifecycle, CL_SUSPEND),
-    JS_CFUNC_MAGIC_DEF("close", 0, js_audiocontext_lifecycle, CL_CLOSE),
-    JS_CFUNC_DEF("createBuffer", 3, js_audiocontext_create_buffer),
-    JS_CFUNC_MAGIC_DEF("createOscillator", 0, js_audiocontext_create_node, CN_OSCILLATOR),
-    JS_CFUNC_MAGIC_DEF("createGain", 0, js_audiocontext_create_node, CN_GAIN),
-    JS_CFUNC_MAGIC_DEF("createBiquadFilter", 0, js_audiocontext_create_node, CN_BIQUADFILTER),
-    JS_CFUNC_DEF("createIIRFilter", 2, js_audiocontext_create_iirfilter),
-    JS_CFUNC_MAGIC_DEF("createDelay", 0, js_audiocontext_create_node, CN_DELAY),
-    JS_CFUNC_MAGIC_DEF("createConvolver", 0, js_audiocontext_create_node, CN_CONVOLVER),
-    JS_CFUNC_MAGIC_DEF("createWaveShaper", 0, js_audiocontext_create_node, CN_WAVESHAPER),
-    JS_CFUNC_MAGIC_DEF("createDynamicsCompressor", 0, js_audiocontext_create_node, CN_DYNAMICSCOMPRESSOR),
-    JS_CFUNC_MAGIC_DEF("createStereoPanner", 0, js_audiocontext_create_node, CN_STEREOPANNER),
-    JS_CFUNC_MAGIC_DEF("createConstantSource", 0, js_audiocontext_create_node, CN_CONSTANTSOURCE),
-    JS_CFUNC_MAGIC_DEF("createAnalyser", 0, js_audiocontext_create_node, CN_ANALYSER),
+  JS_CGETSET_MAGIC_DEF("sampleRate", js_audiocontext_get, 0, AC_PROP_SAMPLERATE),
+  JS_CGETSET_MAGIC_DEF("destination", js_audiocontext_get, 0, AC_PROP_DESTINATION),
+  JS_CGETSET_MAGIC_DEF("destinationNode", js_audiocontext_get, 0, AC_PROP_DESTINATION),
+  JS_CGETSET_MAGIC_DEF("listener", js_audiocontext_get, 0, AC_PROP_LISTENER),
+  JS_CGETSET_MAGIC_DEF("currentTime", js_audiocontext_get, 0, AC_PROP_CURRENTTIME),
+  JS_CGETSET_MAGIC_DEF("currentSampleFrame", js_audiocontext_get, 0, AC_PROP_CURRENTSAMPLEFRAME),
+  JS_CGETSET_MAGIC_DEF("predictedCurrentTime", js_audiocontext_get, 0, AC_PROP_PREDICTED_CURRENTTIME),
+  JS_CFUNC_DEF("connect", 2, js_audiocontext_connect),
+  JS_CFUNC_DEF("decodeAudioData", 1, js_audiocontext_decode_audio_data),
+  JS_CFUNC_DEF("createBufferFromFile", 1, js_audiocontext_create_buffer_from_file),
+  JS_CGETSET_MAGIC_DEF("state", js_audiocontext_get, 0, AC_PROP_STATE),
+  JS_CFUNC_MAGIC_DEF("resume", 0, js_audiocontext_lifecycle, CL_RESUME),
+  JS_CFUNC_MAGIC_DEF("suspend", 0, js_audiocontext_lifecycle, CL_SUSPEND),
+  JS_CFUNC_MAGIC_DEF("close", 0, js_audiocontext_lifecycle, CL_CLOSE),
+  JS_CFUNC_DEF("createBuffer", 3, js_audiocontext_create_buffer),
+  JS_CFUNC_MAGIC_DEF("createOscillator", 0, js_audiocontext_create_node, CN_OSCILLATOR),
+  JS_CFUNC_MAGIC_DEF("createGain", 0, js_audiocontext_create_node, CN_GAIN),
+  JS_CFUNC_MAGIC_DEF("createBiquadFilter", 0, js_audiocontext_create_node, CN_BIQUADFILTER),
+  JS_CFUNC_DEF("createIIRFilter", 2, js_audiocontext_create_iirfilter),
+  JS_CFUNC_MAGIC_DEF("createDelay", 0, js_audiocontext_create_node, CN_DELAY),
+  JS_CFUNC_MAGIC_DEF("createConvolver", 0, js_audiocontext_create_node, CN_CONVOLVER),
+  JS_CFUNC_MAGIC_DEF("createWaveShaper", 0, js_audiocontext_create_node, CN_WAVESHAPER),
+  JS_CFUNC_MAGIC_DEF("createDynamicsCompressor", 0, js_audiocontext_create_node, CN_DYNAMICSCOMPRESSOR),
+  JS_CFUNC_MAGIC_DEF("createStereoPanner", 0, js_audiocontext_create_node, CN_STEREOPANNER),
+  JS_CFUNC_MAGIC_DEF("createConstantSource", 0, js_audiocontext_create_node, CN_CONSTANTSOURCE),
+  JS_CFUNC_MAGIC_DEF("createAnalyser", 0, js_audiocontext_create_node, CN_ANALYSER),
 };
 
 // AudioContext-only.
 static const JSCFunctionListEntry js_audiocontext_funcs[] = {
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioContext", JS_PROP_CONFIGURABLE),
+  JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioContext", JS_PROP_CONFIGURABLE),
 };
 
-// OfflineAudioContext-only: startRendering()/length have no meaning (and no
+// OfflineAudioContext-only: startRendering()/length have no meaning(and no
 // spec presence) on a realtime AudioContext.
 static const JSCFunctionListEntry js_offlineaudiocontext_funcs[] = {
-    JS_CGETSET_MAGIC_DEF("length", js_audiocontext_get, 0, AC_PROP_LENGTH),
-    JS_CFUNC_DEF("startRendering", 0, js_audiocontext_start_rendering),
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "OfflineAudioContext", JS_PROP_CONFIGURABLE),
+  JS_CGETSET_MAGIC_DEF("length", js_audiocontext_get, 0, AC_PROP_LENGTH),
+  JS_CFUNC_DEF("startRendering", 0, js_audiocontext_start_rendering),
+  JS_PROP_STRING_DEF("[Symbol.toStringTag]", "OfflineAudioContext", JS_PROP_CONFIGURABLE),
 };
 
 /* ---------- shared AudioNode methods ---------- */
 
-static JSValue js_audionode_connect(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
+static JSValue
+js_audionode_connect(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
   JsAudioNode* src = any_audio_node(this_val);
-  if (!src)
+  if(!src)
     return JS_ThrowTypeError(ctx, "this is not an AudioNode");
-  if (argc < 1)
+  if(argc < 1)
     return JS_ThrowTypeError(ctx, "connect requires a destination");
 
   JsAudioNode* dst = any_audio_node(argv[0]);
-  if (dst) {
+  if(dst) {
     int srcIdx = 0, dstIdx = 0;
-    if (argc > 1)
+    if(argc > 1)
       JS_ToInt32(ctx, &srcIdx, argv[1]);
-    if (argc > 2)
+    if(argc > 2)
       JS_ToInt32(ctx, &dstIdx, argv[2]);
     src->ctx->connect(dst->node, src->node, dstIdx, srcIdx);
     return JS_DupValue(ctx, argv[0]);
   }
 
   JsAudioParam* dstParam = any_audio_param(argv[0]);
-  if (dstParam) {
+  if(dstParam) {
     // AudioNode.connect(destinationParam, output) -no chaining return value,
-    // matching the spec (an AudioParam isn't itself connectable further).
+    // matching the spec(an AudioParam isn't itself connectable further).
     int srcIdx = 0;
-    if (argc > 1)
+    if(argc > 1)
       JS_ToInt32(ctx, &srcIdx, argv[1]);
     src->ctx->connectParam(dstParam->param, src->node, srcIdx);
     return JS_UNDEFINED;
@@ -967,47 +965,49 @@ static JSValue js_audionode_connect(JSContext* ctx, JSValueConst this_val, int a
 }
 
 /* The engine's queued disconnect is deferred and ramps the node out, so a connect() issued right after it is applied
-   first and then wiped by the pending disconnect (and the ramp leaves a pass-through node stopped). WebAudio code
+   first and then wiped by the pending disconnect(and the ramp leaves a pass-through node stopped). WebAudio code
    calls disconnect() and connect() back to back, so flush the queued connections and cut the edges here, in program
    order. A null `dst` cuts every output of `src`. */
-static void disconnect_now(
+static void
+disconnect_now(
     const AudioContextPtr& ac, const std::shared_ptr<lab::AudioNode>& src, const std::shared_ptr<lab::AudioNode>& dst,
     int srcIdx, int dstIdx
 ) {
   lab::ContextRenderLock rLock(ac.get(), "AudioNode.disconnect");
   ac->handlePreRenderTasks(rLock);
   lab::ContextGraphLock gLock(ac.get(), "AudioNode.disconnect");
-  if (dst) {
+  if(dst) {
     auto in = dst->input(dstIdx);
     auto out = src->output(srcIdx);
-    if (in && out)
+    if(in && out)
       lab::AudioNodeInput::disconnect(gLock, in, out);
     return;
   }
-  for (int i = 0; i < src->numberOfOutputs(); i++) {
+  for(int i = 0; i < src->numberOfOutputs(); i++) {
     auto out = src->output(i);
-    if (out)
+    if(out)
       lab::AudioNodeOutput::disconnectAll(gLock, out);
   }
 }
 
-static JSValue js_audionode_disconnect(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
+static JSValue
+js_audionode_disconnect(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
   JsAudioNode* src = any_audio_node(this_val);
-  if (!src)
+  if(!src)
     return JS_ThrowTypeError(ctx, "this is not an AudioNode");
-  if (argc < 1) {
+  if(argc < 1) {
     disconnect_now(src->ctx, src->node, nullptr, 0, 0);
     return JS_UNDEFINED;
   }
 
   JsAudioNode* dst = any_audio_node(argv[0]);
-  if (dst) {
+  if(dst) {
     disconnect_now(src->ctx, src->node, dst->node, 0, 0);
     return JS_UNDEFINED;
   }
 
   JsAudioParam* dstParam = any_audio_param(argv[0]);
-  if (dstParam) {
+  if(dstParam) {
     src->ctx->disconnectParam(dstParam->param, src->node, 0);
     return JS_UNDEFINED;
   }
@@ -1015,17 +1015,18 @@ static JSValue js_audionode_disconnect(JSContext* ctx, JSValueConst this_val, in
   return JS_ThrowTypeError(ctx, "destination must be an AudioNode or AudioParam");
 }
 
-static void js_audionode_finalize_with(JSRuntime* rt, JSValue val, JSClassID cid) {
+static void
+js_audionode_finalize_with(JSRuntime* rt, JSValue val, JSClassID cid) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque(val, cid));
-  if (w) {
+  if(w) {
     w->~JsAudioNode();
     js_free_rt(rt, w);
   }
 }
 
 static const JSCFunctionListEntry js_audionode_funcs[] = {
-    JS_CFUNC_DEF("connect", 1, js_audionode_connect),
-    JS_CFUNC_DEF("disconnect", 0, js_audionode_disconnect),
+  JS_CFUNC_DEF("connect", 1, js_audionode_connect),
+  JS_CFUNC_DEF("disconnect", 0, js_audionode_disconnect),
 };
 
 /* ---------- shared AudioScheduledSourceNode methods ---------- */
@@ -1034,17 +1035,18 @@ static const JSCFunctionListEntry js_audionode_funcs[] = {
 // AudioBufferSourceNode overrides start() on its own proto for its extra
 // offset/loop arguments but still inherits this stop().
 
-static JSValue js_scheduledsource_start(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
+static JSValue
+js_scheduledsource_start(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
   JsAudioNode* w = any_audio_node(this_val);
-  if (!w)
+  if(!w)
     return JS_ThrowTypeError(ctx, "this is not an AudioNode");
   auto s = std::dynamic_pointer_cast<lab::AudioScheduledSourceNode>(w->node);
-  if (!s)
+  if(!s)
     return JS_ThrowInternalError(ctx, "not a scheduled source node");
   float when = 0.0f;
-  if (argc > 0) {
+  if(argc > 0) {
     double t;
-    if (JS_ToFloat64(ctx, &t, argv[0]))
+    if(JS_ToFloat64(ctx, &t, argv[0]))
       return JS_EXCEPTION;
     when = engine_when(*s, t);
   }
@@ -1052,17 +1054,18 @@ static JSValue js_scheduledsource_start(JSContext* ctx, JSValueConst this_val, i
   return JS_UNDEFINED;
 }
 
-static JSValue js_scheduledsource_stop(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
+static JSValue
+js_scheduledsource_stop(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
   JsAudioNode* w = any_audio_node(this_val);
-  if (!w)
+  if(!w)
     return JS_ThrowTypeError(ctx, "this is not an AudioNode");
   auto s = std::dynamic_pointer_cast<lab::AudioScheduledSourceNode>(w->node);
-  if (!s)
+  if(!s)
     return JS_ThrowInternalError(ctx, "not a scheduled source node");
   float when = 0.0f;
-  if (argc > 0) {
+  if(argc > 0) {
     double t;
-    if (JS_ToFloat64(ctx, &t, argv[0]))
+    if(JS_ToFloat64(ctx, &t, argv[0]))
       return JS_EXCEPTION;
     when = engine_when(*s, t);
   }
@@ -1071,59 +1074,64 @@ static JSValue js_scheduledsource_stop(JSContext* ctx, JSValueConst this_val, in
 }
 
 static const JSCFunctionListEntry js_audioscheduledsourcenode_funcs[] = {
-    JS_CFUNC_DEF("start", 0, js_scheduledsource_start),
-    JS_CFUNC_DEF("stop", 0, js_scheduledsource_stop),
+  JS_CFUNC_DEF("start", 0, js_scheduledsource_start),
+  JS_CFUNC_DEF("stop", 0, js_scheduledsource_stop),
 };
 
 /* ---------- AudioDestinationNode ---------- */
 
-static JSValue js_audiodestinationnode_get_name(JSContext* ctx, JSValueConst this_val) {
+static JSValue
+js_audiodestinationnode_get_name(JSContext* ctx, JSValueConst this_val) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_audiodestinationnode_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   return JS_NewString(ctx, w->node->name());
 }
 
-static JSValue js_audiodestinationnode_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+static JSValue
+js_audiodestinationnode_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
   return JS_ThrowTypeError(ctx, "use AudioContext.destination instead");
 }
 
-static void js_audiodestinationnode_finalizer(JSRuntime* rt, JSValue val) {
+static void
+js_audiodestinationnode_finalizer(JSRuntime* rt, JSValue val) {
   js_audionode_finalize_with(rt, val, js_audiodestinationnode_class_id);
 }
 
 static JSClassDef js_audiodestinationnode_class = {
-    .class_name = "AudioDestinationNode",
-    .finalizer = js_audiodestinationnode_finalizer,
+  .class_name = "AudioDestinationNode",
+  .finalizer = js_audiodestinationnode_finalizer,
 };
 
 static const JSCFunctionListEntry js_audiodestinationnode_funcs[] = {
-    JS_CGETSET_DEF("name", js_audiodestinationnode_get_name, NULL),
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioDestinationNode", JS_PROP_CONFIGURABLE),
+  JS_CGETSET_DEF("name", js_audiodestinationnode_get_name, NULL),
+  JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioDestinationNode", JS_PROP_CONFIGURABLE),
 };
 
 /* ---------- OscillatorNode ---------- */
 
-static lab::OscillatorType parse_oscillator_type(const char* s) {
-  if (!s)
+static lab::OscillatorType
+parse_oscillator_type(const char* s) {
+  if(!s)
     return lab::OscillatorType::SINE;
-  if (!strcmp(s, "sine"))
+  if(!strcmp(s, "sine"))
     return lab::OscillatorType::SINE;
-  if (!strcmp(s, "square"))
+  if(!strcmp(s, "square"))
     return lab::OscillatorType::SQUARE;
-  if (!strcmp(s, "sawtooth"))
+  if(!strcmp(s, "sawtooth"))
     return lab::OscillatorType::SAWTOOTH;
-  if (!strcmp(s, "triangle"))
+  if(!strcmp(s, "triangle"))
     return lab::OscillatorType::TRIANGLE;
-  if (!strcmp(s, "fast-sine"))
+  if(!strcmp(s, "fast-sine"))
     return lab::OscillatorType::FAST_SINE;
-  if (!strcmp(s, "falling-sawtooth"))
+  if(!strcmp(s, "falling-sawtooth"))
     return lab::OscillatorType::FALLING_SAWTOOTH;
   return lab::OscillatorType::SINE;
 }
 
-static const char* osc_type_to_string(lab::OscillatorType t) {
-  switch (t) {
+static const char*
+osc_type_to_string(lab::OscillatorType t) {
+  switch(t) {
     case lab::OscillatorType::SINE: return "sine";
     case lab::OscillatorType::FAST_SINE: return "fast-sine";
     case lab::OscillatorType::SQUARE: return "square";
@@ -1135,24 +1143,25 @@ static const char* osc_type_to_string(lab::OscillatorType t) {
   }
 }
 
-static JSValue js_oscillator_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
-  if (argc < 1)
+static JSValue
+js_oscillator_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+  if(argc < 1)
     return JS_ThrowTypeError(ctx, "OscillatorNode requires an AudioContext");
 
   AudioContextPtr* acptr = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, argv[0], js_audiocontext_class_id));
-  if (!acptr)
+  if(!acptr)
     return JS_EXCEPTION;
   AudioContextPtr ac = *acptr;
 
   auto osc = std::make_shared<lab::OscillatorNode>(*ac);
 
-  if (argc > 1 && JS_IsObject(argv[1])) {
+  if(argc > 1 && JS_IsObject(argv[1])) {
     JSValue v;
 
     v = JS_GetPropertyStr(ctx, argv[1], "type");
-    if (!JS_IsUndefined(v) && !JS_IsException(v)) {
+    if(!JS_IsUndefined(v) && !JS_IsException(v)) {
       const char* s = JS_ToCString(ctx, v);
-      if (s) {
+      if(s) {
         osc->setType(parse_oscillator_type(s));
         JS_FreeCString(ctx, s);
       }
@@ -1160,7 +1169,7 @@ static JSValue js_oscillator_constructor(JSContext* ctx, JSValueConst new_target
     JS_FreeValue(ctx, v);
 
     v = JS_GetPropertyStr(ctx, argv[1], "frequency");
-    if (JS_IsNumber(v)) {
+    if(JS_IsNumber(v)) {
       double f;
       JS_ToFloat64(ctx, &f, v);
       osc->frequency()->setValue((float)f);
@@ -1168,7 +1177,7 @@ static JSValue js_oscillator_constructor(JSContext* ctx, JSValueConst new_target
     JS_FreeValue(ctx, v);
 
     v = JS_GetPropertyStr(ctx, argv[1], "detune");
-    if (JS_IsNumber(v)) {
+    if(JS_IsNumber(v)) {
       double d;
       JS_ToFloat64(ctx, &d, v);
       osc->detune()->setValue((float)d);
@@ -1177,9 +1186,9 @@ static JSValue js_oscillator_constructor(JSContext* ctx, JSValueConst new_target
   }
 
   JSValue proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if (JS_IsException(proto))
+  if(JS_IsException(proto))
     return JS_EXCEPTION;
-  if (!JS_IsObject(proto)) {
+  if(!JS_IsObject(proto)) {
     JS_FreeValue(ctx, proto);
     proto = JS_DupValue(ctx, oscillatornode_proto);
   }
@@ -1196,14 +1205,15 @@ enum {
   OSC_PROP_DETUNE,
 };
 
-static JSValue js_oscillator_get(JSContext* ctx, JSValueConst this_val, int magic) {
+static JSValue
+js_oscillator_get(JSContext* ctx, JSValueConst this_val, int magic) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_oscillatornode_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   auto osc = std::dynamic_pointer_cast<lab::OscillatorNode>(w->node);
-  if (!osc)
+  if(!osc)
     return JS_ThrowInternalError(ctx, "not an OscillatorNode");
-  switch (magic) {
+  switch(magic) {
     case OSC_PROP_TYPE: return JS_NewString(ctx, osc_type_to_string(osc->type()));
     case OSC_PROP_FREQUENCY: return make_audio_param_js(ctx, osc->frequency());
     case OSC_PROP_DETUNE: return make_audio_param_js(ctx, osc->detune());
@@ -1211,16 +1221,17 @@ static JSValue js_oscillator_get(JSContext* ctx, JSValueConst this_val, int magi
   return JS_UNDEFINED;
 }
 
-static JSValue js_oscillator_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
+static JSValue
+js_oscillator_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_oscillatornode_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   auto osc = std::dynamic_pointer_cast<lab::OscillatorNode>(w->node);
-  if (!osc)
+  if(!osc)
     return JS_ThrowInternalError(ctx, "not an OscillatorNode");
-  if (magic == OSC_PROP_TYPE) {
+  if(magic == OSC_PROP_TYPE) {
     const char* s = JS_ToCString(ctx, value);
-    if (s) {
+    if(s) {
       osc->setType(parse_oscillator_type(s));
       JS_FreeCString(ctx, s);
     }
@@ -1228,36 +1239,38 @@ static JSValue js_oscillator_set(JSContext* ctx, JSValueConst this_val, JSValueC
   return JS_UNDEFINED;
 }
 
-static void js_oscillatornode_finalizer(JSRuntime* rt, JSValue val) {
+static void
+js_oscillatornode_finalizer(JSRuntime* rt, JSValue val) {
   js_audionode_finalize_with(rt, val, js_oscillatornode_class_id);
 }
 
 static JSClassDef js_oscillatornode_class = {
-    .class_name = "OscillatorNode",
-    .finalizer = js_oscillatornode_finalizer,
+  .class_name = "OscillatorNode",
+  .finalizer = js_oscillatornode_finalizer,
 };
 
 static const JSCFunctionListEntry js_oscillatornode_funcs[] = {
-    JS_CGETSET_MAGIC_DEF("type", js_oscillator_get, js_oscillator_set, OSC_PROP_TYPE),
-    JS_CGETSET_MAGIC_DEF("frequency", js_oscillator_get, 0, OSC_PROP_FREQUENCY),
-    JS_CGETSET_MAGIC_DEF("detune", js_oscillator_get, 0, OSC_PROP_DETUNE),
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "OscillatorNode", JS_PROP_CONFIGURABLE),
+  JS_CGETSET_MAGIC_DEF("type", js_oscillator_get, js_oscillator_set, OSC_PROP_TYPE),
+  JS_CGETSET_MAGIC_DEF("frequency", js_oscillator_get, 0, OSC_PROP_FREQUENCY),
+  JS_CGETSET_MAGIC_DEF("detune", js_oscillator_get, 0, OSC_PROP_DETUNE),
+  JS_PROP_STRING_DEF("[Symbol.toStringTag]", "OscillatorNode", JS_PROP_CONFIGURABLE),
 };
 
 /* ---------- GainNode ---------- */
 
-static JSValue js_gain_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
-  if (argc < 1)
+static JSValue
+js_gain_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+  if(argc < 1)
     return JS_ThrowTypeError(ctx, "GainNode requires an AudioContext");
   AudioContextPtr* acptr = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, argv[0], js_audiocontext_class_id));
-  if (!acptr)
+  if(!acptr)
     return JS_EXCEPTION;
   AudioContextPtr ac = *acptr;
   auto g = std::make_shared<lab::GainNode>(*ac);
 
-  if (argc > 1 && JS_IsObject(argv[1])) {
+  if(argc > 1 && JS_IsObject(argv[1])) {
     JSValue v = JS_GetPropertyStr(ctx, argv[1], "gain");
-    if (JS_IsNumber(v)) {
+    if(JS_IsNumber(v)) {
       double f;
       JS_ToFloat64(ctx, &f, v);
       g->gain()->setValue((float)f);
@@ -1266,9 +1279,9 @@ static JSValue js_gain_constructor(JSContext* ctx, JSValueConst new_target, int 
   }
 
   JSValue proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if (JS_IsException(proto))
+  if(JS_IsException(proto))
     return JS_EXCEPTION;
-  if (!JS_IsObject(proto)) {
+  if(!JS_IsObject(proto)) {
     JS_FreeValue(ctx, proto);
     proto = JS_DupValue(ctx, gainnode_proto);
   }
@@ -1278,56 +1291,60 @@ static JSValue js_gain_constructor(JSContext* ctx, JSValueConst new_target, int 
   return obj;
 }
 
-static JSValue js_gain_get_gain(JSContext* ctx, JSValueConst this_val) {
+static JSValue
+js_gain_get_gain(JSContext* ctx, JSValueConst this_val) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_gainnode_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   auto g = std::dynamic_pointer_cast<lab::GainNode>(w->node);
-  if (!g)
+  if(!g)
     return JS_ThrowInternalError(ctx, "not a GainNode");
   return make_audio_param_js(ctx, g->gain());
 }
 
-static void js_gainnode_finalizer(JSRuntime* rt, JSValue val) {
+static void
+js_gainnode_finalizer(JSRuntime* rt, JSValue val) {
   js_audionode_finalize_with(rt, val, js_gainnode_class_id);
 }
 
 static JSClassDef js_gainnode_class = {
-    .class_name = "GainNode",
-    .finalizer = js_gainnode_finalizer,
+  .class_name = "GainNode",
+  .finalizer = js_gainnode_finalizer,
 };
 
 static const JSCFunctionListEntry js_gainnode_funcs[] = {
-    JS_CGETSET_DEF("gain", js_gain_get_gain, NULL),
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "GainNode", JS_PROP_CONFIGURABLE),
+  JS_CGETSET_DEF("gain", js_gain_get_gain, NULL),
+  JS_PROP_STRING_DEF("[Symbol.toStringTag]", "GainNode", JS_PROP_CONFIGURABLE),
 };
 
 /* ---------- BiquadFilterNode ---------- */
 
-static lab::FilterType parse_filter_type(const char* s) {
-  if (!s)
+static lab::FilterType
+parse_filter_type(const char* s) {
+  if(!s)
     return lab::FilterType::LOWPASS;
-  if (!strcmp(s, "lowpass"))
+  if(!strcmp(s, "lowpass"))
     return lab::FilterType::LOWPASS;
-  if (!strcmp(s, "highpass"))
+  if(!strcmp(s, "highpass"))
     return lab::FilterType::HIGHPASS;
-  if (!strcmp(s, "bandpass"))
+  if(!strcmp(s, "bandpass"))
     return lab::FilterType::BANDPASS;
-  if (!strcmp(s, "lowshelf"))
+  if(!strcmp(s, "lowshelf"))
     return lab::FilterType::LOWSHELF;
-  if (!strcmp(s, "highshelf"))
+  if(!strcmp(s, "highshelf"))
     return lab::FilterType::HIGHSHELF;
-  if (!strcmp(s, "peaking"))
+  if(!strcmp(s, "peaking"))
     return lab::FilterType::PEAKING;
-  if (!strcmp(s, "notch"))
+  if(!strcmp(s, "notch"))
     return lab::FilterType::NOTCH;
-  if (!strcmp(s, "allpass"))
+  if(!strcmp(s, "allpass"))
     return lab::FilterType::ALLPASS;
   return lab::FilterType::LOWPASS;
 }
 
-static const char* filter_type_to_string(lab::FilterType t) {
-  switch (t) {
+static const char*
+filter_type_to_string(lab::FilterType t) {
+  switch(t) {
     case lab::FilterType::LOWPASS: return "lowpass";
     case lab::FilterType::HIGHPASS: return "highpass";
     case lab::FilterType::BANDPASS: return "bandpass";
@@ -1340,22 +1357,23 @@ static const char* filter_type_to_string(lab::FilterType t) {
   }
 }
 
-static JSValue js_biquadfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
-  if (argc < 1)
+static JSValue
+js_biquadfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+  if(argc < 1)
     return JS_ThrowTypeError(ctx, "BiquadFilterNode requires an AudioContext");
   AudioContextPtr* acptr = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, argv[0], js_audiocontext_class_id));
-  if (!acptr)
+  if(!acptr)
     return JS_EXCEPTION;
   AudioContextPtr ac = *acptr;
   auto f = std::make_shared<lab::BiquadFilterNode>(*ac);
 
-  if (argc > 1 && JS_IsObject(argv[1])) {
+  if(argc > 1 && JS_IsObject(argv[1])) {
     JSValue v;
 
     v = JS_GetPropertyStr(ctx, argv[1], "type");
-    if (!JS_IsUndefined(v) && !JS_IsException(v)) {
+    if(!JS_IsUndefined(v) && !JS_IsException(v)) {
       const char* s = JS_ToCString(ctx, v);
-      if (s) {
+      if(s) {
         f->setType(parse_filter_type(s));
         JS_FreeCString(ctx, s);
       }
@@ -1363,7 +1381,7 @@ static JSValue js_biquadfilter_constructor(JSContext* ctx, JSValueConst new_targ
     JS_FreeValue(ctx, v);
 
     v = JS_GetPropertyStr(ctx, argv[1], "frequency");
-    if (JS_IsNumber(v)) {
+    if(JS_IsNumber(v)) {
       double d;
       JS_ToFloat64(ctx, &d, v);
       f->frequency()->setValue((float)d);
@@ -1371,7 +1389,7 @@ static JSValue js_biquadfilter_constructor(JSContext* ctx, JSValueConst new_targ
     JS_FreeValue(ctx, v);
 
     v = JS_GetPropertyStr(ctx, argv[1], "Q");
-    if (JS_IsNumber(v)) {
+    if(JS_IsNumber(v)) {
       double d;
       JS_ToFloat64(ctx, &d, v);
       f->q()->setValue((float)d);
@@ -1379,7 +1397,7 @@ static JSValue js_biquadfilter_constructor(JSContext* ctx, JSValueConst new_targ
     JS_FreeValue(ctx, v);
 
     v = JS_GetPropertyStr(ctx, argv[1], "detune");
-    if (JS_IsNumber(v)) {
+    if(JS_IsNumber(v)) {
       double d;
       JS_ToFloat64(ctx, &d, v);
       f->detune()->setValue((float)d);
@@ -1387,7 +1405,7 @@ static JSValue js_biquadfilter_constructor(JSContext* ctx, JSValueConst new_targ
     JS_FreeValue(ctx, v);
 
     v = JS_GetPropertyStr(ctx, argv[1], "gain");
-    if (JS_IsNumber(v)) {
+    if(JS_IsNumber(v)) {
       double d;
       JS_ToFloat64(ctx, &d, v);
       f->gain()->setValue((float)d);
@@ -1396,9 +1414,9 @@ static JSValue js_biquadfilter_constructor(JSContext* ctx, JSValueConst new_targ
   }
 
   JSValue proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if (JS_IsException(proto))
+  if(JS_IsException(proto))
     return JS_EXCEPTION;
-  if (!JS_IsObject(proto)) {
+  if(!JS_IsObject(proto)) {
     JS_FreeValue(ctx, proto);
     proto = JS_DupValue(ctx, biquadfilternode_proto);
   }
@@ -1416,14 +1434,15 @@ enum {
   BQ_PROP_GAIN,
 };
 
-static JSValue js_biquadfilter_get(JSContext* ctx, JSValueConst this_val, int magic) {
+static JSValue
+js_biquadfilter_get(JSContext* ctx, JSValueConst this_val, int magic) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_biquadfilternode_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   auto f = std::dynamic_pointer_cast<lab::BiquadFilterNode>(w->node);
-  if (!f)
+  if(!f)
     return JS_ThrowInternalError(ctx, "not a BiquadFilterNode");
-  switch (magic) {
+  switch(magic) {
     case BQ_PROP_TYPE: return JS_NewString(ctx, filter_type_to_string(f->type()));
     case BQ_PROP_FREQUENCY: return make_audio_param_js(ctx, f->frequency());
     case BQ_PROP_Q: return make_audio_param_js(ctx, f->q());
@@ -1433,16 +1452,17 @@ static JSValue js_biquadfilter_get(JSContext* ctx, JSValueConst this_val, int ma
   return JS_UNDEFINED;
 }
 
-static JSValue js_biquadfilter_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
+static JSValue
+js_biquadfilter_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_biquadfilternode_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   auto f = std::dynamic_pointer_cast<lab::BiquadFilterNode>(w->node);
-  if (!f)
+  if(!f)
     return JS_ThrowInternalError(ctx, "not a BiquadFilterNode");
-  if (magic == BQ_PROP_TYPE) {
+  if(magic == BQ_PROP_TYPE) {
     const char* s = JS_ToCString(ctx, value);
-    if (s) {
+    if(s) {
       f->setType(parse_filter_type(s));
       JS_FreeCString(ctx, s);
     }
@@ -1450,48 +1470,52 @@ static JSValue js_biquadfilter_set(JSContext* ctx, JSValueConst this_val, JSValu
   return JS_UNDEFINED;
 }
 
-static void js_biquadfilternode_finalizer(JSRuntime* rt, JSValue val) {
+static void
+js_biquadfilternode_finalizer(JSRuntime* rt, JSValue val) {
   js_audionode_finalize_with(rt, val, js_biquadfilternode_class_id);
 }
 
 static JSClassDef js_biquadfilternode_class = {
-    .class_name = "BiquadFilterNode",
-    .finalizer = js_biquadfilternode_finalizer,
+  .class_name = "BiquadFilterNode",
+  .finalizer = js_biquadfilternode_finalizer,
 };
 
-static JSValue js_audionode_io_count(JSContext* ctx, JSValueConst this_val, int magic) {
+static JSValue
+js_audionode_io_count(JSContext* ctx, JSValueConst this_val, int magic) {
   JsAudioNode* w = any_audio_node(this_val);
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   return JS_NewInt32(ctx, magic == 0 ? w->node->numberOfInputs() : w->node->numberOfOutputs());
 }
 
 static const JSCFunctionListEntry js_biquadfilternode_funcs[] = {
-    JS_CGETSET_MAGIC_DEF("type", js_biquadfilter_get, js_biquadfilter_set, BQ_PROP_TYPE),
-    JS_CGETSET_MAGIC_DEF("frequency", js_biquadfilter_get, 0, BQ_PROP_FREQUENCY),
-    JS_CGETSET_MAGIC_DEF("Q", js_biquadfilter_get, 0, BQ_PROP_Q),
-    JS_CGETSET_MAGIC_DEF("detune", js_biquadfilter_get, 0, BQ_PROP_DETUNE),
-    JS_CGETSET_MAGIC_DEF("gain", js_biquadfilter_get, 0, BQ_PROP_GAIN),
-    JS_CGETSET_MAGIC_DEF("numberOfInputs", js_audionode_io_count, 0, 0),
-    JS_CGETSET_MAGIC_DEF("numberOfOutputs", js_audionode_io_count, 0, 1),
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "BiquadFilterNode", JS_PROP_CONFIGURABLE),
+  JS_CGETSET_MAGIC_DEF("type", js_biquadfilter_get, js_biquadfilter_set, BQ_PROP_TYPE),
+  JS_CGETSET_MAGIC_DEF("frequency", js_biquadfilter_get, 0, BQ_PROP_FREQUENCY),
+  JS_CGETSET_MAGIC_DEF("Q", js_biquadfilter_get, 0, BQ_PROP_Q),
+  JS_CGETSET_MAGIC_DEF("detune", js_biquadfilter_get, 0, BQ_PROP_DETUNE),
+  JS_CGETSET_MAGIC_DEF("gain", js_biquadfilter_get, 0, BQ_PROP_GAIN),
+  JS_CGETSET_MAGIC_DEF("numberOfInputs", js_audionode_io_count, 0, 0),
+  JS_CGETSET_MAGIC_DEF("numberOfOutputs", js_audionode_io_count, 0, 1),
+  JS_PROP_STRING_DEF("[Symbol.toStringTag]", "BiquadFilterNode", JS_PROP_CONFIGURABLE),
 };
 
 /* ---------- AudioParam ---------- */
 
-static JSValue js_audioparam_get_value(JSContext* ctx, JSValueConst this_val) {
+static JSValue
+js_audioparam_get_value(JSContext* ctx, JSValueConst this_val) {
   JsAudioParam* w = static_cast<JsAudioParam*>(JS_GetOpaque2(ctx, this_val, js_audioparam_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   return JS_NewFloat64(ctx, w->param->value());
 }
 
-static JSValue js_audioparam_set_value(JSContext* ctx, JSValueConst this_val, JSValueConst value) {
+static JSValue
+js_audioparam_set_value(JSContext* ctx, JSValueConst this_val, JSValueConst value) {
   JsAudioParam* w = static_cast<JsAudioParam*>(JS_GetOpaque2(ctx, this_val, js_audioparam_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   double f;
-  if (JS_ToFloat64(ctx, &f, value))
+  if(JS_ToFloat64(ctx, &f, value))
     return JS_EXCEPTION;
   w->param->setValue((float)f);
   return JS_UNDEFINED;
@@ -1505,17 +1529,18 @@ enum {
   AP_METHOD_CANCEL_SCHEDULED,
 };
 
-static JSValue js_audioparam_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+static JSValue
+js_audioparam_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
   JsAudioParam* w = static_cast<JsAudioParam*>(JS_GetOpaque2(ctx, this_val, js_audioparam_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
 
   double a = 0, b = 0, c = 0;
-  switch (magic) {
+  switch(magic) {
     case AP_METHOD_CANCEL_SCHEDULED: {
-      if (argc < 1)
-        return JS_ThrowTypeError(ctx, "cancelScheduledValues requires (startTime)");
-      if (JS_ToFloat64(ctx, &a, argv[0]))
+      if(argc < 1)
+        return JS_ThrowTypeError(ctx, "cancelScheduledValues requires(startTime)");
+      if(JS_ToFloat64(ctx, &a, argv[0]))
         return JS_EXCEPTION;
       w->param->cancelScheduledValues((float)a);
       break;
@@ -1523,28 +1548,28 @@ static JSValue js_audioparam_method(JSContext* ctx, JSValueConst this_val, int a
     case AP_METHOD_SET_VALUE_AT_TIME:
     case AP_METHOD_LINEAR_RAMP:
     case AP_METHOD_EXPONENTIAL_RAMP: {
-      if (argc < 2)
-        return JS_ThrowTypeError(ctx, "method requires (value, time)");
-      if (JS_ToFloat64(ctx, &a, argv[0]))
+      if(argc < 2)
+        return JS_ThrowTypeError(ctx, "method requires(value, time)");
+      if(JS_ToFloat64(ctx, &a, argv[0]))
         return JS_EXCEPTION;
-      if (JS_ToFloat64(ctx, &b, argv[1]))
+      if(JS_ToFloat64(ctx, &b, argv[1]))
         return JS_EXCEPTION;
-      if (magic == AP_METHOD_SET_VALUE_AT_TIME)
+      if(magic == AP_METHOD_SET_VALUE_AT_TIME)
         w->param->setValueAtTime((float)a, (float)b);
-      else if (magic == AP_METHOD_LINEAR_RAMP)
+      else if(magic == AP_METHOD_LINEAR_RAMP)
         w->param->linearRampToValueAtTime((float)a, (float)b);
       else
         w->param->exponentialRampToValueAtTime((float)a, (float)b);
       break;
     }
     case AP_METHOD_SET_TARGET_AT_TIME: {
-      if (argc < 3)
-        return JS_ThrowTypeError(ctx, "setTargetAtTime requires (target, time, timeConstant)");
-      if (JS_ToFloat64(ctx, &a, argv[0]))
+      if(argc < 3)
+        return JS_ThrowTypeError(ctx, "setTargetAtTime requires(target, time, timeConstant)");
+      if(JS_ToFloat64(ctx, &a, argv[0]))
         return JS_EXCEPTION;
-      if (JS_ToFloat64(ctx, &b, argv[1]))
+      if(JS_ToFloat64(ctx, &b, argv[1]))
         return JS_EXCEPTION;
-      if (JS_ToFloat64(ctx, &c, argv[2]))
+      if(JS_ToFloat64(ctx, &c, argv[2]))
         return JS_EXCEPTION;
       w->param->setTargetAtTime((float)a, (float)b, (float)c);
       break;
@@ -1560,11 +1585,12 @@ enum {
   AP_PROP_DEFAULT,
 };
 
-static JSValue js_audioparam_get_meta(JSContext* ctx, JSValueConst this_val, int magic) {
+static JSValue
+js_audioparam_get_meta(JSContext* ctx, JSValueConst this_val, int magic) {
   JsAudioParam* w = static_cast<JsAudioParam*>(JS_GetOpaque2(ctx, this_val, js_audioparam_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
-  switch (magic) {
+  switch(magic) {
     case AP_PROP_NAME: return JS_NewString(ctx, w->param->name().c_str());
     case AP_PROP_MIN: return JS_NewFloat64(ctx, w->param->minValue());
     case AP_PROP_MAX: return JS_NewFloat64(ctx, w->param->maxValue());
@@ -1573,48 +1599,50 @@ static JSValue js_audioparam_get_meta(JSContext* ctx, JSValueConst this_val, int
   return JS_UNDEFINED;
 }
 
-static void js_audioparam_finalizer(JSRuntime* rt, JSValue val) {
+static void
+js_audioparam_finalizer(JSRuntime* rt, JSValue val) {
   JsAudioParam* w = static_cast<JsAudioParam*>(JS_GetOpaque(val, js_audioparam_class_id));
-  if (w) {
+  if(w) {
     w->~JsAudioParam();
     js_free_rt(rt, w);
   }
 }
 
 static JSClassDef js_audioparam_class = {
-    .class_name = "AudioParam",
-    .finalizer = js_audioparam_finalizer,
+  .class_name = "AudioParam",
+  .finalizer = js_audioparam_finalizer,
 };
 
 static const JSCFunctionListEntry js_audioparam_funcs[] = {
-    JS_CGETSET_DEF("value", js_audioparam_get_value, js_audioparam_set_value),
-    JS_CGETSET_MAGIC_DEF("name", js_audioparam_get_meta, 0, AP_PROP_NAME),
-    JS_CGETSET_MAGIC_DEF("minValue", js_audioparam_get_meta, 0, AP_PROP_MIN),
-    JS_CGETSET_MAGIC_DEF("maxValue", js_audioparam_get_meta, 0, AP_PROP_MAX),
-    JS_CGETSET_MAGIC_DEF("defaultValue", js_audioparam_get_meta, 0, AP_PROP_DEFAULT),
-    JS_CFUNC_MAGIC_DEF("setValueAtTime", 2, js_audioparam_method, AP_METHOD_SET_VALUE_AT_TIME),
-    JS_CFUNC_MAGIC_DEF("linearRampToValueAtTime", 2, js_audioparam_method, AP_METHOD_LINEAR_RAMP),
-    JS_CFUNC_MAGIC_DEF("exponentialRampToValueAtTime", 2, js_audioparam_method, AP_METHOD_EXPONENTIAL_RAMP),
-    JS_CFUNC_MAGIC_DEF("setTargetAtTime", 3, js_audioparam_method, AP_METHOD_SET_TARGET_AT_TIME),
-    JS_CFUNC_MAGIC_DEF("cancelScheduledValues", 1, js_audioparam_method, AP_METHOD_CANCEL_SCHEDULED),
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioParam", JS_PROP_CONFIGURABLE),
+  JS_CGETSET_DEF("value", js_audioparam_get_value, js_audioparam_set_value),
+  JS_CGETSET_MAGIC_DEF("name", js_audioparam_get_meta, 0, AP_PROP_NAME),
+  JS_CGETSET_MAGIC_DEF("minValue", js_audioparam_get_meta, 0, AP_PROP_MIN),
+  JS_CGETSET_MAGIC_DEF("maxValue", js_audioparam_get_meta, 0, AP_PROP_MAX),
+  JS_CGETSET_MAGIC_DEF("defaultValue", js_audioparam_get_meta, 0, AP_PROP_DEFAULT),
+  JS_CFUNC_MAGIC_DEF("setValueAtTime", 2, js_audioparam_method, AP_METHOD_SET_VALUE_AT_TIME),
+  JS_CFUNC_MAGIC_DEF("linearRampToValueAtTime", 2, js_audioparam_method, AP_METHOD_LINEAR_RAMP),
+  JS_CFUNC_MAGIC_DEF("exponentialRampToValueAtTime", 2, js_audioparam_method, AP_METHOD_EXPONENTIAL_RAMP),
+  JS_CFUNC_MAGIC_DEF("setTargetAtTime", 3, js_audioparam_method, AP_METHOD_SET_TARGET_AT_TIME),
+  JS_CFUNC_MAGIC_DEF("cancelScheduledValues", 1, js_audioparam_method, AP_METHOD_CANCEL_SCHEDULED),
+  JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioParam", JS_PROP_CONFIGURABLE),
 };
 
-/* ---------- AudioListener (kept minimal) ---------- */
+/* ---------- AudioListener(kept minimal) ---------- */
 
-static JSValue js_audiolistener_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+static JSValue
+js_audiolistener_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
   JSValue proto, obj = JS_UNDEFINED;
   auto* sal = static_cast<AudioListenerPtr*>(js_mallocz(ctx, sizeof(AudioListenerPtr)));
-  new (sal) AudioListenerPtr(std::make_shared<lab::AudioListener>());
+  new(sal) AudioListenerPtr(std::make_shared<lab::AudioListener>());
 
   proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if (JS_IsException(proto))
+  if(JS_IsException(proto))
     goto fail;
-  if (!JS_IsObject(proto))
+  if(!JS_IsObject(proto))
     proto = JS_DupValue(ctx, audiolistener_proto);
   obj = JS_NewObjectProtoClass(ctx, proto, js_audiolistener_class_id);
   JS_FreeValue(ctx, proto);
-  if (JS_IsException(obj))
+  if(JS_IsException(obj))
     goto fail;
   JS_SetOpaque(obj, sal);
   return obj;
@@ -1626,39 +1654,41 @@ fail:
   return JS_EXCEPTION;
 }
 
-static void js_audiolistener_finalizer(JSRuntime* rt, JSValue val) {
+static void
+js_audiolistener_finalizer(JSRuntime* rt, JSValue val) {
   AudioListenerPtr* sal = static_cast<AudioListenerPtr*>(JS_GetOpaque(val, js_audiolistener_class_id));
-  if (sal) {
+  if(sal) {
     sal->~AudioListenerPtr();
     js_free_rt(rt, sal);
   }
 }
 
 static JSClassDef js_audiolistener_class = {
-    .class_name = "AudioListener",
-    .finalizer = js_audiolistener_finalizer,
+  .class_name = "AudioListener",
+  .finalizer = js_audiolistener_finalizer,
 };
 
 static const JSCFunctionListEntry js_audiolistener_funcs[] = {
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioListener", JS_PROP_CONFIGURABLE),
+  JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioListener", JS_PROP_CONFIGURABLE),
 };
 
-/* ---------- AudioDevice (kept) ---------- */
+/* ---------- AudioDevice(kept) ---------- */
 
-static JSValue js_audiodevice_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+static JSValue
+js_audiodevice_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
   JSValue proto, obj = JS_UNDEFINED;
   auto cfg = get_default_device_config();
   auto* sad = static_cast<AudioDevicePtr*>(js_mallocz(ctx, sizeof(AudioDevicePtr)));
-  new (sad) AudioDevicePtr(std::make_shared<lab::AudioDevice_RtAudio>(cfg.first, cfg.second));
+  new(sad) AudioDevicePtr(std::make_shared<lab::AudioDevice_RtAudio>(cfg.first, cfg.second));
 
   proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if (JS_IsException(proto))
+  if(JS_IsException(proto))
     goto fail;
-  if (!JS_IsObject(proto))
+  if(!JS_IsObject(proto))
     proto = JS_DupValue(ctx, audiodevice_proto);
   obj = JS_NewObjectProtoClass(ctx, proto, js_audiodevice_class_id);
   JS_FreeValue(ctx, proto);
-  if (JS_IsException(obj))
+  if(JS_IsException(obj))
     goto fail;
   JS_SetOpaque(obj, sad);
   return obj;
@@ -1672,38 +1702,40 @@ fail:
 
 enum { DEVICE_DESTINATION_NODE };
 
-static JSValue js_audiodevice_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
+static JSValue
+js_audiodevice_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
   AudioDevicePtr* sad = static_cast<AudioDevicePtr*>(JS_GetOpaque2(ctx, this_val, js_audiodevice_class_id));
-  if (!sad)
+  if(!sad)
     return JS_EXCEPTION;
-  if (magic == DEVICE_DESTINATION_NODE) {
+  if(magic == DEVICE_DESTINATION_NODE) {
     JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, value, js_audiodestinationnode_class_id));
-    if (!w)
+    if(!w)
       return JS_ThrowInternalError(ctx, "value must be AudioDestinationNode");
     auto dest = std::dynamic_pointer_cast<lab::AudioDestinationNode>(w->node);
-    if (!dest)
+    if(!dest)
       return JS_ThrowInternalError(ctx, "value must be AudioDestinationNode");
     (*sad)->setDestinationNode(dest);
   }
   return JS_UNDEFINED;
 }
 
-static void js_audiodevice_finalizer(JSRuntime* rt, JSValue val) {
+static void
+js_audiodevice_finalizer(JSRuntime* rt, JSValue val) {
   AudioDevicePtr* sad = static_cast<AudioDevicePtr*>(JS_GetOpaque(val, js_audiodevice_class_id));
-  if (sad) {
+  if(sad) {
     sad->~AudioDevicePtr();
     js_free_rt(rt, sad);
   }
 }
 
 static JSClassDef js_audiodevice_class = {
-    .class_name = "AudioDevice",
-    .finalizer = js_audiodevice_finalizer,
+  .class_name = "AudioDevice",
+  .finalizer = js_audiodevice_finalizer,
 };
 
 static const JSCFunctionListEntry js_audiodevice_funcs[] = {
-    JS_CGETSET_MAGIC_DEF("destinationNode", 0, js_audiodevice_set, DEVICE_DESTINATION_NODE),
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioDevice", JS_PROP_CONFIGURABLE),
+  JS_CGETSET_MAGIC_DEF("destinationNode", 0, js_audiodevice_set, DEVICE_DESTINATION_NODE),
+  JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioDevice", JS_PROP_CONFIGURABLE),
 };
 
 /* ---------- AudioBuffer ---------- */
@@ -1715,11 +1747,12 @@ enum {
   AB_PROP_LENGTH,
 };
 
-static JSValue js_audiobuffer_get(JSContext* ctx, JSValueConst this_val, int magic) {
+static JSValue
+js_audiobuffer_get(JSContext* ctx, JSValueConst this_val, int magic) {
   JsAudioBuffer* w = static_cast<JsAudioBuffer*>(JS_GetOpaque2(ctx, this_val, js_audiobuffer_class_id));
-  if (!w || !w->bus)
+  if(!w || !w->bus)
     return JS_EXCEPTION;
-  switch (magic) {
+  switch(magic) {
     case AB_PROP_DURATION: return JS_NewFloat64(ctx, double(w->bus->length()) / w->bus->sampleRate());
     case AB_PROP_SAMPLERATE: return JS_NewFloat64(ctx, w->bus->sampleRate());
     case AB_PROP_NUMCHANNELS: return JS_NewInt32(ctx, w->bus->numberOfChannels());
@@ -1728,31 +1761,32 @@ static JSValue js_audiobuffer_get(JSContext* ctx, JSValueConst this_val, int mag
   return JS_UNDEFINED;
 }
 
-static JSValue js_audiobuffer_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
-  if (argc < 1 || !JS_IsObject(argv[0]))
+static JSValue
+js_audiobuffer_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+  if(argc < 1 || !JS_IsObject(argv[0]))
     return JS_ThrowTypeError(ctx, "AudioBuffer requires {numberOfChannels, length, sampleRate}");
 
   int32_t numberOfChannels = 1, length = 0;
   double sampleRate = 44100;
 
   JSValue v = JS_GetPropertyStr(ctx, argv[0], "numberOfChannels");
-  if (JS_IsNumber(v))
+  if(JS_IsNumber(v))
     JS_ToInt32(ctx, &numberOfChannels, v);
   JS_FreeValue(ctx, v);
 
   v = JS_GetPropertyStr(ctx, argv[0], "length");
-  if (JS_IsNumber(v))
+  if(JS_IsNumber(v))
     JS_ToInt32(ctx, &length, v);
   JS_FreeValue(ctx, v);
 
   v = JS_GetPropertyStr(ctx, argv[0], "sampleRate");
-  if (JS_IsNumber(v))
+  if(JS_IsNumber(v))
     JS_ToFloat64(ctx, &sampleRate, v);
   JS_FreeValue(ctx, v);
 
-  if (length <= 0)
+  if(length <= 0)
     return JS_ThrowTypeError(ctx, "AudioBuffer requires a positive length");
-  if (numberOfChannels <= 0)
+  if(numberOfChannels <= 0)
     return JS_ThrowTypeError(ctx, "AudioBuffer requires numberOfChannels >= 1");
 
   auto bus = std::make_shared<lab::AudioBus>(numberOfChannels, length, true);
@@ -1766,19 +1800,20 @@ enum {
   AB_METHOD_COPY_FROM_CHANNEL,
 };
 
-static JSValue js_audiobuffer_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+static JSValue
+js_audiobuffer_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
   JsAudioBuffer* w = static_cast<JsAudioBuffer*>(JS_GetOpaque2(ctx, this_val, js_audiobuffer_class_id));
-  if (!w || !w->bus)
+  if(!w || !w->bus)
     return JS_EXCEPTION;
 
-  switch (magic) {
+  switch(magic) {
     case AB_METHOD_GET_CHANNEL_DATA: {
       // getChannelData(channel)
-      if (argc < 1)
+      if(argc < 1)
         return JS_ThrowTypeError(ctx, "channel index required");
       int32_t channel = 0;
       JS_ToInt32(ctx, &channel, argv[0]);
-      if (channel < 0 || channel >= w->bus->numberOfChannels())
+      if(channel < 0 || channel >= w->bus->numberOfChannels())
         return JS_ThrowRangeError(ctx, "channel index out of range");
       lab::AudioChannel* ch = w->bus->channel(channel);
       return make_float32_array(ctx, ch->data(), ch->length());
@@ -1786,20 +1821,20 @@ static JSValue js_audiobuffer_method(JSContext* ctx, JSValueConst this_val, int 
 
     case AB_METHOD_COPY_TO_CHANNEL: {
       // copyToChannel(source, channelNumber, startInChannel = 0)
-      if (argc < 2)
-        return JS_ThrowTypeError(ctx, "copyToChannel requires (source, channelNumber)");
+      if(argc < 2)
+        return JS_ThrowTypeError(ctx, "copyToChannel requires(source, channelNumber)");
       int32_t channel = 0;
       JS_ToInt32(ctx, &channel, argv[1]);
-      if (channel < 0 || channel >= w->bus->numberOfChannels())
+      if(channel < 0 || channel >= w->bus->numberOfChannels())
         return JS_ThrowRangeError(ctx, "channel index out of range");
       lab::AudioChannel* ch = w->bus->channel(channel);
       std::vector<float> src;
-      if (read_float_array(ctx, argv[0], src) != 0)
+      if(read_float_array(ctx, argv[0], src) != 0)
         return JS_ThrowTypeError(ctx, "source must be a Float32Array or array-like");
       int32_t startInChannel = 0;
-      if (argc > 2)
+      if(argc > 2)
         JS_ToInt32(ctx, &startInChannel, argv[2]);
-      if (startInChannel < 0 || startInChannel > ch->length())
+      if(startInChannel < 0 || startInChannel > ch->length())
         return JS_ThrowRangeError(ctx, "startInChannel out of range");
       size_t count = std::min(src.size(), size_t(ch->length() - startInChannel));
       memcpy(ch->mutableData() + startInChannel, src.data(), count * sizeof(float));
@@ -1808,109 +1843,105 @@ static JSValue js_audiobuffer_method(JSContext* ctx, JSValueConst this_val, int 
 
     case AB_METHOD_COPY_FROM_CHANNEL: {
       // copyFromChannel(destination, channelNumber, startInChannel = 0)
-      if (argc < 2)
-        return JS_ThrowTypeError(ctx, "copyFromChannel requires (destination, channelNumber)");
+      if(argc < 2)
+        return JS_ThrowTypeError(ctx, "copyFromChannel requires(destination, channelNumber)");
       int32_t channel = 0;
       JS_ToInt32(ctx, &channel, argv[1]);
-      if (channel < 0 || channel >= w->bus->numberOfChannels())
+      if(channel < 0 || channel >= w->bus->numberOfChannels())
         return JS_ThrowRangeError(ctx, "channel index out of range");
       lab::AudioChannel* ch = w->bus->channel(channel);
-      size_t byte_offset = 0, byte_length = 0, bytes_per_element = 0;
-      JSValue buf = JS_GetTypedArrayBuffer(ctx, argv[0], &byte_offset, &byte_length, &bytes_per_element);
-      if (JS_IsException(buf) || bytes_per_element != sizeof(float))
-        return JS_ThrowTypeError(ctx, "destination must be a Float32Array");
-      size_t ab_size = 0;
-      uint8_t* ab_data = JS_GetArrayBuffer(ctx, &ab_size, buf);
-      JS_FreeValue(ctx, buf);
-      if (!ab_data)
+      qjsx::array_view<float> dest;
+      if(!qjsx::get_array(ctx, argv[0], dest))
         return JS_EXCEPTION;
       int32_t startInChannel = 0;
-      if (argc > 2)
+      if(argc > 2)
         JS_ToInt32(ctx, &startInChannel, argv[2]);
-      if (startInChannel < 0 || startInChannel > ch->length())
+      if(startInChannel < 0 || startInChannel > ch->length())
         return JS_ThrowRangeError(ctx, "startInChannel out of range");
-      size_t destCount = byte_length / sizeof(float);
-      size_t count = std::min(destCount, size_t(ch->length() - startInChannel));
-      memcpy(reinterpret_cast<float*>(ab_data + byte_offset), ch->data() + startInChannel, count * sizeof(float));
+      size_t count = std::min(dest.size, size_t(ch->length() - startInChannel));
+      std::copy_n(ch->data() + startInChannel, count, dest.begin());
       return JS_UNDEFINED;
     }
   }
   return JS_UNDEFINED;
 }
 
-static JSValue js_audiobuffer_write_wav(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
+static JSValue
+js_audiobuffer_write_wav(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
   JsAudioBuffer* w = static_cast<JsAudioBuffer*>(JS_GetOpaque2(ctx, this_val, js_audiobuffer_class_id));
-  if (!w || !w->bus)
+  if(!w || !w->bus)
     return JS_EXCEPTION;
-  if (argc < 1)
+  if(argc < 1)
     return JS_ThrowTypeError(ctx, "writeToWav requires a file path");
   const char* path = JS_ToCString(ctx, argv[0]);
-  if (!path)
+  if(!path)
     return JS_EXCEPTION;
   bool mixToMono = argc > 1 ? JS_ToBool(ctx, argv[1]) : false;
   bool ok = write_bus_to_wav(w->bus.get(), path, mixToMono);
   JS_FreeCString(ctx, path);
-  if (!ok)
+  if(!ok)
     return JS_ThrowInternalError(ctx, "writeToWav: failed to write file");
   return JS_UNDEFINED;
 }
 
-static void js_audiobuffer_finalizer(JSRuntime* rt, JSValue val) {
+static void
+js_audiobuffer_finalizer(JSRuntime* rt, JSValue val) {
   JsAudioBuffer* w = static_cast<JsAudioBuffer*>(JS_GetOpaque(val, js_audiobuffer_class_id));
-  if (w) {
+  if(w) {
     w->~JsAudioBuffer();
     js_free_rt(rt, w);
   }
 }
 
 static JSClassDef js_audiobuffer_class = {
-    .class_name = "AudioBuffer",
-    .finalizer = js_audiobuffer_finalizer,
+  .class_name = "AudioBuffer",
+  .finalizer = js_audiobuffer_finalizer,
 };
 
 static const JSCFunctionListEntry js_audiobuffer_funcs[] = {
-    JS_CGETSET_MAGIC_DEF("duration", js_audiobuffer_get, 0, AB_PROP_DURATION),
-    JS_CGETSET_MAGIC_DEF("sampleRate", js_audiobuffer_get, 0, AB_PROP_SAMPLERATE),
-    JS_CGETSET_MAGIC_DEF("numberOfChannels", js_audiobuffer_get, 0, AB_PROP_NUMCHANNELS),
-    JS_CGETSET_MAGIC_DEF("length", js_audiobuffer_get, 0, AB_PROP_LENGTH),
-    JS_CFUNC_MAGIC_DEF("getChannelData", 1, js_audiobuffer_method, AB_METHOD_GET_CHANNEL_DATA),
-    JS_CFUNC_MAGIC_DEF("copyToChannel", 2, js_audiobuffer_method, AB_METHOD_COPY_TO_CHANNEL),
-    JS_CFUNC_MAGIC_DEF("copyFromChannel", 2, js_audiobuffer_method, AB_METHOD_COPY_FROM_CHANNEL),
-    JS_CFUNC_DEF("writeToWav", 1, js_audiobuffer_write_wav),
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioBuffer", JS_PROP_CONFIGURABLE),
+  JS_CGETSET_MAGIC_DEF("duration", js_audiobuffer_get, 0, AB_PROP_DURATION),
+  JS_CGETSET_MAGIC_DEF("sampleRate", js_audiobuffer_get, 0, AB_PROP_SAMPLERATE),
+  JS_CGETSET_MAGIC_DEF("numberOfChannels", js_audiobuffer_get, 0, AB_PROP_NUMCHANNELS),
+  JS_CGETSET_MAGIC_DEF("length", js_audiobuffer_get, 0, AB_PROP_LENGTH),
+  JS_CFUNC_MAGIC_DEF("getChannelData", 1, js_audiobuffer_method, AB_METHOD_GET_CHANNEL_DATA),
+  JS_CFUNC_MAGIC_DEF("copyToChannel", 2, js_audiobuffer_method, AB_METHOD_COPY_TO_CHANNEL),
+  JS_CFUNC_MAGIC_DEF("copyFromChannel", 2, js_audiobuffer_method, AB_METHOD_COPY_FROM_CHANNEL),
+  JS_CFUNC_DEF("writeToWav", 1, js_audiobuffer_write_wav),
+  JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioBuffer", JS_PROP_CONFIGURABLE),
 };
 
-/* ---------- AudioBufferSourceNode (lab::SampledAudioNode) ---------- */
+/* ---------- AudioBufferSourceNode(lab::SampledAudioNode) ---------- */
 
-static JSValue js_absource_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
-  if (argc < 1)
+static JSValue
+js_absource_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+  if(argc < 1)
     return JS_ThrowTypeError(ctx, "AudioBufferSourceNode requires an AudioContext");
   AudioContextPtr* acptr = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, argv[0], js_audiocontext_class_id));
-  if (!acptr)
+  if(!acptr)
     return JS_EXCEPTION;
   AudioContextPtr ac = *acptr;
 
   auto src = std::make_shared<lab::SampledAudioNode>(*ac);
 
   bool wantLoop = false;
-  if (argc > 1 && JS_IsObject(argv[1])) {
+  if(argc > 1 && JS_IsObject(argv[1])) {
     JSValue v;
 
     v = JS_GetPropertyStr(ctx, argv[1], "buffer");
-    if (!JS_IsUndefined(v) && !JS_IsNull(v)) {
+    if(!JS_IsUndefined(v) && !JS_IsNull(v)) {
       JsAudioBuffer* ab = static_cast<JsAudioBuffer*>(JS_GetOpaque2(ctx, v, js_audiobuffer_class_id));
-      if (ab && ab->bus)
+      if(ab && ab->bus)
         src->setBus(ab->bus);
     }
     JS_FreeValue(ctx, v);
 
     v = JS_GetPropertyStr(ctx, argv[1], "loop");
-    if (!JS_IsUndefined(v))
+    if(!JS_IsUndefined(v))
       wantLoop = JS_ToBool(ctx, v);
     JS_FreeValue(ctx, v);
 
     v = JS_GetPropertyStr(ctx, argv[1], "playbackRate");
-    if (JS_IsNumber(v)) {
+    if(JS_IsNumber(v)) {
       double d;
       JS_ToFloat64(ctx, &d, v);
       src->playbackRate()->setValue((float)d);
@@ -1918,7 +1949,7 @@ static JSValue js_absource_constructor(JSContext* ctx, JSValueConst new_target, 
     JS_FreeValue(ctx, v);
 
     v = JS_GetPropertyStr(ctx, argv[1], "detune");
-    if (JS_IsNumber(v)) {
+    if(JS_IsNumber(v)) {
       double d;
       JS_ToFloat64(ctx, &d, v);
       src->detune()->setValue((float)d);
@@ -1927,42 +1958,43 @@ static JSValue js_absource_constructor(JSContext* ctx, JSValueConst new_target, 
   }
 
   JSValue proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if (JS_IsException(proto))
+  if(JS_IsException(proto))
     return JS_EXCEPTION;
-  if (!JS_IsObject(proto)) {
+  if(!JS_IsObject(proto)) {
     JS_FreeValue(ctx, proto);
     proto = JS_DupValue(ctx, audiobuffersourcenode_proto);
   }
   JSValue obj = make_audio_node_js(ctx, proto, js_audiobuffersourcenode_class_id, std::static_pointer_cast<lab::AudioNode>(src), ac);
   JS_FreeValue(ctx, proto);
-  if (wantLoop)
+  if(wantLoop)
     JS_SetPropertyStr(ctx, obj, "loop", JS_TRUE);
   anchor_node_in_context(ctx, argv[0], obj);
   return obj;
 }
 
-static JSValue js_absource_start(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
+static JSValue
+js_absource_start(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_audiobuffersourcenode_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   auto src = std::dynamic_pointer_cast<lab::SampledAudioNode>(w->node);
-  if (!src)
+  if(!src)
     return JS_ThrowInternalError(ctx, "not a SampledAudioNode");
 
   double when = 0, offset = 0;
-  if (argc > 0)
+  if(argc > 0)
     JS_ToFloat64(ctx, &when, argv[0]);
-  if (argc > 1)
+  if(argc > 1)
     JS_ToFloat64(ctx, &offset, argv[1]);
 
   bool wantLoop = false;
   JSValue lv = JS_GetPropertyStr(ctx, this_val, "loop");
-  if (!JS_IsUndefined(lv))
+  if(!JS_IsUndefined(lv))
     wantLoop = JS_ToBool(ctx, lv);
   JS_FreeValue(ctx, lv);
   int loopCount = wantLoop ? -1 : 0;
 
-  if (offset > 0)
+  if(offset > 0)
     src->start(engine_when(*src, when), (float)offset, loopCount);
   else
     src->start(engine_when(*src, when), loopCount);
@@ -1974,52 +2006,56 @@ enum {
   ABSRC_PROP_DETUNE,
 };
 
-static JSValue js_absource_get(JSContext* ctx, JSValueConst this_val, int magic) {
+static JSValue
+js_absource_get(JSContext* ctx, JSValueConst this_val, int magic) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_audiobuffersourcenode_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   auto src = std::dynamic_pointer_cast<lab::SampledAudioNode>(w->node);
-  if (!src)
+  if(!src)
     return JS_ThrowInternalError(ctx, "not a SampledAudioNode");
-  switch (magic) {
+  switch(magic) {
     case ABSRC_PROP_PLAYBACKRATE: return make_audio_param_js(ctx, src->playbackRate());
     case ABSRC_PROP_DETUNE: return make_audio_param_js(ctx, src->detune());
   }
   return JS_UNDEFINED;
 }
 
-static void js_audiobuffersourcenode_finalizer(JSRuntime* rt, JSValue val) {
+static void
+js_audiobuffersourcenode_finalizer(JSRuntime* rt, JSValue val) {
   js_audionode_finalize_with(rt, val, js_audiobuffersourcenode_class_id);
 }
 
 static JSClassDef js_audiobuffersourcenode_class = {
-    .class_name = "AudioBufferSourceNode",
-    .finalizer = js_audiobuffersourcenode_finalizer,
+  .class_name = "AudioBufferSourceNode",
+  .finalizer = js_audiobuffersourcenode_finalizer,
 };
 
 static const JSCFunctionListEntry js_audiobuffersourcenode_funcs[] = {
-    JS_CFUNC_DEF("start", 0, js_absource_start),
-    JS_CGETSET_MAGIC_DEF("playbackRate", js_absource_get, 0, ABSRC_PROP_PLAYBACKRATE),
-    JS_CGETSET_MAGIC_DEF("detune", js_absource_get, 0, ABSRC_PROP_DETUNE),
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioBufferSourceNode", JS_PROP_CONFIGURABLE),
+  JS_CFUNC_DEF("start", 0, js_absource_start),
+  JS_CGETSET_MAGIC_DEF("playbackRate", js_absource_get, 0, ABSRC_PROP_PLAYBACKRATE),
+  JS_CGETSET_MAGIC_DEF("detune", js_absource_get, 0, ABSRC_PROP_DETUNE),
+  JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioBufferSourceNode", JS_PROP_CONFIGURABLE),
 };
 
 /* ---------- NoiseNode ---------- */
 
-static lab::NoiseNode::NoiseType parse_noise_type(const char* s) {
-  if (!s)
+static lab::NoiseNode::NoiseType
+parse_noise_type(const char* s) {
+  if(!s)
     return lab::NoiseNode::WHITE;
-  if (!strcmp(s, "white"))
+  if(!strcmp(s, "white"))
     return lab::NoiseNode::WHITE;
-  if (!strcmp(s, "pink"))
+  if(!strcmp(s, "pink"))
     return lab::NoiseNode::PINK;
-  if (!strcmp(s, "brown"))
+  if(!strcmp(s, "brown"))
     return lab::NoiseNode::BROWN;
   return lab::NoiseNode::WHITE;
 }
 
-static const char* noise_type_to_string(lab::NoiseNode::NoiseType t) {
-  switch (t) {
+static const char*
+noise_type_to_string(lab::NoiseNode::NoiseType t) {
+  switch(t) {
     case lab::NoiseNode::PINK: return "pink";
     case lab::NoiseNode::BROWN: return "brown";
     case lab::NoiseNode::WHITE:
@@ -2027,20 +2063,21 @@ static const char* noise_type_to_string(lab::NoiseNode::NoiseType t) {
   }
 }
 
-static JSValue js_noise_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
-  if (argc < 1)
+static JSValue
+js_noise_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+  if(argc < 1)
     return JS_ThrowTypeError(ctx, "NoiseNode requires an AudioContext");
   AudioContextPtr* acptr = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, argv[0], js_audiocontext_class_id));
-  if (!acptr)
+  if(!acptr)
     return JS_EXCEPTION;
   AudioContextPtr ac = *acptr;
   auto n = std::make_shared<lab::NoiseNode>(*ac);
 
-  if (argc > 1 && JS_IsObject(argv[1])) {
+  if(argc > 1 && JS_IsObject(argv[1])) {
     JSValue v = JS_GetPropertyStr(ctx, argv[1], "type");
-    if (!JS_IsUndefined(v) && !JS_IsException(v)) {
+    if(!JS_IsUndefined(v) && !JS_IsException(v)) {
       const char* s = JS_ToCString(ctx, v);
-      if (s) {
+      if(s) {
         n->setType(parse_noise_type(s));
         JS_FreeCString(ctx, s);
       }
@@ -2049,9 +2086,9 @@ static JSValue js_noise_constructor(JSContext* ctx, JSValueConst new_target, int
   }
 
   JSValue proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if (JS_IsException(proto))
+  if(JS_IsException(proto))
     return JS_EXCEPTION;
-  if (!JS_IsObject(proto)) {
+  if(!JS_IsObject(proto)) {
     JS_FreeValue(ctx, proto);
     proto = JS_DupValue(ctx, noisenode_proto);
   }
@@ -2061,60 +2098,65 @@ static JSValue js_noise_constructor(JSContext* ctx, JSValueConst new_target, int
   return obj;
 }
 
-static JSValue js_noise_get_type(JSContext* ctx, JSValueConst this_val) {
+static JSValue
+js_noise_get_type(JSContext* ctx, JSValueConst this_val) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_noisenode_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   auto n = std::dynamic_pointer_cast<lab::NoiseNode>(w->node);
-  if (!n)
+  if(!n)
     return JS_ThrowInternalError(ctx, "not a NoiseNode");
   return JS_NewString(ctx, noise_type_to_string(n->type()));
 }
 
-static JSValue js_noise_set_type(JSContext* ctx, JSValueConst this_val, JSValueConst value) {
+static JSValue
+js_noise_set_type(JSContext* ctx, JSValueConst this_val, JSValueConst value) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_noisenode_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   auto n = std::dynamic_pointer_cast<lab::NoiseNode>(w->node);
-  if (!n)
+  if(!n)
     return JS_ThrowInternalError(ctx, "not a NoiseNode");
   const char* s = JS_ToCString(ctx, value);
-  if (s) {
+  if(s) {
     n->setType(parse_noise_type(s));
     JS_FreeCString(ctx, s);
   }
   return JS_UNDEFINED;
 }
 
-static void js_noisenode_finalizer(JSRuntime* rt, JSValue val) {
+static void
+js_noisenode_finalizer(JSRuntime* rt, JSValue val) {
   js_audionode_finalize_with(rt, val, js_noisenode_class_id);
 }
 
 static JSClassDef js_noisenode_class = {
-    .class_name = "NoiseNode",
-    .finalizer = js_noisenode_finalizer,
+  .class_name = "NoiseNode",
+  .finalizer = js_noisenode_finalizer,
 };
 
 static const JSCFunctionListEntry js_noisenode_funcs[] = {
-    JS_CGETSET_DEF("type", js_noise_get_type, js_noise_set_type),
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "NoiseNode", JS_PROP_CONFIGURABLE),
+  JS_CGETSET_DEF("type", js_noise_get_type, js_noise_set_type),
+  JS_PROP_STRING_DEF("[Symbol.toStringTag]", "NoiseNode", JS_PROP_CONFIGURABLE),
 };
 
-/* ---------- AudioSetting (delayTime shim) ---------- */
+/* ---------- AudioSetting(delayTime shim) ---------- */
 
-static JSValue js_audiosetting_get_value(JSContext* ctx, JSValueConst this_val) {
+static JSValue
+js_audiosetting_get_value(JSContext* ctx, JSValueConst this_val) {
   JsAudioSetting* w = static_cast<JsAudioSetting*>(JS_GetOpaque2(ctx, this_val, js_audiosetting_class_id));
-  if (!w || !w->setting)
+  if(!w || !w->setting)
     return JS_EXCEPTION;
   return JS_NewFloat64(ctx, w->setting->valueFloat());
 }
 
-static JSValue js_audiosetting_set_value(JSContext* ctx, JSValueConst this_val, JSValueConst value) {
+static JSValue
+js_audiosetting_set_value(JSContext* ctx, JSValueConst this_val, JSValueConst value) {
   JsAudioSetting* w = static_cast<JsAudioSetting*>(JS_GetOpaque2(ctx, this_val, js_audiosetting_class_id));
-  if (!w || !w->setting)
+  if(!w || !w->setting)
     return JS_EXCEPTION;
   double d;
-  if (JS_ToFloat64(ctx, &d, value))
+  if(JS_ToFloat64(ctx, &d, value))
     return JS_EXCEPTION;
   w->setting->setFloat(static_cast<float>(d));
   return JS_UNDEFINED;
@@ -2124,63 +2166,66 @@ static JSValue js_audiosetting_set_value(JSContext* ctx, JSValueConst this_val, 
 // has no scheduler in lab, so the time arg is ignored. This keeps scripts
 // that use setValueAtTime / linearRamp on DelayNode.delayTime running cleanly
 // in qjs even though they only get the final value, not a smooth ramp.
-static JSValue js_audiosetting_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
+static JSValue
+js_audiosetting_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
   JsAudioSetting* w = static_cast<JsAudioSetting*>(JS_GetOpaque2(ctx, this_val, js_audiosetting_class_id));
-  if (!w || !w->setting)
+  if(!w || !w->setting)
     return JS_EXCEPTION;
-  if (argc < 1)
+  if(argc < 1)
     return JS_DupValue(ctx, this_val);
   double d;
-  if (JS_ToFloat64(ctx, &d, argv[0]))
+  if(JS_ToFloat64(ctx, &d, argv[0]))
     return JS_EXCEPTION;
   w->setting->setFloat(static_cast<float>(d));
   return JS_DupValue(ctx, this_val);
 }
 
-static void js_audiosetting_finalizer(JSRuntime* rt, JSValue val) {
+static void
+js_audiosetting_finalizer(JSRuntime* rt, JSValue val) {
   JsAudioSetting* w = static_cast<JsAudioSetting*>(JS_GetOpaque(val, js_audiosetting_class_id));
-  if (w) {
+  if(w) {
     w->~JsAudioSetting();
     js_free_rt(rt, w);
   }
 }
 
 static JSClassDef js_audiosetting_class = {
-    .class_name = "AudioParam",
-    .finalizer = js_audiosetting_finalizer,
+  .class_name = "AudioParam",
+  .finalizer = js_audiosetting_finalizer,
 };
 
 static const JSCFunctionListEntry js_audiosetting_funcs[] = {
-    JS_CGETSET_DEF("value", js_audiosetting_get_value, js_audiosetting_set_value),
-    JS_CFUNC_DEF("setValueAtTime", 2, js_audiosetting_method),
-    JS_CFUNC_DEF("linearRampToValueAtTime", 2, js_audiosetting_method),
-    JS_CFUNC_DEF("exponentialRampToValueAtTime", 2, js_audiosetting_method),
-    JS_CFUNC_DEF("setTargetAtTime", 3, js_audiosetting_method),
-    JS_CFUNC_DEF("cancelScheduledValues", 1, js_audiosetting_method),
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioParam", JS_PROP_CONFIGURABLE),
+  JS_CGETSET_DEF("value", js_audiosetting_get_value, js_audiosetting_set_value),
+  JS_CFUNC_DEF("setValueAtTime", 2, js_audiosetting_method),
+  JS_CFUNC_DEF("linearRampToValueAtTime", 2, js_audiosetting_method),
+  JS_CFUNC_DEF("exponentialRampToValueAtTime", 2, js_audiosetting_method),
+  JS_CFUNC_DEF("setTargetAtTime", 3, js_audiosetting_method),
+  JS_CFUNC_DEF("cancelScheduledValues", 1, js_audiosetting_method),
+  JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioParam", JS_PROP_CONFIGURABLE),
 };
 
 /* ---------- DelayNode ---------- */
 
-static JSValue js_delay_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
-  if (argc < 1)
+static JSValue
+js_delay_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+  if(argc < 1)
     return JS_ThrowTypeError(ctx, "DelayNode requires an AudioContext");
   AudioContextPtr* acptr = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, argv[0], js_audiocontext_class_id));
-  if (!acptr)
+  if(!acptr)
     return JS_EXCEPTION;
   AudioContextPtr ac = *acptr;
 
   double maxDelay = 2.0;
   double initialDelay = 0.0;
   bool haveInitial = false;
-  if (argc > 1 && JS_IsObject(argv[1])) {
+  if(argc > 1 && JS_IsObject(argv[1])) {
     JSValue v = JS_GetPropertyStr(ctx, argv[1], "maxDelayTime");
-    if (JS_IsNumber(v))
+    if(JS_IsNumber(v))
       JS_ToFloat64(ctx, &maxDelay, v);
     JS_FreeValue(ctx, v);
 
     v = JS_GetPropertyStr(ctx, argv[1], "delayTime");
-    if (JS_IsNumber(v)) {
+    if(JS_IsNumber(v)) {
       JS_ToFloat64(ctx, &initialDelay, v);
       haveInitial = true;
     }
@@ -2189,13 +2234,13 @@ static JSValue js_delay_constructor(JSContext* ctx, JSValueConst new_target, int
 
   auto d = std::make_shared<lab::DelayNode>(*ac, maxDelay);
 
-  if (haveInitial)
+  if(haveInitial)
     d->delayTime()->setFloat(static_cast<float>(initialDelay));
 
   JSValue proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if (JS_IsException(proto))
+  if(JS_IsException(proto))
     return JS_EXCEPTION;
-  if (!JS_IsObject(proto)) {
+  if(!JS_IsObject(proto)) {
     JS_FreeValue(ctx, proto);
     proto = JS_DupValue(ctx, delaynode_proto);
   }
@@ -2205,61 +2250,64 @@ static JSValue js_delay_constructor(JSContext* ctx, JSValueConst new_target, int
   return obj;
 }
 
-static JSValue js_delay_get_delaytime(JSContext* ctx, JSValueConst this_val) {
+static JSValue
+js_delay_get_delaytime(JSContext* ctx, JSValueConst this_val) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_delaynode_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   auto d = std::dynamic_pointer_cast<lab::DelayNode>(w->node);
-  if (!d)
+  if(!d)
     return JS_ThrowInternalError(ctx, "not a DelayNode");
   return make_audio_setting_js(ctx, d->delayTime());
 }
 
-static void js_delaynode_finalizer(JSRuntime* rt, JSValue val) {
+static void
+js_delaynode_finalizer(JSRuntime* rt, JSValue val) {
   js_audionode_finalize_with(rt, val, js_delaynode_class_id);
 }
 
 static JSClassDef js_delaynode_class = {
-    .class_name = "DelayNode",
-    .finalizer = js_delaynode_finalizer,
+  .class_name = "DelayNode",
+  .finalizer = js_delaynode_finalizer,
 };
 
 static const JSCFunctionListEntry js_delaynode_funcs[] = {
-    JS_CGETSET_DEF("delayTime", js_delay_get_delaytime, NULL),
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "DelayNode", JS_PROP_CONFIGURABLE),
+  JS_CGETSET_DEF("delayTime", js_delay_get_delaytime, NULL),
+  JS_PROP_STRING_DEF("[Symbol.toStringTag]", "DelayNode", JS_PROP_CONFIGURABLE),
 };
 
 /* ---------- IIRFilterNode ---------- */
 
-static JSValue js_iirfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
-  if (argc < 2 || !JS_IsObject(argv[1]))
-    return JS_ThrowTypeError(ctx, "IIRFilterNode requires (context, {feedforward, feedback})");
+static JSValue
+js_iirfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+  if(argc < 2 || !JS_IsObject(argv[1]))
+    return JS_ThrowTypeError(ctx, "IIRFilterNode requires(context, {feedforward, feedback})");
   AudioContextPtr* acptr = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, argv[0], js_audiocontext_class_id));
-  if (!acptr)
+  if(!acptr)
     return JS_EXCEPTION;
   AudioContextPtr ac = *acptr;
 
   std::vector<double> coeffs[2];
-  const char* keys[2] = {"feedforward", "feedback"};
-  for (int i = 0; i < 2; i++) {
+  const char* keys[2] = { "feedforward", "feedback" };
+  for(int i = 0; i < 2; i++) {
     JSValue v = JS_GetPropertyStr(ctx, argv[1], keys[i]);
     bool ok = qjsx::read_array(ctx, v, coeffs[i]);
     JS_FreeValue(ctx, v);
-    if (!ok)
+    if(!ok)
       return JS_EXCEPTION;
   }
 
   std::shared_ptr<lab::IIRFilterNode> f;
   try {
     f = std::make_shared<lab::IIRFilterNode>(*ac, coeffs[0], coeffs[1]);
-  } catch (const std::invalid_argument& e) {
+  } catch(const std::invalid_argument& e) {
     return JS_ThrowRangeError(ctx, "%s", e.what());
   }
 
   JSValue proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if (JS_IsException(proto))
+  if(JS_IsException(proto))
     return JS_EXCEPTION;
-  if (!JS_IsObject(proto)) {
+  if(!JS_IsObject(proto)) {
     JS_FreeValue(ctx, proto);
     proto = JS_DupValue(ctx, iirfilternode_proto);
   }
@@ -2269,21 +2317,22 @@ static JSValue js_iirfilter_constructor(JSContext* ctx, JSValueConst new_target,
   return obj;
 }
 
-static JSValue js_iirfilter_get_frequency_response(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
+static JSValue
+js_iirfilter_get_frequency_response(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_iirfilternode_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   auto f = std::dynamic_pointer_cast<lab::IIRFilterNode>(w->node);
-  if (!f)
+  if(!f)
     return JS_ThrowInternalError(ctx, "not an IIRFilterNode");
-  if (argc < 3)
-    return JS_ThrowTypeError(ctx, "getFrequencyResponse requires (frequencyHz, magResponse, phaseResponse)");
+  if(argc < 3)
+    return JS_ThrowTypeError(ctx, "getFrequencyResponse requires(frequencyHz, magResponse, phaseResponse)");
 
   qjsx::array_view<float> freq, mag, phase;
-  if (!qjsx::get_array(ctx, argv[0], freq) || !qjsx::get_array(ctx, argv[1], mag) || !qjsx::get_array(ctx, argv[2], phase))
+  if(!qjsx::get_array(ctx, argv[0], freq) || !qjsx::get_array(ctx, argv[1], mag) || !qjsx::get_array(ctx, argv[2], phase))
     return JS_EXCEPTION;
 
-  size_t n = std::min({freq.size, mag.size, phase.size});
+  size_t n = std::min({ freq.size, mag.size, phase.size });
   std::vector<float> hz(freq.begin(), freq.begin() + n), m(n), p(n);
   {
     lab::ContextRenderLock rLock(w->ctx.get(), "IIRFilterNode.getFrequencyResponse");
@@ -2294,36 +2343,39 @@ static JSValue js_iirfilter_get_frequency_response(JSContext* ctx, JSValueConst 
   return JS_UNDEFINED;
 }
 
-static void js_iirfilternode_finalizer(JSRuntime* rt, JSValue val) {
+static void
+js_iirfilternode_finalizer(JSRuntime* rt, JSValue val) {
   js_audionode_finalize_with(rt, val, js_iirfilternode_class_id);
 }
 
 static JSClassDef js_iirfilternode_class = {
-    .class_name = "IIRFilterNode",
-    .finalizer = js_iirfilternode_finalizer,
+  .class_name = "IIRFilterNode",
+  .finalizer = js_iirfilternode_finalizer,
 };
 
 static const JSCFunctionListEntry js_iirfilternode_funcs[] = {
-    JS_CFUNC_DEF("getFrequencyResponse", 3, js_iirfilter_get_frequency_response),
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "IIRFilterNode", JS_PROP_CONFIGURABLE),
+  JS_CFUNC_DEF("getFrequencyResponse", 3, js_iirfilter_get_frequency_response),
+  JS_PROP_STRING_DEF("[Symbol.toStringTag]", "IIRFilterNode", JS_PROP_CONFIGURABLE),
 };
 
 /* ---------- WaveShaperNode ---------- */
 
-static lab::OverSampleType parse_oversample(const char* s) {
-  if (!s)
+static lab::OverSampleType
+parse_oversample(const char* s) {
+  if(!s)
     return lab::OverSampleType::NONE;
-  if (!strcmp(s, "none"))
+  if(!strcmp(s, "none"))
     return lab::OverSampleType::NONE;
-  if (!strcmp(s, "2x"))
+  if(!strcmp(s, "2x"))
     return lab::OverSampleType::_2X;
-  if (!strcmp(s, "4x"))
+  if(!strcmp(s, "4x"))
     return lab::OverSampleType::_4X;
   return lab::OverSampleType::NONE;
 }
 
-static const char* oversample_to_string(lab::OverSampleType t) {
-  switch (t) {
+static const char*
+oversample_to_string(lab::OverSampleType t) {
+  switch(t) {
     case lab::OverSampleType::_2X: return "2x";
     case lab::OverSampleType::_4X: return "4x";
     case lab::OverSampleType::NONE:
@@ -2331,30 +2383,31 @@ static const char* oversample_to_string(lab::OverSampleType t) {
   }
 }
 
-static JSValue js_waveshaper_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
-  if (argc < 1)
+static JSValue
+js_waveshaper_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+  if(argc < 1)
     return JS_ThrowTypeError(ctx, "WaveShaperNode requires an AudioContext");
   AudioContextPtr* acptr = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, argv[0], js_audiocontext_class_id));
-  if (!acptr)
+  if(!acptr)
     return JS_EXCEPTION;
   AudioContextPtr ac = *acptr;
   auto ws = std::make_shared<lab::WaveShaperNode>(*ac);
 
-  if (argc > 1 && JS_IsObject(argv[1])) {
+  if(argc > 1 && JS_IsObject(argv[1])) {
     JSValue v;
 
     v = JS_GetPropertyStr(ctx, argv[1], "curve");
-    if (!JS_IsUndefined(v) && !JS_IsNull(v)) {
+    if(!JS_IsUndefined(v) && !JS_IsNull(v)) {
       std::vector<float> curve;
-      if (read_float_array(ctx, v, curve) == 0 && !curve.empty())
+      if(read_float_array(ctx, v, curve) == 0 && !curve.empty())
         ws->setCurve(curve);
     }
     JS_FreeValue(ctx, v);
 
     v = JS_GetPropertyStr(ctx, argv[1], "oversample");
-    if (!JS_IsUndefined(v) && !JS_IsException(v)) {
+    if(!JS_IsUndefined(v) && !JS_IsException(v)) {
       const char* s = JS_ToCString(ctx, v);
-      if (s) {
+      if(s) {
         ws->setOversample(parse_oversample(s));
         JS_FreeCString(ctx, s);
       }
@@ -2363,9 +2416,9 @@ static JSValue js_waveshaper_constructor(JSContext* ctx, JSValueConst new_target
   }
 
   JSValue proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if (JS_IsException(proto))
+  if(JS_IsException(proto))
     return JS_EXCEPTION;
-  if (!JS_IsObject(proto)) {
+  if(!JS_IsObject(proto)) {
     JS_FreeValue(ctx, proto);
     proto = JS_DupValue(ctx, waveshapernode_proto);
   }
@@ -2375,73 +2428,78 @@ static JSValue js_waveshaper_constructor(JSContext* ctx, JSValueConst new_target
   return obj;
 }
 
-static JSValue js_waveshaper_get_oversample(JSContext* ctx, JSValueConst this_val) {
+static JSValue
+js_waveshaper_get_oversample(JSContext* ctx, JSValueConst this_val) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_waveshapernode_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   auto ws = std::dynamic_pointer_cast<lab::WaveShaperNode>(w->node);
-  if (!ws)
+  if(!ws)
     return JS_ThrowInternalError(ctx, "not a WaveShaperNode");
   return JS_NewString(ctx, oversample_to_string(ws->oversample()));
 }
 
-static JSValue js_waveshaper_set_oversample(JSContext* ctx, JSValueConst this_val, JSValueConst value) {
+static JSValue
+js_waveshaper_set_oversample(JSContext* ctx, JSValueConst this_val, JSValueConst value) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_waveshapernode_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   auto ws = std::dynamic_pointer_cast<lab::WaveShaperNode>(w->node);
-  if (!ws)
+  if(!ws)
     return JS_ThrowInternalError(ctx, "not a WaveShaperNode");
   const char* s = JS_ToCString(ctx, value);
-  if (s) {
+  if(s) {
     ws->setOversample(parse_oversample(s));
     JS_FreeCString(ctx, s);
   }
   return JS_UNDEFINED;
 }
 
-static JSValue js_waveshaper_set_curve(JSContext* ctx, JSValueConst this_val, JSValueConst value) {
+static JSValue
+js_waveshaper_set_curve(JSContext* ctx, JSValueConst this_val, JSValueConst value) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_waveshapernode_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   auto ws = std::dynamic_pointer_cast<lab::WaveShaperNode>(w->node);
-  if (!ws)
+  if(!ws)
     return JS_ThrowInternalError(ctx, "not a WaveShaperNode");
   std::vector<float> curve;
-  if (read_float_array(ctx, value, curve) == 0 && !curve.empty())
+  if(read_float_array(ctx, value, curve) == 0 && !curve.empty())
     ws->setCurve(curve);
   return JS_UNDEFINED;
 }
 
-static void js_waveshapernode_finalizer(JSRuntime* rt, JSValue val) {
+static void
+js_waveshapernode_finalizer(JSRuntime* rt, JSValue val) {
   js_audionode_finalize_with(rt, val, js_waveshapernode_class_id);
 }
 
 static JSClassDef js_waveshapernode_class = {
-    .class_name = "WaveShaperNode",
-    .finalizer = js_waveshapernode_finalizer,
+  .class_name = "WaveShaperNode",
+  .finalizer = js_waveshapernode_finalizer,
 };
 
 static const JSCFunctionListEntry js_waveshapernode_funcs[] = {
-    JS_CGETSET_DEF("oversample", js_waveshaper_get_oversample, js_waveshaper_set_oversample),
-    JS_CGETSET_DEF("curve", NULL, js_waveshaper_set_curve),
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "WaveShaperNode", JS_PROP_CONFIGURABLE),
+  JS_CGETSET_DEF("oversample", js_waveshaper_get_oversample, js_waveshaper_set_oversample),
+  JS_CGETSET_DEF("curve", NULL, js_waveshaper_set_curve),
+  JS_PROP_STRING_DEF("[Symbol.toStringTag]", "WaveShaperNode", JS_PROP_CONFIGURABLE),
 };
 
 /* ---------- StereoPannerNode ---------- */
 
-static JSValue js_stereopanner_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
-  if (argc < 1)
+static JSValue
+js_stereopanner_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+  if(argc < 1)
     return JS_ThrowTypeError(ctx, "StereoPannerNode requires an AudioContext");
   AudioContextPtr* acptr = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, argv[0], js_audiocontext_class_id));
-  if (!acptr)
+  if(!acptr)
     return JS_EXCEPTION;
   AudioContextPtr ac = *acptr;
   auto sp = std::make_shared<lab::StereoPannerNode>(*ac);
 
-  if (argc > 1 && JS_IsObject(argv[1])) {
+  if(argc > 1 && JS_IsObject(argv[1])) {
     JSValue v = JS_GetPropertyStr(ctx, argv[1], "pan");
-    if (JS_IsNumber(v)) {
+    if(JS_IsNumber(v)) {
       double d;
       JS_ToFloat64(ctx, &d, v);
       sp->pan()->setValue(static_cast<float>(d));
@@ -2450,9 +2508,9 @@ static JSValue js_stereopanner_constructor(JSContext* ctx, JSValueConst new_targ
   }
 
   JSValue proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if (JS_IsException(proto))
+  if(JS_IsException(proto))
     return JS_EXCEPTION;
-  if (!JS_IsObject(proto)) {
+  if(!JS_IsObject(proto)) {
     JS_FreeValue(ctx, proto);
     proto = JS_DupValue(ctx, stereopannernode_proto);
   }
@@ -2462,60 +2520,63 @@ static JSValue js_stereopanner_constructor(JSContext* ctx, JSValueConst new_targ
   return obj;
 }
 
-static JSValue js_stereopanner_get_pan(JSContext* ctx, JSValueConst this_val) {
+static JSValue
+js_stereopanner_get_pan(JSContext* ctx, JSValueConst this_val) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_stereopannernode_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   auto sp = std::dynamic_pointer_cast<lab::StereoPannerNode>(w->node);
-  if (!sp)
+  if(!sp)
     return JS_ThrowInternalError(ctx, "not a StereoPannerNode");
   return make_audio_param_js(ctx, sp->pan());
 }
 
-static void js_stereopannernode_finalizer(JSRuntime* rt, JSValue val) {
+static void
+js_stereopannernode_finalizer(JSRuntime* rt, JSValue val) {
   js_audionode_finalize_with(rt, val, js_stereopannernode_class_id);
 }
 
 static JSClassDef js_stereopannernode_class = {
-    .class_name = "StereoPannerNode",
-    .finalizer = js_stereopannernode_finalizer,
+  .class_name = "StereoPannerNode",
+  .finalizer = js_stereopannernode_finalizer,
 };
 
 static const JSCFunctionListEntry js_stereopannernode_funcs[] = {
-    JS_CGETSET_DEF("pan", js_stereopanner_get_pan, NULL),
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "StereoPannerNode", JS_PROP_CONFIGURABLE),
+  JS_CGETSET_DEF("pan", js_stereopanner_get_pan, NULL),
+  JS_PROP_STRING_DEF("[Symbol.toStringTag]", "StereoPannerNode", JS_PROP_CONFIGURABLE),
 };
 
 /* ---------- ConvolverNode ---------- */
 
-static JSValue js_convolver_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
-  if (argc < 1)
+static JSValue
+js_convolver_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+  if(argc < 1)
     return JS_ThrowTypeError(ctx, "ConvolverNode requires an AudioContext");
   AudioContextPtr* acptr = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, argv[0], js_audiocontext_class_id));
-  if (!acptr)
+  if(!acptr)
     return JS_EXCEPTION;
   AudioContextPtr ac = *acptr;
   auto conv = std::make_shared<lab::ConvolverNode>(*ac);
 
-  if (argc > 1 && JS_IsObject(argv[1])) {
+  if(argc > 1 && JS_IsObject(argv[1])) {
     JSValue v = JS_GetPropertyStr(ctx, argv[1], "buffer");
-    if (JS_IsObject(v)) {
+    if(JS_IsObject(v)) {
       JsAudioBuffer* buf = static_cast<JsAudioBuffer*>(JS_GetOpaque2(ctx, v, js_audiobuffer_class_id));
-      if (buf && buf->bus)
+      if(buf && buf->bus)
         conv->setImpulse(buf->bus);
     }
     JS_FreeValue(ctx, v);
 
     v = JS_GetPropertyStr(ctx, argv[1], "normalize");
-    if (!JS_IsUndefined(v) && !JS_IsException(v))
+    if(!JS_IsUndefined(v) && !JS_IsException(v))
       conv->setNormalize(JS_ToBool(ctx, v));
     JS_FreeValue(ctx, v);
   }
 
   JSValue proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if (JS_IsException(proto))
+  if(JS_IsException(proto))
     return JS_EXCEPTION;
-  if (!JS_IsObject(proto)) {
+  if(!JS_IsObject(proto)) {
     JS_FreeValue(ctx, proto);
     proto = JS_DupValue(ctx, convolvernode_proto);
   }
@@ -2525,83 +2586,89 @@ static JSValue js_convolver_constructor(JSContext* ctx, JSValueConst new_target,
   return obj;
 }
 
-static JSValue js_convolver_get_buffer(JSContext* ctx, JSValueConst this_val) {
+static JSValue
+js_convolver_get_buffer(JSContext* ctx, JSValueConst this_val) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_convolvernode_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   auto conv = std::dynamic_pointer_cast<lab::ConvolverNode>(w->node);
-  if (!conv)
+  if(!conv)
     return JS_ThrowInternalError(ctx, "not a ConvolverNode");
   auto impulse = conv->getImpulse();
-  if (!impulse)
+  if(!impulse)
     return JS_NULL;
   return make_audio_buffer_js(ctx, impulse);
 }
 
-static JSValue js_convolver_set_buffer(JSContext* ctx, JSValueConst this_val, JSValueConst value) {
+static JSValue
+js_convolver_set_buffer(JSContext* ctx, JSValueConst this_val, JSValueConst value) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_convolvernode_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   auto conv = std::dynamic_pointer_cast<lab::ConvolverNode>(w->node);
-  if (!conv)
+  if(!conv)
     return JS_ThrowInternalError(ctx, "not a ConvolverNode");
   JsAudioBuffer* buf = static_cast<JsAudioBuffer*>(JS_GetOpaque2(ctx, value, js_audiobuffer_class_id));
-  if (!buf)
+  if(!buf)
     return JS_EXCEPTION;
   conv->setImpulse(buf->bus);
   return JS_UNDEFINED;
 }
 
-static JSValue js_convolver_get_normalize(JSContext* ctx, JSValueConst this_val) {
+static JSValue
+js_convolver_get_normalize(JSContext* ctx, JSValueConst this_val) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_convolvernode_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   auto conv = std::dynamic_pointer_cast<lab::ConvolverNode>(w->node);
-  if (!conv)
+  if(!conv)
     return JS_ThrowInternalError(ctx, "not a ConvolverNode");
   return JS_NewBool(ctx, conv->normalize());
 }
 
-static JSValue js_convolver_set_normalize(JSContext* ctx, JSValueConst this_val, JSValueConst value) {
+static JSValue
+js_convolver_set_normalize(JSContext* ctx, JSValueConst this_val, JSValueConst value) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_convolvernode_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   auto conv = std::dynamic_pointer_cast<lab::ConvolverNode>(w->node);
-  if (!conv)
+  if(!conv)
     return JS_ThrowInternalError(ctx, "not a ConvolverNode");
   conv->setNormalize(JS_ToBool(ctx, value));
   return JS_UNDEFINED;
 }
 
-static void js_convolvernode_finalizer(JSRuntime* rt, JSValue val) {
+static void
+js_convolvernode_finalizer(JSRuntime* rt, JSValue val) {
   js_audionode_finalize_with(rt, val, js_convolvernode_class_id);
 }
 
 static JSClassDef js_convolvernode_class = {
-    .class_name = "ConvolverNode",
-    .finalizer = js_convolvernode_finalizer,
+  .class_name = "ConvolverNode",
+  .finalizer = js_convolvernode_finalizer,
 };
 
 static const JSCFunctionListEntry js_convolvernode_funcs[] = {
-    JS_CGETSET_DEF("buffer", js_convolver_get_buffer, js_convolver_set_buffer),
-    JS_CGETSET_DEF("normalize", js_convolver_get_normalize, js_convolver_set_normalize),
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "ConvolverNode", JS_PROP_CONFIGURABLE),
+  JS_CGETSET_DEF("buffer", js_convolver_get_buffer, js_convolver_set_buffer),
+  JS_CGETSET_DEF("normalize", js_convolver_get_normalize, js_convolver_set_normalize),
+  JS_PROP_STRING_DEF("[Symbol.toStringTag]", "ConvolverNode", JS_PROP_CONFIGURABLE),
 };
 
 /* ---------- AnalyserNode ---------- */
 
-static JSValue js_analyser_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
-  if (argc < 1)
+static JSValue
+js_analyser_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+  if(argc < 1)
     return JS_ThrowTypeError(ctx, "AnalyserNode requires an AudioContext");
   AudioContextPtr* acptr = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, argv[0], js_audiocontext_class_id));
-  if (!acptr)
+  if(!acptr)
     return JS_EXCEPTION;
   AudioContextPtr ac = *acptr;
   auto an = std::make_shared<lab::AnalyserNode>(*ac);
 
-  if (argc > 1 && JS_IsObject(argv[1])) {
+  if(argc > 1 && JS_IsObject(argv[1])) {
     JSValue v = JS_GetPropertyStr(ctx, argv[1], "fftSize");
-    if (JS_IsNumber(v)) {
+    if(JS_IsNumber(v)) {
       int32_t fftSize = 2048;
       JS_ToInt32(ctx, &fftSize, v);
       lab::ContextRenderLock renderLock(ac.get(), "AnalyserNode.fftSize");
@@ -2610,7 +2677,7 @@ static JSValue js_analyser_constructor(JSContext* ctx, JSValueConst new_target, 
     JS_FreeValue(ctx, v);
 
     v = JS_GetPropertyStr(ctx, argv[1], "minDecibels");
-    if (JS_IsNumber(v)) {
+    if(JS_IsNumber(v)) {
       double d;
       JS_ToFloat64(ctx, &d, v);
       an->setMinDecibels(d);
@@ -2618,7 +2685,7 @@ static JSValue js_analyser_constructor(JSContext* ctx, JSValueConst new_target, 
     JS_FreeValue(ctx, v);
 
     v = JS_GetPropertyStr(ctx, argv[1], "maxDecibels");
-    if (JS_IsNumber(v)) {
+    if(JS_IsNumber(v)) {
       double d;
       JS_ToFloat64(ctx, &d, v);
       an->setMaxDecibels(d);
@@ -2626,7 +2693,7 @@ static JSValue js_analyser_constructor(JSContext* ctx, JSValueConst new_target, 
     JS_FreeValue(ctx, v);
 
     v = JS_GetPropertyStr(ctx, argv[1], "smoothingTimeConstant");
-    if (JS_IsNumber(v)) {
+    if(JS_IsNumber(v)) {
       double d;
       JS_ToFloat64(ctx, &d, v);
       an->setSmoothingTimeConstant(d);
@@ -2639,9 +2706,9 @@ static JSValue js_analyser_constructor(JSContext* ctx, JSValueConst new_target, 
   ac->addAutomaticPullNode(an);
 
   JSValue proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if (JS_IsException(proto))
+  if(JS_IsException(proto))
     return JS_EXCEPTION;
-  if (!JS_IsObject(proto)) {
+  if(!JS_IsObject(proto)) {
     JS_FreeValue(ctx, proto);
     proto = JS_DupValue(ctx, analysernode_proto);
   }
@@ -2659,14 +2726,15 @@ enum {
   AN_PROP_SMOOTHINGTIMECONSTANT,
 };
 
-static JSValue js_analyser_get(JSContext* ctx, JSValueConst this_val, int magic) {
+static JSValue
+js_analyser_get(JSContext* ctx, JSValueConst this_val, int magic) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_analysernode_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   auto an = std::dynamic_pointer_cast<lab::AnalyserNode>(w->node);
-  if (!an)
+  if(!an)
     return JS_ThrowInternalError(ctx, "not an AnalyserNode");
-  switch (magic) {
+  switch(magic) {
     case AN_PROP_FFTSIZE: return JS_NewInt32(ctx, static_cast<int32_t>(an->fftSize()));
     case AN_PROP_FREQUENCYBINCOUNT: return JS_NewInt32(ctx, static_cast<int32_t>(an->frequencyBinCount()));
     case AN_PROP_MINDECIBELS: return JS_NewFloat64(ctx, an->minDecibels());
@@ -2676,14 +2744,15 @@ static JSValue js_analyser_get(JSContext* ctx, JSValueConst this_val, int magic)
   return JS_UNDEFINED;
 }
 
-static JSValue js_analyser_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
+static JSValue
+js_analyser_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_analysernode_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   auto an = std::dynamic_pointer_cast<lab::AnalyserNode>(w->node);
-  if (!an)
+  if(!an)
     return JS_ThrowInternalError(ctx, "not an AnalyserNode");
-  switch (magic) {
+  switch(magic) {
     case AN_PROP_FFTSIZE: {
       int32_t fftSize = 2048;
       JS_ToInt32(ctx, &fftSize, value);
@@ -2720,67 +2789,59 @@ enum {
   AN_METHOD_GET_BYTE_TIME_DOMAIN_DATA,
 };
 
-static JSValue js_analyser_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+// Fills the caller's T array(Float32Array or Uint8Array) with at most limit
+// values produced by fill(vector<T>&); throws if the argument is another type.
+template <class T, class F>
+static JSValue
+analyser_fill(JSContext* ctx, JSValueConst dest_val, size_t limit, F fill) {
+  qjsx::array_view<T> dest;
+  if(!qjsx::get_array(ctx, dest_val, dest))
+    return JS_EXCEPTION;
+
+  std::vector<T> data(std::min(dest.size, limit));
+  fill(data);
+  std::copy(data.begin(), data.end(), dest.begin());
+  return JS_UNDEFINED;
+}
+
+static JSValue
+js_analyser_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_analysernode_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   auto an = std::dynamic_pointer_cast<lab::AnalyserNode>(w->node);
-  if (!an)
+  if(!an)
     return JS_ThrowInternalError(ctx, "not an AnalyserNode");
-  if (argc < 1)
+  if(argc < 1)
     return JS_ThrowTypeError(ctx, "requires a typed array argument");
-
-  size_t byte_offset = 0, byte_length = 0, bytes_per_element = 0;
-  JSValue buf = JS_GetTypedArrayBuffer(ctx, argv[0], &byte_offset, &byte_length, &bytes_per_element);
-  if (JS_IsException(buf))
-    return JS_ThrowTypeError(ctx, "argument must be a typed array");
-  size_t ab_size = 0;
-  uint8_t* ab_data = JS_GetArrayBuffer(ctx, &ab_size, buf);
-  JS_FreeValue(ctx, buf);
-  if (!ab_data)
-    return JS_EXCEPTION;
 
   // required size per spec: frequencyBinCount for frequency-domain data,
   // fftSize for time-domain data. Only fill as many values as the smaller
   // of that and what the caller's array can hold, per spec.
-  switch (magic) {
-    case AN_METHOD_GET_FLOAT_FREQUENCY_DATA: {
-      size_t len = std::min(byte_length / sizeof(float), an->frequencyBinCount());
-      std::vector<float> data(len);
-      an->getFloatFrequencyData(data);
-      memcpy(reinterpret_cast<float*>(ab_data + byte_offset), data.data(), len * sizeof(float));
-      break;
-    }
+  switch(magic) {
+    case AN_METHOD_GET_FLOAT_FREQUENCY_DATA:
+      return analyser_fill<float>(ctx, argv[0], an->frequencyBinCount(), [&](std::vector<float>& d) {
+        an->getFloatFrequencyData(d);
+      });
     case AN_METHOD_GET_BYTE_FREQUENCY_DATA: {
       bool resample = argc > 1 ? JS_ToBool(ctx, argv[1]) : false;
-      size_t len = std::min(byte_length, an->frequencyBinCount());
-      std::vector<uint8_t> data(len);
-      an->getByteFrequencyData(data, resample);
-      memcpy(ab_data + byte_offset, data.data(), len);
-      break;
+      return analyser_fill<uint8_t>(ctx, argv[0], an->frequencyBinCount(), [&](std::vector<uint8_t>& d) {
+        an->getByteFrequencyData(d, resample);
+      });
     }
-    case AN_METHOD_GET_FLOAT_TIME_DOMAIN_DATA: {
-      size_t len = std::min(byte_length / sizeof(float), an->fftSize());
-      std::vector<float> data(len);
-      an->getFloatTimeDomainData(data);
-      memcpy(reinterpret_cast<float*>(ab_data + byte_offset), data.data(), len * sizeof(float));
-      break;
-    }
-    case AN_METHOD_GET_BYTE_TIME_DOMAIN_DATA: {
-      size_t len = std::min(byte_length, an->fftSize());
-      std::vector<uint8_t> data(len);
-      an->getByteTimeDomainData(data);
-      memcpy(ab_data + byte_offset, data.data(), len);
-      break;
-    }
+    case AN_METHOD_GET_FLOAT_TIME_DOMAIN_DATA:
+      return analyser_fill<float>(ctx, argv[0], an->fftSize(), [&](std::vector<float>& d) { an->getFloatTimeDomainData(d); });
+    case AN_METHOD_GET_BYTE_TIME_DOMAIN_DATA:
+      return analyser_fill<uint8_t>(ctx, argv[0], an->fftSize(), [&](std::vector<uint8_t>& d) { an->getByteTimeDomainData(d); });
   }
   return JS_UNDEFINED;
 }
 
-static void js_analysernode_finalizer(JSRuntime* rt, JSValue val) {
+static void
+js_analysernode_finalizer(JSRuntime* rt, JSValue val) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque(val, js_analysernode_class_id));
-  if (w) {
-    if (w->ctx)
+  if(w) {
+    if(w->ctx)
       w->ctx->removeAutomaticPullNode(w->node);
     w->~JsAudioNode();
     js_free_rt(rt, w);
@@ -2788,46 +2849,47 @@ static void js_analysernode_finalizer(JSRuntime* rt, JSValue val) {
 }
 
 static JSClassDef js_analysernode_class = {
-    .class_name = "AnalyserNode",
-    .finalizer = js_analysernode_finalizer,
+  .class_name = "AnalyserNode",
+  .finalizer = js_analysernode_finalizer,
 };
 
 static const JSCFunctionListEntry js_analysernode_funcs[] = {
-    JS_CGETSET_MAGIC_DEF("fftSize", js_analyser_get, js_analyser_set, AN_PROP_FFTSIZE),
-    JS_CGETSET_MAGIC_DEF("frequencyBinCount", js_analyser_get, 0, AN_PROP_FREQUENCYBINCOUNT),
-    JS_CGETSET_MAGIC_DEF("minDecibels", js_analyser_get, js_analyser_set, AN_PROP_MINDECIBELS),
-    JS_CGETSET_MAGIC_DEF("maxDecibels", js_analyser_get, js_analyser_set, AN_PROP_MAXDECIBELS),
-    JS_CGETSET_MAGIC_DEF("smoothingTimeConstant", js_analyser_get, js_analyser_set, AN_PROP_SMOOTHINGTIMECONSTANT),
-    JS_CFUNC_MAGIC_DEF("getFloatFrequencyData", 1, js_analyser_method, AN_METHOD_GET_FLOAT_FREQUENCY_DATA),
-    JS_CFUNC_MAGIC_DEF("getByteFrequencyData", 1, js_analyser_method, AN_METHOD_GET_BYTE_FREQUENCY_DATA),
-    JS_CFUNC_MAGIC_DEF("getFloatTimeDomainData", 1, js_analyser_method, AN_METHOD_GET_FLOAT_TIME_DOMAIN_DATA),
-    JS_CFUNC_MAGIC_DEF("getByteTimeDomainData", 1, js_analyser_method, AN_METHOD_GET_BYTE_TIME_DOMAIN_DATA),
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AnalyserNode", JS_PROP_CONFIGURABLE),
+  JS_CGETSET_MAGIC_DEF("fftSize", js_analyser_get, js_analyser_set, AN_PROP_FFTSIZE),
+  JS_CGETSET_MAGIC_DEF("frequencyBinCount", js_analyser_get, 0, AN_PROP_FREQUENCYBINCOUNT),
+  JS_CGETSET_MAGIC_DEF("minDecibels", js_analyser_get, js_analyser_set, AN_PROP_MINDECIBELS),
+  JS_CGETSET_MAGIC_DEF("maxDecibels", js_analyser_get, js_analyser_set, AN_PROP_MAXDECIBELS),
+  JS_CGETSET_MAGIC_DEF("smoothingTimeConstant", js_analyser_get, js_analyser_set, AN_PROP_SMOOTHINGTIMECONSTANT),
+  JS_CFUNC_MAGIC_DEF("getFloatFrequencyData", 1, js_analyser_method, AN_METHOD_GET_FLOAT_FREQUENCY_DATA),
+  JS_CFUNC_MAGIC_DEF("getByteFrequencyData", 1, js_analyser_method, AN_METHOD_GET_BYTE_FREQUENCY_DATA),
+  JS_CFUNC_MAGIC_DEF("getFloatTimeDomainData", 1, js_analyser_method, AN_METHOD_GET_FLOAT_TIME_DOMAIN_DATA),
+  JS_CFUNC_MAGIC_DEF("getByteTimeDomainData", 1, js_analyser_method, AN_METHOD_GET_BYTE_TIME_DOMAIN_DATA),
+  JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AnalyserNode", JS_PROP_CONFIGURABLE),
 };
 
 /* ---------- DynamicsCompressorNode ---------- */
 
-static JSValue js_compressor_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
-  if (argc < 1)
+static JSValue
+js_compressor_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+  if(argc < 1)
     return JS_ThrowTypeError(ctx, "DynamicsCompressorNode requires an AudioContext");
   AudioContextPtr* acptr = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, argv[0], js_audiocontext_class_id));
-  if (!acptr)
+  if(!acptr)
     return JS_EXCEPTION;
   AudioContextPtr ac = *acptr;
   auto comp = std::make_shared<lab::DynamicsCompressorNode>(*ac);
 
-  if (argc > 1 && JS_IsObject(argv[1])) {
+  if(argc > 1 && JS_IsObject(argv[1])) {
     static const struct {
       const char* name;
       std::shared_ptr<lab::AudioParam> (lab::DynamicsCompressorNode::*getter)();
     } params[] = {
-        {"threshold", &lab::DynamicsCompressorNode::threshold}, {"knee", &lab::DynamicsCompressorNode::knee},
-        {"ratio", &lab::DynamicsCompressorNode::ratio},         {"attack", &lab::DynamicsCompressorNode::attack},
-        {"release", &lab::DynamicsCompressorNode::release},
+      { "threshold", &lab::DynamicsCompressorNode::threshold }, { "knee", &lab::DynamicsCompressorNode::knee },
+      { "ratio", &lab::DynamicsCompressorNode::ratio },         { "attack", &lab::DynamicsCompressorNode::attack },
+      { "release", &lab::DynamicsCompressorNode::release },
     };
-    for (auto& p : params) {
+    for(auto& p : params) {
       JSValue v = JS_GetPropertyStr(ctx, argv[1], p.name);
-      if (JS_IsNumber(v)) {
+      if(JS_IsNumber(v)) {
         double d;
         JS_ToFloat64(ctx, &d, v);
         (comp.get()->*p.getter)()->setValue(static_cast<float>(d));
@@ -2837,9 +2899,9 @@ static JSValue js_compressor_constructor(JSContext* ctx, JSValueConst new_target
   }
 
   JSValue proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if (JS_IsException(proto))
+  if(JS_IsException(proto))
     return JS_EXCEPTION;
-  if (!JS_IsObject(proto)) {
+  if(!JS_IsObject(proto)) {
     JS_FreeValue(ctx, proto);
     proto = JS_DupValue(ctx, dynamicscompressornode_proto);
   }
@@ -2858,14 +2920,15 @@ enum {
   DC_PROP_REDUCTION,
 };
 
-static JSValue js_compressor_get(JSContext* ctx, JSValueConst this_val, int magic) {
+static JSValue
+js_compressor_get(JSContext* ctx, JSValueConst this_val, int magic) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_dynamicscompressornode_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   auto comp = std::dynamic_pointer_cast<lab::DynamicsCompressorNode>(w->node);
-  if (!comp)
+  if(!comp)
     return JS_ThrowInternalError(ctx, "not a DynamicsCompressorNode");
-  switch (magic) {
+  switch(magic) {
     case DC_PROP_THRESHOLD: return make_audio_param_js(ctx, comp->threshold());
     case DC_PROP_KNEE: return make_audio_param_js(ctx, comp->knee());
     case DC_PROP_RATIO: return make_audio_param_js(ctx, comp->ratio());
@@ -2876,39 +2939,41 @@ static JSValue js_compressor_get(JSContext* ctx, JSValueConst this_val, int magi
   return JS_UNDEFINED;
 }
 
-static void js_dynamicscompressornode_finalizer(JSRuntime* rt, JSValue val) {
+static void
+js_dynamicscompressornode_finalizer(JSRuntime* rt, JSValue val) {
   js_audionode_finalize_with(rt, val, js_dynamicscompressornode_class_id);
 }
 
 static JSClassDef js_dynamicscompressornode_class = {
-    .class_name = "DynamicsCompressorNode",
-    .finalizer = js_dynamicscompressornode_finalizer,
+  .class_name = "DynamicsCompressorNode",
+  .finalizer = js_dynamicscompressornode_finalizer,
 };
 
 static const JSCFunctionListEntry js_dynamicscompressornode_funcs[] = {
-    JS_CGETSET_MAGIC_DEF("threshold", js_compressor_get, 0, DC_PROP_THRESHOLD),
-    JS_CGETSET_MAGIC_DEF("knee", js_compressor_get, 0, DC_PROP_KNEE),
-    JS_CGETSET_MAGIC_DEF("ratio", js_compressor_get, 0, DC_PROP_RATIO),
-    JS_CGETSET_MAGIC_DEF("attack", js_compressor_get, 0, DC_PROP_ATTACK),
-    JS_CGETSET_MAGIC_DEF("release", js_compressor_get, 0, DC_PROP_RELEASE),
-    JS_CGETSET_MAGIC_DEF("reduction", js_compressor_get, 0, DC_PROP_REDUCTION),
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "DynamicsCompressorNode", JS_PROP_CONFIGURABLE),
+  JS_CGETSET_MAGIC_DEF("threshold", js_compressor_get, 0, DC_PROP_THRESHOLD),
+  JS_CGETSET_MAGIC_DEF("knee", js_compressor_get, 0, DC_PROP_KNEE),
+  JS_CGETSET_MAGIC_DEF("ratio", js_compressor_get, 0, DC_PROP_RATIO),
+  JS_CGETSET_MAGIC_DEF("attack", js_compressor_get, 0, DC_PROP_ATTACK),
+  JS_CGETSET_MAGIC_DEF("release", js_compressor_get, 0, DC_PROP_RELEASE),
+  JS_CGETSET_MAGIC_DEF("reduction", js_compressor_get, 0, DC_PROP_REDUCTION),
+  JS_PROP_STRING_DEF("[Symbol.toStringTag]", "DynamicsCompressorNode", JS_PROP_CONFIGURABLE),
 };
 
 /* ---------- ConstantSourceNode ---------- */
 
-static JSValue js_constantsource_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
-  if (argc < 1)
+static JSValue
+js_constantsource_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+  if(argc < 1)
     return JS_ThrowTypeError(ctx, "ConstantSourceNode requires an AudioContext");
   AudioContextPtr* acptr = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, argv[0], js_audiocontext_class_id));
-  if (!acptr)
+  if(!acptr)
     return JS_EXCEPTION;
   AudioContextPtr ac = *acptr;
   auto cs = std::make_shared<lab::ConstantSourceNode>(*ac);
 
-  if (argc > 1 && JS_IsObject(argv[1])) {
+  if(argc > 1 && JS_IsObject(argv[1])) {
     JSValue v = JS_GetPropertyStr(ctx, argv[1], "offset");
-    if (JS_IsNumber(v)) {
+    if(JS_IsNumber(v)) {
       double d;
       JS_ToFloat64(ctx, &d, v);
       cs->offset()->setValue(static_cast<float>(d));
@@ -2917,9 +2982,9 @@ static JSValue js_constantsource_constructor(JSContext* ctx, JSValueConst new_ta
   }
 
   JSValue proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if (JS_IsException(proto))
+  if(JS_IsException(proto))
     return JS_EXCEPTION;
-  if (!JS_IsObject(proto)) {
+  if(!JS_IsObject(proto)) {
     JS_FreeValue(ctx, proto);
     proto = JS_DupValue(ctx, constantsourcenode_proto);
   }
@@ -2929,33 +2994,36 @@ static JSValue js_constantsource_constructor(JSContext* ctx, JSValueConst new_ta
   return obj;
 }
 
-static JSValue js_constantsource_get_offset(JSContext* ctx, JSValueConst this_val) {
+static JSValue
+js_constantsource_get_offset(JSContext* ctx, JSValueConst this_val) {
   JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_constantsourcenode_class_id));
-  if (!w)
+  if(!w)
     return JS_EXCEPTION;
   auto cs = std::dynamic_pointer_cast<lab::ConstantSourceNode>(w->node);
-  if (!cs)
+  if(!cs)
     return JS_ThrowInternalError(ctx, "not a ConstantSourceNode");
   return make_audio_param_js(ctx, cs->offset());
 }
 
-static void js_constantsourcenode_finalizer(JSRuntime* rt, JSValue val) {
+static void
+js_constantsourcenode_finalizer(JSRuntime* rt, JSValue val) {
   js_audionode_finalize_with(rt, val, js_constantsourcenode_class_id);
 }
 
 static JSClassDef js_constantsourcenode_class = {
-    .class_name = "ConstantSourceNode",
-    .finalizer = js_constantsourcenode_finalizer,
+  .class_name = "ConstantSourceNode",
+  .finalizer = js_constantsourcenode_finalizer,
 };
 
 static const JSCFunctionListEntry js_constantsourcenode_funcs[] = {
-    JS_CGETSET_DEF("offset", js_constantsource_get_offset, NULL),
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "ConstantSourceNode", JS_PROP_CONFIGURABLE),
+  JS_CGETSET_DEF("offset", js_constantsource_get_offset, NULL),
+  JS_PROP_STRING_DEF("[Symbol.toStringTag]", "ConstantSourceNode", JS_PROP_CONFIGURABLE),
 };
 
 /* ---------- module init ---------- */
 
-int js_labsound_init(JSContext* ctx, JSModuleDef* m) {
+int
+js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   audionode_proto = JS_NewObject(ctx);
   JS_SetPropertyFunctionList(ctx, audionode_proto, js_audionode_funcs, countof(js_audionode_funcs));
 
@@ -2974,7 +3042,7 @@ int js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   JS_SetConstructor(ctx, audiocontext_ctor, audiocontext_proto);
 
   // OfflineAudioContext shares js_audiocontext_class_id/finalizer with
-  // AudioContext (both just wrap a lab::AudioContext), but gets its own
+  // AudioContext(both just wrap a lab::AudioContext), but gets its own
   // prototype and constructor per spec -- see the comment above
   // js_audiocontext_constructor.
   offlineaudiocontext_proto = JS_NewObject(ctx);
@@ -3146,13 +3214,13 @@ int js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   JS_SetClassProto(ctx, js_audioparam_class_id, audioparam_proto);
 
   // audionode_proto/audioscheduledsourcenode_proto aren't a real node's
-  // class proto (no JS_SetClassProto to hand off their JS_NewObject ref),
+  // class proto(no JS_SetClassProto to hand off their JS_NewObject ref),
   // just shared link objects in the prototype chain -drop our extra ref
   // now that every node proto above holds its own via JS_SetPrototype.
   JS_FreeValue(ctx, audioscheduledsourcenode_proto);
   JS_FreeValue(ctx, audionode_proto);
 
-  if (m) {
+  if(m) {
     JS_SetModuleExport(ctx, m, "AudioContext", audiocontext_ctor);
     JS_SetModuleExport(ctx, m, "OfflineAudioContext", offlineaudiocontext_ctor);
     JS_SetModuleExport(ctx, m, "AudioDestinationNode", audiodestinationnode_ctor);
@@ -3177,7 +3245,8 @@ int js_labsound_init(JSContext* ctx, JSModuleDef* m) {
   return 0;
 }
 
-extern "C" VISIBLE void js_labsound_add_exports(JSContext* ctx, JSModuleDef* m) {
+extern "C" VISIBLE void
+js_labsound_add_exports(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "AudioContext");
   JS_AddModuleExport(ctx, m, "OfflineAudioContext");
   JS_AddModuleExport(ctx, m, "AudioDestinationNode");
@@ -3205,9 +3274,10 @@ extern "C" VISIBLE void js_labsound_add_exports(JSContext* ctx, JSModuleDef* m) 
 #define JS_INIT_MODULE js_init_module_labsound
 #endif
 
-extern "C" VISIBLE JSModuleDef* JS_INIT_MODULE(JSContext* ctx, const char* module_name) {
+extern "C" VISIBLE JSModuleDef*
+JS_INIT_MODULE(JSContext* ctx, const char* module_name) {
   JSModuleDef* m;
-  if ((m = JS_NewCModule(ctx, module_name, js_labsound_init))) {
+  if((m = JS_NewCModule(ctx, module_name, js_labsound_init))) {
     js_labsound_add_exports(ctx, m);
   }
   return m;
