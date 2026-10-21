@@ -3,7 +3,7 @@
 #include <string.h>
 #include <cmath>
 #include "defines.h"
-#include "quickjs-cpp.hpp"
+#include "js-utils.hpp"
 #include <soundtouch/SoundTouch.h>
 
 using namespace soundtouch;
@@ -245,40 +245,40 @@ js_soundtouch_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
 }
 
 static const JSCFunctionListEntry js_soundtouch_funcs[] = {
-    JS_CGETSET_MAGIC_DEF("tempo", js_soundtouch_get, js_soundtouch_set, PROP_TEMPO),
-    JS_CGETSET_MAGIC_DEF("pitch", js_soundtouch_get, js_soundtouch_set, PROP_PITCH),
-    JS_CGETSET_MAGIC_DEF("pitchSemitones", js_soundtouch_get, js_soundtouch_set, PROP_PITCH_SEMITONES),
-    JS_CGETSET_MAGIC_DEF("pitchOctaves", js_soundtouch_get, js_soundtouch_set, PROP_PITCH_OCTAVES),
-    JS_CGETSET_MAGIC_DEF("rate", js_soundtouch_get, js_soundtouch_set, PROP_RATE),
-    JS_CGETSET_MAGIC_DEF("channels", js_soundtouch_get, 0, PROP_CHANNELS),
-    JS_CGETSET_MAGIC_DEF("sampleRate", js_soundtouch_get, 0, PROP_SAMPLERATE),
-    JS_CFUNC_MAGIC_DEF("putSamples", 1, js_soundtouch_method, METHOD_PUTSAMPLES),
-    JS_CFUNC_MAGIC_DEF("receiveSamples", 1, js_soundtouch_method, METHOD_RECEIVESAMPLES),
-    JS_CFUNC_MAGIC_DEF("numSamples", 0, js_soundtouch_method, METHOD_NUMSAMPLES),
-    JS_CFUNC_MAGIC_DEF("numUnprocessedSamples", 0, js_soundtouch_method, METHOD_NUMUNPROCESSEDSAMPLES),
-    JS_CFUNC_MAGIC_DEF("flush", 0, js_soundtouch_method, METHOD_FLUSH),
-    JS_CFUNC_MAGIC_DEF("clear", 0, js_soundtouch_method, METHOD_CLEAR),
-    JS_CFUNC_MAGIC_DEF("setSetting", 2, js_soundtouch_method, METHOD_SETSETTING),
-    JS_CFUNC_MAGIC_DEF("getSetting", 1, js_soundtouch_method, METHOD_GETSETTING),
-    JS_CFUNC_MAGIC_DEF("close", 0, js_soundtouch_method, METHOD_CLOSE),
-    JS_PROP_STRING_DEF("[Symbol.toStringTag]", "SoundTouch", JS_PROP_CONFIGURABLE),
+  JS_CGETSET_MAGIC_DEF("tempo", js_soundtouch_get, js_soundtouch_set, PROP_TEMPO),
+  JS_CGETSET_MAGIC_DEF("pitch", js_soundtouch_get, js_soundtouch_set, PROP_PITCH),
+  JS_CGETSET_MAGIC_DEF("pitchSemitones", js_soundtouch_get, js_soundtouch_set, PROP_PITCH_SEMITONES),
+  JS_CGETSET_MAGIC_DEF("pitchOctaves", js_soundtouch_get, js_soundtouch_set, PROP_PITCH_OCTAVES),
+  JS_CGETSET_MAGIC_DEF("rate", js_soundtouch_get, js_soundtouch_set, PROP_RATE),
+  JS_CGETSET_MAGIC_DEF("channels", js_soundtouch_get, 0, PROP_CHANNELS),
+  JS_CGETSET_MAGIC_DEF("sampleRate", js_soundtouch_get, 0, PROP_SAMPLERATE),
+  JS_CFUNC_MAGIC_DEF("putSamples", 1, js_soundtouch_method, METHOD_PUTSAMPLES),
+  JS_CFUNC_MAGIC_DEF("receiveSamples", 1, js_soundtouch_method, METHOD_RECEIVESAMPLES),
+  JS_CFUNC_MAGIC_DEF("numSamples", 0, js_soundtouch_method, METHOD_NUMSAMPLES),
+  JS_CFUNC_MAGIC_DEF("numUnprocessedSamples", 0, js_soundtouch_method, METHOD_NUMUNPROCESSEDSAMPLES),
+  JS_CFUNC_MAGIC_DEF("flush", 0, js_soundtouch_method, METHOD_FLUSH),
+  JS_CFUNC_MAGIC_DEF("clear", 0, js_soundtouch_method, METHOD_CLEAR),
+  JS_CFUNC_MAGIC_DEF("setSetting", 2, js_soundtouch_method, METHOD_SETSETTING),
+  JS_CFUNC_MAGIC_DEF("getSetting", 1, js_soundtouch_method, METHOD_GETSETTING),
+  JS_CFUNC_MAGIC_DEF("close", 0, js_soundtouch_method, METHOD_CLOSE),
+  JS_PROP_STRING_DEF("[Symbol.toStringTag]", "SoundTouch", JS_PROP_CONFIGURABLE),
 };
 
 static const JSCFunctionListEntry js_soundtouch_module_funcs[] = {
-    JS_PROP_INT32_DEF("SETTING_USE_AA_FILTER", SETTING_USE_AA_FILTER, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("SETTING_AA_FILTER_LENGTH", SETTING_AA_FILTER_LENGTH, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("SETTING_USE_QUICKSEEK", SETTING_USE_QUICKSEEK, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("SETTING_SEQUENCE_MS", SETTING_SEQUENCE_MS, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("SETTING_SEEKWINDOW_MS", SETTING_SEEKWINDOW_MS, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("SETTING_OVERLAP_MS", SETTING_OVERLAP_MS, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("SETTING_NOMINAL_INPUT_SEQUENCE", SETTING_NOMINAL_INPUT_SEQUENCE, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("SETTING_NOMINAL_OUTPUT_SEQUENCE", SETTING_NOMINAL_OUTPUT_SEQUENCE, JS_PROP_CONFIGURABLE),
-    JS_PROP_INT32_DEF("SETTING_INITIAL_LATENCY", SETTING_INITIAL_LATENCY, JS_PROP_CONFIGURABLE),
+  JS_PROP_INT32_DEF("SETTING_USE_AA_FILTER", SETTING_USE_AA_FILTER, JS_PROP_CONFIGURABLE),
+  JS_PROP_INT32_DEF("SETTING_AA_FILTER_LENGTH", SETTING_AA_FILTER_LENGTH, JS_PROP_CONFIGURABLE),
+  JS_PROP_INT32_DEF("SETTING_USE_QUICKSEEK", SETTING_USE_QUICKSEEK, JS_PROP_CONFIGURABLE),
+  JS_PROP_INT32_DEF("SETTING_SEQUENCE_MS", SETTING_SEQUENCE_MS, JS_PROP_CONFIGURABLE),
+  JS_PROP_INT32_DEF("SETTING_SEEKWINDOW_MS", SETTING_SEEKWINDOW_MS, JS_PROP_CONFIGURABLE),
+  JS_PROP_INT32_DEF("SETTING_OVERLAP_MS", SETTING_OVERLAP_MS, JS_PROP_CONFIGURABLE),
+  JS_PROP_INT32_DEF("SETTING_NOMINAL_INPUT_SEQUENCE", SETTING_NOMINAL_INPUT_SEQUENCE, JS_PROP_CONFIGURABLE),
+  JS_PROP_INT32_DEF("SETTING_NOMINAL_OUTPUT_SEQUENCE", SETTING_NOMINAL_OUTPUT_SEQUENCE, JS_PROP_CONFIGURABLE),
+  JS_PROP_INT32_DEF("SETTING_INITIAL_LATENCY", SETTING_INITIAL_LATENCY, JS_PROP_CONFIGURABLE),
 };
 
 static JSClassDef js_soundtouch_class = {
-    .class_name = "SoundTouch",
-    .finalizer = js_soundtouch_finalizer,
+  .class_name = "SoundTouch",
+  .finalizer = js_soundtouch_finalizer,
 };
 
 int

@@ -2,7 +2,7 @@
 #include <cutils.h>
 #include <string.h>
 #include "defines.h"
-#include "quickjs-c.h"
+#include "js-utils.h"
 #include <portmidi.h>
 #include <porttime.h>
 
@@ -533,7 +533,7 @@ js_portmidistream_method(JSContext* ctx, JSValueConst this_val, int argc, JSValu
       if(argc < 2 || !(ptr = js_portmidi_get_buffer(ctx, argv[1], &len)))
         return JS_ThrowTypeError(ctx, "argument 2 must be a Uint8Array/DataView or ArrayBuffer");
 
-      /* Pm_WriteSysEx scans for the EOX (0xF7) byte itself; it has no
+      /* Pm_WriteSysEx scans for the EOX(0xF7) byte itself; it has no
        * explicit length parameter, so the buffer must already end with it. */
       err = Pm_WriteSysEx(s->stream, when, ptr);
 

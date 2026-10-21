@@ -17,7 +17,7 @@
  * (TwoPole for a ringing resonator, OnePole for tone shaping, Noise for
  * transients) and exposed as ordinary stk::Instrmnt subclasses so they
  * share the existing StkInstrmnt tick()/noteOn()/noteOff() binding in
- * quickjs-stk.cpp (same class id, same finalizer -- only their own
+ * quickjs-stk.cpp(same class id, same finalizer -- only their own
  * prototype, chained onto stkinstrmnt_proto, adds the extra controls
  * below).
  * ============================================================ */
@@ -61,10 +61,10 @@ analog_drive(double x, double amount, int type) {
  * A Twin-T RC notch network, wired into an inverting feedback loop,
  * oscillates at its notch frequency; struck, it rings down like a tom,
  * conga or woodblock. We model that ring-down directly as a discretized
- * 2-pole resonator (stk::TwoPole, tuned via setResonance) excited by an
+ * 2-pole resonator(stk::TwoPole, tuned via setResonance) excited by an
  * impulse -- the digital equivalent of "pinging" the analog circuit. A
  * second, detuned resonator and a noise "click" transient are layered in
- * for timbres a plain twin-T never had (cowbell/agogo-style clusters). */
+ * for timbres a plain twin-T never had(cowbell/agogo-style clusters). */
 class TwinTDrum : public stk::Instrmnt {
 public:
   TwinTDrum(stk::StkFloat frequency = 200.0)
@@ -115,12 +115,12 @@ public:
   void strike(double amplitude = 1.0) {
     age_ = 0.0;
 
-    /* With b0 pinned at 1 (see refreshResonators()), a single-sample impulse
+    /* With b0 pinned at 1(see refreshResonators()), a single-sample impulse
      * through a 2-pole resonator peaks at roughly amplitude / sin(w0) --
      * i.e. it blows up at low frequencies and shrinks at high ones, since
      * that's how much a narrow-band filter amplifies a single sample before
      * decay catches up. Scaling the excitation by sin(w0) cancels that out
-     * so strike() peaks at ~amplitude across the tuning range, and (unlike
+     * so strike() peaks at ~amplitude across the tuning range, and(unlike
      * normalize=true) independent of decay_/Q too. */
     double sr = stk::Stk::sampleRate();
     resonator_.tick(amplitude * std::sin(2.0 * M_PI * frequency_ / sr));
@@ -133,7 +133,7 @@ public:
   stk::StkFloat tick(unsigned int channel = 0) override {
     if(pitchDropAmt_ != 0.0) {
       double f = currentFrequency();
-      /* normalize=false: keep b0 pinned at 1 (see refreshResonators()) so the
+      /* normalize=false: keep b0 pinned at 1(see refreshResonators()) so the
        * pitch sweep re-tunes the resonance without rescaling its level. */
       resonator_.setResonance(f, radiusFor(decay_, f), false);
       if(secondaryMix_ > 0.0)
@@ -177,7 +177,7 @@ private:
 
   void refreshResonators() {
     /* normalize=false: TwoPole's normalize=true tunes b0 for unity gain
-     * under continuous sinusoidal drive, which for a long decay (high Q)
+     * under continuous sinusoidal drive, which for a long decay(high Q)
      * shrinks b0 towards zero -- fine for a sustained tone, but it starves
      * a single-sample strike() impulse of energy, making long-decay hits
      * nearly silent. Leaving b0 at its default 1 makes the impulse response
@@ -201,7 +201,7 @@ enum {
   TR909_WAVE_TRIANGLE = 1,
 };
 
-/* ---- Tr909BassDrum: analog bass drum designer (909-core, mbase-11-ish reach) ----
+/* ---- Tr909BassDrum: analog bass drum designer(909-core, mbase-11-ish reach) ----
  *
  * A distorted sine/triangle core with independent, dedicated pitch- and
  * amplitude-decay envelopes -- not ADSR: real analog bass drum circuits
@@ -210,12 +210,12 @@ enum {
  * amplitude, not from a multi-stage envelope generator.
  *
  * On top of that 909-style core this adds the controls that separate a
- * one-knob "kick" from a real bass drum designer (Jomox mBase 11 territory):
- * a second, much faster pitch "spike" layered on top of the main drop (the
+ * one-knob "kick" from a real bass drum designer(Jomox mBase 11 territory):
+ * a second, much faster pitch "spike" layered on top of the main drop(the
  * initial transient overshoot analog VCOs get when slammed hard, distinct
  * from the slower tonal settle), a dedicated punch/transient boost on the
  * amplitude stage, a resonant tone filter that tracks the kick's own
- * settling pitch (rather than sitting at a fixed Hz value, which reads as
+ * settling pitch(rather than sitting at a fixed Hz value, which reads as
  * an unrelated second pitched element -- the same mechanism that makes a
  * struck resonant filter sound like a bell elsewhere in this file), and a
  * triangle core option alongside the sine. */
@@ -267,7 +267,7 @@ public:
     pitchLinear_ = linear;
   }
   /* A second, independent pitch overshoot layered on top of the main
-   * envelope above, decaying much faster (a handful of ms) -- the analog
+   * envelope above, decaying much faster(a handful of ms) -- the analog
    * "double pitch decay" character a plain single-stage pitch envelope
    * can't reach: a near-instant spike on top of the slower tonal drop. */
   void setPitchSpike(double semitones, double timeSeconds) {
@@ -294,14 +294,14 @@ public:
     tone_ = cutoffHz;
     toneFilter_.setPole(poleFromCutoff(cutoffHz));
   }
-  /* 0 = plain one-pole rolloff (unchanged default behavior). Above 0 the
+  /* 0 = plain one-pole rolloff(unchanged default behavior). Above 0 the
    * tone stage adds a resonant peak -- but pinned to a fixed Hz value, that
    * peak reads as a second, unrelated pitched element as soon as the pitch
-   * envelope sweeps past or near it (worse with setPitchSpike()), which is
+   * envelope sweeps past or near it(worse with setPitchSpike()), which is
    * exactly what makes a resonant filter sound like a struck bell/cowbell
-   * elsewhere in this file (see TwinTDrum). To actually sound like a kick
+   * elsewhere in this file(see TwinTDrum). To actually sound like a kick
    * rather than a kick-plus-bell, the resonance instead tracks a multiple
-   * of the *current* fundamental each sample (see tick()), capped at the
+   * of the *current* fundamental each sample(see tick()), capped at the
    * tone_ cutoff -- it reinforces the kick's own pitch as it settles,
    * instead of ringing at some unrelated frequency independent of it. */
   void setToneResonance(double amount) {
@@ -418,7 +418,7 @@ private:
 
   static double oscillate(double phase, int waveform) {
     switch(waveform) {
-      case TR909_WAVE_TRIANGLE: return (2.0 / M_PI) * std::asin(std::sin(phase));
+      case TR909_WAVE_TRIANGLE: return(2.0 / M_PI) * std::asin(std::sin(phase));
       default: return std::sin(phase);
     }
   }
@@ -461,14 +461,14 @@ enum {
  *
  * Real analog drum machines build snares, claps, hihats and cymbals out of
  * the same few circuit blocks in different proportions, not four separate
- * synthesis engines: a noise source (the "snap"/"hiss"/"sizzle" common to
- * all four), a filter to carve its character, an envelope (single-shot
+ * synthesis engines: a noise source(the "snap"/"hiss"/"sizzle" common to
+ * all four), a filter to carve its character, an envelope(single-shot
  * for snare/hihat/cymbal, multi-triggered for a clap's characteristic
  * "burst-burst-burst-tail"), and -- for snare and hihat/cymbal
  * specifically -- a tonal or metallic core: two detuned tone oscillators
- * for a snare's "shell" thump (the classic 808/909 snare mixes ~180Hz/
+ * for a snare's "shell" thump(the classic 808/909 snare mixes ~180Hz/
  * 330Hz tones under its noise, not noise alone), or a bank of six
- * square-wave oscillators at fixed inharmonic ratios (the classic 808/909
+ * square-wave oscillators at fixed inharmonic ratios(the classic 808/909
  * hi-hat/cymbal "six-oscillator" trick) for hihat/cymbal shimmer.
  *
  * This class exposes those blocks as orthogonal controls rather than a
@@ -512,7 +512,7 @@ public:
   }
 
   /* Two detuned tone oscillators -- the "shell" thump under a snare's
-   * noise. mix=0 (default) disables both and skips the oscillator work. */
+   * noise. mix=0(default) disables both and skips the oscillator work. */
   void setTone(double freq1, double freq2, double mix, double decayTime) {
     tone1_ = freq1;
     tone2_ = freq2;
@@ -520,10 +520,10 @@ public:
     toneDecay_ = std::max(0.001, decayTime);
   }
 
-  /* Six square-wave oscillators at fixed inharmonic ratios (the classic
+  /* Six square-wave oscillators at fixed inharmonic ratios(the classic
    * 808/909 hi-hat "six-oscillator" trick), scaled from baseFreq, mixed
    * and pushed through a highpass at brightnessHz to carve the
-   * fundamentals out and leave the metallic shimmer. mix=0 (default)
+   * fundamentals out and leave the metallic shimmer. mix=0(default)
    * disables the bank and skips the oscillator work. */
   void setMetallic(double baseFreq, double mix, double decayTime, double brightnessHz) {
     metallicBase_ = baseFreq;
@@ -557,7 +557,7 @@ public:
   /* hits>1 retriggers the noise envelope that many times, spacingSeconds
    * apart -- every burst but the last decays fast, and the last decays
    * into the full noiseDecay_ tail -- the classic clap "burst-burst-
-   * burst-tail" circuit. hits=1 (default) is a plain single-envelope hit,
+   * burst-tail" circuit. hits=1(default) is a plain single-envelope hit,
    * i.e. snare/hihat/cymbal territory rather than clap. */
   void setClap(int hits, double spacingSeconds) {
     clapHits_ = std::max(1, hits);
@@ -664,7 +664,7 @@ public:
 private:
   static constexpr unsigned int kMetallicVoices = 6;
   /* Approximate ratios of the classic TR-808/909 six-oscillator hi-hat
-   * bank (205.3, 304.4, 369.6, 522.7, 540.4, 800.5 Hz), normalized to the
+   * bank(205.3, 304.4, 369.6, 522.7, 540.4, 800.5 Hz), normalized to the
    * 540.4Hz voice so metallicBase_ scales the whole inharmonic cluster. */
   static constexpr double kMetallicRatios[kMetallicVoices] = {0.3799, 0.5633, 0.6839, 0.9673, 1.0, 1.4815};
 

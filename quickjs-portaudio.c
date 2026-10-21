@@ -7,7 +7,7 @@
 static JSClassID js_pastream_class_id;
 static JSValue pastream_proto, pastream_ctor;
 
-/* Opened with a NULL stream callback (blocking I/O) so JS is only ever
+/* Opened with a NULL stream callback(blocking I/O) so JS is only ever
  * invoked from the interpreter thread, driving the stream via read()/
  * write() -- calling back into QuickJS from PortAudio's own realtime
  * audio thread would not be thread-safe. */
@@ -75,7 +75,7 @@ pa_hostapitype_name(PaHostApiTypeId id) {
 /* Parses a plain {device, channelCount, sampleFormat, suggestedLatency}
  * object into a stack PaStreamParameters - used only at Pa_OpenStream()/
  * Pa_IsFormatSupported() call time, so this is a duck-typed value
- * conversion (skill section 6), not a resource class. Returns FALSE (obj
+ * conversion(skill section 6), not a resource class. Returns FALSE(obj
  * is not an object, e.g. null/undefined) to mean "pass NULL for this
  * side", matching Pa_OpenStream()'s own NULL-parameter convention. */
 static BOOL

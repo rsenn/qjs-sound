@@ -5,44 +5,40 @@ TabWidth: 2
 UseTab: Never
 ColumnLimit: 128
 
-#------------------------------------------------------------------------------
-##Prevent breaks after '=' assignment and after open '('
-#------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+# Array & Struct Initializer Formatting (Forces 1 item per line)
+# ------------------------------------------------------------------------------
+# Treat braced initializers with standard C non-compact formatting (one element per line)
+Cpp11BracedListStyle: false
 
-#High penalty prevents breaking right after the '=' operator
+# ------------------------------------------------------------------------------
+# Prevent breaks after '=' assignment and after open '('
+# ------------------------------------------------------------------------------
+# High penalty prevents breaking right after the '=' operator
 PenaltyBreakAssignment: 10000
 
-#High penalty prevents breaking right after the opening '(' parameter bracket
+# High penalty prevents breaking right after the opening '(' parameter bracket
 PenaltyBreakBeforeFirstCallParameter: 10000
 
-#Align parameters on new lines using standard block indents rather than deep bracket column alignment
+# Align parameters on new lines using standard block indents rather than deep bracket column alignment
 AlignAfterOpenBracket: BlockIndent
 
-#Allow multiple arguments on the same line up to ColumnLimit
+# Allow multiple arguments on the same line up to ColumnLimit
 BinPackArguments: true
 BinPackParameters: true
 
-#Keep parameters on same line unless forced by ColumnLimit
+# Keep parameters on same line unless forced by ColumnLimit
 AllowAllArgumentsOnNextLine: false
 AllowAllParametersOfDeclarationOnNextLine: false
 
-#Continuation indent when a line must wrap
+# Continuation indent when a line must wrap
 ContinuationIndentWidth: 4
 
-#------------------------------------------------------------------------------
-#Array & Macro Formatting (Keeps RB_CONST() one per line)
-#------------------------------------------------------------------------------
-
-#Ensures array/struct initializer elements wrap one-per-line
-
-#Note: Keep trailing commas on your RB_CONST(...) lines in source
+# ------------------------------------------------------------------------------
+# Alignment & Formatting Defaults
+# ------------------------------------------------------------------------------
 AlignConsecutiveAssignments: false
 AlignConsecutiveDeclarations: false
-
-#------------------------------------------------------------------------------
-#Other Formatting Defaults
-#------------------------------------------------------------------------------
-
 AlignEscapedNewlines: DontAlign
 AccessModifierOffset: -2
 AlignOperands: true
@@ -54,7 +50,7 @@ AllowShortFunctionsOnASingleLine: InlineOnly
 AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false
 
-AlwaysBreakAfterDefinitionReturnType: None
+AlwaysBreakAfterDefinitionReturnType: true
 AlwaysBreakBeforeMultilineStrings: false
 AlwaysBreakTemplateDeclarations: false
 
@@ -79,7 +75,7 @@ SpacesInCStyleCastParentheses: false
 SpacesInParentheses: false
 SpacesInSquareBrackets: false
 
-#Line Penalties
+# Line Penalties
 PenaltyExcessCharacter: 10
 PenaltyBreakComment: 300
 PenaltyBreakString: 1000

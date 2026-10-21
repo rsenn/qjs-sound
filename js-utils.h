@@ -28,6 +28,9 @@ js_is_arraylike(JSContext* ctx, JSValueConst array) {
   return ret;
 }
 
+JSAtom js_symbol_tostringtag(JSContext* ctx);
+void js_set_tostringtag(JSContext* ctx, JSValueConst obj, const char* name);
+
 #ifdef __cplusplus
 }
 #endif

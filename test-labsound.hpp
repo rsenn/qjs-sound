@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSD-2-Clause
-// Copyright (C) 2015+, The LabSound Authors. All rights reserved.
+// Copyright(C) 2015+, The LabSound Authors. All rights reserved.
 
 #pragma once
 
@@ -67,7 +67,7 @@ GetDefaultAudioDeviceConfiguration(const bool with_input = true) {
               << std::endl;
   }
 
-  return {inputConfig, outputConfig};
+  return { inputConfig, outputConfig };
 }
 
 #endif
