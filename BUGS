@@ -129,10 +129,3 @@
   renders. Not root-caused; the offline scheduler also starts sources one quantum late.
 
     // C++: FunctionNode writing 1.f at its first sample, start(0), offlineRender() 8 quanta: peak is 0
-
-- aubio-ctor-proto-overfree (quickjs-aubio.c:102): AubioNotes/AubioOnset/AubioPitch constructors
-  assign the borrowed module proto (proto = aubionotes_proto) when new_target.prototype is not an
-  object, then JS_FreeValue it as if owned; the non-object value fetched first is leaked.
-  Found by reading the code, not run.
-
-      Reflect.construct(AubioNotes, [], Object.assign(function () {}, { prototype: 1 }));

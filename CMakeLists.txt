@@ -100,6 +100,7 @@ if(USE_STK)
 endif(USE_STK)
 
 include(CheckCCompilerFlag)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/UseMultiArch.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindQuickJS.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/QuickJSModule.cmake)
 quickjs_module_options(SHARED_DEFAULT ON STATIC_DEFAULT OFF)
@@ -224,7 +225,7 @@ if(USE_STK)
 
   set(COMMON_SOURCES quickjs-typedarray.c)
 
-  make_module(stk quickjs-stk.cpp)
+  make_module(stk quickjs-stk.cpp js-utils.c)
 
   unset(COMMON_SOURCES)
 
@@ -238,7 +239,7 @@ if(USE_AUBIO)
 
   set(aubio_LIBRARIES ${AUBIO_LIBRARIES})
 
-  make_module(aubio)
+  make_module(aubio quickjs-aubio.c quickjs-typedarray.c)
 
   include_directories(${AUBIO_INCLUDE_DIRS})
   module_include_directories(aubio ${AUBIO_INCLUDE_DIRS})
@@ -393,7 +394,7 @@ if(USE_SNDOBJ)
 
   set(COMMON_SOURCES quickjs-typedarray.c)
 
-  make_module(sndobj quickjs-sndobj.cpp)
+  make_module(sndobj quickjs-sndobj.cpp js-utils.c)
 
   unset(COMMON_SOURCES)
 
