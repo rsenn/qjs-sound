@@ -68,55 +68,51 @@ analog_drive(double x, double amount, int type) {
 class TwinTDrum : public stk::Instrmnt {
 public:
   TwinTDrum(stk::StkFloat frequency = 200.0)
-      : frequency_(frequency), decay_(0.25), drive_(0.0), driveType_(DRIVE_TANH), pitchDropAmt_(0.0), pitchDropTime_(0.03), secondaryRatio_(1.5),
-        secondaryMix_(0.0), clickAmount_(0.0), clickEnv_(0.0), age_(0.0) {
+      : frequency_(frequency)
+      , decay_(0.25)
+      , drive_(0.0)
+      , driveType_(DRIVE_TANH)
+      , pitchDropAmt_(0.0)
+      , pitchDropTime_(0.03)
+      , secondaryRatio_(1.5)
+      , secondaryMix_(0.0)
+      , clickAmount_(0.0)
+      , clickEnv_(0.0)
+      , age_(0.0) {
     refreshResonators();
   }
 
-  void
-  setFrequency(stk::StkFloat frequency) override {
+  void setFrequency(stk::StkFloat frequency) override {
     frequency_ = frequency;
     refreshResonators();
   }
-  void
-  setDecay(double t60Seconds) {
+  void setDecay(double t60Seconds) {
     decay_ = std::max(0.001, t60Seconds);
     refreshResonators();
   }
-  void
-  setDrive(double amount, int type = DRIVE_TANH) {
+  void setDrive(double amount, int type = DRIVE_TANH) {
     drive_ = amount;
     driveType_ = type;
   }
-  void
-  setPitchDrop(double semitones, double timeSeconds) {
+  void setPitchDrop(double semitones, double timeSeconds) {
     pitchDropAmt_ = semitones;
     pitchDropTime_ = std::max(0.0005, timeSeconds);
   }
-  void
-  setSecondary(double ratio, double mix) {
+  void setSecondary(double ratio, double mix) {
     secondaryRatio_ = ratio;
     secondaryMix_ = mix;
     refreshResonators();
   }
-  void
-  setClick(double amount) {
-    clickAmount_ = amount;
-  }
+  void setClick(double amount) { clickAmount_ = amount; }
 
-  void
-  noteOn(stk::StkFloat frequency, stk::StkFloat amplitude) override {
+  void noteOn(stk::StkFloat frequency, stk::StkFloat amplitude) override {
     if(frequency > 0.0)
       setFrequency(frequency);
     strike(amplitude);
   }
-  void
-  noteOff(stk::StkFloat amplitude) override {
-    setDecay(0.01);
-  }
+  void noteOff(stk::StkFloat amplitude) override { setDecay(0.01); }
 
-  void
-  strike(double amplitude = 1.0) {
+  void strike(double amplitude = 1.0) {
     age_ = 0.0;
 
     /* With b0 pinned at 1 (see refreshResonators()), a single-sample impulse
@@ -134,8 +130,7 @@ public:
       clickEnv_ = 1.0;
   }
 
-  stk::StkFloat
-  tick(unsigned int channel = 0) override {
+  stk::StkFloat tick(unsigned int channel = 0) override {
     if(pitchDropAmt_ != 0.0) {
       double f = currentFrequency();
       /* normalize=false: keep b0 pinned at 1 (see refreshResonators()) so the
@@ -159,8 +154,7 @@ public:
     return lastFrame_[0];
   }
 
-  stk::StkFrames&
-  tick(stk::StkFrames& frames, unsigned int channel = 0) override {
+  stk::StkFrames& tick(stk::StkFrames& frames, unsigned int channel = 0) override {
     stk::StkFloat* samples = &frames[channel];
     unsigned int hop = frames.channels();
     for(unsigned int i = 0; i < frames.frames(); i++, samples += hop)
@@ -169,22 +163,19 @@ public:
   }
 
 private:
-  static double
-  radiusFor(double t60, double freq) {
+  static double radiusFor(double t60, double freq) {
     double sr = stk::Stk::sampleRate();
     double n = std::max(1.0, t60 * sr);
     return std::pow(10.0, -3.0 / n);
   }
 
-  double
-  currentFrequency() const {
+  double currentFrequency() const {
     double env = std::exp(-age_ / pitchDropTime_);
     double ratio = std::pow(2.0, pitchDropAmt_ * env / 12.0);
     return frequency_ * ratio;
   }
 
-  void
-  refreshResonators() {
+  void refreshResonators() {
     /* normalize=false: TwoPole's normalize=true tunes b0 for unity gain
      * under continuous sinusoidal drive, which for a long decay (high Q)
      * shrinks b0 towards zero -- fine for a sustained tone, but it starves
@@ -231,16 +222,45 @@ enum {
 class Tr909BassDrum : public stk::Instrmnt {
 public:
   Tr909BassDrum()
-      : pitchStart_(400.0), pitchEnd_(55.0), pitchDecay_(0.06), pitchLinear_(false), pitchSpikeAmt_(0.0), pitchSpikeTime_(0.005), ampDecay_(0.45),
-        ampLinear_(false), punchAmount_(0.0), punchTime_(0.01), drive_(0.35), driveType_(DRIVE_TANH), waveform_(TR909_WAVE_SINE), tone_(6000.0),
-        toneResonance_(0.0), clickLevel_(0.5), clickDecay_(0.04), subMix_(0.0), subOctave_(1.0), tune_(1.0), phase_(0.0), subPhase_(0.0), pitchEnv_(0.0),
-        pitchCoeff_(1.0), pitchLinStep_(0.0), pitchSpikeEnv_(0.0), pitchSpikeCoeff_(1.0), ampEnv_(0.0), ampCoeff_(1.0), ampLinStep_(0.0), punchEnv_(0.0),
-        punchCoeff_(1.0), clickEnv_(0.0), clickCoeff_(1.0), velocity_(0.0) {
+      : pitchStart_(400.0)
+      , pitchEnd_(55.0)
+      , pitchDecay_(0.06)
+      , pitchLinear_(false)
+      , pitchSpikeAmt_(0.0)
+      , pitchSpikeTime_(0.005)
+      , ampDecay_(0.45)
+      , ampLinear_(false)
+      , punchAmount_(0.0)
+      , punchTime_(0.01)
+      , drive_(0.35)
+      , driveType_(DRIVE_TANH)
+      , waveform_(TR909_WAVE_SINE)
+      , tone_(6000.0)
+      , toneResonance_(0.0)
+      , clickLevel_(0.5)
+      , clickDecay_(0.04)
+      , subMix_(0.0)
+      , subOctave_(1.0)
+      , tune_(1.0)
+      , phase_(0.0)
+      , subPhase_(0.0)
+      , pitchEnv_(0.0)
+      , pitchCoeff_(1.0)
+      , pitchLinStep_(0.0)
+      , pitchSpikeEnv_(0.0)
+      , pitchSpikeCoeff_(1.0)
+      , ampEnv_(0.0)
+      , ampCoeff_(1.0)
+      , ampLinStep_(0.0)
+      , punchEnv_(0.0)
+      , punchCoeff_(1.0)
+      , clickEnv_(0.0)
+      , clickCoeff_(1.0)
+      , velocity_(0.0) {
     toneFilter_.setPole(poleFromCutoff(tone_));
   }
 
-  void
-  setPitchEnvelope(double startFreq, double endFreq, double decayTime, bool linear = false) {
+  void setPitchEnvelope(double startFreq, double endFreq, double decayTime, bool linear = false) {
     pitchStart_ = startFreq;
     pitchEnd_ = endFreq > 0 ? endFreq : 1.0;
     pitchDecay_ = std::max(0.001, decayTime);
@@ -250,35 +270,27 @@ public:
    * envelope above, decaying much faster (a handful of ms) -- the analog
    * "double pitch decay" character a plain single-stage pitch envelope
    * can't reach: a near-instant spike on top of the slower tonal drop. */
-  void
-  setPitchSpike(double semitones, double timeSeconds) {
+  void setPitchSpike(double semitones, double timeSeconds) {
     pitchSpikeAmt_ = semitones;
     pitchSpikeTime_ = std::max(0.0005, timeSeconds);
   }
-  void
-  setAmpEnvelope(double decayTime, bool linear = false) {
+  void setAmpEnvelope(double decayTime, bool linear = false) {
     ampDecay_ = std::max(0.001, decayTime);
     ampLinear_ = linear;
   }
   /* Extra transient gain right at the strike, decaying fast and
    * independently of the main amp envelope -- the "punch" knob dedicated
    * bass drum designers give you instead of just a fast attack stage. */
-  void
-  setPunch(double amount, double timeSeconds) {
+  void setPunch(double amount, double timeSeconds) {
     punchAmount_ = amount;
     punchTime_ = std::max(0.0005, timeSeconds);
   }
-  void
-  setDrive(double amount, int type = DRIVE_TANH) {
+  void setDrive(double amount, int type = DRIVE_TANH) {
     drive_ = amount;
     driveType_ = type;
   }
-  void
-  setWaveform(int type) {
-    waveform_ = type;
-  }
-  void
-  setTone(double cutoffHz) {
+  void setWaveform(int type) { waveform_ = type; }
+  void setTone(double cutoffHz) {
     tone_ = cutoffHz;
     toneFilter_.setPole(poleFromCutoff(cutoffHz));
   }
@@ -292,29 +304,22 @@ public:
    * of the *current* fundamental each sample (see tick()), capped at the
    * tone_ cutoff -- it reinforces the kick's own pitch as it settles,
    * instead of ringing at some unrelated frequency independent of it. */
-  void
-  setToneResonance(double amount) {
+  void setToneResonance(double amount) {
     toneResonance_ = std::max(0.0, std::min(0.95, amount));
     if(toneResonance_ <= 0.0)
       resonanceFilter_.setResonance(1000.0, 0.0, true); // force back to identity immediately
   }
-  void
-  setClick(double level, double decayTime) {
+  void setClick(double level, double decayTime) {
     clickLevel_ = level;
     clickDecay_ = std::max(0.001, decayTime);
   }
-  void
-  setSub(double mix, double octaveOffset = 1.0) {
+  void setSub(double mix, double octaveOffset = 1.0) {
     subMix_ = mix;
     subOctave_ = octaveOffset <= 0 ? 1.0 : octaveOffset;
   }
-  void
-  setTune(double multiplier) {
-    tune_ = multiplier;
-  }
+  void setTune(double multiplier) { tune_ = multiplier; }
 
-  void
-  noteOn(stk::StkFloat frequency, stk::StkFloat amplitude) override {
+  void noteOn(stk::StkFloat frequency, stk::StkFloat amplitude) override {
     if(frequency > 0.0) {
       double ratio = pitchEnd_ > 0.0 ? pitchStart_ / pitchEnd_ : 2.0;
       pitchEnd_ = frequency;
@@ -322,14 +327,12 @@ public:
     }
     trigger(amplitude);
   }
-  void
-  noteOff(stk::StkFloat amplitude) override {
+  void noteOff(stk::StkFloat amplitude) override {
     ampEnv_ = 0.0;
     clickEnv_ = 0.0;
   }
 
-  void
-  trigger(double velocity = 1.0) {
+  void trigger(double velocity = 1.0) {
     double sr = stk::Stk::sampleRate();
     phase_ = 0.0;
     subPhase_ = 0.0;
@@ -353,8 +356,7 @@ public:
     clickCoeff_ = std::pow(1e-3, 1.0 / std::max(1.0, clickDecay_ * sr));
   }
 
-  stk::StkFloat
-  tick(unsigned int channel = 0) override {
+  stk::StkFloat tick(unsigned int channel = 0) override {
     double sr = stk::Stk::sampleRate();
     double baseFreq = pitchEnd_ + (pitchStart_ - pitchEnd_) * pitchEnv_;
     double spikeRatio = pitchSpikeAmt_ != 0.0 ? std::pow(2.0, pitchSpikeAmt_ * pitchSpikeEnv_ / 12.0) : 1.0;
@@ -399,8 +401,7 @@ public:
     return sample;
   }
 
-  stk::StkFrames&
-  tick(stk::StkFrames& frames, unsigned int channel = 0) override {
+  stk::StkFrames& tick(stk::StkFrames& frames, unsigned int channel = 0) override {
     stk::StkFloat* samples = &frames[channel];
     unsigned int hop = frames.channels();
     for(unsigned int i = 0; i < frames.frames(); i++, samples += hop)
@@ -409,15 +410,13 @@ public:
   }
 
 private:
-  static double
-  poleFromCutoff(double cutoffHz) {
+  static double poleFromCutoff(double cutoffHz) {
     double sr = stk::Stk::sampleRate();
     double clamped = std::min(std::max(cutoffHz, 20.0), sr * 0.45);
     return std::exp(-2.0 * M_PI * clamped / sr);
   }
 
-  static double
-  oscillate(double phase, int waveform) {
+  static double oscillate(double phase, int waveform) {
     switch(waveform) {
       case TR909_WAVE_TRIANGLE: return (2.0 / M_PI) * std::asin(std::sin(phase));
       default: return std::sin(phase);
@@ -479,10 +478,33 @@ enum {
 class Tr909Percussion : public stk::Instrmnt {
 public:
   Tr909Percussion()
-      : tone1_(180.0), tone2_(330.0), toneMix_(0.0), toneDecay_(0.1), metallicBase_(540.0), metallicMix_(0.0), metallicDecay_(0.3), noiseMix_(1.0),
-        noiseDecay_(0.2), crunchAmount_(0.25), crunchType_(DRIVE_TANH), clapHits_(1), clapSpacing_(0.01), tune_(1.0), tonePhase1_(0.0), tonePhase2_(0.0),
-        toneEnv_(0.0), toneCoeff_(1.0), metallicEnv_(0.0), metallicCoeff_(1.0), noiseEnv_(0.0), noiseCoeff_(1.0), noiseBurstCoeff_(1.0), clapHitIndex_(0),
-        clapNextHitSample_(0), sampleIndex_(0), velocity_(0.0) {
+      : tone1_(180.0)
+      , tone2_(330.0)
+      , toneMix_(0.0)
+      , toneDecay_(0.1)
+      , metallicBase_(540.0)
+      , metallicMix_(0.0)
+      , metallicDecay_(0.3)
+      , noiseMix_(1.0)
+      , noiseDecay_(0.2)
+      , crunchAmount_(0.25)
+      , crunchType_(DRIVE_TANH)
+      , clapHits_(1)
+      , clapSpacing_(0.01)
+      , tune_(1.0)
+      , tonePhase1_(0.0)
+      , tonePhase2_(0.0)
+      , toneEnv_(0.0)
+      , toneCoeff_(1.0)
+      , metallicEnv_(0.0)
+      , metallicCoeff_(1.0)
+      , noiseEnv_(0.0)
+      , noiseCoeff_(1.0)
+      , noiseBurstCoeff_(1.0)
+      , clapHitIndex_(0)
+      , clapNextHitSample_(0)
+      , sampleIndex_(0)
+      , velocity_(0.0) {
     for(unsigned int i = 0; i < kMetallicVoices; i++)
       metallicPhase_[i] = 0.0;
     metallicFilter_.setHighPass(7000.0, 0.7);
@@ -491,8 +513,7 @@ public:
 
   /* Two detuned tone oscillators -- the "shell" thump under a snare's
    * noise. mix=0 (default) disables both and skips the oscillator work. */
-  void
-  setTone(double freq1, double freq2, double mix, double decayTime) {
+  void setTone(double freq1, double freq2, double mix, double decayTime) {
     tone1_ = freq1;
     tone2_ = freq2;
     toneMix_ = mix;
@@ -504,8 +525,7 @@ public:
    * and pushed through a highpass at brightnessHz to carve the
    * fundamentals out and leave the metallic shimmer. mix=0 (default)
    * disables the bank and skips the oscillator work. */
-  void
-  setMetallic(double baseFreq, double mix, double decayTime, double brightnessHz) {
+  void setMetallic(double baseFreq, double mix, double decayTime, double brightnessHz) {
     metallicBase_ = baseFreq;
     metallicMix_ = mix;
     metallicDecay_ = std::max(0.001, decayTime);
@@ -514,13 +534,11 @@ public:
 
   /* The noise layer -- shared by snare "snap", clap's bursts, and
    * hihat/cymbal texture. */
-  void
-  setNoise(double mix, double decayTime) {
+  void setNoise(double mix, double decayTime) {
     noiseMix_ = mix;
     noiseDecay_ = std::max(0.001, decayTime);
   }
-  void
-  setNoiseFilter(double cutoffHz, double q, int type) {
+  void setNoiseFilter(double cutoffHz, double q, int type) {
     double c = std::max(20.0, cutoffHz), qq = std::max(0.1, q);
     switch(type) {
       case PERC_FILTER_HIGHPASS: noiseFilter_.setHighPass(c, qq); break;
@@ -531,8 +549,7 @@ public:
 
   /* Waveshaping distortion on the full mix -- the "snappy and crunchy"
    * character plain filtered noise doesn't have on its own. */
-  void
-  setCrunch(double amount, int type = DRIVE_TANH) {
+  void setCrunch(double amount, int type = DRIVE_TANH) {
     crunchAmount_ = amount;
     crunchType_ = type;
   }
@@ -542,32 +559,25 @@ public:
    * into the full noiseDecay_ tail -- the classic clap "burst-burst-
    * burst-tail" circuit. hits=1 (default) is a plain single-envelope hit,
    * i.e. snare/hihat/cymbal territory rather than clap. */
-  void
-  setClap(int hits, double spacingSeconds) {
+  void setClap(int hits, double spacingSeconds) {
     clapHits_ = std::max(1, hits);
     clapSpacing_ = std::max(0.001, spacingSeconds);
   }
 
-  void
-  setTune(double multiplier) {
-    tune_ = multiplier;
-  }
+  void setTune(double multiplier) { tune_ = multiplier; }
 
-  void
-  noteOn(stk::StkFloat frequency, stk::StkFloat amplitude) override {
+  void noteOn(stk::StkFloat frequency, stk::StkFloat amplitude) override {
     if(frequency > 0.0)
       tune_ = frequency / metallicBase_;
     trigger(amplitude);
   }
-  void
-  noteOff(stk::StkFloat amplitude) override {
+  void noteOff(stk::StkFloat amplitude) override {
     toneEnv_ = 0.0;
     metallicEnv_ = 0.0;
     noiseEnv_ = 0.0;
   }
 
-  void
-  trigger(double velocity = 1.0) {
+  void trigger(double velocity = 1.0) {
     double sr = stk::Stk::sampleRate();
     tonePhase1_ = tonePhase2_ = 0.0;
     for(unsigned int i = 0; i < kMetallicVoices; i++)
@@ -591,8 +601,7 @@ public:
     clapNextHitSample_ = (unsigned int)(clapSpacing_ * sr);
   }
 
-  stk::StkFloat
-  tick(unsigned int channel = 0) override {
+  stk::StkFloat tick(unsigned int channel = 0) override {
     double sr = stk::Stk::sampleRate();
 
     if(clapHits_ > 1 && clapHitIndex_ < (unsigned int)clapHits_ && sampleIndex_ >= clapNextHitSample_) {
@@ -644,8 +653,7 @@ public:
     return sample;
   }
 
-  stk::StkFrames&
-  tick(stk::StkFrames& frames, unsigned int channel = 0) override {
+  stk::StkFrames& tick(stk::StkFrames& frames, unsigned int channel = 0) override {
     stk::StkFloat* samples = &frames[channel];
     unsigned int hop = frames.channels();
     for(unsigned int i = 0; i < frames.frames(); i++, samples += hop)

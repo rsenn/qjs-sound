@@ -13,37 +13,34 @@ typedef struct {
   SF_INFO info; /* snapshotted at open time; read/write don't change it */
 } JSSndFile;
 
-static JSValue
-js_sndfile_throw(JSContext* ctx, SNDFILE* file) {
+static JSValue js_sndfile_throw(JSContext* ctx, SNDFILE* file) {
   return JS_ThrowInternalError(ctx, "libsndfile error: %s", sf_strerror(file));
 }
 
-static BOOL
-js_sndfile_info_fromobj(JSContext* ctx, JSValueConst obj, SF_INFO* out) {
+static BOOL js_sndfile_info_fromobj(JSContext* ctx, JSValueConst obj, SF_INFO* out) {
   JSValue v;
 
-  if(!JS_IsObject(obj))
+  if (!JS_IsObject(obj))
     return FALSE;
 
   memset(out, 0, sizeof(*out));
 
-  if(!JS_IsUndefined(v = JS_GetPropertyStr(ctx, obj, "samplerate")))
+  if (!JS_IsUndefined(v = JS_GetPropertyStr(ctx, obj, "samplerate")))
     JS_ToInt32(ctx, &out->samplerate, v);
   JS_FreeValue(ctx, v);
 
-  if(!JS_IsUndefined(v = JS_GetPropertyStr(ctx, obj, "channels")))
+  if (!JS_IsUndefined(v = JS_GetPropertyStr(ctx, obj, "channels")))
     JS_ToInt32(ctx, &out->channels, v);
   JS_FreeValue(ctx, v);
 
-  if(!JS_IsUndefined(v = JS_GetPropertyStr(ctx, obj, "format")))
+  if (!JS_IsUndefined(v = JS_GetPropertyStr(ctx, obj, "format")))
     JS_ToInt32(ctx, &out->format, v);
   JS_FreeValue(ctx, v);
 
   return TRUE;
 }
 
-static JSValue
-js_sndfile_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+static JSValue js_sndfile_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
   JSValue proto, obj = JS_UNDEFINED;
   JSSndFile* w = NULL;
   const char* path;
@@ -53,24 +50,26 @@ js_sndfile_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValu
 
   memset(&info, 0, sizeof(info));
 
-  if(argc < 1 || !(path = JS_ToCString(ctx, argv[0])))
+  if (argc < 1 || !(path = JS_ToCString(ctx, argv[0])))
     return JS_ThrowTypeError(ctx, "argument 1 must be a path string");
 
-  if(argc > 1)
+  if (argc > 1)
     JS_ToInt32(ctx, &mode, argv[1]);
 
-  if((mode & SFM_WRITE) && argc > 2)
+  if ((mode & SFM_WRITE) && argc > 2)
     js_sndfile_info_fromobj(ctx, argv[2], &info);
 
   file = sf_open(path, mode, &info);
-  JS_FreeCString(ctx, path);
 
-  if(!file) {
-    JS_ThrowInternalError(ctx, "libsndfile error: %s", sf_strerror(NULL));
+  if (!file) {
+    JS_ThrowInternalError(ctx, "libsndfile error while opening '%s': %s", path, sf_strerror(NULL));
+    JS_FreeCString(ctx, path);
     goto fail;
   }
 
-  if(!(w = js_mallocz(ctx, sizeof(JSSndFile)))) {
+  JS_FreeCString(ctx, path);
+
+  if (!(w = js_mallocz(ctx, sizeof(JSSndFile)))) {
     sf_close(file);
     goto fail;
   }
@@ -81,10 +80,10 @@ js_sndfile_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValu
   /* using new_target to get the prototype is necessary when the class is
    * extended. */
   proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
+  if (JS_IsException(proto))
     goto fail;
 
-  if(!JS_IsObject(proto)) {
+  if (!JS_IsObject(proto)) {
     JS_FreeValue(ctx, proto);
     proto = JS_DupValue(ctx, sndfile_proto);
   }
@@ -92,25 +91,24 @@ js_sndfile_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValu
   obj = JS_NewObjectProtoClass(ctx, proto, js_sndfile_class_id);
   JS_FreeValue(ctx, proto);
 
-  if(JS_IsException(obj))
+  if (JS_IsException(obj))
     goto fail;
 
   JS_SetOpaque(obj, w);
   return obj;
 
 fail:
-  if(w)
+  if (w)
     js_free(ctx, w);
   JS_FreeValue(ctx, obj);
   return JS_EXCEPTION;
 }
 
-static void
-js_sndfile_finalizer(JSRuntime* rt, JSValue val) {
+static void js_sndfile_finalizer(JSRuntime* rt, JSValue val) {
   JSSndFile* w;
 
-  if((w = JS_GetOpaque(val, js_sndfile_class_id))) {
-    if(w->file)
+  if ((w = JS_GetOpaque(val, js_sndfile_class_id))) {
+    if (w->file)
       sf_close(w->file);
     js_free_rt(rt, w);
   }
@@ -125,14 +123,13 @@ enum {
   PROP_SEEKABLE,
 };
 
-static JSValue
-js_sndfile_get(JSContext* ctx, JSValueConst this_val, int magic) {
+static JSValue js_sndfile_get(JSContext* ctx, JSValueConst this_val, int magic) {
   JSSndFile* w;
 
-  if(!(w = JS_GetOpaque2(ctx, this_val, js_sndfile_class_id)))
+  if (!(w = JS_GetOpaque2(ctx, this_val, js_sndfile_class_id)))
     return JS_EXCEPTION;
 
-  switch(magic) {
+  switch (magic) {
     case PROP_FRAMES: return JS_NewInt64(ctx, w->info.frames);
     case PROP_SAMPLERATE: return JS_NewInt32(ctx, w->info.samplerate);
     case PROP_CHANNELS: return JS_NewInt32(ctx, w->info.channels);
@@ -147,24 +144,22 @@ js_sndfile_get(JSContext* ctx, JSValueConst this_val, int magic) {
 /* Picks the sf_readf_ / sf_writef_ variant matching view's TypedArray
  * kind - Int16Array -> short, Int32Array -> int, Float32Array -> float,
  * Float64Array -> double, anything else is rejected. */
-static sf_count_t
-js_sndfile_readf(SNDFILE* file, const JSBufferView* view, sf_count_t frames) {
-  switch(view->kind) {
-    case JS_TYPEDARRAY_INT16: return sf_readf_short(file, (short*)view->ptr, frames);
-    case JS_TYPEDARRAY_INT32: return sf_readf_int(file, (int*)view->ptr, frames);
-    case JS_TYPEDARRAY_FLOAT32: return sf_readf_float(file, (float*)view->ptr, frames);
-    case JS_TYPEDARRAY_FLOAT64: return sf_readf_double(file, (double*)view->ptr, frames);
+static sf_count_t js_sndfile_readf(SNDFILE* file, const JSBufferView* view, sf_count_t frames) {
+  switch (view->kind) {
+    case TYPEDARRAY_INT16: return sf_readf_short(file, (short*)view->ptr, frames);
+    case TYPEDARRAY_INT32: return sf_readf_int(file, (int*)view->ptr, frames);
+    case TYPEDARRAY_FLOAT32: return sf_readf_float(file, (float*)view->ptr, frames);
+    case TYPEDARRAY_FLOAT64: return sf_readf_double(file, (double*)view->ptr, frames);
     default: return -1;
   }
 }
 
-static sf_count_t
-js_sndfile_writef(SNDFILE* file, const JSBufferView* view, sf_count_t frames) {
-  switch(view->kind) {
-    case JS_TYPEDARRAY_INT16: return sf_writef_short(file, (const short*)view->ptr, frames);
-    case JS_TYPEDARRAY_INT32: return sf_writef_int(file, (const int*)view->ptr, frames);
-    case JS_TYPEDARRAY_FLOAT32: return sf_writef_float(file, (const float*)view->ptr, frames);
-    case JS_TYPEDARRAY_FLOAT64: return sf_writef_double(file, (const double*)view->ptr, frames);
+static sf_count_t js_sndfile_writef(SNDFILE* file, const JSBufferView* view, sf_count_t frames) {
+  switch (view->kind) {
+    case TYPEDARRAY_INT16: return sf_writef_short(file, (const short*)view->ptr, frames);
+    case TYPEDARRAY_INT32: return sf_writef_int(file, (const int*)view->ptr, frames);
+    case TYPEDARRAY_FLOAT32: return sf_writef_float(file, (const float*)view->ptr, frames);
+    case TYPEDARRAY_FLOAT64: return sf_writef_double(file, (const double*)view->ptr, frames);
     default: return -1;
   }
 }
@@ -176,17 +171,16 @@ enum {
   METHOD_CLOSE,
 };
 
-static JSValue
-js_sndfile_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+static JSValue js_sndfile_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
   JSSndFile* w;
 
-  if(!(w = JS_GetOpaque2(ctx, this_val, js_sndfile_class_id)))
+  if (!(w = JS_GetOpaque2(ctx, this_val, js_sndfile_class_id)))
     return JS_EXCEPTION;
 
-  if(!w->file)
+  if (!w->file)
     return magic == METHOD_CLOSE ? JS_UNDEFINED : JS_ThrowTypeError(ctx, "SndFile is closed");
 
-  switch(magic) {
+  switch (magic) {
     case METHOD_READ:
     case METHOD_WRITE: {
       JSBufferView view;
@@ -194,20 +188,20 @@ js_sndfile_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst 
       sf_count_t frames;
       sf_count_t got;
 
-      if(argc < 1 || !js_bufferview_get(ctx, argv[0], &view))
+      if (argc < 1 || !js_bufferview_get(ctx, argv[0], &view))
         return JS_EXCEPTION;
 
-      if(view.kind == JS_TYPEDARRAY_NONE)
+      if (view.kind == TYPEDARRAY_NONE)
         return JS_ThrowTypeError(ctx, "argument 1 must be an Int16Array, Int32Array, Float32Array, or Float64Array");
 
-      if(argc > 1)
+      if (argc > 1)
         JS_ToInt64(ctx, &frames, argv[1]);
       else
         frames = view.byte_length / view.element_size / channels;
 
       got = magic == METHOD_READ ? js_sndfile_readf(w->file, &view, frames) : js_sndfile_writef(w->file, &view, frames);
 
-      if(got < 0)
+      if (got < 0)
         return js_sndfile_throw(ctx, w->file);
 
       return JS_NewInt64(ctx, got);
@@ -218,12 +212,12 @@ js_sndfile_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst 
       int32_t whence = SEEK_SET;
       sf_count_t pos;
 
-      if(argc > 0)
+      if (argc > 0)
         JS_ToInt64(ctx, &frames, argv[0]);
-      if(argc > 1)
+      if (argc > 1)
         JS_ToInt32(ctx, &whence, argv[1]);
 
-      if((pos = sf_seek(w->file, frames, whence)) < 0)
+      if ((pos = sf_seek(w->file, frames, whence)) < 0)
         return js_sndfile_throw(ctx, w->file);
 
       return JS_NewInt64(ctx, pos);
@@ -239,8 +233,7 @@ js_sndfile_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst 
   return JS_UNDEFINED;
 }
 
-static JSValue
-js_sndfile_static_info(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
+static JSValue js_sndfile_static_info(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
   const char* path;
   SF_INFO info;
   SNDFILE* file;
@@ -248,13 +241,13 @@ js_sndfile_static_info(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
 
   memset(&info, 0, sizeof(info));
 
-  if(argc < 1 || !(path = JS_ToCString(ctx, argv[0])))
+  if (argc < 1 || !(path = JS_ToCString(ctx, argv[0])))
     return JS_ThrowTypeError(ctx, "argument 1 must be a path string");
 
   file = sf_open(path, SFM_READ, &info);
   JS_FreeCString(ctx, path);
 
-  if(!file)
+  if (!file)
     return JS_ThrowInternalError(ctx, "libsndfile error: %s", sf_strerror(NULL));
 
   ret = JS_NewObject(ctx);
@@ -377,8 +370,7 @@ static JSClassDef js_sndfile_class = {
     .finalizer = js_sndfile_finalizer,
 };
 
-int
-js_sndfile_init(JSContext* ctx, JSModuleDef* m) {
+int js_sndfile_init(JSContext* ctx, JSModuleDef* m) {
   JS_NewClassID(&js_sndfile_class_id);
   JS_NewClass(JS_GetRuntime(ctx), js_sndfile_class_id, &js_sndfile_class);
 
@@ -390,7 +382,7 @@ js_sndfile_init(JSContext* ctx, JSModuleDef* m) {
 
   JS_SetPropertyStr(ctx, sndfile_ctor, "info", JS_NewCFunction(ctx, js_sndfile_static_info, "info", 1));
 
-  if(m) {
+  if (m) {
     JS_SetModuleExport(ctx, m, "SndFile", sndfile_ctor);
     JS_SetModuleExportList(ctx, m, js_sndfile_module_funcs, countof(js_sndfile_module_funcs));
   }
@@ -398,8 +390,7 @@ js_sndfile_init(JSContext* ctx, JSModuleDef* m) {
   return 0;
 }
 
-VISIBLE void
-js_sndfile_add_exports(JSContext* ctx, JSModuleDef* m) {
+VISIBLE void js_sndfile_add_exports(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "SndFile");
   JS_AddModuleExportList(ctx, m, js_sndfile_module_funcs, countof(js_sndfile_module_funcs));
 }
@@ -410,11 +401,10 @@ js_sndfile_add_exports(JSContext* ctx, JSModuleDef* m) {
 #define JS_INIT_MODULE js_init_module_sndfile
 #endif
 
-VISIBLE JSModuleDef*
-JS_INIT_MODULE(JSContext* ctx, const char* module_name) {
+VISIBLE JSModuleDef* JS_INIT_MODULE(JSContext* ctx, const char* module_name) {
   JSModuleDef* m;
 
-  if((m = JS_NewCModule(ctx, module_name, js_sndfile_init)))
+  if ((m = JS_NewCModule(ctx, module_name, js_sndfile_init)))
     js_sndfile_add_exports(ctx, m);
 
   return m;

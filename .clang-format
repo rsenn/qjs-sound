@@ -1,68 +1,85 @@
-AlignEscapedNewlines: DontAlign
-AccessModifierOffset: -2
-AlignAfterOpenBracket: Align
+Language: Cpp
+BasedOnStyle: LLVM
+IndentWidth: 2
+TabWidth: 2
+UseTab: Never
+ColumnLimit: 128
+
+#------------------------------------------------------------------------------
+##Prevent breaks after '=' assignment and after open '('
+#------------------------------------------------------------------------------
+
+#High penalty prevents breaking right after the '=' operator
+PenaltyBreakAssignment: 10000
+
+#High penalty prevents breaking right after the opening '(' parameter bracket
+PenaltyBreakBeforeFirstCallParameter: 10000
+
+#Align parameters on new lines using standard block indents rather than deep bracket column alignment
+AlignAfterOpenBracket: BlockIndent
+
+#Allow multiple arguments on the same line up to ColumnLimit
+BinPackArguments: true
+BinPackParameters: true
+
+#Keep parameters on same line unless forced by ColumnLimit
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+
+#Continuation indent when a line must wrap
+ContinuationIndentWidth: 4
+
+#------------------------------------------------------------------------------
+#Array & Macro Formatting (Keeps RB_CONST() one per line)
+#------------------------------------------------------------------------------
+
+#Ensures array/struct initializer elements wrap one-per-line
+
+#Note: Keep trailing commas on your RB_CONST(...) lines in source
 AlignConsecutiveAssignments: false
 AlignConsecutiveDeclarations: false
+
+#------------------------------------------------------------------------------
+#Other Formatting Defaults
+#------------------------------------------------------------------------------
+
+AlignEscapedNewlines: DontAlign
+AccessModifierOffset: -2
 AlignOperands: true
 AlignTrailingComments: true
-AllowAllParametersOfDeclarationOnNextLine: true
-AllowShortBlocksOnASingleLine: true
+
+AllowShortBlocksOnASingleLine: false
 AllowShortCaseLabelsOnASingleLine: true
 AllowShortFunctionsOnASingleLine: InlineOnly
 AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false
+
+AlwaysBreakAfterDefinitionReturnType: None
 AlwaysBreakBeforeMultilineStrings: false
 AlwaysBreakTemplateDeclarations: false
-BinPackArguments: false
-BinPackParameters: false
-BraceWrapping: 
-  AfterClass: false
-  AfterControlStatement: false
-  AfterEnum: false
-  AfterFunction: false
-  AfterNamespace: false
-  AfterStruct: false
-  AfterUnion: false
-  BeforeCatch: false
-  BeforeElse: false
-  IndentBraces: false
+
 BreakBeforeBinaryOperators: None
 BreakBeforeBraces: Attach
 BreakBeforeTernaryOperators: true
-BreakConstructorInitializersBeforeComma: false
-CommentPragmas: '^ IWYU pragma:'
-ConstructorInitializerAllOnOneLineOrOnePerLine: false
-DisableFormat: false
-ExperimentalAutoDetectBinPacking: false
+
 IndentCaseLabels: true
-IndentWrappedFunctionNames: false
-KeepEmptyLinesAtTheStartOfBlocks: true
-MacroBlockBegin: ''
-MacroBlockEnd: ''
-NamespaceIndentation: None
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
+
 PointerAlignment: Left
 SortIncludes: false
+
 SpaceAfterCStyleCast: false
 SpaceBeforeAssignmentOperators: true
-SpaceBeforeParens: false
+SpaceBeforeParens: ControlStatements
 SpaceInEmptyParentheses: false
 SpacesInAngles: false
-SpacesInContainerLiterals: true
+SpacesInContainerLiterals: false
 SpacesInCStyleCastParentheses: false
 SpacesInParentheses: false
 SpacesInSquareBrackets: false
-UseTab: Never
-AlwaysBreakAfterDefinitionReturnType: All
-ColumnLimit: 160
-ConstructorInitializerIndentWidth: 4
-ContinuationIndentWidth: 4
-IndentWidth: 2
-MaxEmptyLinesToKeep: 1
-PenaltyBreakBeforeFirstCallParameter: 120
+
+#Line Penalties
+PenaltyExcessCharacter: 10
 PenaltyBreakComment: 300
-PenaltyBreakFirstLessLess: 120
 PenaltyBreakString: 1000
-PenaltyExcessCharacter: 1000000
-PenaltyReturnTypeOnItsOwnLine: 100
-SpacesBeforeTrailingComments: 1
-TabWidth: 2

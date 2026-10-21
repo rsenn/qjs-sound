@@ -2,6 +2,7 @@
 #include <cutils.h>
 #include <string.h>
 #include "defines.h"
+#include "quickjs-typedarray.h"
 #include <aubio.h>
 
 /* ---------- shared helpers ---------- */
@@ -9,15 +10,14 @@
 /* aubio's smpl_t is float unless HAVE_AUBIO_DOUBLE is set, which this build
  * does not set, so Float32Array is the matching JS-side type. */
 
-static int
-js_aubio_get_fvec_ptr(JSContext* ctx, JSValueConst val, float** pdata, uint32_t* plen) {
+static int js_aubio_get_fvec_ptr(JSContext* ctx, JSValueConst val, float** pdata, uint32_t* plen) {
   size_t byte_offset = 0, byte_length = 0, bytes_per_element = 0;
   JSValue buf = JS_GetTypedArrayBuffer(ctx, val, &byte_offset, &byte_length, &bytes_per_element);
 
-  if(JS_IsException(buf))
+  if (JS_IsException(buf))
     return -1;
 
-  if(bytes_per_element != sizeof(float)) {
+  if (bytes_per_element != sizeof(float)) {
     JS_FreeValue(ctx, buf);
     JS_ThrowTypeError(ctx, "expected a Float32Array");
     return -1;
@@ -27,7 +27,7 @@ js_aubio_get_fvec_ptr(JSContext* ctx, JSValueConst val, float** pdata, uint32_t*
   uint8_t* ab_data = JS_GetArrayBuffer(ctx, &ab_size, buf);
   JS_FreeValue(ctx, buf);
 
-  if(!ab_data)
+  if (!ab_data)
     return -1;
 
   *pdata = (float*)(ab_data + byte_offset);
@@ -35,32 +35,11 @@ js_aubio_get_fvec_ptr(JSContext* ctx, JSValueConst val, float** pdata, uint32_t*
   return 0;
 }
 
-/* quickjs.h has no JS_NewFloat32Array-style helper; wrap a copied
- * ArrayBuffer with the global constructor instead. */
-static JSValue
-js_aubio_make_float32array(JSContext* ctx, const float* data, size_t count) {
-  JSValue ab = JS_NewArrayBufferCopy(ctx, (const uint8_t*)data, count * sizeof(float));
-
-  if(JS_IsException(ab))
-    return ab;
-
-  JSValue global = JS_GetGlobalObject(ctx);
-  JSValue ctor = JS_GetPropertyStr(ctx, global, "Float32Array");
-  JSValue args[1] = {ab};
-  JSValue ta = JS_CallConstructor(ctx, ctor, 1, args);
-
-  JS_FreeValue(ctx, ctor);
-  JS_FreeValue(ctx, global);
-  JS_FreeValue(ctx, ab);
-  return ta;
-}
-
-static char_t*
-js_aubio_get_method(JSContext* ctx, int argc, JSValueConst argv[], char_t* buf, size_t buflen) {
-  if(argc > 0 && !JS_IsUndefined(argv[0])) {
+static char_t* js_aubio_get_method(JSContext* ctx, int argc, JSValueConst argv[], char_t* buf, size_t buflen) {
+  if (argc > 0 && !JS_IsUndefined(argv[0])) {
     const char* str = JS_ToCString(ctx, argv[0]);
 
-    if(str) {
+    if (str) {
       strncpy(buf, str, buflen - 1);
       buf[buflen - 1] = '\0';
       JS_FreeCString(ctx, str);
@@ -83,8 +62,7 @@ typedef struct {
 static JSClassID js_aubionotes_class_id;
 static JSValue aubionotes_proto, aubionotes_ctor;
 
-static JSValue
-js_aubionotes_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+static JSValue js_aubionotes_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
   JSValue proto, obj = JS_UNDEFINED;
   char_t method[64];
   uint32_t buf_size = 1024, hop_size = 256, samplerate = 44100;
@@ -92,21 +70,21 @@ js_aubionotes_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSV
 
   js_aubio_get_method(ctx, argc, argv, method, sizeof(method));
 
-  if(argc > 1)
+  if (argc > 1)
     JS_ToUint32(ctx, &buf_size, argv[1]);
-  if(argc > 2)
+  if (argc > 2)
     JS_ToUint32(ctx, &hop_size, argv[2]);
-  if(argc > 3)
+  if (argc > 3)
     JS_ToUint32(ctx, &samplerate, argv[3]);
 
   aubio_notes_t* notes = new_aubio_notes(method, buf_size, hop_size, samplerate);
 
-  if(!notes) {
+  if (!notes) {
     JS_ThrowInternalError(ctx, "aubio: failed to create notes detection object");
     goto fail;
   }
 
-  if(!(w = js_mallocz(ctx, sizeof(JSAubioNotes)))) {
+  if (!(w = js_mallocz(ctx, sizeof(JSAubioNotes)))) {
     del_aubio_notes(notes);
     goto fail;
   }
@@ -115,21 +93,21 @@ js_aubionotes_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSV
   w->hop_size = hop_size;
 
   proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
+  if (JS_IsException(proto))
     goto fail;
-  if(!JS_IsObject(proto))
+  if (!JS_IsObject(proto))
     proto = aubionotes_proto;
 
   obj = JS_NewObjectProtoClass(ctx, proto, js_aubionotes_class_id);
   JS_FreeValue(ctx, proto);
-  if(JS_IsException(obj))
+  if (JS_IsException(obj))
     goto fail;
 
   JS_SetOpaque(obj, w);
   return obj;
 
 fail:
-  if(w) {
+  if (w) {
     del_aubio_notes(w->obj);
     js_free(ctx, w);
   }
@@ -143,15 +121,14 @@ enum {
   PROP_NOTES_RELEASE_DROP,
 };
 
-static JSValue
-js_aubionotes_get(JSContext* ctx, JSValueConst this_val, int magic) {
+static JSValue js_aubionotes_get(JSContext* ctx, JSValueConst this_val, int magic) {
   JSAubioNotes* w;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(w = JS_GetOpaque2(ctx, this_val, js_aubionotes_class_id)))
+  if (!(w = JS_GetOpaque2(ctx, this_val, js_aubionotes_class_id)))
     return JS_EXCEPTION;
 
-  switch(magic) {
+  switch (magic) {
     case PROP_NOTES_SILENCE: ret = JS_NewFloat64(ctx, aubio_notes_get_silence(w->obj)); break;
     case PROP_NOTES_MINIOI_MS: ret = JS_NewFloat64(ctx, aubio_notes_get_minioi_ms(w->obj)); break;
     case PROP_NOTES_RELEASE_DROP: ret = JS_NewFloat64(ctx, aubio_notes_get_release_drop(w->obj)); break;
@@ -160,18 +137,17 @@ js_aubionotes_get(JSContext* ctx, JSValueConst this_val, int magic) {
   return ret;
 }
 
-static JSValue
-js_aubionotes_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
+static JSValue js_aubionotes_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
   JSAubioNotes* w;
   double d;
 
-  if(!(w = JS_GetOpaque2(ctx, this_val, js_aubionotes_class_id)))
+  if (!(w = JS_GetOpaque2(ctx, this_val, js_aubionotes_class_id)))
     return JS_EXCEPTION;
 
-  if(JS_ToFloat64(ctx, &d, value))
+  if (JS_ToFloat64(ctx, &d, value))
     return JS_EXCEPTION;
 
-  switch(magic) {
+  switch (magic) {
     case PROP_NOTES_SILENCE: aubio_notes_set_silence(w->obj, (smpl_t)d); break;
     case PROP_NOTES_MINIOI_MS: aubio_notes_set_minioi_ms(w->obj, (smpl_t)d); break;
     case PROP_NOTES_RELEASE_DROP: aubio_notes_set_release_drop(w->obj, (smpl_t)d); break;
@@ -184,23 +160,22 @@ enum {
   METHOD_NOTES_PROCESS = 0,
 };
 
-static JSValue
-js_aubionotes_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+static JSValue js_aubionotes_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
   JSAubioNotes* w;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(w = JS_GetOpaque2(ctx, this_val, js_aubionotes_class_id)))
+  if (!(w = JS_GetOpaque2(ctx, this_val, js_aubionotes_class_id)))
     return JS_EXCEPTION;
 
-  switch(magic) {
+  switch (magic) {
     case METHOD_NOTES_PROCESS: {
       float* data;
       uint32_t len;
 
-      if(argc < 1 || js_aubio_get_fvec_ptr(ctx, argv[0], &data, &len))
+      if (argc < 1 || js_aubio_get_fvec_ptr(ctx, argv[0], &data, &len))
         return JS_ThrowTypeError(ctx, "argument 1 must be a Float32Array");
 
-      if(len != w->hop_size)
+      if (len != w->hop_size)
         return JS_ThrowRangeError(ctx, "input length (%u) must equal hop_size (%u)", len, w->hop_size);
 
       fvec_t input = {len, data};
@@ -209,7 +184,7 @@ js_aubionotes_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
 
       aubio_notes_do(w->obj, &input, &output);
 
-      ret = js_aubio_make_float32array(ctx, out_data, 3);
+      ret = js_float32array_copy(ctx, out_data, 3);
       break;
     }
   }
@@ -217,11 +192,10 @@ js_aubionotes_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
   return ret;
 }
 
-static void
-js_aubionotes_finalizer(JSRuntime* rt, JSValue val) {
+static void js_aubionotes_finalizer(JSRuntime* rt, JSValue val) {
   JSAubioNotes* w;
 
-  if((w = JS_GetOpaque(val, js_aubionotes_class_id))) {
+  if ((w = JS_GetOpaque(val, js_aubionotes_class_id))) {
     del_aubio_notes(w->obj);
     js_free_rt(rt, w);
   }
@@ -250,8 +224,7 @@ typedef struct {
 static JSClassID js_aubioonset_class_id;
 static JSValue aubioonset_proto, aubioonset_ctor;
 
-static JSValue
-js_aubioonset_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+static JSValue js_aubioonset_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
   JSValue proto, obj = JS_UNDEFINED;
   char_t method[64];
   uint32_t buf_size = 1024, hop_size = 256, samplerate = 44100;
@@ -259,21 +232,21 @@ js_aubioonset_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSV
 
   js_aubio_get_method(ctx, argc, argv, method, sizeof(method));
 
-  if(argc > 1)
+  if (argc > 1)
     JS_ToUint32(ctx, &buf_size, argv[1]);
-  if(argc > 2)
+  if (argc > 2)
     JS_ToUint32(ctx, &hop_size, argv[2]);
-  if(argc > 3)
+  if (argc > 3)
     JS_ToUint32(ctx, &samplerate, argv[3]);
 
   aubio_onset_t* onset = new_aubio_onset(method, buf_size, hop_size, samplerate);
 
-  if(!onset) {
+  if (!onset) {
     JS_ThrowInternalError(ctx, "aubio: failed to create onset detection object");
     goto fail;
   }
 
-  if(!(w = js_mallocz(ctx, sizeof(JSAubioOnset)))) {
+  if (!(w = js_mallocz(ctx, sizeof(JSAubioOnset)))) {
     del_aubio_onset(onset);
     goto fail;
   }
@@ -282,21 +255,21 @@ js_aubioonset_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSV
   w->hop_size = hop_size;
 
   proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
+  if (JS_IsException(proto))
     goto fail;
-  if(!JS_IsObject(proto))
+  if (!JS_IsObject(proto))
     proto = aubioonset_proto;
 
   obj = JS_NewObjectProtoClass(ctx, proto, js_aubioonset_class_id);
   JS_FreeValue(ctx, proto);
-  if(JS_IsException(obj))
+  if (JS_IsException(obj))
     goto fail;
 
   JS_SetOpaque(obj, w);
   return obj;
 
 fail:
-  if(w) {
+  if (w) {
     del_aubio_onset(w->obj);
     js_free(ctx, w);
   }
@@ -322,15 +295,14 @@ enum {
   PROP_ONSET_DELAY_MS,
 };
 
-static JSValue
-js_aubioonset_get(JSContext* ctx, JSValueConst this_val, int magic) {
+static JSValue js_aubioonset_get(JSContext* ctx, JSValueConst this_val, int magic) {
   JSAubioOnset* w;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(w = JS_GetOpaque2(ctx, this_val, js_aubioonset_class_id)))
+  if (!(w = JS_GetOpaque2(ctx, this_val, js_aubioonset_class_id)))
     return JS_EXCEPTION;
 
-  switch(magic) {
+  switch (magic) {
     case PROP_ONSET_LAST: ret = JS_NewUint32(ctx, aubio_onset_get_last(w->obj)); break;
     case PROP_ONSET_LAST_S: ret = JS_NewFloat64(ctx, aubio_onset_get_last_s(w->obj)); break;
     case PROP_ONSET_LAST_MS: ret = JS_NewFloat64(ctx, aubio_onset_get_last_ms(w->obj)); break;
@@ -351,18 +323,17 @@ js_aubioonset_get(JSContext* ctx, JSValueConst this_val, int magic) {
   return ret;
 }
 
-static JSValue
-js_aubioonset_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
+static JSValue js_aubioonset_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
   JSAubioOnset* w;
   double d;
 
-  if(!(w = JS_GetOpaque2(ctx, this_val, js_aubioonset_class_id)))
+  if (!(w = JS_GetOpaque2(ctx, this_val, js_aubioonset_class_id)))
     return JS_EXCEPTION;
 
-  if(JS_ToFloat64(ctx, &d, value))
+  if (JS_ToFloat64(ctx, &d, value))
     return JS_EXCEPTION;
 
-  switch(magic) {
+  switch (magic) {
     case PROP_ONSET_AWHITENING: aubio_onset_set_awhitening(w->obj, (uint_t)d); break;
     case PROP_ONSET_COMPRESSION: aubio_onset_set_compression(w->obj, (smpl_t)d); break;
     case PROP_ONSET_SILENCE: aubio_onset_set_silence(w->obj, (smpl_t)d); break;
@@ -384,23 +355,22 @@ enum {
   METHOD_ONSET_RESET,
 };
 
-static JSValue
-js_aubioonset_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+static JSValue js_aubioonset_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
   JSAubioOnset* w;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(w = JS_GetOpaque2(ctx, this_val, js_aubioonset_class_id)))
+  if (!(w = JS_GetOpaque2(ctx, this_val, js_aubioonset_class_id)))
     return JS_EXCEPTION;
 
-  switch(magic) {
+  switch (magic) {
     case METHOD_ONSET_PROCESS: {
       float* data;
       uint32_t len;
 
-      if(argc < 1 || js_aubio_get_fvec_ptr(ctx, argv[0], &data, &len))
+      if (argc < 1 || js_aubio_get_fvec_ptr(ctx, argv[0], &data, &len))
         return JS_ThrowTypeError(ctx, "argument 1 must be a Float32Array");
 
-      if(len != w->hop_size)
+      if (len != w->hop_size)
         return JS_ThrowRangeError(ctx, "input length (%u) must equal hop_size (%u)", len, w->hop_size);
 
       fvec_t input = {len, data};
@@ -409,7 +379,7 @@ js_aubioonset_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
 
       aubio_onset_do(w->obj, &input, &output);
 
-      ret = js_aubio_make_float32array(ctx, out_data, 1);
+      ret = js_float32array_copy(ctx, out_data, 1);
       break;
     }
 
@@ -418,7 +388,7 @@ js_aubioonset_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
 
       ret = JS_NewUint32(ctx, aubio_onset_set_default_parameters(w->obj, mode ? mode : "default"));
 
-      if(mode)
+      if (mode)
         JS_FreeCString(ctx, mode);
       break;
     }
@@ -432,11 +402,10 @@ js_aubioonset_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
   return ret;
 }
 
-static void
-js_aubioonset_finalizer(JSRuntime* rt, JSValue val) {
+static void js_aubioonset_finalizer(JSRuntime* rt, JSValue val) {
   JSAubioOnset* w;
 
-  if((w = JS_GetOpaque(val, js_aubioonset_class_id))) {
+  if ((w = JS_GetOpaque(val, js_aubioonset_class_id))) {
     del_aubio_onset(w->obj);
     js_free_rt(rt, w);
   }
@@ -479,8 +448,7 @@ typedef struct {
 static JSClassID js_aubiopitch_class_id;
 static JSValue aubiopitch_proto, aubiopitch_ctor;
 
-static JSValue
-js_aubiopitch_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+static JSValue js_aubiopitch_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
   JSValue proto, obj = JS_UNDEFINED;
   char_t method[64];
   uint32_t buf_size = 1024, hop_size = 256, samplerate = 44100;
@@ -488,21 +456,21 @@ js_aubiopitch_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSV
 
   js_aubio_get_method(ctx, argc, argv, method, sizeof(method));
 
-  if(argc > 1)
+  if (argc > 1)
     JS_ToUint32(ctx, &buf_size, argv[1]);
-  if(argc > 2)
+  if (argc > 2)
     JS_ToUint32(ctx, &hop_size, argv[2]);
-  if(argc > 3)
+  if (argc > 3)
     JS_ToUint32(ctx, &samplerate, argv[3]);
 
   aubio_pitch_t* pitch = new_aubio_pitch(method, buf_size, hop_size, samplerate);
 
-  if(!pitch) {
+  if (!pitch) {
     JS_ThrowInternalError(ctx, "aubio: failed to create pitch detection object");
     goto fail;
   }
 
-  if(!(w = js_mallocz(ctx, sizeof(JSAubioPitch)))) {
+  if (!(w = js_mallocz(ctx, sizeof(JSAubioPitch)))) {
     del_aubio_pitch(pitch);
     goto fail;
   }
@@ -511,21 +479,21 @@ js_aubiopitch_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSV
   w->hop_size = hop_size;
 
   proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
+  if (JS_IsException(proto))
     goto fail;
-  if(!JS_IsObject(proto))
+  if (!JS_IsObject(proto))
     proto = aubiopitch_proto;
 
   obj = JS_NewObjectProtoClass(ctx, proto, js_aubiopitch_class_id);
   JS_FreeValue(ctx, proto);
-  if(JS_IsException(obj))
+  if (JS_IsException(obj))
     goto fail;
 
   JS_SetOpaque(obj, w);
   return obj;
 
 fail:
-  if(w) {
+  if (w) {
     del_aubio_pitch(w->obj);
     js_free(ctx, w);
   }
@@ -539,15 +507,14 @@ enum {
   PROP_PITCH_CONFIDENCE,
 };
 
-static JSValue
-js_aubiopitch_get(JSContext* ctx, JSValueConst this_val, int magic) {
+static JSValue js_aubiopitch_get(JSContext* ctx, JSValueConst this_val, int magic) {
   JSAubioPitch* w;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(w = JS_GetOpaque2(ctx, this_val, js_aubiopitch_class_id)))
+  if (!(w = JS_GetOpaque2(ctx, this_val, js_aubiopitch_class_id)))
     return JS_EXCEPTION;
 
-  switch(magic) {
+  switch (magic) {
     case PROP_PITCH_TOLERANCE: ret = JS_NewFloat64(ctx, aubio_pitch_get_tolerance(w->obj)); break;
     case PROP_PITCH_SILENCE: ret = JS_NewFloat64(ctx, aubio_pitch_get_silence(w->obj)); break;
     case PROP_PITCH_CONFIDENCE: ret = JS_NewFloat64(ctx, aubio_pitch_get_confidence(w->obj)); break;
@@ -556,18 +523,17 @@ js_aubiopitch_get(JSContext* ctx, JSValueConst this_val, int magic) {
   return ret;
 }
 
-static JSValue
-js_aubiopitch_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
+static JSValue js_aubiopitch_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
   JSAubioPitch* w;
   double d;
 
-  if(!(w = JS_GetOpaque2(ctx, this_val, js_aubiopitch_class_id)))
+  if (!(w = JS_GetOpaque2(ctx, this_val, js_aubiopitch_class_id)))
     return JS_EXCEPTION;
 
-  if(JS_ToFloat64(ctx, &d, value))
+  if (JS_ToFloat64(ctx, &d, value))
     return JS_EXCEPTION;
 
-  switch(magic) {
+  switch (magic) {
     case PROP_PITCH_TOLERANCE: aubio_pitch_set_tolerance(w->obj, (smpl_t)d); break;
     case PROP_PITCH_SILENCE: aubio_pitch_set_silence(w->obj, (smpl_t)d); break;
   }
@@ -580,23 +546,22 @@ enum {
   METHOD_PITCH_SET_UNIT,
 };
 
-static JSValue
-js_aubiopitch_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+static JSValue js_aubiopitch_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
   JSAubioPitch* w;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(w = JS_GetOpaque2(ctx, this_val, js_aubiopitch_class_id)))
+  if (!(w = JS_GetOpaque2(ctx, this_val, js_aubiopitch_class_id)))
     return JS_EXCEPTION;
 
-  switch(magic) {
+  switch (magic) {
     case METHOD_PITCH_PROCESS: {
       float* data;
       uint32_t len;
 
-      if(argc < 1 || js_aubio_get_fvec_ptr(ctx, argv[0], &data, &len))
+      if (argc < 1 || js_aubio_get_fvec_ptr(ctx, argv[0], &data, &len))
         return JS_ThrowTypeError(ctx, "argument 1 must be a Float32Array");
 
-      if(len != w->hop_size)
+      if (len != w->hop_size)
         return JS_ThrowRangeError(ctx, "input length (%u) must equal hop_size (%u)", len, w->hop_size);
 
       fvec_t input = {len, data};
@@ -605,14 +570,14 @@ js_aubiopitch_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
 
       aubio_pitch_do(w->obj, &input, &output);
 
-      ret = js_aubio_make_float32array(ctx, out_data, 1);
+      ret = js_float32array_copy(ctx, out_data, 1);
       break;
     }
 
     case METHOD_PITCH_SET_UNIT: {
       const char* mode = argc > 0 ? JS_ToCString(ctx, argv[0]) : 0;
 
-      if(!mode)
+      if (!mode)
         return JS_ThrowTypeError(ctx, "argument 1 must be a string");
 
       ret = JS_NewUint32(ctx, aubio_pitch_set_unit(w->obj, mode));
@@ -624,11 +589,10 @@ js_aubiopitch_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
   return ret;
 }
 
-static void
-js_aubiopitch_finalizer(JSRuntime* rt, JSValue val) {
+static void js_aubiopitch_finalizer(JSRuntime* rt, JSValue val) {
   JSAubioPitch* w;
 
-  if((w = JS_GetOpaque(val, js_aubiopitch_class_id))) {
+  if ((w = JS_GetOpaque(val, js_aubiopitch_class_id))) {
     del_aubio_pitch(w->obj);
     js_free_rt(rt, w);
   }
@@ -650,8 +614,7 @@ static const JSCFunctionListEntry js_aubiopitch_funcs[] = {
 
 /* ---------- module init ---------- */
 
-int
-js_aubio_init(JSContext* ctx, JSModuleDef* m) {
+int js_aubio_init(JSContext* ctx, JSModuleDef* m) {
   JS_NewClassID(&js_aubionotes_class_id);
   JS_NewClass(JS_GetRuntime(ctx), js_aubionotes_class_id, &js_aubionotes_class);
 
@@ -682,7 +645,7 @@ js_aubio_init(JSContext* ctx, JSModuleDef* m) {
   JS_SetClassProto(ctx, js_aubiopitch_class_id, aubiopitch_proto);
   JS_SetConstructor(ctx, aubiopitch_ctor, aubiopitch_proto);
 
-  if(m) {
+  if (m) {
     JS_SetModuleExport(ctx, m, "AubioNotes", aubionotes_ctor);
     JS_SetModuleExport(ctx, m, "AubioOnset", aubioonset_ctor);
     JS_SetModuleExport(ctx, m, "AubioPitch", aubiopitch_ctor);
@@ -691,8 +654,7 @@ js_aubio_init(JSContext* ctx, JSModuleDef* m) {
   return 0;
 }
 
-VISIBLE void
-js_aubio_add_exports(JSContext* ctx, JSModuleDef* m) {
+VISIBLE void js_aubio_add_exports(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "AubioNotes");
   JS_AddModuleExport(ctx, m, "AubioOnset");
   JS_AddModuleExport(ctx, m, "AubioPitch");
@@ -704,11 +666,10 @@ js_aubio_add_exports(JSContext* ctx, JSModuleDef* m) {
 #define JS_INIT_MODULE js_init_module_aubio
 #endif
 
-VISIBLE JSModuleDef*
-JS_INIT_MODULE(JSContext* ctx, const char* module_name) {
+VISIBLE JSModuleDef* JS_INIT_MODULE(JSContext* ctx, const char* module_name) {
   JSModuleDef* m;
 
-  if((m = JS_NewCModule(ctx, module_name, js_aubio_init))) {
+  if ((m = JS_NewCModule(ctx, module_name, js_aubio_init))) {
     js_aubio_add_exports(ctx, m);
   }
 

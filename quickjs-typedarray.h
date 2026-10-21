@@ -15,22 +15,22 @@
  * with an "undefined symbol" naming the mangled name). */
 
 typedef enum {
-  JS_TYPEDARRAY_NONE = 0, /* plain ArrayBuffer/DataView - no element type */
-  JS_TYPEDARRAY_INT8,
-  JS_TYPEDARRAY_UINT8,
-  JS_TYPEDARRAY_UINT8_CLAMPED,
-  JS_TYPEDARRAY_INT16,
-  JS_TYPEDARRAY_UINT16,
-  JS_TYPEDARRAY_INT32,
-  JS_TYPEDARRAY_UINT32,
-  JS_TYPEDARRAY_FLOAT32,
-  JS_TYPEDARRAY_FLOAT64,
+  TYPEDARRAY_NONE = 0, /* plain ArrayBuffer/DataView - no element type */
+  TYPEDARRAY_INT8,
+  TYPEDARRAY_UINT8,
+  TYPEDARRAY_UINT8_CLAMPED,
+  TYPEDARRAY_INT16,
+  TYPEDARRAY_UINT16,
+  TYPEDARRAY_INT32,
+  TYPEDARRAY_UINT32,
+  TYPEDARRAY_FLOAT32,
+  TYPEDARRAY_FLOAT64,
 } JSTypedArrayKind;
 
 typedef struct {
   uint8_t* ptr; /* already offset into the backing ArrayBuffer */
   size_t byte_length;
-  size_t element_size; /* 1/2/4/8; 1 for JS_TYPEDARRAY_NONE */
+  size_t element_size; /* 1/2/4/8; 1 for TYPEDARRAY_NONE */
   JSTypedArrayKind kind;
 } JSBufferView;
 
@@ -45,19 +45,26 @@ BOOL js_bufferview_get(JSContext* ctx, JSValueConst val, JSBufferView* out);
 
 /* js_bufferview_get restricted to one element kind - throws naming
  * `kind` (e.g. "Float32Array") on any mismatch, including
- * JS_TYPEDARRAY_NONE (a plain ArrayBuffer never satisfies a kind check). */
+ * TYPEDARRAY_NONE (a plain ArrayBuffer never satisfies a kind check). */
 BOOL js_bufferview_get_kind(JSContext* ctx, JSValueConst val, JSTypedArrayKind kind, JSBufferView* out);
 
-const char* js_typedarray_kind_name(JSTypedArrayKind kind);
+const char* typedarray_name(JSTypedArrayKind kind);
+
+/* Creates a TypedArray from an underlying ArrayBuffer */
+JSValue js_typedarray_from_buffer(JSContext*, JSValueConst, JSTypedArrayKind kind);
 
 /* Hands a native js_malloc'd buffer to JS as a new TypedArray of `kind`,
  * no copy - freed via js_free_rt when the ArrayBuffer dies. `count` is in
- * ELEMENTS. For JS_TYPEDARRAY_NONE, returns a plain ArrayBuffer. */
+ * ELEMENTS. For TYPEDARRAY_NONE, returns a plain ArrayBuffer. */
 JSValue js_typedarray_from_malloc(JSContext* ctx, void* data, size_t count, JSTypedArrayKind kind);
 
 /* Copies `count` elements from `data` into a freshly allocated TypedArray
- * of `kind`. For JS_TYPEDARRAY_NONE, returns a plain ArrayBuffer. */
+ * of `kind`. For TYPEDARRAY_NONE, returns a plain ArrayBuffer. */
 JSValue js_typedarray_from_copy(JSContext* ctx, const void* data, size_t count, JSTypedArrayKind kind);
+
+static inline JSValue js_float32array_copy(JSContext* ctx, const float* data, size_t count) {
+  return js_typedarray_from_copy(ctx, data, count, TYPEDARRAY_FLOAT32);
+}
 
 #ifdef __cplusplus
 }
