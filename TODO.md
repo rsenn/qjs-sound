@@ -506,3 +506,88 @@ samples, unwindowed, and sums `|X[k]|^2 / nfft^2` for bins 0..127. 254 is
        "FFT/phase-vocoder family" row above).
 10. [ ] Update `doc/api-interoperability.md` with a section comparing the
         FFT surfaces (sizes, types, scaling, layout of packed vs split).
+
+### Plan: `AubioFFT` (aubio `spectral/fft.h`) in `quickjs-aubio.c`
+
+Wraps `aubio_fft_t` (`new_aubio_fft`, `del_aubio_fft`, `aubio_fft_do`,
+`_rdo`, `_do_complex`, `_rdo_complex`, `_get_norm`, `_get_phas`,
+`_get_realimag`, `_get_spectrum`). Facts the API is built on (read from
+`third_party/aubio/src/spectral/fft.c`, not yet run from JS):
+
+- Real input of `size` samples; `float` (`smpl_t`), `Float32Array` only.
+- Two spectrum forms. `cvec`: `norm[]` and `phas[]`, `size/2 + 1` bins each.
+  Half-complex `fvec` of `size` floats: `[r0, r1, .. rN, iN-1, .. i1]`
+  (FFTW `R2HC`, which is the path `-DHAVE_FFTW3F` without `HAVE_COMPLEX_H`
+  picks).
+- `new_aubio_fft` returns NULL (and prints to stderr) for `size < 2`, and
+  for non-power-of-2 on the ooura fallback; the FFTW build takes any size.
+- Forward is unnormalised; check what `rdo` does with scale, and document it.
+
+**JS shape.** aubio's Python binding (`fft(win_s)`, call it with a `fvec` to
+get a `cvec` with `.norm` / `.phas`, `rdo()` back) is the survey reference;
+the spectrum is a plain `{ norm, phas }` object of two `Float32Array`
+(duck-typed, no `cvec` class, per the skill's struct-by-value rule):
+
+````js
+import { AubioFFT } from 'aubio';
+
+const fft = new AubioFFT(254);    // RangeError if the backend rejects it
+fft.size;                         // 254
+fft.bins;                         // 128 (size / 2 + 1)
+
+const spec = fft.forward(input);  // { norm, phas }, fresh Float32Arrays
+fft.forward(input, spec);         // reuses spec.norm / spec.phas, no allocation
+const out = fft.inverse(spec);    // Float32Array(size); inverse(spec, out) reuses
+const hc = fft.forwardComplex(input);   // half-complex Float32Array(size)
+fft.inverseComplex(hc, out);
+
+AubioFFT.norm(hc, spec);          // aubio_fft_get_norm / _phas / _spectrum
+AubioFFT.phas(hc, spec);
+AubioFFT.realimag(spec, hc);      // aubio_fft_get_realimag
+````
+
+No views onto the native scratch memory are returned: aubio overwrites its
+`compspec` on every call, so results are copied out (or written into the
+caller's arrays). `power` is not wrapped: the moodbar step is
+`norm[k] * norm[k] / (size * size)` in JS.
+
+**Steps**
+
+1. [ ] `JSAubioFFT { aubio_fft_t* obj; uint_t size; }`, class id, finalizer
+       (`del_aubio_fft`), constructor with the `new_target.prototype`
+       pattern copied from `js_aubionotes_constructor`; `RangeError`
+       `"aubio: fft size %u not supported by this build"` when NULL.
+2. [ ] Getters `size`, `bins`; `Symbol.toStringTag` `"AubioFFT"`.
+3. [ ] `js_aubio_get_fvec_ptr` already resolves a `Float32Array`; add
+       `js_aubio_get_cvec(ctx, val, bins, &cvec_t)` reading `norm` and
+       `phas` properties, each a `Float32Array` of exactly `bins`
+       (`TypeError` for the wrong type, `RangeError` for the wrong length),
+       and a `js_aubio_new_cvec` that builds a fresh pair for the no-`out`
+       call.
+4. [ ] Methods by magic (one function, `JS_CFUNC_MAGIC_DEF`): `forward`,
+       `inverse`, `forwardComplex`, `inverseComplex`; static `norm`,
+       `phas`, `realimag` (wrap the `get_*` helpers, which take no fft
+       object, so they live on the constructor).
+5. [ ] Every length check against `size` / `bins` before the call: aubio
+       reads `size` floats from the input with no bounds check.
+6. [ ] `tests/aubio-fft-test.js`: impulse gives `norm == 1` everywhere;
+       sine on bin k gives one peak of `size / 2`; `inverse(forward(x))`
+       equals `x` (note scale); `forwardComplex` equals a naive DFT to
+       1e-3; sizes 8, 254, 255, 1024; size 1 and wrong-length arrays throw.
+       The 254/255 cases are skipped when the constructor throws
+       (ooura build), with a message saying so.
+7. [ ] `doc/native/aubio.md`: new `AubioFFT` section with the block above,
+       the size rule, the scaling and the cvec / half-complex layouts;
+       drop `fft` from "Not yet bound"; build note that FFTW3 is always
+       on (`cmake/FindAubio.cmake`).
+8. [ ] Moodbar: in `tests/fft-test.js` use `AubioFFT(NFFT)` for
+       `makeSpectrum()` when available; compare its colours with the DFT
+       path (`--dft`) and record the largest byte difference (float vs the
+       double-precision reference).
+9. [ ] Fill in the common `FFT` surface of task 1 (`power(input, out)`,
+       `scale`) as a thin JS wrapper over `AubioFFT` if the signalsmith
+       module lands later.
+
+**Not in scope here**: aubio's `pvoc` (windowed phase vocoder),
+`filterbank`, `mfcc`, `dct` — they sit on top of the same `fft` and get
+their own entries when needed.
