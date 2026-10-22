@@ -3,6 +3,7 @@
 
 #include <quickjs.h>
 #include <cstdint>
+#include <memory>
 #include <new>
 #include <utility>
 #include <vector>
@@ -439,6 +440,28 @@ with(JSContext* ctx, JSValueConst obj, KeyType key, FunctionType&& fn) {
   return -1;
 }
 
+/* get_opaque: copies the T stored in an object of a class into out.
+ *
+ * `if(qjsx::get_opaque(ctx, argv[0], js_audiocontext_class_id, ac)) return JS_EXCEPTION;`
+ *
+ *   JSValueConst  val       object that should be an instance of the class
+ *   JSClassID     class_id  class whose opaque holds a T
+ *   T&            out       receives a copy of the stored T
+ *
+ *   returns  0, or -1 with a TypeError thrown when val is not of the class
+ */
+template <class T>
+int
+get_opaque(JSContext* ctx, JSValueConst val, JSClassID class_id, T& out) {
+  T* p = static_cast<T*>(JS_GetOpaque2(ctx, val, class_id));
+
+  if(!p)
+    return -1;
+
+  out = *p;
+  return 0;
+}
+
 /* own: attach a placement-constructed T to a new object, as its opaque.
  *
  *   JSValue  obj   new object of the class, consumed on failure
@@ -466,19 +489,20 @@ own(JSContext* ctx, JSValue obj, Args&&... args) {
 
 /* wrap: new object owning a T, for a constructor so subclasses work.
  *
- * `wrap<AudioContextPtr>(ctx, new_target, id, ac)`
+ * `wrap(ctx, new_target, id, std::move(ac))` // T is deduced as AudioContextPtr
  *
  *   JSValueConst  new_target  prototype is new_target.prototype, else
  *                             the class prototype
  *   JSClassID     class_id    class whose finalizer destroys the T
- *   Args...       args        brace-initializers of T (T is an aggregate)
+ *   T&&           value       moved or copied into the object; T is
+ *                             deduced, or given when value converts to it
  *
  *   returns  the object, or JS_EXCEPTION
  */
-template <class T, class... Args>
+template <class T>
 JSValue
-wrap(JSContext* ctx, JSValueConst new_target, JSClassID class_id, Args&&... args) {
-  return own<T>(ctx, js_object_from_target(ctx, new_target, class_id), std::forward<Args>(args)...);
+wrap(JSContext* ctx, JSValueConst new_target, JSClassID class_id, T&& value) {
+  return own<std::remove_cv_t<std::remove_reference_t<T>>>(ctx, js_object_from_target(ctx, new_target, class_id), std::forward<T>(value));
 }
 
 /* wrap_proto: like wrap, with an explicit prototype instead of new_target.
@@ -495,6 +519,27 @@ template <class T, class... Args>
 JSValue
 wrap_proto(JSContext* ctx, JSValueConst proto, JSClassID class_id, Args&&... args) {
   return own<T>(ctx, JS_NewObjectProtoClass(ctx, proto, class_id), std::forward<Args>(args)...);
+}
+
+/* wrap_shared: like wrap, for an object owning a std::shared_ptr<T> that
+ * is made from the constructor arguments.
+ *
+ * `wrap_shared<stk::Filter, stk::BiQuad>(ctx, new_target, id)`
+ *
+ *   JSValueConst  new_target  as for wrap
+ *   JSClassID     class_id    class whose finalizer destroys the pointer
+ *   Args...       args        forwarded to the constructor of Derived
+ *
+ *   template T        the pointer type the object holds, default Derived
+ *   template Derived  the type that is constructed, default T
+ *
+ *   returns  the object, or JS_EXCEPTION
+ *   throws   whatever the constructor of Derived throws, before an object exists
+ */
+template <class T, class Derived = T, class... Args>
+JSValue
+wrap_shared(JSContext* ctx, JSValueConst new_target, JSClassID class_id, Args&&... args) {
+  return wrap(ctx, new_target, class_id, std::shared_ptr<T>(std::make_shared<Derived>(std::forward<Args>(args)...)));
 }
 
 } // namespace qjsx

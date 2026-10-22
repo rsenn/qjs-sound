@@ -430,7 +430,7 @@ js_audiocontext_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
   device->setDestinationNode(dest);
   ac->setDestinationNode(dest);
 
-  return qjsx::wrap<AudioContextPtr>(ctx, new_target, js_audiocontext_class_id, ac);
+  return qjsx::wrap(ctx, new_target, js_audiocontext_class_id, ac);
 }
 
 static JSValue
@@ -1180,31 +1180,21 @@ static JSValue
 js_gain_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
   if(argc < 1)
     return JS_ThrowTypeError(ctx, "GainNode requires an AudioContext");
-  AudioContextPtr* acptr = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, argv[0], js_audiocontext_class_id));
-  if(!acptr)
+  AudioContextPtr ac;
+
+  if(qjsx::get_opaque(ctx, argv[0], js_audiocontext_class_id, ac))
     return JS_EXCEPTION;
-  AudioContextPtr ac = *acptr;
+
   auto g = std::make_shared<lab::GainNode>(*ac);
 
-  if(argc > 1 && JS_IsObject(argv[1])) {
-    JSValue v = JS_GetPropertyStr(ctx, argv[1], "gain");
-    if(JS_IsNumber(v)) {
-      double f;
-      JS_ToFloat64(ctx, &f, v);
-      g->gain()->setValue((float)f);
-    }
-    JS_FreeValue(ctx, v);
-  }
+  float gain;
 
-  JSValue proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
-    return JS_EXCEPTION;
-  if(!JS_IsObject(proto)) {
-    JS_FreeValue(ctx, proto);
-    proto = JS_DupValue(ctx, gainnode_proto);
-  }
-  JSValue obj = make_audio_node_js(ctx, proto, js_gainnode_class_id, std::static_pointer_cast<lab::AudioNode>(g), ac);
-  JS_FreeValue(ctx, proto);
+  if(argc > 1 && JS_IsObject(argv[1]) && !qjsx::property(ctx, argv[1], "gain", gain))
+    g->gain()->setValue(gain);
+
+  JSValue obj = qjsx::wrap(ctx, new_target, js_gainnode_class_id, JsAudioNode{ std::static_pointer_cast<lab::AudioNode>(g), ac });
+    if(JS_IsException(obj))
+    return obj;
   anchor_node_in_context(ctx, argv[0], obj);
   return obj;
 }
