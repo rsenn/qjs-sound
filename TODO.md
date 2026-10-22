@@ -491,10 +491,12 @@ samples, unwindowed, and sums `|X[k]|^2 / nfft^2` for bins 0..127. 254 is
        difference in the test header.
 4. [ ] `USE_FFTW` backend (system FFTW3) behind the same class.
 5. [ ] aubio `fft` (second moodbar backend): `AubioFFT` (`do`, `rdo`,
-       `norm`, `phas`) in `quickjs-aubio.c`; test size 254 against the
-       system `libaubio` (FFTW3F path), add a `BUILD_AUBIO` option that
-       enables `HAVE_FFTW3F`; document the size rule (pow2 unless built
-       with FFTW3) and that `RangeError` is thrown otherwise.
+       `norm`, `phas`) in `quickjs-aubio.c`; `RangeError` for a size the
+       backend rejects. Build side is done: `cmake/FindAubio.cmake` accepts
+       a system aubio only if `new_aubio_fft(254)` succeeds, else
+       `BuildAubio.cmake` builds `third_party/aubio` with float FFTW3
+       (`cmake/{Find,Build}FFTW3.cmake`: system `fftw3f`, or download
+       FFTW 3.3.10 into `third_party/fftw3`, static -fPIC).
 6. [ ] ooura backend (pow2, small, no dependency beyond LabSound's copy).
 7. [ ] rubberband `FFT` backend: `forwardMagnitude`/`forwardPolar` exposed
        as `fft.magnitude()` / `fft.polar()`.

@@ -1,41 +1,69 @@
-# Locates aubio, either as a system install (via pkg-config's aubio
-# module, or explicit hints) or (if BUILD_AUBIO is ON, the
-# default - see below) built from the vendored third_party/aubio
-# submodule. See the quickjs-native-bindings skill's "CMake wiring for a
-# vendored C/C++ library" section for the pattern this and its
-# BuildAubio.cmake companion follow.
+# Locates aubio built with FFTW3, either as a system install (explicit
+# hints, pkg-config's aubio module, default search paths) or, if none
+# qualifies or BUILD_AUBIO is ON, built from the vendored third_party/aubio
+# submodule by BuildAubio.cmake.
 #
-# Sets AUBIO_FOUND, AUBIO_INCLUDE_DIRS, AUBIO_LIBRARIES,
-# AUBIO_LIBRARY_DIRS on success. Consumed by quickjs-aubio.c.
+# A system aubio qualifies only if new_aubio_fft(254) succeeds: aubio's own
+# fallback FFT (ooura) takes powers of two only, the FFTW3 one any size
+# (the moodbar spectrum is 254 points). Not cross-compiling-safe: the
+# check runs a program, so a cross build always builds aubio itself.
+#
+# Sets AUBIO_FOUND, AUBIO_INCLUDE_DIRS, AUBIO_LIBRARIES, AUBIO_LIBRARY_DIRS.
+# Consumed by quickjs-aubio.c.
 
 include("${CMAKE_CURRENT_LIST_DIR}/VendoredLibrary.cmake")
+include(CheckCSourceRuns)
 
-# Defaults ON, unlike every other Find<Lib>.cmake here (all OFF) - aubio
-# has no widely-packaged system dev package on the distros this project
-# targets (unlike portaudio/portmidi/sndfile/samplerate/soundtouch, all
-# routinely available as system packages), and this project already
-# built exclusively from third_party/aubio before this option existed;
-# defaulting ON preserves that behavior unchanged rather than silently
-# requiring a system libaubio that most machines won't have.
-option(
-  BUILD_AUBIO
-  "Build aubio from the vendored third_party/aubio submodule instead of using the system library"
-  ON)
+option(BUILD_AUBIO
+       "Always build aubio from third_party/aubio (with FFTW3) instead of using the system library" OFF)
 
-if(BUILD_AUBIO)
-  include("${CMAKE_CURRENT_LIST_DIR}/BuildAubio.cmake")
-else()
-  # Pin an install explicitly with -DAUBIO_PREFIX=/usr (or the
-  # finer-grained -DAUBIO_INCLUDE_DIR=.../-DAUBIO_LIBRARY_DIR=...); with
-  # neither given, falls back to pkg-config's aubio module (present on
-  # distros that do package it), then the default system search paths.
+if(NOT BUILD_AUBIO)
   vendored_find_system_library(AUBIO HEADER aubio.h LIBRARY_NAMES aubio
                                PKGCONFIG_MODULE aubio)
 
-  if(NOT AUBIO_FOUND)
-    message(
-      FATAL_ERROR
-        "aubio not found - set -DAUBIO_PREFIX=/path/to/prefix (or -DAUBIO_INCLUDE_DIR=.../-DAUBIO_LIBRARY_DIR=...), or -DBUILD_AUBIO=ON (the default) to build the vendored copy in third_party/aubio"
-    )
+  # Distros install the headers under <include>/aubio/, and pkg-config
+  # may report just <include>.
+  if(AUBIO_INCLUDE_DIRS AND NOT EXISTS "${AUBIO_INCLUDE_DIRS}/aubio.h"
+     AND EXISTS "${AUBIO_INCLUDE_DIRS}/aubio/aubio.h")
+    set(AUBIO_INCLUDE_DIRS "${AUBIO_INCLUDE_DIRS}/aubio")
+  elseif(NOT AUBIO_INCLUDE_DIRS)
+    find_path(AUBIO_INCLUDE_DIRS NAMES aubio.h PATH_SUFFIXES aubio)
   endif()
+
+  if(AUBIO_INCLUDE_DIRS AND AUBIO_LIBRARIES AND NOT CMAKE_CROSSCOMPILING)
+    set(CMAKE_REQUIRED_INCLUDES ${AUBIO_INCLUDE_DIRS})
+    set(CMAKE_REQUIRED_LIBRARIES ${AUBIO_LIBRARIES})
+    set(CMAKE_REQUIRED_LINK_OPTIONS)
+    if(AUBIO_LIBRARY_DIRS)
+      foreach(DIR ${AUBIO_LIBRARY_DIRS})
+        list(APPEND CMAKE_REQUIRED_LINK_OPTIONS "-L${DIR}")
+      endforeach()
+    endif()
+    check_c_source_runs(
+      "#include <aubio.h>
+       int main(void) {
+         aubio_fft_t* fft = new_aubio_fft(254);
+         if(!fft) return 1;
+         del_aubio_fft(fft);
+         return 0;
+       }"
+      AUBIO_HAVE_FFTW3)
+    unset(CMAKE_REQUIRED_INCLUDES)
+    unset(CMAKE_REQUIRED_LIBRARIES)
+    unset(CMAKE_REQUIRED_LINK_OPTIONS)
+  endif()
+
+  if(AUBIO_HAVE_FFTW3)
+    message(STATUS "Using system aubio (FFTW3): ${AUBIO_LIBRARIES}")
+  else()
+    message(STATUS "No system aubio built with FFTW3, building third_party/aubio")
+    unset(AUBIO_INCLUDE_DIRS)
+    unset(AUBIO_LIBRARIES)
+    unset(AUBIO_LIBRARY_DIRS)
+    unset(AUBIO_FOUND)
+  endif()
+endif()
+
+if(BUILD_AUBIO OR NOT AUBIO_HAVE_FFTW3)
+  include("${CMAKE_CURRENT_LIST_DIR}/BuildAubio.cmake")
 endif()
