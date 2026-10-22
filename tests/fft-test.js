@@ -1,5 +1,5 @@
-import { AudioContext, OfflineAudioContext } from "labsound";
-import { readFileSync } from "fs";
+import { AudioContext, OfflineAudioContext } from 'labsound';
+import { readFileSync, openSync, writeSync, closeSync } from 'fs';
 
 async function generateMoodbar(decodedAudio) {
   /* 1. Set up OfflineAudioContext (runs as fast as CPU allows, no audio playback) */
@@ -174,17 +174,43 @@ function normalizeChannel(vals) {
     vals[i] = Math.min(1.0, Math.max(0.0, val));
   }
 }
-async function main(file = "in.wav") {
+
+function writeMoodbarPPM(rgbArray, height, outputPath) {
+  /* width is the number of RGB triplets (each triplet is one vertical column) */
+  const width = Math.floor(rgbArray.length / 3);
+
+  if(width <= 0 || height <= 0) throw new RangeError('Invalid dimensions: width and height must be greater than 0.');
+
+  const fd = openSync(outputPath, 'w');
+  try {
+    /* 1. write the P6 NetPBM binary header (must be ASCII text) */
+    const header = `P6\n${width} ${height}\n255\n`;
+    writeSync(fd, header, 'ascii');
+
+    /* 2. create a Buffer view of the rgbArray without copying memory */
+    const rowBuffer = Buffer.from(rgbArray.buffer, rgbArray.byteOffset, rgbArray.byteLength);
+
+    /* 3. since every row is identical (due to vertical column stretching),
+       write the entire row's pixel bytes 'height' times. */
+    for(let y = 0; y < height; y++) writeSync(fd, rowBuffer);
+  } finally {
+    closeSync(fd);
+  }
+
+  console.log(`Successfully saved binary P6 PPM file (${width}x${height}) to ${outputPath}`);
+}
+
+async function main(file = 'in.wav') {
   const ac = new AudioContext();
 
-  /* We decode the audio data first (assume audioFileBuffer is an ArrayBuffer of MP3/FLAC/OGG) */
+  /* we decode the audio data first (an ArrayBuffer of WAV/MP3/FLAC/OGG) */
   const data = await ac.decodeAudioData(readFileSync(file));
 
-  console.log("data", data);
+  const rgb = await generateMoodbar(data);
 
- const rgb= await generateMoodbar(data);
+  console.log('rgb', console.config({ compact: true, maxArrayLength: 8, numberBase: 16 }), rgb);
 
-  console.log("rgb", rgb);
+  writeMoodbarPPM(rgb, 32, 'moodbar.ppm');
 }
 
 main(...scriptArgs.slice(1));
