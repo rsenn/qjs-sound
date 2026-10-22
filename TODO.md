@@ -402,3 +402,105 @@ high-Q low-frequency `BiQuad`/`TwoPole` and a long `Asymp` decay with
 as an audible difference in long IIR tails; the comparison render above is the
 regression test.
 
+
+---
+
+## FFT bindings
+
+Seven FFT APIs live in `third_party/` (list: `find-sources.sh third_party/
+-iname "*fft*.h"`, minus `ext*`, `internal*`, nested vendored copies). Only
+`LabSound`'s `AnalyserNode` is reachable from JS today (windowed Blackman,
+smoothed, power-of-2 only), which is not enough for `tests/fft-test.js`,
+whose moodbar pipeline is a hand-written O(N²) DFT.
+
+**Shared JS shape** (one class per backend, same surface, so scripts can
+swap backends):
+
+```js
+const fft = new FFT(254);          // size; throws RangeError if unsupported
+fft.size;                          // 254
+fft.forward(input, re, im);        // real input -> bins 0..size/2
+fft.power(input, out);             // |X[k]|^2, out.length = size/2 + 1
+fft.inverse(re, im, output);       // where the backend has it
+```
+
+Buffers are `Float32Array`/`Float64Array` (backend picks its native type,
+converts when it differs), no per-call allocation. Scaling is the library's
+own; `fft.scale` reports it (`1` for unnormalised, `1/size` for inverse).
+
+### Ranking, easiest first
+
+| # | API | Header | Sizes | Types | Effort | Why |
+|---|---|---|---|---|---|---|
+| 1 | signalsmith-dsp | `dsp/fft.h`, `dsp/include/signalsmith-dsp/fft.h` | any (generic step for primes) | float, double | tiny | header-only template, no link, no globals; `FFT<V>`, `ModifiedRealFFT<V>` in `fft.h`, `WindowedFFT` in `spectral.h` |
+| 2 | aubio `fft` | `aubio/src/spectral/fft.h` | pow2 (ooura); any only with FFTW3 | float (smpl_t) | small | C API, `quickjs-aubio.c` already has the `fvec`/`cvec` plumbing (see "Not yet bound" in `doc/native/aubio.md`); `new_aubio_fft`, `aubio_fft_do`/`rdo`, `get_norm`/`get_phas` |
+| 3 | LabSound ooura | `LabSound/third_party/ooura/fftsg.h` | pow2 | float, double | small | free templates `rdft`, `cdft`, `ddct`, `dfct` with `ip`/`w` work arrays; wrap `ip`/`w` in the object; no real-FFT unpacking helpers, so `forward()` has to unpack the packed rdft layout |
+| 4 | rubberband `FFT` | `rubberband/src/common/FFT.h` | pow2, throws `InvalidSize` | float, double | medium | clean class (`forward`, `forwardMagnitude`, `forwardPolar`, `inverse*`) but it is a `src/common` internal: needs its include dir and `FFT.cpp` plus the chosen backend (`HAVE_FFTW3`/`HAVE_KISSFFT`/builtin) linked into `quickjs-rubberband`; `forwardMagnitude` is exactly the moodbar power step |
+| 5 | marsyas `fft` | `marsyas/src/marsyas/fft.h` | pow2 | `mrs_real` | medium | class `fft::rfft(x, N, forward)` / `cfft` on a plain array is easy; the cost is building marsyas for `mrs_real` and the `AutoCorrelationFFT`, `PeakSynthFFT`, `SimulMaskingFft` MarSystems, which need the whole `MarSystem` graph: bind only the raw `fft` class |
+| 6 | opus `kiss_fft` | `libnyquist/third_party/opus/celt/kiss_fft.h` | factors 2,3,4,5 only | float | medium | `opus_fft_alloc`/`opus_fft` in an Opus-internal copy, symbols shared with a vendored Opus, complex only, no real-FFT wrapper; bind only if a project needs it (no moodbar: 127 is prime) |
+| 7 | sndobj FFT family | `sndobj/include/SndObj/FFT.h` etc. | by `rfftw` | float | large, blocked | `FFT`, `IFFT`, `FFT_alt`, `IFFT_alt` are `SndObj` graph nodes, blocked on the missing `rfftw/rfftw.h` (see the sndobj section). Unblock by a shim mapping the `rfftw` calls to system FFTW3, or port to backend #1, then do `FFT`/`IFFT` first and the `PV*`/`Spec*` family after |
+
+Skipped on purpose: `aubio/src/pitch/pitchyinfft.h` (internal of
+`AubioPitch('yinfft')`), the `rfftw` and `fftw-int` headers under
+`sndobj/include` (headers of the missing library, not an API).
+
+Outside the list, but the exact reference: system FFTW3 (`pkg-config fftw3`
+is installed). It is what `gstfastspectrum` itself uses
+(`fftw_plan_dft_r2c_1d(254, ..., FFTW_ESTIMATE)`), handles any size, and
+is the only way to compare bit-for-bit. Optional `USE_FFTW=ON` backend of
+the same `FFT` class; not a `third_party/` item.
+
+### Which one for moodbar
+
+`gstfastspectrum` takes `bands=128`, hence `nfft = 2*128 - 2 = 254` real
+samples, unwindowed, and sums `|X[k]|^2 / nfft^2` for bins 0..127. 254 is
+2 * 127, and 127 is prime. That decides:
+
+- Power-of-2 only: ooura (#3), rubberband (#4), marsyas (#5), aubio built
+  with its own ooura fallback (#2). Padding to 256 changes bin centres and the Bark band
+  assignment, so the colours drift from real `.mood` files. Not acceptable
+  for a moodbar port.
+- kiss (#6) rejects 127.
+- **signalsmith (#1) is the pick**: size 254 works directly (two radix-2
+  halves around one generic 127-point step, one pass instead of the 254x127
+  direct sums), header-only, double precision like `fftw_plan_dft_r2c_1d`,
+  float variant for the rest. Check its scaling (unnormalised forward, same
+  as FFTW) against `fft-test.js`'s `/ (NFFT * NFFT)`.
+- **aubio (#2) is the second pick**, and needs no new module. The system
+  `libaubio` links `libfftw3f`, so its FFTW code path (no power-of-2 check)
+  should accept 254; untested. It is float, so expect a few low-bit
+  differences from the double-precision reference. The vendored
+  `third_party/aubio` (`BUILD_AUBIO=ON`) falls back to ooura and rejects 254
+  unless configured with FFTW3 (`HAVE_FFTW3F`).
+- rubberband links FFTW too, but its `FFT` class is an internal and
+  power-of-2 only, so that does not help.
+- FFTW3 stays the oracle: render a track with both and diff the `.mood`
+  bytes against `~/Sources/moodbar`'s output.
+
+### Tasks (in this order)
+
+1. [ ] `quickjs-fft.cpp` new module `fft` with backend #1 (`FFT` class,
+       `size`, `forward`, `power`, `inverse`, `Float32Array`/`Float64Array`
+       in, no allocation per call); `doc/native/fft.md`; `tests/fft-bind-test.js`
+       (impulse -> flat spectrum, sine -> single bin, forward/inverse
+       round trip, sizes 8, 254, 255, 1024).
+2. [ ] Switch `tests/fft-test.js` `makeSpectrum()` to `new FFT(NFFT).power()`;
+       keep the DFT as a `--dft` check that both give the same colours.
+3. [ ] Compare against FFTW3 on `Stereo MCs - Black Gold.mood` (repo root,
+       untracked) and the reference `moodbar` output; record the max byte
+       difference in the test header.
+4. [ ] `USE_FFTW` backend (system FFTW3) behind the same class.
+5. [ ] aubio `fft` (second moodbar backend): `AubioFFT` (`do`, `rdo`,
+       `norm`, `phas`) in `quickjs-aubio.c`; test size 254 against the
+       system `libaubio` (FFTW3F path), add a `BUILD_AUBIO` option that
+       enables `HAVE_FFTW3F`; document the size rule (pow2 unless built
+       with FFTW3) and that `RangeError` is thrown otherwise.
+6. [ ] ooura backend (pow2, small, no dependency beyond LabSound's copy).
+7. [ ] rubberband `FFT` backend: `forwardMagnitude`/`forwardPolar` exposed
+       as `fft.magnitude()` / `fft.polar()`.
+8. [ ] marsyas `fft` and opus `kiss_fft` backends (only if a user asks).
+9. [ ] sndobj: unblock `rfftw` (shim over FFTW3 or backend #1), then
+       `FFT`/`IFFT`, then the `PV*`/`Spec*` family (updates the
+       "FFT/phase-vocoder family" row above).
+10. [ ] Update `doc/api-interoperability.md` with a section comparing the
+        FFT surfaces (sizes, types, scaling, layout of packed vs split).
