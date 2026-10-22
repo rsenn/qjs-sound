@@ -37,3 +37,6 @@
 [submodule "third_party/marsyas"]
 	path = third_party/marsyas
 	url = git@github.com:marsyas/marsyas.git
+[submodule "third_party/Soundpipe"]
+	path = third_party/Soundpipe
+	url = git@github.com:PaulBatchelor/Soundpipe.git

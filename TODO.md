@@ -280,7 +280,7 @@ all - the feature would have to be implemented from scratch in
 | `ScriptProcessorNode` | - | **Deprecated in spec - skip** | LabSound's `FunctionNode` (extended) is the closest spirit-match (native callback per block) but bridging that callback into JS per audio quantum has real perf/threading cost for a deprecated API; not worth it. |
 | `StereoPannerNode` | `lab::StereoPannerNode` | Bound | |
 | `WaveShaperNode` | `lab::WaveShaperNode` | Bound | |
-| `AudioWorklet` | - | **Needs custom C++ (large)** | No equivalent concept in LabSound at all. |
+| `AudioWorklet` | - | **Needs custom C++ (large)** | No equivalent concept in LabSound at all. Plan: "AudioWorklet on WAMR" at the end of this file. |
 | `AudioWorkletNode` | - | **Needs custom C++ (large)** | Same. |
 | `AudioWorkletProcessor` | - | **Needs custom C++ (large)** | Same - would require running QuickJS callbacks on the audio render thread per quantum, with all the GC/threading hazards that implies. This is the single biggest lift on this list; everything else is wrapping existing LabSound DSP, this is inventing a JS-on-audio-thread execution model from nothing. |
 | `AudioWorkletGlobalScope` | - | **Needs custom C++ (large)** | Part of the same effort as above. |
@@ -591,3 +591,264 @@ caller's arrays). `power` is not wrapped: the moodbar step is
 **Not in scope here**: aubio's `pvoc` (windowed phase vocoder),
 `filterbank`, `mfcc`, `dct` — they sit on top of the same `fft` and get
 their own entries when needed.
+
+---
+
+## More libraries to bind (live-coding synth / sequencer stack) (postponed)
+
+Goal: one JS process, LabSound as the mixing graph, the other libs as
+sources, effects and analysers. See the live-coding plan: a look-ahead
+sequencer on `ctx.currentTime` with a hot-swappable pattern registry,
+run from `qjsm repl.js`.
+
+### Already vendored, not yet bound
+
+| Dir | What | Plan |
+|---|---|---|
+| `third_party/dsp/` | Signalsmith DSP v1.7.1: header-only C++ (`filters.h` biquads, `delay.h`, `envelopes.h`, `fft.h`, `spectral.h` STFT, `windows.h`, `mix.h`, `rates.h`, `curves.h`) | `quickjs-signalsmith.cpp`: `Biquad`, `Delay`, `FFT`/`RealFFT`, `STFT`, envelopes. Also fills FFT task 9. Per-sample classes need block-wise `process(in, out)` over `Float32Array`, not per-sample calls from JS |
+| `third_party/marsyas/` | MARSYAS audio-analysis framework (GPL-2) | Heavy and unmaintained. Bind only the MIR pieces aubio lacks (beat/tempo, chroma, spectral flux) or skip; check that it still builds before spending time |
+
+### Candidates (licences from memory, verify before vendoring)
+
+Ranked by value for live coding vs. effort. Header-only / plain-C first.
+
+| Lib | Licence | Why | Effort |
+|---|---|---|---|
+| DaisySP (electro-smith) | MIT | oscillators, ladder/SVF filters, reverb, delay, drums (kick/snare/hihat), ADSR, compressor; no allocation, block-friendly | low, as `Daisy*` classes |
+| Soundpipe (PaulBatchelor) | MIT | ~100 plain-C modules (Csound-derived): reverbs, physical models, filters; C, so easiest binding shape | low, one class per ugen |
+| Maximilian (micknoise) | MIT | live-coding oriented, already has a JS (emscripten) API to mirror; oscillators, sample players, envelopes, granular | low-medium |
+| chowdsp_wdf | BSD-3 | wave-digital-filter analog circuit models (diode clippers, tone stacks) | low, header-only |
+| Q (cycfi) | MIT | modern C++ DSP: pitch detection, envelope followers, biquads | medium (templates) |
+| Airwindows via airwin2rack | MIT | ~400 effects behind one uniform process interface; "can be used as a static library" | medium, one `AirwinEffect(name)` class |
+| Mutable Instruments (`eurorack/plaits`, `rings`, `clouds`, `stmlib`) | MIT (stmlib/modules, check each) | Plaits: 16+ synth engines in one class; Rings, Clouds as effects. Strong sound for little API | medium, fixed-point/block API |
+| TinySoundFont + TinyMidiLoader | MIT | SF2 sampler in two headers; GM playback without FluidSynth | low |
+| FluidSynth | LGPL-2.1 | full SF2 synth, good for `portmidi` input -> sound | medium |
+| sfizz | BSD-2 | SFZ sampler library with a C API | medium |
+| Geonkick | GPL-3 | drum synth engine, has a standalone lib split | medium; GPL |
+| libpd | BSD-3 | run Pure Data patches as nodes | medium |
+| Faust (generated C++) | output free to license | compile `.dsp` to a C++ class, wrap generically; `faust2*` has no QuickJS target so write a small architecture file | medium; pays off for many effects at once |
+| CLAP / LV2 host (`clap` headers, `lilv`) | MIT / ISC | host existing plugins as nodes (Surge XT, Vital, LSP, Calf) | high, but unlocks all of those |
+| libsoundio / RtAudio / RtMidi | MIT | only if PortAudio/PortMidi prove lacking | skip |
+| KFR | GPL / commercial | very fast FFT/filters | skip, licence |
+| DSPFilters (vinniefalco) | MIT | classic IIR designs (Butterworth, Chebyshev, Elliptic) | low |
+| CHOC (Tracktion) | ISC | header-only helpers (MIDI file parse, audio file IO, FIFO, value types) | low, as a source of parts |
+| concurrentqueue / readerwriterqueue / SPSCQueue | BSD / MIT | needed if MIDI callbacks must hop onto the JS thread | low, internal use |
+
+### DPF and JUCE
+
+Neither is a library to bind; both are frameworks to build plugins
+*with* (they own the plugin entry points and the host-facing lifecycle).
+
+- DPF (ISC) is the better fit if we ever want to ship a binding-based
+  synth as an LV2/VST3/CLAP plugin: the plugin's `run()` would call into
+  an embedded QuickJS. Worth a prototype only after the live-coding path
+  works.
+- JUCE is AGPL-3 / commercial, large, and brings its own message loop,
+  which fights QuickJS's event loop. `juce_dsp` is not usable alone
+  without most of the module system. Not recommended.
+- To use the plugins built on them, host them (CLAP / LV2 row above).
+
+### Suggested order
+
+1. `signalsmith` (already vendored; completes FFT work).
+2. `daisysp` (drums + filters + reverb, fits the sequencer).
+3. `soundpipe` or `maximilian`: pick one for breadth.
+4. `tinysoundfont` for GM playback from `portmidi`.
+5. A CLAP host node, the single binding that opens up third-party synths.
+6. Plaits engines, then Faust glue.
+
+### Cross-cutting design
+
+- Every DSP lib exposes block processing on `Float32Array`; a generic
+  `ScriptProcessor`-style bridge (a LabSound node whose `process` calls a
+  native object, never JS) lets any of them sit in the graph, so the
+  audio thread never enters the JS engine.
+- Parameters set from JS are written to atomics / smoothed on the
+  audio side; no locks in `process`.
+
+---
+
+## Live-coding environment (postponed)
+
+Synths and sequencers driven from a `qjsm repl.js` session. Not started;
+the library work above is postponed too.
+
+### Threading facts the design rests on
+
+- LabSound runs an audio render thread (device callback pulls the graph)
+  and a graph update thread (spawned by `AudioContext::lazyInitialize`).
+- The JS thread shares state with them through `ContextRenderLock`,
+  `ContextGraphLock` and mutexes in `AudioParamTimeline` /
+  `AudioSummingJunction`. The binding already takes these in `sweepNodes`
+  and `AudioNode.disconnect`.
+- Audio keeps playing while the REPL waits for input or evaluates a line.
+
+### Design
+
+```js
+seq.set('kick', [1,0,0,0,1,0,0,0]);   // redefine at any time
+synth.lead = (t, note) => { /* nodes scheduled at time t */ };
+seq.bpm = 120;
+```
+
+- Look-ahead scheduler: a `setInterval` tick of ~25 ms schedules events
+  ~100 ms ahead against `ctx.currentTime` (`osc.start(t)`,
+  `param.setValueAtTime(v, t)`); timing lives in the audio clock, so a
+  slow REPL evaluation does not make it jitter.
+- Hot-swap: patterns and instruments are plain objects in a global
+  registry that every tick re-reads; redefining takes effect on the next
+  step, no restart.
+- Existing parts to reuse: `tests/synth.js` (ADSR), `drumsampler.js`,
+  `effects.js`.
+
+### Tasks (in this order)
+
+1. [ ] Check that `repl.js` keeps the event loop running (timers fire
+       while it waits for input); fix or wrap if not.
+2. [ ] `tests/seq.js`: look-ahead scheduler + pattern registry, steps and
+       bpm, `start()` / `stop()`; test with a click track.
+3. [ ] Instrument interface `(t, note, vel) => void` and a registry;
+       port `synth.js` and `drumsampler.js` onto it.
+4. [ ] Stress test: redefine an instrument every few hundred ms for
+       minutes; watch node count, GC and `sweepNodes` for leaks or
+       use-after-free.
+5. [ ] MIDI in: `portmidi` callback must reach the JS thread through a
+       queue, never call JS from the portmidi thread.
+6. [ ] `ADSRNode` (see the extended-node table) to cut per-note JS cost.
+7. [ ] Later: DSP libraries from "More libraries to bind" as instruments
+       and effects; CLAP host node for third-party synths.
+
+### Risks
+
+- Node churn from redefining synths on every edit (GC timing vs
+  `sweepNodes`) is the fragile part; task 4 comes before anything else
+  is built on it.
+- A long synchronous JS call (big FFT) delays the scheduler tick; the
+  100 ms look-ahead covers short stalls only.
+
+---
+
+## AudioWorklet on WAMR (postponed)
+
+`AudioWorkletNode` whose processor is a WebAssembly module run by WAMR on
+LabSound's render thread. No QuickJS on the audio thread, so no GC pauses;
+the `process(inputs, outputs, parameters)` contract is kept, the body is
+compiled code. Uses the C interface in `qjs-modules/include/wasm-backend.h`
+(`WB_*`), not the JS `WebAssembly` object.
+
+```js
+const mod = await WebAssembly.compile(fs.readFileSync('gain.wasm'));
+await ctx.audioWorklet.addModule(mod);            // or addModule('gain.wasm')
+const node = new AudioWorkletNode(ctx, 'gain', {
+  numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2],
+  processorOptions: { /* copied into the module at init */ }
+});
+node.parameters.get('gain').value = 0.5;          // AudioParam, automatable
+node.port.postMessage({ type: 'reset' });
+node.onprocessorerror = e => console.log(e);
+osc.connect(node).connect(ctx.destination);
+```
+
+### Findings in the current WAMR build (`qjs-modules/cmake/wamr/`)
+
+- It is the **classic interpreter**: `FAST_INTERP=0`, `AOT=0`, `JIT=0`,
+  so likely slower than the default wasm3. Fine for a gain stage, too
+  slow for reverbs or polyphony. Audio needs `WAMR_BUILD_FAST_INTERP=1`
+  at least, ideally AOT (`wamrc` ahead of time, near native).
+- `wasm_runtime_full_init` runs once per process; `wamr-backend.c` never
+  calls `wasm_runtime_init_thread_env()`. WAMR requires that for any
+  thread other than the one that initialised it, so the render thread
+  must call it (and `destroy_thread_env` on teardown) before the first
+  `WB_CallFunc`. Verify whether `WB_NewRuntime` per thread covers this.
+- `WB_GetMemoryData` is valid only until the next `WB_CallFunc`; re-read
+  the pointer and size after each call (the module may grow memory).
+- WASI is off and `LIBC_BUILTIN` is on: processors must be freestanding
+  (no file or clock imports); `malloc` comes from the module itself.
+
+### Module ABI (what a processor `.wasm` exports)
+
+```c
+// all exports optional except process; sizes in frames, 128 per quantum
+int  wk_init(int sampleRate, int nIn, int nOut, int nParam);   // once
+int  wk_alloc(int bytes);              // returns offset into memory
+int  wk_process(int inPtr, int outPtr, int paramPtr, int frames); // 0 = stop
+void wk_message(int ptr, int len);     // main thread -> processor
+```
+
+- `inPtr` / `outPtr`: planar `float` buffers, `frames * channels` each,
+  inputs then outputs, laid out by the host at `wk_init` time.
+- `paramPtr`: per parameter, 128 floats if a-rate, 1 float if k-rate.
+- Host copies LabSound `AudioBus` channels into the memory, calls
+  `wk_process`, copies the outputs back. Return 0 ends the node, as
+  `process()` returning `false` does in the spec.
+- A tiny `worklet.h` plus a C and an AssemblyScript example define the
+  convention; WAM 2.0 plugins need an adapter exporting the same names.
+
+### C++ node (`WasmWorkletNode : lab::AudioNode`)
+
+- `process(ContextRenderLock&, int)`: pull inputs, write params, drain the
+  inbound queue into `wk_message`, call `wk_process`, copy outputs.
+- Also `tailTime` / `latencyTime` / `propagatesSilence` (silent input and
+  no tail: skip the call and output silence).
+- Owns `WBRuntime` / `WBContext` / `WBInstance`; created and instantiated
+  on the JS thread (compile cost), called only from the render thread.
+  Instance is never touched from two threads.
+- One `lab::AudioParam` per descriptor; a-rate via `AudioParam::calculateSampleAccurateValues`,
+  k-rate via `value()`.
+- **No allocation, no locks, no syscalls in `process`.** A trap makes the
+  node output silence, set `failed`, and queue an error event.
+
+### JS side
+
+- `ctx.audioWorklet.addModule(bytes | module | path)`: compiles with
+  `WB_NewModule`, lists `parameterDescriptors` from a custom section
+  `"worklet"` (JSON: `name`, `defaultValue`, `minValue`, `maxValue`,
+  `automationRate`) so no JS has to run to learn them; registers the name.
+- `new AudioWorkletNode(ctx, name, options)`: read `argv[0]` as
+  `AudioContext`, build the node, `make_audio_node_js`, then
+  `anchor_node_in_context` (see boilerplate checklist), and add the class
+  id to `any_audio_node()`.
+- `node.parameters`: `AudioParamMap` (read-only Map-like) over the
+  node's `AudioParam` wrappers.
+- `node.port`: `MessagePort`-like with `postMessage(bytes|string|object)`
+  and `onmessage`; objects go through JSON. Two lock-free SPSC queues
+  (main -> audio, audio -> main); the audio -> main side is drained by
+  the JS event loop (timer or `uv`-style wakeup), never calling JS from
+  the render thread.
+- `onprocessorerror` fired from that same drain.
+
+### Tasks (in this order)
+
+1. [ ] qjs-modules: add a `WAMR_BUILD_FAST_INTERP` option (and AOT with
+       `wamrc`) to `cmake/wamr/CMakeLists.txt`; measure a 128-frame biquad
+       under wasm3, WAMR classic, fast-interp, AOT; record numbers here.
+2. [ ] Render thread: call `wasm_runtime_init_thread_env()` (backend or
+       node), test `WB_CallFunc` from a non-init thread.
+3. [ ] `worklet.h` ABI + `tests/worklet/gain.c` built with
+       `clang --target=wasm32 -nostdlib -Wl,--no-entry -Wl,--export-all`
+       (gain with one a-rate param, one message); `.wasm` committed.
+4. [ ] `WasmWorkletNode` in `quickjs-labsound.cpp` (or
+       `quickjs-labsound-worklet.cpp`): `process` with copy in/out,
+       silence on trap; test with `tests/worklet-test.js` (render an
+       `OfflineAudioContext`, compare to a JS-computed gain).
+5. [ ] Parameters: descriptor section, a-rate vs k-rate, automation
+       (`linearRampToValueAtTime` through the node), `AudioParamMap`.
+6. [ ] `port`: SPSC queues, `postMessage`/`onmessage`, error event.
+7. [ ] Lifetime: finalizer disconnects under render + graph locks
+       (as `sweepNodes`), instance freed after the render thread can no
+       longer reach it; stress test creating and dropping nodes while
+       playing.
+8. [ ] `doc/native/labsound.md` section (header-block style as in the
+       skill), update the AudioWorklet rows above, `BUGS` for anything
+       found.
+9. [ ] Later: JS processors on a second QuickJS runtime (true
+       `AudioWorkletGlobalScope`, GC risk); WAM 2.0 plugin adapter;
+       Faust `.dsp` -> wasm32 -> `wk_*` wrapper.
+
+### Open questions
+
+- AOT `.aot` files are per-target and need `wamrc`; ship `.wasm` and
+  compile on load (`wamrc` as a library, if available), or accept
+  interpreter speed for portability?
+- Should `wk_process` see planar or interleaved audio? Planar chosen
+  (matches `AudioBus`, WAM, Faust); revisit if a target lib wants otherwise.
