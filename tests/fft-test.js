@@ -1,157 +1,168 @@
-import { AudioContext, OfflineAudioContext } from 'labsound';
-import { readFileSync, openSync, writeSync, closeSync } from 'fs';
+import { AudioContext, OfflineAudioContext } from "labsound";
+import { readFileSync, openSync, writeSync, closeSync } from "fs";
+import { basename, extname } from "path";
 
-async function generateMoodbar(decodedAudio) {
-  /* 1. Set up OfflineAudioContext (runs as fast as CPU allows, no audio playback) */
-  const sampleRate = 44100; // Standard rate, or read from your source
+/* Port of the moodbar 0.2 pipeline (gstfastspectrum + moodbarbuilder):
+ * audioconvert to mono, 254-point unwindowed FFTs (bands = 128) in
+ * consecutive blocks within 0.1 s intervals, power averaged per interval,
+ * Bark bands, RGB thirds, normalize, pool to 1000 columns. */
+const BANDS = 128; /* fastspectrum bands */
+const NFFT = 2 * BANDS - 2;
+const INTERVAL_NS = 1e8; /* fastspectrum interval, 0.1 s */
+const WIDTH = 1000; /* MoodbarPipeline::Finish(1000) */
 
-  const offlineCtx = new OfflineAudioContext(
-    1, // Downmix to mono for analysis
-    decodedAudio.length,
-    decodedAudio.sampleRate,
-  );
+/* Bark band boundaries (from moodbarbuilder.cpp) */
+const barkBands = [100, 200, 300, 400, 510, 630, 770, 920, 1080, 1270, 1480, 1720, 2000, 2320, 2700, 3150, 3700, 4400, 5300, 6400, 7700, 9500, 12000, 15500];
 
-  /* 2. Set up Audio Graph: Source -> Analyser -> Destination */
-  const source = offlineCtx.createBufferSource();
-  source.buffer = decodedAudio;
+/* Power spectrum of NFFT real samples, bins 0..BANDS-1, as the direct DFT
+ * (254 is 2 * 127, no radix-2 shortcut); folds x[n] and x[N-n] so the cos
+ * and sin sums run over half the samples. */
+function makeSpectrum() {
+  const half = NFFT / 2 - 1; /* 126 */
+  const cos = new Float64Array(BANDS * half),
+    sin = new Float64Array(BANDS * half),
+    a = new Float64Array(half),
+    b = new Float64Array(half);
 
-  const analyser = offlineCtx.createAnalyser();
-  analyser.fftSize = 2048; // Matches C++ fftwspectrum def-size
-  analyser.smoothingTimeConstant = 0.0; // Disable smoothing to get raw frames
-
-  source.connect(analyser);
-  analyser.connect(offlineCtx.destination);
-
-  /* 3. Process frames over time */
-  const sampleRateOut = decodedAudio.sampleRate;
-  const hopSize = 1024; // Matches C++ def-step
-  const binCount = analyser.frequencyBinCount; // 1025 bins
-  const freqData = new Float32Array(binCount);
-
-  const rFrames = [];
-  const gFrames = [];
-  const bFrames = [];
-
-  /* Bark band boundaries (from C++ gstmoodbar.c) */
-  const barkBands = [100, 200, 300, 400, 510, 630, 770, 920, 1080, 1270, 1480, 1720, 2000, 2320, 2700, 3150, 3700, 4400, 5300, 6400, 7700, 9500, 12000, 15500];
-
-  /* Pre-calculate bin-to-bark mapping table */
-  const barkTable = new Uint32Array(binCount);
-  let currentBark = 0;
-  for(let i = 0; i < binCount; i++) {
-    const freq = (i * sampleRateOut) / analyser.fftSize;
-    if(currentBark < 23 && freq >= barkBands[currentBark]) {
-      currentBark++;
+  for(let k = 0; k < BANDS; k++)
+    for(let n = 1; n <= half; n++) {
+      cos[k * half + n - 1] = Math.cos((2 * Math.PI * ((k * n) % NFFT)) / NFFT);
+      sin[k * half + n - 1] = Math.sin((2 * Math.PI * ((k * n) % NFFT)) / NFFT);
     }
-    barkTable[i] = currentBark;
+
+  return (x, off, power) => {
+    const x0 = x[off],
+      xm = x[off + NFFT / 2];
+
+    for(let n = 1; n <= half; n++) {
+      a[n - 1] = x[off + n] + x[off + NFFT - n];
+      b[n - 1] = x[off + n] - x[off + NFFT - n];
+    }
+
+    for(let k = 0; k < BANDS; k++) {
+      let re = x0 + (k & 1 ? -xm : xm),
+        im = 0;
+      const o = k * half;
+      for(let n = 0; n < half; n++) {
+        re += a[n] * cos[o + n];
+        im -= b[n] * sin[o + n];
+      }
+      power[k] += (re * re + im * im) / (NFFT * NFFT);
+    }
+  };
+}
+
+function generateMoodbar(decodedAudio) {
+  const rate = decodedAudio.sampleRate,
+    length = decodedAudio.length,
+    channels = decodedAudio.numberOfChannels;
+
+  /* downmix to mono like audioconvert: average of all channels */
+  const mono = new Float32Array(length);
+  for(let c = 0; c < channels; c++) {
+    const data = decodedAudio.getChannelData(c);
+    for(let i = 0; i < length; i++) mono[i] += data[i] / channels;
   }
 
-  /* Hook into the offline rendering timeline step-by-step */
-  const duration = decodedAudio.duration;
-  const totalFrames = Math.floor((decodedAudio.length - analyser.fftSize) / hopSize);
-
-  /* Start rendering */
-  source.start(0);
-
-  /* Because OfflineAudioContext processes blocks internally, we can pull data
-     by rendering in chunks or scheduling script processor/worklet equivalents.
-     Alternatively, using standard rendering loop with renderquantum:
-     Note: Modern WebAudio standard uses AudioWorklet for precise block handling,
-     but for offline batch tasks, we can inspect via frame callbacks or render chunks. */
-
-  /* Simplified frame extraction simulation over timeline ticks:
-     (In a true batch script, you iterate time by hopSize / sampleRateOut) */
-  let currentTime = 0;
-  while(currentTime < duration) {
-    offlineCtx.suspend(currentTime).then(() => {
-      analyser.getFloatFrequencyData(freqData); // dB values
-
-      const amplitudes = new Float32Array(24);
-      for(let i = 0; i < binCount; i++) {
-        /* Convert dB back to linear magnitude (approx matching sqrt(real^2 + imag^2)) */
-        const linearMag = Math.pow(10, freqData[i] / 20);
-        amplitudes[barkTable[i]] += linearMag;
-      }
-
-      /* Sum into RGB thirds (0-7: Red, 8-15: Green, 16-23: Blue)[cite: 3] */
-      let r = 0,
-        g = 0,
-        b = 0;
-      for(let i = 0; i < 24; i++) {
-        const valSq = amplitudes[i] * amplitudes[i];
-        if(i < 8) r += valSq;
-        else if(i < 16) g += valSq;
-        else b += valSq;
-      }
-
-      rFrames.push(Math.sqrt(r));
-      gFrames.push(Math.sqrt(g));
-      bFrames.push(Math.sqrt(b));
-
-      offlineCtx.resume();
-    });
-
-    currentTime += hopSize / sampleRateOut;
+  /* MoodbarBuilder::Init */
+  const barkTable = new Uint32Array(BANDS + 1);
+  for(let i = 0, bark = 0; i <= BANDS; i++) {
+    const freq = Math.floor((Math.floor(rate / 2) * i + Math.floor(rate / 4)) / BANDS);
+    if(bark < 23 && freq >= barkBands[bark]) bark++;
+    barkTable[i] = bark;
   }
 
-  await offlineCtx.startRendering();
+  const spectrum = makeSpectrum(),
+    power = new Float64Array(BANDS),
+    amplitudes = new Float64Array(24),
+    rFrames = [],
+    gFrames = [],
+    bFrames = [];
 
-  /* 4. Normalize channels (Port of Exscalibar / gstmoodbar.c normalization)[cite: 3] */
+  /* the interval is a whole number of samples plus a rounding error that
+   * is carried over, in ns, as fastspectrum does */
+  const framesPerInterval = Math.floor((INTERVAL_NS * rate) / 1e9),
+    errorPerInterval = (INTERVAL_NS * rate) % 1e9;
+  let framesTodo = framesPerInterval,
+    accumulatedError = 0;
+
+  for(let pos = 0; pos + framesTodo <= length; ) {
+    const nfft = Math.max(1, Math.floor(framesTodo / NFFT));
+
+    power.fill(0);
+    for(let i = 0; i < nfft; i++) spectrum(mono, pos + i * NFFT, power);
+
+    /* MoodbarBuilder::AddFrame */
+    amplitudes.fill(0);
+    for(let i = 0; i < BANDS; i++) amplitudes[barkTable[i]] += power[i] / nfft;
+
+    const rgb = [0, 0, 0];
+    for(let i = 0; i < 24; i++) rgb[Math.floor((i * 3) / 24)] += amplitudes[i] * amplitudes[i];
+
+    rFrames.push(Math.sqrt(rgb[0]));
+    gFrames.push(Math.sqrt(rgb[1]));
+    bFrames.push(Math.sqrt(rgb[2]));
+
+    pos += framesTodo;
+    framesTodo = framesPerInterval;
+    if(accumulatedError >= 1e9) {
+      accumulatedError -= 1e9;
+      framesTodo++;
+    }
+    accumulatedError += errorPerInterval;
+  }
+
   normalizeChannel(rFrames);
   normalizeChannel(gFrames);
   normalizeChannel(bFrames);
 
-  /* 5. Resample/Pool down to fixed width (e.g., 1000 bars)[cite: 1, 3] */
-  const targetWidth = Math.min(1000, rFrames.length);
-  const moodbarRGB = new Uint8Array(targetWidth * 3);
+  /* MoodbarBuilder::Finish */
+  const numFrames = rFrames.length,
+    moodbarRGB = new Uint8Array(WIDTH * 3);
 
-  for(let i = 0; i < targetWidth; i++) {
-    const start = Math.floor((i * rFrames.length) / targetWidth);
-    const end = Math.floor(((i + 1) * rFrames.length) / targetWidth);
-    const count = Math.max(1, end - start);
+  for(let i = 0; i < WIDTH && numFrames; i++) {
+    const start = Math.floor((i * numFrames) / WIDTH);
+    let end = Math.floor(((i + 1) * numFrames) / WIDTH);
+    if(end == start) end = start + 1;
 
     let sumR = 0,
       sumG = 0,
       sumB = 0;
     for(let j = start; j < end; j++) {
-      sumR += rFrames[j];
-      sumG += gFrames[j];
-      sumB += bFrames[j];
+      sumR += rFrames[j] * 255;
+      sumG += gFrames[j] * 255;
+      sumB += bFrames[j] * 255;
     }
 
-    moodbarRGB[i * 3] = Math.min(255, Math.max(0, (sumR / count) * 255));
-    moodbarRGB[i * 3 + 1] = Math.min(255, Math.max(0, (sumG / count) * 255));
-    moodbarRGB[i * 3 + 2] = Math.min(255, Math.max(0, (sumB / count) * 255));
+    const count = end - start;
+    moodbarRGB[i * 3] = sumR / count;
+    moodbarRGB[i * 3 + 1] = sumG / count;
+    moodbarRGB[i * 3 + 2] = sumB / count;
   }
 
-  return moodbarRGB; // Raw RGB byte array of constant size width x 3
+  return moodbarRGB;
 }
 
-/* Helper: Classic GStreamer moodbar outlier-trimming normalization[cite: 3] */
+/* Port of normalize() in gstmoodbar.c */
 function normalizeChannel(vals) {
-  if(vals.length === 0) return;
+  const n = vals.length;
+  if(!n) return;
+
   let mini = vals[0],
     maxi = vals[0];
-  for(let i = 1; i < vals.length; i++) {
+  for(let i = 1; i < n; i++) {
     if(vals[i] > maxi) maxi = vals[i];
     else if(vals[i] < mini) mini = vals[i];
   }
 
-  let avg = 0,
-    t = 0;
-  for(let i = 0; i < vals.length; i++) {
-    if(vals[i] !== mini && vals[i] !== maxi) {
-      avg += vals[i];
-      t++;
-    }
-  }
-  avg = t > 0 ? avg / t : mini;
+  let avg = 0;
+  for(let i = 0; i < n; i++) if(vals[i] !== mini && vals[i] !== maxi) avg += vals[i] / n;
 
   let avgu = 0,
-    tu = 0,
     avgb = 0,
+    tu = 0,
     tb = 0;
-  for(let i = 0; i < vals.length; i++) {
+  for(let i = 0; i < n; i++)
     if(vals[i] !== mini && vals[i] !== maxi) {
       if(vals[i] > avg) {
         avgu += vals[i];
@@ -161,17 +172,32 @@ function normalizeChannel(vals) {
         tb++;
       }
     }
-  }
-  avgu = tu > 0 ? avgu / tu : avg;
-  avgb = tb > 0 ? avgb / tb : avg;
+  avgu /= tu;
+  avgb /= tb;
 
-  const minLimit = avg + (avgb - avg) * 2.0;
-  const maxLimit = avg + (avgu - avg) * 2.0;
-  const delta = maxLimit - minLimit === 0 ? 1.0 : maxLimit - minLimit;
+  let avguu = 0,
+    avgbb = 0;
+  tu = tb = 0;
+  for(let i = 0; i < n; i++)
+    if(vals[i] !== mini && vals[i] !== maxi) {
+      if(vals[i] > avgu) {
+        avguu += vals[i];
+        tu++;
+      } else if(vals[i] < avgb) {
+        avgbb += vals[i];
+        tb++;
+      }
+    }
+  avguu /= tu;
+  avgbb /= tb;
 
-  for(let i = 0; i < vals.length; i++) {
-    const val = (vals[i] - minLimit) / delta;
-    vals[i] = Math.min(1.0, Math.max(0.0, val));
+  mini = Math.max(avg + (avgb - avg) * 2, avgbb);
+  maxi = Math.min(avg + (avgu - avg) * 2, avguu);
+  const delta = maxi - mini == 0 ? 1 : maxi - mini;
+
+  for(let i = 0; i < n; i++) {
+    const v = (vals[i] - mini) / delta;
+    vals[i] = Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0;
   }
 }
 
@@ -179,13 +205,13 @@ function writeMoodbarPPM(rgbArray, height, outputPath) {
   /* width is the number of RGB triplets (each triplet is one vertical column) */
   const width = Math.floor(rgbArray.length / 3);
 
-  if(width <= 0 || height <= 0) throw new RangeError('Invalid dimensions: width and height must be greater than 0.');
+  if(width <= 0 || height <= 0) throw new RangeError("Invalid dimensions: width and height must be greater than 0.");
 
-  const fd = openSync(outputPath, 'w');
+  const fd = openSync(outputPath, "w");
   try {
     /* 1. write the P6 NetPBM binary header (must be ASCII text) */
     const header = `P6\n${width} ${height}\n255\n`;
-    writeSync(fd, header, 'ascii');
+    writeSync(fd, header, "ascii");
 
     /* 2. create a Buffer view of the rgbArray without copying memory */
     const rowBuffer = Buffer.from(rgbArray.buffer, rgbArray.byteOffset, rgbArray.byteLength);
@@ -197,20 +223,37 @@ function writeMoodbarPPM(rgbArray, height, outputPath) {
     closeSync(fd);
   }
 
-  console.log(`Successfully saved binary P6 PPM file (${width}x${height}) to ${outputPath}`);
+  console.log(`Successfully saved binary P6 PPM file (${width}x${height}) to '${outputPath}'`);
 }
 
-async function main(file = 'in.wav') {
-  const ac = new AudioContext();
+async function main(file = "in.wav") {
+  let rgb;
 
-  /* we decode the audio data first (an ArrayBuffer of WAV/MP3/FLAC/OGG) */
-  const data = await ac.decodeAudioData(readFileSync(file));
+  if(file.endsWith(".mood")) {
+    console.log(`Reading mood file '${file}'....`);
+    const moodBuffer = readFileSync(file);
+    rgb = new Uint8Array(moodBuffer);
+  } else {
+    const ac = new AudioContext();
+    console.log(`Analyzing audio file '${file}'....`);
+    const data = await ac.decodeAudioData(readFileSync(file));
 
-  const rgb = await generateMoodbar(data);
+    rgb = generateMoodbar(data);
 
-  console.log('rgb', console.config({ compact: true, maxArrayLength: 8, numberBase: 16 }), rgb);
+    /* Save raw 3000-byte mood file using sync file I/O */
+    const moodPath = basename(file, extname(file)) + ".mood";
+    const fd = openSync(moodPath, "w");
+    try {
+      writeSync(fd, Buffer.from(rgb.buffer, rgb.byteOffset, rgb.byteLength));
+    } finally {
+      closeSync(fd);
+    }
+    console.log(`Successfully saved mood file to '${moodPath}' (${rgb.length} bytes)`);
+  }
 
-  writeMoodbarPPM(rgb, 32, 'moodbar.ppm');
+  console.log("rgb", rgb.length);
+
+  writeMoodbarPPM(rgb, 32, basename(file, extname(file)) + ".ppm");
 }
 
 main(...scriptArgs.slice(1));
