@@ -1,26 +1,10 @@
-#include "quickjs-typedarray.h"
+#include "js-typedarray.h"
+#include "js-utils.h"
 #include <cutils.h>
 #include <string.h>
 
-static size_t
-bytes_per_element(JSTypedArrayKind kind) {
-  switch(kind) {
-    case TYPEDARRAY_INT8:
-    case TYPEDARRAY_UINT8:
-    case TYPEDARRAY_UINT8_CLAMPED: return 1;
-    case TYPEDARRAY_INT16:
-    case TYPEDARRAY_UINT16: return 2;
-    case TYPEDARRAY_INT32:
-    case TYPEDARRAY_UINT32:
-    case TYPEDARRAY_FLOAT32: return 4;
-    case TYPEDARRAY_FLOAT64: return 8;
-    case TYPEDARRAY_NONE: break;
-  }
-  return 1;
-}
-
 const char*
-typedarray_name(JSTypedArrayKind kind) {
+typedarray_name(TypedArrayKind kind) {
   switch(kind) {
     case TYPEDARRAY_INT8: return "Int8Array";
     case TYPEDARRAY_UINT8: return "Uint8Array";
@@ -40,12 +24,12 @@ typedarray_name(JSTypedArrayKind kind) {
  * JS_GetTypedArrayBuffer's bytes_per_element, which is ambiguous between
  * e.g. Int16Array/Uint16Array) - duck-type it off .constructor.name
  * instead, same probing spirit as the rest of this file. */
-static JSTypedArrayKind
+static TypedArrayKind
 typedarray_kind(JSContext* ctx, JSValueConst val) {
   JSValue ctor = JS_GetPropertyStr(ctx, val, "constructor");
   JSValue name_val = JS_GetPropertyStr(ctx, ctor, "name");
   const char* name = JS_ToCString(ctx, name_val);
-  JSTypedArrayKind kind = TYPEDARRAY_NONE;
+  TypedArrayKind kind = TYPEDARRAY_NONE;
 
   if(name) {
     if(!strcmp(name, "Int8Array"))
@@ -75,23 +59,25 @@ typedarray_kind(JSContext* ctx, JSValueConst val) {
   return kind;
 }
 
-BOOL
-js_bufferview_get(JSContext* ctx, JSValueConst val, JSBufferView* out) {
+int
+js_typedarray_get(JSContext* ctx, JSValueConst obj, BufferView* out) {
   size_t byte_offset = 0, byte_length = 0, bytes_per_element = 0;
-  JSValue buf = JS_GetTypedArrayBuffer(ctx, val, &byte_offset, &byte_length, &bytes_per_element);
+  JSValue buf = JS_GetTypedArrayBuffer(ctx, obj, &byte_offset, &byte_length, &bytes_per_element);
 
   if(!JS_IsException(buf)) {
-    size_t ab_size = 0;
-    uint8_t* ab_data = JS_GetArrayBuffer(ctx, &ab_size, buf);
+    size_t size = 0;
+    uint8_t* data = JS_GetArrayBuffer(ctx, &size, buf);
     JS_FreeValue(ctx, buf);
-    if(!ab_data)
-      return FALSE;
+    if(!data)
+      return -1;
 
-    out->ptr = ab_data + byte_offset;
-    out->byte_length = byte_length;
-    out->element_size = bytes_per_element ? bytes_per_element : 1;
-    out->kind = typedarray_kind(ctx, val);
-    return TRUE;
+    *out = (BufferView){
+      data + byte_offset,
+      byte_length,
+      bytes_per_element ? bytes_per_element : 1,
+      typedarray_kind(ctx, obj),
+    };
+    return 0;
   }
 
   /* not a TypedArray/DataView: discard the probe exception, try a plain ArrayBuffer */
@@ -99,43 +85,36 @@ js_bufferview_get(JSContext* ctx, JSValueConst val, JSBufferView* out) {
 
   uint8_t* ptr;
   size_t len;
-  if(!(ptr = JS_GetArrayBuffer(ctx, &len, val)))
-    return FALSE;
+  if(!(ptr = JS_GetArrayBuffer(ctx, &len, obj)))
+    return -1;
 
-  out->ptr = ptr;
-  out->byte_length = len;
-  out->element_size = 1;
-  out->kind = TYPEDARRAY_NONE;
-  return TRUE;
+  *out = (BufferView){ ptr, len, 1, TYPEDARRAY_NONE };
+  return 0;
 }
 
-BOOL
-js_bufferview_get_kind(JSContext* ctx, JSValueConst val, JSTypedArrayKind kind, JSBufferView* out) {
-  if(!js_bufferview_get(ctx, val, out))
-    return FALSE;
+int
+js_typedarray_kind(JSContext* ctx, JSValueConst val, TypedArrayKind kind, BufferView* out) {
+  if(js_typedarray_get(ctx, val, out))
+    return -1;
 
   if(out->kind != kind) {
     JS_ThrowTypeError(ctx, "expected a %s", typedarray_name(kind));
-    return FALSE;
+    return -1;
   }
 
-  return TRUE;
+  return 0;
 }
 
 JSValue
-js_typedarray_buffer(JSContext* ctx, JSValue buffer, JSTypedArrayKind kind) {
+js_typedarray_buffer(JSContext* ctx, JSValue buffer, TypedArrayKind kind) {
   if(kind == TYPEDARRAY_NONE)
     return buffer;
 
-  JSValue global = JS_GetGlobalObject(ctx);
-  JSValue ctor = JS_GetPropertyStr(ctx, global, typedarray_name(kind));
-  JS_FreeValue(ctx, global);
-
-  JSValueConst args[1] = { buffer };
-  JSValue ta = JS_CallConstructor(ctx, ctor, 1, args);
+  JSValue ctor = js_global_get_str(ctx, typedarray_name(kind));
+  JSValue ret = JS_CallConstructor(ctx, ctor, 1, &buffer);
   JS_FreeValue(ctx, ctor);
   JS_FreeValue(ctx, buffer);
-  return ta;
+  return ret;
 }
 
 static void
@@ -144,7 +123,7 @@ js_typedarray_free_malloc(JSRuntime* rt, void* opaque, void* ptr) {
 }
 
 JSValue
-js_typedarray_malloc(JSContext* ctx, void* data, size_t count, JSTypedArrayKind kind) {
+js_typedarray_malloc(JSContext* ctx, void* data, size_t count, TypedArrayKind kind) {
   JSValue ab = JS_NewArrayBuffer(ctx, data, count * bytes_per_element(kind), js_typedarray_free_malloc, NULL, FALSE);
 
   if(JS_IsException(ab))
@@ -154,7 +133,7 @@ js_typedarray_malloc(JSContext* ctx, void* data, size_t count, JSTypedArrayKind 
 }
 
 JSValue
-js_typedarray_copy(JSContext* ctx, const void* data, size_t count, JSTypedArrayKind kind) {
+js_typedarray_copy(JSContext* ctx, const void* data, size_t count, TypedArrayKind kind) {
   JSValue ab = JS_NewArrayBufferCopy(ctx, data, count * bytes_per_element(kind));
 
   if(JS_IsException(ab))

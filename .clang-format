@@ -67,7 +67,7 @@ SortIncludes: false
 
 SpaceAfterCStyleCast: false
 SpaceBeforeAssignmentOperators: true
-SpaceBeforeParens: ControlStatements
+SpaceBeforeParens: Never
 SpaceInEmptyParentheses: false
 SpacesInAngles: false
 SpacesInContainerLiterals: false

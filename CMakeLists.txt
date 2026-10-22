@@ -223,7 +223,7 @@ if(USE_STK)
 
   add_definitions(-DUSE_STK)
 
-  set(COMMON_SOURCES quickjs-typedarray.c)
+  set(COMMON_SOURCES js-typedarray.c)
 
   make_module(stk quickjs-stk.cpp js-utils.c)
 
@@ -239,7 +239,7 @@ if(USE_AUBIO)
 
   set(aubio_LIBRARIES ${AUBIO_LIBRARIES})
 
-  make_module(aubio quickjs-aubio.c quickjs-typedarray.c)
+  make_module(aubio quickjs-aubio.c js-typedarray.c)
 
   include_directories(${AUBIO_INCLUDE_DIRS})
   module_include_directories(aubio ${AUBIO_INCLUDE_DIRS})
@@ -256,9 +256,9 @@ if(USE_LABSOUND)
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/src/internal/src/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/src/core/*.cpp)]]
 
-  set(COMMON_SOURCES quickjs-typedarray.c)
+  set(COMMON_SOURCES js-typedarray.c)
 
-  make_module(labsound quickjs-labsound.cpp)
+  make_module(labsound quickjs-labsound.cpp js-utils.c)
 
   unset(COMMON_SOURCES)
 
@@ -312,10 +312,10 @@ if(USE_SNDFILE)
   include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindSndFile.cmake")
 
   set(sndfile_LIBRARIES ${SNDFILE_LIBRARIES})
-  # quickjs-typedarray.c is shared TypedArray/ArrayBuffer marshalling
+  # js-typedarray.c is shared TypedArray/ArrayBuffer marshalling
   # code, not part of libsndfile itself - see doc/native/sndfile.md's "Shared
   # TypedArray/buffer interop" section.
-  set(COMMON_SOURCES quickjs-typedarray.c)
+  set(COMMON_SOURCES js-typedarray.c)
 
   make_module(sndfile)
 
@@ -329,7 +329,7 @@ if(USE_SAMPLERATE)
   include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindSampleRate.cmake")
 
   set(samplerate_LIBRARIES ${SAMPLERATE_LIBRARIES})
-  set(COMMON_SOURCES quickjs-typedarray.c)
+  set(COMMON_SOURCES js-typedarray.c)
 
   make_module(samplerate)
 
@@ -343,7 +343,7 @@ if(USE_SOUNDTOUCH)
   include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindSoundTouch.cmake")
 
   set(soundtouch_LIBRARIES ${SOUNDTOUCH_LIBRARIES})
-  set(COMMON_SOURCES quickjs-typedarray.c)
+  set(COMMON_SOURCES js-typedarray.c)
 
   make_module(soundtouch quickjs-soundtouch.cpp)
 
@@ -357,7 +357,7 @@ if(USE_RUBBERBAND)
   include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindRubberBand.cmake")
 
   set(rubberband_LIBRARIES ${RUBBERBAND_LIBRARIES})
-  set(COMMON_SOURCES quickjs-typedarray.c)
+  set(COMMON_SOURCES js-typedarray.c)
 
   make_module(rubberband)
 
@@ -392,7 +392,7 @@ if(USE_SNDOBJ)
       ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Gain.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Mix.cpp)
 
-  set(COMMON_SOURCES quickjs-typedarray.c)
+  set(COMMON_SOURCES js-typedarray.c)
 
   make_module(sndobj quickjs-sndobj.cpp js-utils.c)
 

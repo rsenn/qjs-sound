@@ -2,7 +2,7 @@
 #include <cutils.h>
 #include <string.h>
 #include "defines.h"
-#include "quickjs-typedarray.h"
+#include "js-typedarray.h"
 #include <sndfile.h>
 
 static JSClassID js_sndfile_class_id;
@@ -150,7 +150,7 @@ js_sndfile_get(JSContext* ctx, JSValueConst this_val, int magic) {
  * kind - Int16Array -> short, Int32Array -> int, Float32Array -> float,
  * Float64Array -> double, anything else is rejected. */
 static sf_count_t
-js_sndfile_readf(SNDFILE* file, const JSBufferView* view, sf_count_t frames) {
+js_sndfile_readf(SNDFILE* file, const BufferView* view, sf_count_t frames) {
   switch(view->kind) {
     case TYPEDARRAY_INT16: return sf_readf_short(file, (short*)view->ptr, frames);
     case TYPEDARRAY_INT32: return sf_readf_int(file, (int*)view->ptr, frames);
@@ -161,7 +161,7 @@ js_sndfile_readf(SNDFILE* file, const JSBufferView* view, sf_count_t frames) {
 }
 
 static sf_count_t
-js_sndfile_writef(SNDFILE* file, const JSBufferView* view, sf_count_t frames) {
+js_sndfile_writef(SNDFILE* file, const BufferView* view, sf_count_t frames) {
   switch(view->kind) {
     case TYPEDARRAY_INT16: return sf_writef_short(file, (const short*)view->ptr, frames);
     case TYPEDARRAY_INT32: return sf_writef_int(file, (const int*)view->ptr, frames);
@@ -191,12 +191,12 @@ js_sndfile_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst 
   switch(magic) {
     case METHOD_READ:
     case METHOD_WRITE: {
-      JSBufferView view;
+      BufferView view;
       int32_t channels = w->info.channels > 0 ? w->info.channels : 1;
       sf_count_t frames;
       sf_count_t got;
 
-      if(argc < 1 || !js_bufferview_get(ctx, argv[0], &view))
+      if(argc < 1 || js_typedarray_get(ctx, argv[0], &view))
         return JS_EXCEPTION;
 
       if(view.kind == TYPEDARRAY_NONE)
@@ -205,7 +205,7 @@ js_sndfile_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst 
       if(argc > 1)
         JS_ToInt64(ctx, &frames, argv[1]);
       else
-        frames = view.byte_length / view.element_size / channels;
+        frames = typedarray_size(view) / channels;
 
       got = magic == METHOD_READ ? js_sndfile_readf(w->file, &view, frames) : js_sndfile_writef(w->file, &view, frames);
 

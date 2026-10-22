@@ -186,7 +186,7 @@ js_soundtouch_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
       qjsx::array_view<float> view;
       uint channels = w->st->numChannels();
 
-      if(argc < 1 || !qjsx::get_array(ctx, argv[0], view))
+      if(argc < 1 || qjsx::get_array(ctx, argv[0], view))
         return JS_EXCEPTION;
 
       uint numSamples = (uint)(view.size / (channels ? channels : 1));
@@ -198,7 +198,7 @@ js_soundtouch_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
       qjsx::array_view<float> view;
       uint channels = w->st->numChannels();
 
-      if(argc < 1 || !qjsx::get_array(ctx, argv[0], view))
+      if(argc < 1 || qjsx::get_array(ctx, argv[0], view))
         return JS_EXCEPTION;
 
       uint maxSamples = (uint)(view.size / (channels ? channels : 1));

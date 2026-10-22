@@ -8,7 +8,7 @@
 
 #include "defines.h"
 #include "js-utils.hpp"
-#include "quickjs-typedarray.h"
+#include "js-typedarray.h"
 #include "Stk.h"
 #include "Generator.h"
 #include "Filter.h"
@@ -377,15 +377,12 @@ js_stkframes_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
       size_t n = (*f)->size();
 
       if(argc > 0 && !JS_IsUndefined(argv[0])) {
-        JSBufferView view;
-        if(!js_bufferview_get_kind(ctx, argv[0], TYPEDARRAY_FLOAT32, &view))
+        qjsx::array_view<float> view;
+        if(qjsx::get_array(ctx, argv[0], view, n))
           return JS_EXCEPTION;
-        if(view.byte_length / sizeof(float) < n)
-          return JS_ThrowRangeError(ctx, "output has %zu elements, need %zu", view.byte_length / sizeof(float), n);
 
-        float* dst = reinterpret_cast<float*>(view.ptr);
         for(size_t i = 0; i < n; i++)
-          dst[i] = static_cast<float>((**f)[i]);
+          view[i] = static_cast<float>((**f)[i]);
 
         ret = JS_DupValue(ctx, argv[0]);
         break;
@@ -403,17 +400,16 @@ js_stkframes_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
     case METHOD_FROM_FLOAT32: {
       /* fromFloat32(src): copies a Float32Array into the first src.length
        * samples, widening to stk::StkFloat; returns this. */
-      JSBufferView view;
-      if(argc < 1 || !js_bufferview_get_kind(ctx, argv[0], TYPEDARRAY_FLOAT32, &view))
+      qjsx::array_view<float> view;
+      if(argc < 1 || qjsx::get_array(ctx, argv[0], view))
         return JS_EXCEPTION;
 
-      size_t n = view.byte_length / sizeof(float);
-      if(n > (*f)->size())
-        return JS_ThrowRangeError(ctx, "source has %zu elements, StkFrames holds %zu", n, (size_t)(*f)->size());
+      size_t n = (*f)->size();
+      if(view.size > n)
+        return JS_ThrowRangeError(ctx, "source has %zu elements, StkFrames holds %zu", view.size, n);
 
-      const float* src = reinterpret_cast<const float*>(view.ptr);
-      for(size_t i = 0; i < n; i++)
-        (**f)[i] = static_cast<stk::StkFloat>(src[i]);
+      for(size_t i = 0; i < view.size; i++)
+        (**f)[i] = static_cast<stk::StkFloat>(view[i]);
 
       ret = JS_DupValue(ctx, this_val);
       break;

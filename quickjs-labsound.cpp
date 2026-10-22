@@ -2,6 +2,7 @@
 #include <cutils.h>
 #include "defines.h"
 #include "js-utils.hpp"
+#include "js-iterator.hpp"
 #include "LabSound/LabSound.h"
 #include "LabSound/backends/AudioDevice_RtAudio.h"
 #include "LabSound/core/AudioNodeOutput.h"
@@ -23,8 +24,9 @@
 
 #include <algorithm>
 #include <cstring>
-#include <memory>
 #include <utility>
+
+using namespace qjsx;
 
 extern int js_stk_init(JSContext* ctx, JSModuleDef* m);
 
@@ -145,16 +147,7 @@ any_audio_param(JSValueConst v) {
 
 static JSValue
 make_audio_setting_js(JSContext* ctx, std::shared_ptr<lab::AudioSetting> s) {
-  auto* w = static_cast<JsAudioSetting*>(js_mallocz(ctx, sizeof(JsAudioSetting)));
-  new(w) JsAudioSetting{ std::move(s) };
-  JSValue obj = JS_NewObjectProtoClass(ctx, audiosetting_proto, js_audiosetting_class_id);
-  if(JS_IsException(obj)) {
-    w->~JsAudioSetting();
-    js_free(ctx, w);
-    return obj;
-  }
-  JS_SetOpaque(obj, w);
-  return obj;
+  return qjsx::wrap_proto<JsAudioSetting>(ctx, audiosetting_proto, js_audiosetting_class_id, std::move(s));
 }
 
 // Read a 1-D float buffer from either a Float32Array or a plain Array.
@@ -163,35 +156,9 @@ read_float_array(JSContext* ctx, JSValueConst val, std::vector<float>& out) {
   return qjsx::copy_array(ctx, val, out) ? 0 : -1;
 }
 
-// quickjs.h has no JS_NewFloat32Array-style helper, so build one the same
-// way JS code would: wrap a copied ArrayBuffer with the global constructor.
-static JSValue
-make_float32_array(JSContext* ctx, const float* data, size_t count) {
-  JSValue ab = JS_NewArrayBufferCopy(ctx, reinterpret_cast<const uint8_t*>(data), count * sizeof(float));
-  if(JS_IsException(ab))
-    return ab;
-  JSValue global = JS_GetGlobalObject(ctx);
-  JSValue ctor = JS_GetPropertyStr(ctx, global, "Float32Array");
-  JSValue args[1] = { ab };
-  JSValue ta = JS_CallConstructor(ctx, ctor, 1, args);
-  JS_FreeValue(ctx, ctor);
-  JS_FreeValue(ctx, global);
-  JS_FreeValue(ctx, ab);
-  return ta;
-}
-
 static JSValue
 make_audio_buffer_js(JSContext* ctx, std::shared_ptr<lab::AudioBus> bus) {
-  auto* w = static_cast<JsAudioBuffer*>(js_mallocz(ctx, sizeof(JsAudioBuffer)));
-  new(w) JsAudioBuffer{ std::move(bus) };
-  JSValue obj = JS_NewObjectProtoClass(ctx, audiobuffer_proto, js_audiobuffer_class_id);
-  if(JS_IsException(obj)) {
-    w->~JsAudioBuffer();
-    js_free(ctx, w);
-    return obj;
-  }
-  JS_SetOpaque(obj, w);
-  return obj;
+  return qjsx::wrap_proto<JsAudioBuffer>(ctx, audiobuffer_proto, js_audiobuffer_class_id, std::move(bus));
 }
 
 // Same recipe as RecorderNode::writeRecordingToWav(LabSound's only other
@@ -279,8 +246,12 @@ sweep_anchored_nodes(JSContext* ctx, JSValueConst ac_jsval, JSValueConst arr, ui
 
   std::vector<JSValue> vals(len);
   std::vector<char> dead(len, 0);
-  for(uint32_t i = 0; i < len; i++)
-    vals[i] = JS_GetPropertyUint32(ctx, arr, i);
+
+  qjsx::iterator it{ ctx, arr }, end{};
+  std::copy(it, end, vals.begin());
+
+  /*for(uint32_t i = 0; i < len; i++)
+    vals[i] = JS_GetPropertyUint32(ctx, arr, i);*/
 
   /* The array's reference plus the one just taken above. */
   auto reachable_from_js = [](JSValueConst v) {
@@ -385,30 +356,12 @@ anchor_node_in_context(JSContext* ctx, JSValueConst ac_jsval, JSValueConst node_
 
 static JSValue
 make_audio_node_js(JSContext* ctx, JSValueConst proto, JSClassID class_id, std::shared_ptr<lab::AudioNode> node, AudioContextPtr ac) {
-  auto* w = static_cast<JsAudioNode*>(js_mallocz(ctx, sizeof(JsAudioNode)));
-  new(w) JsAudioNode{ std::move(node), std::move(ac) };
-  JSValue obj = JS_NewObjectProtoClass(ctx, proto, class_id);
-  if(JS_IsException(obj)) {
-    w->~JsAudioNode();
-    js_free(ctx, w);
-    return obj;
-  }
-  JS_SetOpaque(obj, w);
-  return obj;
+  return qjsx::wrap_proto<JsAudioNode>(ctx, proto, class_id, std::move(node), std::move(ac));
 }
 
 static JSValue
 make_audio_param_js(JSContext* ctx, std::shared_ptr<lab::AudioParam> param) {
-  auto* w = static_cast<JsAudioParam*>(js_mallocz(ctx, sizeof(JsAudioParam)));
-  new(w) JsAudioParam{ std::move(param) };
-  JSValue obj = JS_NewObjectProtoClass(ctx, audioparam_proto, js_audioparam_class_id);
-  if(JS_IsException(obj)) {
-    w->~JsAudioParam();
-    js_free(ctx, w);
-    return obj;
-  }
-  JS_SetOpaque(obj, w);
-  return obj;
+  return qjsx::wrap_proto<JsAudioParam>(ctx, audioparam_proto, js_audioparam_class_id, std::move(param));
 }
 
 static std::pair<lab::AudioStreamConfig, lab::AudioStreamConfig>
@@ -456,21 +409,18 @@ get_default_device_config() {
 
 static JSValue
 js_audiocontext_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
-  JSValue proto, obj = JS_UNDEFINED;
-
-  // contextOptions.sampleRate is honored as a best-effort request to the
-  // underlying device; latencyHint/sinkId are accepted(for API
-  // compatibility with browser code) but not implemented by this fixed
-  // default-RtAudio-device backend.
+  /* contextOptions.sampleRate is honored as a best-effort request to the
+     underlying device; latencyHint/sinkId are accepted(for API
+     compatibility with browser code) but not implemented by this fixed
+     default-RtAudio-device backend. */
   double sampleRate = 0;
-  if(argc > 0 && JS_IsObject(argv[0])) {
-    JSValue v = JS_GetPropertyStr(ctx, argv[0], "sampleRate");
-    if(JS_IsNumber(v))
-      JS_ToFloat64(ctx, &sampleRate, v);
-    JS_FreeValue(ctx, v);
-  }
+  if(argc > 0 && JS_IsObject(argv[0]))
+    sampleRate = qjsx::property_default(ctx, argv[0], "sampleRate", 0);
 
   auto ac = std::make_shared<lab::AudioContext>(/* isOffline */ false, /* autoDispatchEvents */ true);
+
+  if(!ac)
+    return JS_ThrowInternalError(ctx, "lab::AudioContext failed to initialize");
 
   auto cfg = get_default_device_config();
   if(sampleRate > 0)
@@ -480,28 +430,7 @@ js_audiocontext_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
   device->setDestinationNode(dest);
   ac->setDestinationNode(dest);
 
-  auto* sac = static_cast<AudioContextPtr*>(js_mallocz(ctx, sizeof(AudioContextPtr)));
-  new(sac) AudioContextPtr(ac);
-
-  proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
-    goto fail;
-  if(!JS_IsObject(proto))
-    proto = JS_DupValue(ctx, audiocontext_proto);
-
-  obj = JS_NewObjectProtoClass(ctx, proto, js_audiocontext_class_id);
-  JS_FreeValue(ctx, proto);
-  if(JS_IsException(obj))
-    goto fail;
-
-  JS_SetOpaque(obj, sac);
-  return obj;
-
-fail:
-  sac->~AudioContextPtr();
-  js_free(ctx, sac);
-  JS_FreeValue(ctx, obj);
-  return JS_EXCEPTION;
+  return qjsx::wrap<AudioContextPtr>(ctx, new_target, js_audiocontext_class_id, ac);
 }
 
 static JSValue
@@ -513,25 +442,17 @@ js_offlineaudiocontext_constructor(JSContext* ctx, JSValueConst new_target, int 
 
   if(argc > 0 && JS_IsObject(argv[0])) {
     // new OfflineAudioContext({numberOfChannels, length, sampleRate})
-    JSValue v = JS_GetPropertyStr(ctx, argv[0], "numberOfChannels");
-    JS_ToInt32(ctx, &numberOfChannels, v);
-    JS_FreeValue(ctx, v);
-
-    v = JS_GetPropertyStr(ctx, argv[0], "length");
-    JS_ToInt32(ctx, &length, v);
-    JS_FreeValue(ctx, v);
-
-    v = JS_GetPropertyStr(ctx, argv[0], "sampleRate");
-    JS_ToFloat64(ctx, &sampleRate, v);
-    JS_FreeValue(ctx, v);
+    qjsx::property(ctx, argv[0], "numberOfChannels", numberOfChannels);
+    qjsx::property(ctx, argv[0], "length", length);
+    qjsx::property(ctx, argv[0], "sampleRate", sampleRate);
   } else {
     // new OfflineAudioContext(numberOfChannels, length, sampleRate)
     if(argc > 0)
-      JS_ToInt32(ctx, &numberOfChannels, argv[0]);
+      qjsx::value(ctx, argv[0], numberOfChannels);
     if(argc > 1)
-      JS_ToInt32(ctx, &length, argv[1]);
+      qjsx::value(ctx, argv[1], length);
     if(argc > 2)
-      JS_ToFloat64(ctx, &sampleRate, argv[2]);
+      qjsx::value(ctx, argv[2], sampleRate);
   }
 
   if(numberOfChannels <= 0 || length <= 0 || sampleRate <= 0)
@@ -671,7 +592,7 @@ js_audiocontext_decode_audio_data(JSContext* ctx, JSValueConst this_val, int arg
     return JS_ThrowTypeError(ctx, "decodeAudioData requires an ArrayBuffer");
 
   qjsx::array_view<uint8_t> bytes;
-  if(!qjsx::get_bytes(ctx, argv[0], bytes))
+  if(qjsx::get_bytes(ctx, argv[0], bytes))
     return JS_EXCEPTION;
 
   std::vector<uint8_t> data(bytes.begin(), bytes.end());
@@ -838,10 +759,7 @@ js_audiocontext_start_rendering(JSContext* ctx, JSValueConst this_val, int argc,
   if(!dest || !dest->device())
     return JS_ThrowInternalError(ctx, "offline AudioContext has no destination");
 
-  JSValue lenv = JS_GetPropertyStr(ctx, this_val, "__offlineLength");
-  int32_t length = 0;
-  JS_ToInt32(ctx, &length, lenv);
-  JS_FreeValue(ctx, lenv);
+  int32_t length = qjsx::property_default(ctx, this_val, "__offlineLength", 0);
   if(length <= 0)
     return JS_ThrowTypeError(ctx, "offline AudioContext has no render length");
 
@@ -1365,52 +1283,14 @@ js_biquadfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
   if(!acptr)
     return JS_EXCEPTION;
   AudioContextPtr ac = *acptr;
-  auto f = std::make_shared<lab::BiquadFilterNode>(*ac);
+  auto bfn = std::make_shared<lab::BiquadFilterNode>(*ac);
 
   if(argc > 1 && JS_IsObject(argv[1])) {
-    JSValue v;
-
-    v = JS_GetPropertyStr(ctx, argv[1], "type");
-    if(!JS_IsUndefined(v) && !JS_IsException(v)) {
-      const char* s = JS_ToCString(ctx, v);
-      if(s) {
-        f->setType(parse_filter_type(s));
-        JS_FreeCString(ctx, s);
-      }
-    }
-    JS_FreeValue(ctx, v);
-
-    v = JS_GetPropertyStr(ctx, argv[1], "frequency");
-    if(JS_IsNumber(v)) {
-      double d;
-      JS_ToFloat64(ctx, &d, v);
-      f->frequency()->setValue((float)d);
-    }
-    JS_FreeValue(ctx, v);
-
-    v = JS_GetPropertyStr(ctx, argv[1], "Q");
-    if(JS_IsNumber(v)) {
-      double d;
-      JS_ToFloat64(ctx, &d, v);
-      f->q()->setValue((float)d);
-    }
-    JS_FreeValue(ctx, v);
-
-    v = JS_GetPropertyStr(ctx, argv[1], "detune");
-    if(JS_IsNumber(v)) {
-      double d;
-      JS_ToFloat64(ctx, &d, v);
-      f->detune()->setValue((float)d);
-    }
-    JS_FreeValue(ctx, v);
-
-    v = JS_GetPropertyStr(ctx, argv[1], "gain");
-    if(JS_IsNumber(v)) {
-      double d;
-      JS_ToFloat64(ctx, &d, v);
-      f->gain()->setValue((float)d);
-    }
-    JS_FreeValue(ctx, v);
+    qjsx::with(ctx, argv[1], "type", [bfn](const char* s) { bfn->setType(parse_filter_type(s)); });
+    qjsx::with(ctx, argv[1], "frequency", [bfn](float f) { bfn->frequency()->setValue(f); });
+    qjsx::with(ctx, argv[1], "Q", [bfn](float f) { bfn->q()->setValue(f); });
+    qjsx::with(ctx, argv[1], "detune", [bfn](float f) { bfn->detune()->setValue(f); });
+    qjsx::with(ctx, argv[1], "gain", [bfn](float f) { bfn->gain()->setValue(f); });
   }
 
   JSValue proto = JS_GetPropertyStr(ctx, new_target, "prototype");
@@ -1420,7 +1300,7 @@ js_biquadfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
     JS_FreeValue(ctx, proto);
     proto = JS_DupValue(ctx, biquadfilternode_proto);
   }
-  JSValue obj = make_audio_node_js(ctx, proto, js_biquadfilternode_class_id, std::static_pointer_cast<lab::AudioNode>(f), ac);
+  JSValue obj = make_audio_node_js(ctx, proto, js_biquadfilternode_class_id, std::static_pointer_cast<lab::AudioNode>(bfn), ac);
   JS_FreeValue(ctx, proto);
   anchor_node_in_context(ctx, argv[0], obj);
   return obj;
@@ -1816,7 +1696,7 @@ js_audiobuffer_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
       if(channel < 0 || channel >= w->bus->numberOfChannels())
         return JS_ThrowRangeError(ctx, "channel index out of range");
       lab::AudioChannel* ch = w->bus->channel(channel);
-      return make_float32_array(ctx, ch->data(), ch->length());
+      return qjsx::new_array<float>(ctx, ch->data(), ch->length());
     }
 
     case AB_METHOD_COPY_TO_CHANNEL: {
@@ -1851,7 +1731,7 @@ js_audiobuffer_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
         return JS_ThrowRangeError(ctx, "channel index out of range");
       lab::AudioChannel* ch = w->bus->channel(channel);
       qjsx::array_view<float> dest;
-      if(!qjsx::get_array(ctx, argv[0], dest))
+      if(qjsx::get_array(ctx, argv[0], dest))
         return JS_EXCEPTION;
       int32_t startInChannel = 0;
       if(argc > 2)
@@ -1987,11 +1867,7 @@ js_absource_start(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst 
   if(argc > 1)
     JS_ToFloat64(ctx, &offset, argv[1]);
 
-  bool wantLoop = false;
-  JSValue lv = JS_GetPropertyStr(ctx, this_val, "loop");
-  if(!JS_IsUndefined(lv))
-    wantLoop = JS_ToBool(ctx, lv);
-  JS_FreeValue(ctx, lv);
+  bool wantLoop = qjsx::property_default<bool>(ctx, this_val, "loop", false);
   int loopCount = wantLoop ? -1 : 0;
 
   if(offset > 0)
@@ -2329,7 +2205,7 @@ js_iirfilter_get_frequency_response(JSContext* ctx, JSValueConst this_val, int a
     return JS_ThrowTypeError(ctx, "getFrequencyResponse requires(frequencyHz, magResponse, phaseResponse)");
 
   qjsx::array_view<float> freq, mag, phase;
-  if(!qjsx::get_array(ctx, argv[0], freq) || !qjsx::get_array(ctx, argv[1], mag) || !qjsx::get_array(ctx, argv[2], phase))
+  if(qjsx::get_array(ctx, argv[0], freq) || qjsx::get_array(ctx, argv[1], mag) || qjsx::get_array(ctx, argv[2], phase))
     return JS_EXCEPTION;
 
   size_t n = std::min({ freq.size, mag.size, phase.size });
@@ -2664,41 +2540,17 @@ js_analyser_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVal
   if(!acptr)
     return JS_EXCEPTION;
   AudioContextPtr ac = *acptr;
-  auto an = std::make_shared<lab::AnalyserNode>(*ac);
+  int32_t fftSize = -1;
+
+  if(argc > 1 && JS_IsObject(argv[1]))
+    qjsx::property(ctx, argv[1], "fftSize", fftSize);
+
+  auto an = fftSize == -1 ? std::make_shared<lab::AnalyserNode>(*ac) : std::make_shared<lab::AnalyserNode>(*ac, fftSize);
 
   if(argc > 1 && JS_IsObject(argv[1])) {
-    JSValue v = JS_GetPropertyStr(ctx, argv[1], "fftSize");
-    if(JS_IsNumber(v)) {
-      int32_t fftSize = 2048;
-      JS_ToInt32(ctx, &fftSize, v);
-      lab::ContextRenderLock renderLock(ac.get(), "AnalyserNode.fftSize");
-      an->setFftSize(renderLock, fftSize);
-    }
-    JS_FreeValue(ctx, v);
-
-    v = JS_GetPropertyStr(ctx, argv[1], "minDecibels");
-    if(JS_IsNumber(v)) {
-      double d;
-      JS_ToFloat64(ctx, &d, v);
-      an->setMinDecibels(d);
-    }
-    JS_FreeValue(ctx, v);
-
-    v = JS_GetPropertyStr(ctx, argv[1], "maxDecibels");
-    if(JS_IsNumber(v)) {
-      double d;
-      JS_ToFloat64(ctx, &d, v);
-      an->setMaxDecibels(d);
-    }
-    JS_FreeValue(ctx, v);
-
-    v = JS_GetPropertyStr(ctx, argv[1], "smoothingTimeConstant");
-    if(JS_IsNumber(v)) {
-      double d;
-      JS_ToFloat64(ctx, &d, v);
-      an->setSmoothingTimeConstant(d);
-    }
-    JS_FreeValue(ctx, v);
+    qjsx::with(ctx, argv[1], "minDecibels", [an](double arg) { an->setMinDecibels(arg); });
+    qjsx::with(ctx, argv[1], "maxDecibels", [an](double arg) { an->setMaxDecibels(arg); });
+    qjsx::with(ctx, argv[1], "smoothingTimeConstant", [an](double arg) { an->setSmoothingTimeConstant(arg); });
   }
 
   // Per LabSound's AnalyserNode.h: an analyser not connected to destination
@@ -2754,28 +2606,21 @@ js_analyser_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int m
     return JS_ThrowInternalError(ctx, "not an AnalyserNode");
   switch(magic) {
     case AN_PROP_FFTSIZE: {
-      int32_t fftSize = 2048;
-      JS_ToInt32(ctx, &fftSize, value);
+      int32_t fftSize = qjsx::value<int32_t>(ctx, value);
       lab::ContextRenderLock renderLock(w->ctx.get(), "AnalyserNode.fftSize");
       an->setFftSize(renderLock, fftSize);
       break;
     }
     case AN_PROP_MINDECIBELS: {
-      double d;
-      JS_ToFloat64(ctx, &d, value);
-      an->setMinDecibels(d);
+      an->setMinDecibels(qjsx::value<double>(ctx, value));
       break;
     }
     case AN_PROP_MAXDECIBELS: {
-      double d;
-      JS_ToFloat64(ctx, &d, value);
-      an->setMaxDecibels(d);
+      an->setMaxDecibels(qjsx::value<double>(ctx, value));
       break;
     }
     case AN_PROP_SMOOTHINGTIMECONSTANT: {
-      double d;
-      JS_ToFloat64(ctx, &d, value);
-      an->setSmoothingTimeConstant(d);
+      an->setSmoothingTimeConstant(qjsx::value<double>(ctx, value));
       break;
     }
   }
@@ -2795,7 +2640,7 @@ template <class T, class F>
 static JSValue
 analyser_fill(JSContext* ctx, JSValueConst dest_val, size_t limit, F fill) {
   qjsx::array_view<T> dest;
-  if(!qjsx::get_array(ctx, dest_val, dest))
+  if(qjsx::get_array(ctx, dest_val, dest))
     return JS_EXCEPTION;
 
   std::vector<T> data(std::min(dest.size, limit));

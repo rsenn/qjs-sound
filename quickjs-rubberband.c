@@ -2,7 +2,7 @@
 #include <cutils.h>
 #include <string.h>
 #include "defines.h"
-#include "quickjs-typedarray.h"
+#include "js-typedarray.h"
 #include "js-utils.h"
 #include <rubberband/rubberband-c.h>
 
@@ -24,24 +24,25 @@ typedef struct {
  * the shortest length(in samples) across all channel buffers, matching
  * how `samples`/capacity is derived elsewhere in this project(e.g.
  * SndFile.read()'s default-frames convention). */
-static BOOL js_rubberband_planar_get(JSContext* ctx, JSValueConst arr, uint32_t channels, float* ptrs[], uint32_t* out_frames) {
+static int
+js_rubberband_planar_get(JSContext* ctx, JSValueConst arr, uint32_t channels, float* ptrs[], uint32_t* out_frames) {
   uint32_t i, min_frames = UINT32_MAX;
 
   if(!js_is_arraylike(ctx, arr))
-    return FALSE;
+    return -1;
 
   for(i = 0; i < channels; i++) {
     JSValue v = JS_GetPropertyUint32(ctx, arr, i);
-    JSBufferView view;
-    BOOL ok = js_bufferview_get_kind(ctx, v, TYPEDARRAY_FLOAT32, &view);
+    BufferView view;
+    BOOL ok = !js_typedarray_kind(ctx, v, TYPEDARRAY_FLOAT32, &view);
     JS_FreeValue(ctx, v);
 
     if(!ok)
-      return FALSE;
+      return -1;
 
     ptrs[i] = (float*)view.ptr;
 
-    uint32_t frames = (uint32_t)(view.byte_length / sizeof(float));
+    uint32_t frames = typedarray_size(view);
     if(frames < min_frames)
       min_frames = frames;
   }
@@ -49,10 +50,11 @@ static BOOL js_rubberband_planar_get(JSContext* ctx, JSValueConst arr, uint32_t 
   if(out_frames)
     *out_frames = min_frames;
 
-  return TRUE;
+  return 0;
 }
 
-static JSValue js_rubberband_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
+static JSValue
+js_rubberband_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
   JSValue proto, obj = JS_UNDEFINED;
   JSRubberBand* w = NULL;
   uint32_t sampleRate = 44100, channels = 2;
@@ -109,7 +111,8 @@ fail:
   return JS_EXCEPTION;
 }
 
-static void js_rubberband_finalizer(JSRuntime* rt, JSValue val) {
+static void
+js_rubberband_finalizer(JSRuntime* rt, JSValue val) {
   JSRubberBand* w;
 
   if((w = JS_GetOpaque(val, js_rubberband_class_id))) {
@@ -132,7 +135,8 @@ enum {
   PROP_PROCESS_SIZE_LIMIT,
 };
 
-static JSValue js_rubberband_get(JSContext* ctx, JSValueConst this_val, int magic) {
+static JSValue
+js_rubberband_get(JSContext* ctx, JSValueConst this_val, int magic) {
   JSRubberBand* w;
 
   if(!(w = JS_GetOpaque2(ctx, this_val, js_rubberband_class_id)))
@@ -157,7 +161,8 @@ static JSValue js_rubberband_get(JSContext* ctx, JSValueConst this_val, int magi
   return JS_UNDEFINED;
 }
 
-static JSValue js_rubberband_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
+static JSValue
+js_rubberband_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
   JSRubberBand* w;
   double d;
 
@@ -202,7 +207,8 @@ enum {
   METHOD_CLOSE,
 };
 
-static JSValue js_rubberband_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+static JSValue
+js_rubberband_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
   JSRubberBand* w;
   JSValue ret = JS_UNDEFINED;
 
@@ -222,7 +228,7 @@ static JSValue js_rubberband_method(JSContext* ctx, JSValueConst this_val, int a
       if(w->channels > RB_MAX_CHANNELS)
         return JS_ThrowRangeError(ctx, "too many channels(max %d)", RB_MAX_CHANNELS);
 
-      if(argc < 1 || !js_rubberband_planar_get(ctx, argv[0], w->channels, ptrs, &frames))
+      if(argc < 1 || js_rubberband_planar_get(ctx, argv[0], w->channels, ptrs, &frames))
         return JS_ThrowTypeError(ctx, "argument 1 must be an array of %u Float32Arrays", w->channels);
 
       if(argc > 1)
@@ -245,7 +251,7 @@ static JSValue js_rubberband_method(JSContext* ctx, JSValueConst this_val, int a
       if(w->channels > RB_MAX_CHANNELS)
         return JS_ThrowRangeError(ctx, "too many channels(max %d)", RB_MAX_CHANNELS);
 
-      if(argc < 1 || !js_rubberband_planar_get(ctx, argv[0], w->channels, ptrs, &frames))
+      if(argc < 1 || js_rubberband_planar_get(ctx, argv[0], w->channels, ptrs, &frames))
         return JS_ThrowTypeError(ctx, "argument 1 must be an array of %u Float32Arrays", w->channels);
 
       got = rubberband_retrieve(w->state, (float* const*)ptrs, frames);
@@ -354,7 +360,8 @@ static JSClassDef js_rubberband_class = {
   .finalizer = js_rubberband_finalizer,
 };
 
-int js_rubberband_init(JSContext* ctx, JSModuleDef* m) {
+int
+js_rubberband_init(JSContext* ctx, JSModuleDef* m) {
   JS_NewClassID(&js_rubberband_class_id);
   JS_NewClass(JS_GetRuntime(ctx), js_rubberband_class_id, &js_rubberband_class);
 
@@ -372,7 +379,8 @@ int js_rubberband_init(JSContext* ctx, JSModuleDef* m) {
   return 0;
 }
 
-VISIBLE void js_rubberband_add_exports(JSContext* ctx, JSModuleDef* m) {
+VISIBLE void
+js_rubberband_add_exports(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "RubberBandStretcher");
   JS_AddModuleExportList(ctx, m, js_rubberband_module_funcs, countof(js_rubberband_module_funcs));
 }
@@ -383,7 +391,8 @@ VISIBLE void js_rubberband_add_exports(JSContext* ctx, JSModuleDef* m) {
 #define JS_INIT_MODULE js_init_module_rubberband
 #endif
 
-VISIBLE JSModuleDef* JS_INIT_MODULE(JSContext* ctx, const char* module_name) {
+VISIBLE JSModuleDef*
+JS_INIT_MODULE(JSContext* ctx, const char* module_name) {
   JSModuleDef* m;
 
   if((m = JS_NewCModule(ctx, module_name, js_rubberband_init)))

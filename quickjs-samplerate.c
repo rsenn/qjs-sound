@@ -3,7 +3,7 @@
 #include <string.h>
 #include <math.h>
 #include "defines.h"
-#include "quickjs-typedarray.h"
+#include "js-typedarray.h"
 #include <samplerate.h>
 
 /* Extra frames of headroom on top of ceil(input_frames * ratio) when
@@ -128,14 +128,14 @@ js_srcstate_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
 
   switch(magic) {
     case METHOD_PROCESS: {
-      JSBufferView in, out;
+      BufferView in, out;
       BOOL has_output, endOfInput = FALSE;
       double ratio = 1.0;
       long input_frames;
       SRC_DATA data;
       int err;
 
-      if(argc < 1 || !js_bufferview_get_kind(ctx, argv[0], TYPEDARRAY_FLOAT32, &in))
+      if(argc < 1 || js_typedarray_kind(ctx, argv[0], TYPEDARRAY_FLOAT32, &in))
         return JS_EXCEPTION;
 
       if(argc > 1)
@@ -144,10 +144,10 @@ js_srcstate_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
         endOfInput = JS_ToBool(ctx, argv[2]);
 
       has_output = argc > 3 && !JS_IsUndefined(argv[3]);
-      if(has_output && !js_bufferview_get_kind(ctx, argv[3], TYPEDARRAY_FLOAT32, &out))
+      if(has_output && js_typedarray_kind(ctx, argv[3], TYPEDARRAY_FLOAT32, &out))
         return JS_EXCEPTION;
 
-      input_frames = (long)(in.byte_length / sizeof(float) / w->channels);
+      input_frames = typedarray_size(in) / w->channels;
 
       memset(&data, 0, sizeof(data));
       data.data_in = (const float*)in.ptr;
@@ -157,7 +157,7 @@ js_srcstate_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
 
       if(has_output) {
         data.data_out = (float*)out.ptr;
-        data.output_frames = (long)(out.byte_length / sizeof(float) / w->channels);
+        data.output_frames = typedarray_size(out) / w->channels;
 
         if((err = src_process(w->state, &data)))
           return js_samplerate_throw(ctx, err);
@@ -218,7 +218,7 @@ js_srcstate_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
 
 static JSValue
 js_srcstate_simple(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
-  JSBufferView in;
+  BufferView in;
   double ratio = 0;
   int32_t converterType = 0, channels = 1;
   long input_frames, out_capacity;
@@ -229,14 +229,14 @@ js_srcstate_simple(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
   if(argc < 4)
     return JS_ThrowTypeError(ctx, "expected 4 arguments: input, ratio, converterType, channels");
 
-  if(!js_bufferview_get_kind(ctx, argv[0], TYPEDARRAY_FLOAT32, &in))
+  if(js_typedarray_kind(ctx, argv[0], TYPEDARRAY_FLOAT32, &in))
     return JS_EXCEPTION;
 
   JS_ToFloat64(ctx, &ratio, argv[1]);
   JS_ToInt32(ctx, &converterType, argv[2]);
   JS_ToInt32(ctx, &channels, argv[3]);
 
-  input_frames = (long)(in.byte_length / sizeof(float) / channels);
+  input_frames = typedarray_size(in) / channels;
   out_capacity = (long)ceil(input_frames * ratio) + SRC_OUTPUT_HEADROOM_FRAMES;
 
   if(!(out_buf = js_malloc(ctx, (size_t)out_capacity * channels * sizeof(float))))
@@ -266,7 +266,7 @@ js_srcstate_getname(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
   if(argc > 0)
     JS_ToInt32(ctx, &converterType, argv[0]);
 
-  return(name = src_get_name(converterType)) ? JS_NewString(ctx, name) : JS_NULL;
+  return (name = src_get_name(converterType)) ? JS_NewString(ctx, name) : JS_NULL;
 }
 
 static JSValue
@@ -277,7 +277,7 @@ js_srcstate_getdescription(JSContext* ctx, JSValueConst this_val, int argc, JSVa
   if(argc > 0)
     JS_ToInt32(ctx, &converterType, argv[0]);
 
-  return(str = src_get_description(converterType)) ? JS_NewString(ctx, str) : JS_NULL;
+  return (str = src_get_description(converterType)) ? JS_NewString(ctx, str) : JS_NULL;
 }
 
 static JSValue

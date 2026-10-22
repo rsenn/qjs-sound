@@ -2,7 +2,7 @@
 #include <cutils.h>
 #include <string.h>
 #include "defines.h"
-#include "quickjs-typedarray.h"
+#include "js-typedarray.h"
 #include <aubio.h>
 
 /* ---------- shared helpers ---------- */
@@ -12,27 +12,13 @@
 
 static int
 js_aubio_get_fvec_ptr(JSContext* ctx, JSValueConst val, float** pdata, uint32_t* plen) {
-  size_t byte_offset = 0, byte_length = 0, bytes_per_element = 0;
-  JSValue buf = JS_GetTypedArrayBuffer(ctx, val, &byte_offset, &byte_length, &bytes_per_element);
+  BufferView view;
 
-  if(JS_IsException(buf))
+  if(js_typedarray_kind(ctx, val, TYPEDARRAY_FLOAT32, &view))
     return -1;
 
-  if(bytes_per_element != sizeof(float)) {
-    JS_FreeValue(ctx, buf);
-    JS_ThrowTypeError(ctx, "expected a Float32Array");
-    return -1;
-  }
-
-  size_t ab_size = 0;
-  uint8_t* ab_data = JS_GetArrayBuffer(ctx, &ab_size, buf);
-  JS_FreeValue(ctx, buf);
-
-  if(!ab_data)
-    return -1;
-
-  *pdata = (float*)(ab_data + byte_offset);
-  *plen = (uint32_t)(byte_length / sizeof(float));
+  *pdata = view.ptr;
+  *plen = typedarray_size(view);
   return 0;
 }
 
