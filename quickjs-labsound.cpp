@@ -23,6 +23,9 @@
 #include "libnyquist/Encoders.h"
 
 #include <algorithm>
+#include <array>
+#include <cmath>
+#include <map>
 #include <cstring>
 #include <utility>
 
@@ -649,6 +652,7 @@ enum {
   CN_STEREOPANNER,
   CN_CONSTANTSOURCE,
   CN_ANALYSER,
+  CN_BUFFERSOURCE,
 };
 
 static JSValue
@@ -668,6 +672,7 @@ js_audiocontext_create_node(JSContext* ctx, JSValueConst this_val, int argc, JSV
     case CN_STEREOPANNER: ctor = stereopannernode_ctor; break;
     case CN_CONSTANTSOURCE: ctor = constantsourcenode_ctor; break;
     case CN_ANALYSER: ctor = analysernode_ctor; break;
+    case CN_BUFFERSOURCE: ctor = audiobuffersourcenode_ctor; break;
     default: return JS_ThrowInternalError(ctx, "unknown node factory");
   }
 
@@ -724,15 +729,131 @@ resolved_promise(JSContext* ctx) {
   return promise;
 }
 
+/* OfflineAudioContext rendering: startRendering() renders quantum by quantum until a scheduled suspend(t) frame
+ * is reached, resolves that suspend promise and stops; resume() carries on, the last quantum resolves the
+ * startRendering() promise.
+ *
+ * ```js
+ * ctx.suspend(0.5).then(() => { read(analyser); ctx.resume(); });
+ * const buf = await ctx.startRendering();
+ * ```
+ *
+ * state is kept per lab::AudioContext, in offline_state, until rendering has finished.
+ */
+struct OfflineRender {
+  std::shared_ptr<lab::AudioBus> result, scratch;
+  int length = 0, rendered = 0, channels = 0;
+  bool started = false, suspended = false;
+  JSValue done[2] = { JS_UNDEFINED, JS_UNDEFINED }; // startRendering promise: resolve, reject
+  std::map<int, std::array<JSValue, 2>> suspends;   // quantum frame -> suspend promise: resolve, reject
+};
+
+static std::map<lab::AudioContext*, OfflineRender> offline_state;
+
+static void
+offline_free(JSRuntime* rt, OfflineRender& st) {
+  for(JSValue& v : st.done)
+    JS_FreeValueRT(rt, v);
+  for(auto& [frame, funcs] : st.suspends)
+    for(JSValue& v : funcs)
+      JS_FreeValueRT(rt, v);
+}
+
+static JSValue
+rejected_promise(JSContext* ctx, const char* name, const char* message) {
+  JSValue resolving[2];
+  JSValue promise = JS_NewPromiseCapability(ctx, resolving);
+  JSValue err = JS_NewError(ctx);
+  JS_SetPropertyStr(ctx, err, "name", JS_NewString(ctx, name));
+  JS_SetPropertyStr(ctx, err, "message", JS_NewString(ctx, message));
+  JS_FreeValue(ctx, JS_Call(ctx, resolving[1], JS_UNDEFINED, 1, &err));
+  JS_FreeValue(ctx, err);
+  JS_FreeValue(ctx, resolving[0]);
+  JS_FreeValue(ctx, resolving[1]);
+  return promise;
+}
+
+/* renders until the next suspend frame or the end; settles the promise of whichever it reached. */
+static void
+offline_run(JSContext* ctx, AudioContextPtr ac, OfflineRender& st) {
+  const int quantum = lab::AudioNode::ProcessingSizeInFrames;
+  auto dest = ac->destinationNode();
+
+  while(st.rendered < st.length) {
+    auto it = st.suspends.find(st.rendered);
+
+    if(it != st.suspends.end()) {
+      JSValue undef = JS_UNDEFINED;
+      JS_FreeValue(ctx, JS_Call(ctx, it->second[0], JS_UNDEFINED, 1, &undef));
+      JS_FreeValue(ctx, it->second[0]);
+      JS_FreeValue(ctx, it->second[1]);
+      st.suspends.erase(it);
+      st.suspended = true;
+      return;
+    }
+
+    dest->offlineRender(st.scratch.get(), quantum);
+    int n = std::min(quantum, st.length - st.rendered);
+    for(int c = 0; c < st.channels; c++)
+      memcpy(st.result->channel(c)->mutableData() + st.rendered, st.scratch->channel(c)->data(), n * sizeof(float));
+    st.rendered += n;
+  }
+
+  JSValue ab = make_audio_buffer_js(ctx, st.result);
+  JS_FreeValue(ctx, JS_Call(ctx, st.done[0], JS_UNDEFINED, 1, &ab));
+  JS_FreeValue(ctx, ab);
+  offline_free(JS_GetRuntime(ctx), st);
+  offline_state.erase(ac.get());
+}
+
 enum { CL_RESUME, CL_SUSPEND, CL_CLOSE };
 
-/* An offline context is driven only by startRendering(), so these are no-ops there. */
+/* suspend(t): pauses an offline render at the first quantum boundary at or after t seconds.
+ * rejects with InvalidStateError for a time that is rendered already, taken or beyond the length. */
+static JSValue
+js_offline_suspend(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], AudioContextPtr ac) {
+  double t = 0;
+  if(argc < 1 || JS_ToFloat64(ctx, &t, argv[0]))
+    return argc < 1 ? JS_ThrowTypeError(ctx, "suspend requires a time in seconds") : JS_EXCEPTION;
+  if(!(t >= 0))
+    return JS_ThrowRangeError(ctx, "suspend time must not be negative");
+
+  const int quantum = lab::AudioNode::ProcessingSizeInFrames;
+  int32_t length = qjsx::property_default(ctx, this_val, "__offlineLength", 0);
+  OfflineRender& st = offline_state[ac.get()];
+  int frame = static_cast<int>(std::ceil(t * ac->sampleRate() / quantum - 1e-6)) * quantum; // 1e-6: 8 * 128 / 44100 s stays 8 quanta
+
+  if(frame < st.rendered || (st.started && frame == st.rendered) || frame >= length || st.suspends.count(frame))
+    return rejected_promise(ctx, "InvalidStateError", "cannot schedule a suspend at that time");
+
+  JSValue promise = JS_NewPromiseCapability(ctx, st.suspends[frame].data());
+  return promise;
+}
+
+/* resume(): continues an offline render that is paused at a suspend time. */
+static JSValue
+js_offline_resume(JSContext* ctx, AudioContextPtr ac) {
+  auto it = offline_state.find(ac.get());
+
+  if(it != offline_state.end() && it->second.suspended) {
+    it->second.suspended = false;
+    offline_run(ctx, ac, it->second);
+  }
+  return resolved_promise(ctx);
+}
+
+/* An offline context is driven by startRendering(), suspend(t) and resume(); close() is a no-op there. */
 static JSValue
 js_audiocontext_lifecycle(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
   AudioContextPtr* sac = static_cast<AudioContextPtr*>(JS_GetOpaque2(ctx, this_val, js_audiocontext_class_id));
   if(!sac)
     return JS_EXCEPTION;
-  if(!(*sac)->isOfflineContext()) {
+  if((*sac)->isOfflineContext()) {
+    switch(magic) {
+      case CL_SUSPEND: return js_offline_suspend(ctx, this_val, argc, argv, *sac);
+      case CL_RESUME: return js_offline_resume(ctx, *sac);
+    }
+  } else {
     switch(magic) {
       /* lazyInitialize also spawns the graph update thread; resume() alone would only restart the device stream. */
       case CL_RESUME:
@@ -763,29 +884,19 @@ js_audiocontext_start_rendering(JSContext* ctx, JSValueConst this_val, int argc,
   if(length <= 0)
     return JS_ThrowTypeError(ctx, "offline AudioContext has no render length");
 
-  int numberOfChannels = static_cast<int>(dest->device()->getOutputConfig().desired_channels);
-  auto result = std::make_shared<lab::AudioBus>(numberOfChannels, length, true);
-  result->setSampleRate(ac->sampleRate());
+  OfflineRender& st = offline_state[ac.get()];
+  if(st.started)
+    return rejected_promise(ctx, "InvalidStateError", "startRendering was already called");
 
-  const int quantum = lab::AudioNode::ProcessingSizeInFrames;
-  lab::AudioBus scratch(numberOfChannels, quantum, true);
-  int rendered = 0;
-  while(rendered < length) {
-    dest->offlineRender(&scratch, quantum);
-    int n = std::min(quantum, length - rendered);
-    for(int c = 0; c < numberOfChannels; c++)
-      memcpy(result->channel(c)->mutableData() + rendered, scratch.channel(c)->data(), n * sizeof(float));
-    rendered += n;
-  }
+  st.channels = static_cast<int>(dest->device()->getOutputConfig().desired_channels);
+  st.result = std::make_shared<lab::AudioBus>(st.channels, length, true);
+  st.result->setSampleRate(ac->sampleRate());
+  st.scratch = std::make_shared<lab::AudioBus>(st.channels, lab::AudioNode::ProcessingSizeInFrames, true);
+  st.length = length;
+  st.started = true;
 
-  JSValue ab = make_audio_buffer_js(ctx, result);
-  // Resolved Promise for browser-compat, same trick as decodeAudioData.
-  JSValue resolving[2];
-  JSValue promise = JS_NewPromiseCapability(ctx, resolving);
-  JS_Call(ctx, resolving[0], JS_UNDEFINED, 1, &ab);
-  JS_FreeValue(ctx, resolving[0]);
-  JS_FreeValue(ctx, resolving[1]);
-  JS_FreeValue(ctx, ab);
+  JSValue promise = JS_NewPromiseCapability(ctx, st.done);
+  offline_run(ctx, ac, st);
   return promise;
 }
 
@@ -793,6 +904,11 @@ static void
 js_audiocontext_finalizer(JSRuntime* rt, JSValue val) {
   AudioContextPtr* sac = static_cast<AudioContextPtr*>(JS_GetOpaque(val, js_audiocontext_class_id));
   if(sac) {
+    auto it = offline_state.find(sac->get());
+    if(it != offline_state.end()) {
+      offline_free(rt, it->second);
+      offline_state.erase(it);
+    }
     sac->~AudioContextPtr();
     js_free_rt(rt, sac);
   }
@@ -832,6 +948,7 @@ static const JSCFunctionListEntry js_baseaudiocontext_funcs[] = {
   JS_CFUNC_MAGIC_DEF("createStereoPanner", 0, js_audiocontext_create_node, CN_STEREOPANNER),
   JS_CFUNC_MAGIC_DEF("createConstantSource", 0, js_audiocontext_create_node, CN_CONSTANTSOURCE),
   JS_CFUNC_MAGIC_DEF("createAnalyser", 0, js_audiocontext_create_node, CN_ANALYSER),
+  JS_CFUNC_MAGIC_DEF("createBufferSource", 0, js_audiocontext_create_node, CN_BUFFERSOURCE),
 };
 
 // AudioContext-only.
@@ -1686,7 +1803,7 @@ js_audiobuffer_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
       if(channel < 0 || channel >= w->bus->numberOfChannels())
         return JS_ThrowRangeError(ctx, "channel index out of range");
       lab::AudioChannel* ch = w->bus->channel(channel);
-      return qjsx::new_array<float>(ctx, ch->data(), ch->length());
+      return qjsx::view_array(ctx, ch->mutableData(), ch->length(), w->bus);
     }
 
     case AB_METHOD_COPY_TO_CHANNEL: {
@@ -1794,16 +1911,11 @@ js_absource_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVal
   auto src = std::make_shared<lab::SampledAudioNode>(*ac);
 
   bool wantLoop = false;
+  JSValue bufval = JS_UNDEFINED;
   if(argc > 1 && JS_IsObject(argv[1])) {
     JSValue v;
 
-    v = JS_GetPropertyStr(ctx, argv[1], "buffer");
-    if(!JS_IsUndefined(v) && !JS_IsNull(v)) {
-      JsAudioBuffer* ab = static_cast<JsAudioBuffer*>(JS_GetOpaque2(ctx, v, js_audiobuffer_class_id));
-      if(ab && ab->bus)
-        src->setBus(ab->bus);
-    }
-    JS_FreeValue(ctx, v);
+    bufval = JS_GetPropertyStr(ctx, argv[1], "buffer");
 
     v = JS_GetPropertyStr(ctx, argv[1], "loop");
     if(!JS_IsUndefined(v))
@@ -1828,14 +1940,24 @@ js_absource_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVal
   }
 
   JSValue proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
+  if(JS_IsException(proto)) {
+    JS_FreeValue(ctx, bufval);
     return JS_EXCEPTION;
+  }
   if(!JS_IsObject(proto)) {
     JS_FreeValue(ctx, proto);
     proto = JS_DupValue(ctx, audiobuffersourcenode_proto);
   }
   JSValue obj = make_audio_node_js(ctx, proto, js_audiobuffersourcenode_class_id, std::static_pointer_cast<lab::AudioNode>(src), ac);
   JS_FreeValue(ctx, proto);
+  if(JS_IsException(obj)) {
+    JS_FreeValue(ctx, bufval);
+    return obj;
+  }
+  if(!JS_IsUndefined(bufval) && JS_SetPropertyStr(ctx, obj, "buffer", bufval) < 0) {
+    JS_FreeValue(ctx, obj);
+    return JS_EXCEPTION;
+  }
   if(wantLoop)
     JS_SetPropertyStr(ctx, obj, "loop", JS_TRUE);
   anchor_node_in_context(ctx, argv[0], obj);
@@ -1887,6 +2009,40 @@ js_absource_get(JSContext* ctx, JSValueConst this_val, int magic) {
   return JS_UNDEFINED;
 }
 
+/* buffer: the AudioBuffer being played; the JS object is kept in __buffer so the getter returns the same one.
+ *
+ * ```js
+ * src.buffer = ctx.createBuffer(1, 128, 44100);
+ * src.buffer = null;
+ * ```
+ *
+ * throws TypeError for a value that is not an AudioBuffer
+ */
+static JSValue
+js_absource_get_buffer(JSContext* ctx, JSValueConst this_val) {
+  if(!JS_GetOpaque2(ctx, this_val, js_audiobuffersourcenode_class_id))
+    return JS_EXCEPTION;
+
+  JSValue buf = JS_GetPropertyStr(ctx, this_val, "__buffer");
+  return JS_IsUndefined(buf) ? JS_NULL : buf;
+}
+
+static JSValue
+js_absource_set_buffer(JSContext* ctx, JSValueConst this_val, JSValueConst value) {
+  JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque2(ctx, this_val, js_audiobuffersourcenode_class_id));
+  auto src = w ? std::dynamic_pointer_cast<lab::SampledAudioNode>(w->node) : nullptr;
+  if(!src)
+    return w ? JS_ThrowInternalError(ctx, "not a SampledAudioNode") : JS_EXCEPTION;
+
+  JsAudioBuffer* ab = nullptr;
+  if(!JS_IsNull(value) && !JS_IsUndefined(value) && !(ab = static_cast<JsAudioBuffer*>(JS_GetOpaque2(ctx, value, js_audiobuffer_class_id))))
+    return JS_EXCEPTION;
+
+  src->setBus(ab ? ab->bus : nullptr);
+  JS_DefinePropertyValueStr(ctx, this_val, "__buffer", ab ? JS_DupValue(ctx, value) : JS_NULL, JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE);
+  return JS_UNDEFINED;
+}
+
 static void
 js_audiobuffersourcenode_finalizer(JSRuntime* rt, JSValue val) {
   js_audionode_finalize_with(rt, val, js_audiobuffersourcenode_class_id);
@@ -1899,6 +2055,7 @@ static JSClassDef js_audiobuffersourcenode_class = {
 
 static const JSCFunctionListEntry js_audiobuffersourcenode_funcs[] = {
   JS_CFUNC_DEF("start", 0, js_absource_start),
+  JS_CGETSET_DEF("buffer", js_absource_get_buffer, js_absource_set_buffer),
   JS_CGETSET_MAGIC_DEF("playbackRate", js_absource_get, 0, ABSRC_PROP_PLAYBACKRATE),
   JS_CGETSET_MAGIC_DEF("detune", js_absource_get, 0, ABSRC_PROP_DETUNE),
   JS_PROP_STRING_DEF("[Symbol.toStringTag]", "AudioBufferSourceNode", JS_PROP_CONFIGURABLE),

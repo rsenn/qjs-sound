@@ -74,7 +74,6 @@ js_typedarray_get(JSContext* ctx, JSValueConst obj, BufferView* out) {
     *out = (BufferView){
       data + byte_offset,
       byte_length,
-      bytes_per_element ? bytes_per_element : 1,
       typedarray_kind(ctx, obj),
     };
     return 0;

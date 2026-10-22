@@ -301,6 +301,37 @@ new_array(JSContext* ctx, const T* data, size_t count) {
   return js_typedarray_copy(ctx, data, count, element<T>::kind);
 }
 
+/* view_array: a TypedArray that aliases native memory, no copy.
+ *
+ * `view_array(ctx, ch->mutableData(), ch->length(), w->bus)` // Float32Array
+ *
+ *   T*         data   first element; must stay valid while owner lives
+ *   size_t     count  number of elements
+ *   Owner      owner  copied into the array, released when it is collected;
+ *                     a std::shared_ptr to whatever owns data
+ *
+ *   returns  the array, or JS_EXCEPTION
+ */
+template <class T, class Owner>
+JSValue
+view_array(JSContext* ctx, T* data, size_t count, Owner owner) {
+  Owner* keep = new Owner(std::move(owner));
+  JSValue buf = JS_NewArrayBuffer(
+      ctx,
+      reinterpret_cast<uint8_t*>(data),
+      count * sizeof(T),
+      [](JSRuntime*, void* opaque, void*) { delete static_cast<Owner*>(opaque); },
+      keep,
+      FALSE);
+
+  if(JS_IsException(buf)) {
+    delete keep;
+    return buf;
+  }
+
+  return js_typedarray_buffer(ctx, buf, element<T>::kind);
+}
+
 template <class T>
 JSValue
 new_array(JSContext* ctx, const std::vector<T>& v) {
