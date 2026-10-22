@@ -5,6 +5,7 @@
 #include <memory>
 #include <cmath>
 #include <cstring>
+#include <cinttypes>
 
 #include "defines.h"
 #include "js-utils.hpp"
@@ -140,21 +141,95 @@ js_stk_throw(JSContext* ctx, const std::exception& e) {
   return JS_ThrowTypeError(ctx, "%s", e.what());
 }
 
+/* Stk::oStream_ is a protected static buffer that handleError() fills but
+ * does not clear when it throws, so the next error message would start
+ * with the text of every earlier one. */
+struct StkBuffer : stk::Stk {
+  static void
+  clear() {
+    oStream_.str(std::string());
+  }
+};
+
+/* js_throw_stkerror: throws an stk::StkError as a JS exception.
+ *
+ *   FUNCTION_ARGUMENT -> RangeError, MEMORY_ALLOCATION -> out of memory,
+ *   anything else -> InternalError with the STK message
+ *
+ *   stk::StkError&  err  the caught error (getType is not const)
+ *
+ *   returns  JS_EXCEPTION
+ */
 static JSValue
-js_stk_wrap(JSContext* ctx, Stk* s) {
-  /* using new_target to get the prototype is necessary when the class is
-   * extended. */
-  JSValue obj = JS_NewObjectProtoClass(ctx, stk_proto, js_stk_class_id);
+js_throw_stkerror(JSContext* ctx, stk::StkError& err) {
+  JSValue ret;
 
-  if(JS_IsException(obj))
-    goto fail;
+  switch(err.getType()) {
+    case stk::StkError::FUNCTION_ARGUMENT: ret = JS_ThrowRangeError(ctx, "%s", err.what()); break;
+    case stk::StkError::MEMORY_ALLOCATION: ret = JS_ThrowOutOfMemory(ctx); break;
+    default: ret = JS_ThrowInternalError(ctx, "%s", err.what()); break;
+  }
 
-  JS_SetOpaque(obj, s);
-  return obj;
+  StkBuffer::clear();
+  return ret;
+}
 
-fail:
-  JS_FreeValue(ctx, obj);
-  return JS_EXCEPTION;
+/* js_stk_count: reads a frame count, rejecting negatives with a RangeError. */
+static int
+js_stk_count(JSContext* ctx, JSValueConst v, uint32_t* out) {
+  int64_t n;
+
+  if(JS_ToInt64(ctx, &n, v))
+    return -1;
+  if(n < 0 || n > 0x7fffffff) {
+    JS_ThrowRangeError(ctx, "frame count out of range");
+    return -1;
+  }
+
+  *out = n;
+  return 0;
+}
+
+/* guarded: wraps a magic method dispatcher so a C++ exception thrown by
+ * STK or RtMidi becomes a JS exception instead of terminating the process.
+ *
+ * ```c
+ * JS_CFUNC_MAGIC_DEF("noteOn", 2, guarded<js_stkinstrmnt_method>, METHOD_NOTE_ON)
+ * ```
+ */
+template <JSValue (*F)(JSContext*, JSValueConst, int, JSValueConst*, int)>
+static JSValue
+guarded(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic) {
+  try {
+    return F(ctx, this_val, argc, argv, magic);
+  } catch(stk::StkError& err) {
+    return js_throw_stkerror(ctx, err);
+  } catch(const std::exception& e) {
+    return js_stk_throw(ctx, e);
+  }
+}
+
+/* js_stk_channel: reads the optional channel argument of tick().
+ *
+ *   JSValueConst  v          the argument; undefined keeps channel 0
+ *   uint32_t      nchannels  channels available, from StkFrames::channels()
+ *   uint32_t*     out        receives the channel
+ *
+ *   returns  0, or -1 with a RangeError thrown for a channel outside 0..nchannels-1
+ */
+static int
+js_stk_channel(JSContext* ctx, JSValueConst v, uint32_t nchannels, uint32_t* out) {
+  int64_t channel = 0;
+
+  if(!JS_IsUndefined(v) && JS_ToInt64(ctx, &channel, v))
+    return -1;
+  if(channel < 0 || channel >= nchannels) {
+    JS_ThrowRangeError(ctx, "channel %" PRId64 " out of range (0..%u)", channel, nchannels ? nchannels - 1 : 0);
+    return -1;
+  }
+
+  *out = channel;
+  return 0;
 }
 
 enum {
@@ -263,34 +338,10 @@ js_stkframes_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
   if(argc > i)
     JS_ToUint32(ctx, &nchannels, argv[i]);
 
-  StkFramesPtr* f = static_cast<StkFramesPtr*>(js_mallocz(ctx, sizeof(StkFramesPtr)));
+  StkFramesPtr f = argc > 2 ? std::make_shared<stk::StkFrames>(value, nframes, nchannels)
+                            : std::make_shared<stk::StkFrames>(nframes, nchannels);
 
-  if(argc > 2)
-    new(f) StkFramesPtr(std::make_shared<stk::StkFrames>(value, nframes, nchannels));
-  else
-    new(f) StkFramesPtr(std::make_shared<stk::StkFrames>(nframes, nchannels));
-
-  /* using new_target to get the prototype is necessary when the class is
-   * extended. */
-  proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
-    goto fail;
-
-  if(!JS_IsObject(proto)) {
-    JS_FreeValue(ctx, proto);
-    proto = JS_DupValue(ctx, stkframes_proto);
-  }
-
-  /* using new_target to get the prototype is necessary when the class is
-   * extended. */
-  obj = JS_NewObjectProtoClass(ctx, proto, js_stkframes_class_id);
-  JS_FreeValue(ctx, proto);
-
-  if(JS_IsException(obj))
-    goto fail;
-
-  JS_SetOpaque(obj, f);
-  return obj;
+  return qjsx::wrap<StkFramesPtr>(ctx, new_target, js_stkframes_class_id, std::move(f));
 
 fail:
   JS_FreeValue(ctx, obj);
@@ -336,8 +387,8 @@ js_stkframes_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
       double frame;
       uint32_t channel = 0;
       JS_ToFloat64(ctx, &frame, argv[0]);
-      if(argc > 1)
-        JS_ToUint32(ctx, &channel, argv[1]);
+      if(js_stk_channel(ctx, argc > 1 ? argv[1] : JS_UNDEFINED, (*f)->channels(), &channel))
+        return JS_EXCEPTION;
 
       ret = JS_NewFloat64(ctx, (*f)->interpolate(frame, channel));
       break;
@@ -522,12 +573,12 @@ static JSClassDef js_stkframes_class = {
 };
 
 static const JSCFunctionListEntry js_stkframes_funcs[] = {
-  JS_CFUNC_MAGIC_DEF("resize", 1, js_stkframes_method, METHOD_RESIZE),
-  JS_CFUNC_MAGIC_DEF("interpolate", 1, js_stkframes_method, METHOD_INTERPOLATE),
-  JS_CFUNC_MAGIC_DEF("getChannel", 3, js_stkframes_method, METHOD_GETCHANNEL),
-  JS_CFUNC_MAGIC_DEF("setChannel", 3, js_stkframes_method, METHOD_SETCHANNEL),
-  JS_CFUNC_MAGIC_DEF("toFloat32", 0, js_stkframes_method, METHOD_TO_FLOAT32),
-  JS_CFUNC_MAGIC_DEF("fromFloat32", 1, js_stkframes_method, METHOD_FROM_FLOAT32),
+  JS_CFUNC_MAGIC_DEF("resize", 1, guarded<js_stkframes_method>, METHOD_RESIZE),
+  JS_CFUNC_MAGIC_DEF("interpolate", 1, guarded<js_stkframes_method>, METHOD_INTERPOLATE),
+  JS_CFUNC_MAGIC_DEF("getChannel", 3, guarded<js_stkframes_method>, METHOD_GETCHANNEL),
+  JS_CFUNC_MAGIC_DEF("setChannel", 3, guarded<js_stkframes_method>, METHOD_SETCHANNEL),
+  JS_CFUNC_MAGIC_DEF("toFloat32", 0, guarded<js_stkframes_method>, METHOD_TO_FLOAT32),
+  JS_CFUNC_MAGIC_DEF("fromFloat32", 1, guarded<js_stkframes_method>, METHOD_FROM_FLOAT32),
   JS_CGETSET_MAGIC_DEF("size", js_stkframes_get, 0, PROP_SIZE),
   JS_CGETSET_MAGIC_DEF("empty", js_stkframes_get, 0, PROP_EMPTY),
   JS_CGETSET_MAGIC_DEF("channels", js_stkframes_get, 0, PROP_CHANNELS),
@@ -554,96 +605,90 @@ enum {
 
 static JSValue
 js_stkgenerator_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {
-  StkGeneratorPtr* g = static_cast<StkGeneratorPtr*>(js_mallocz(ctx, sizeof(StkGeneratorPtr)));
+  StkGeneratorPtr g;
   double arg = 0;
 
   if(argc > 0)
     JS_ToFloat64(ctx, &arg, argv[0]);
 
-  switch(magic) {
-    case INSTANCE_ADSR: {
-      *g = std::make_shared<stk::ADSR>();
-      break;
-    }
-    case INSTANCE_ASYMP: {
-      *g = std::make_shared<stk::Asymp>();
-      break;
-    }
-    case INSTANCE_BLIT: {
-      *g = std::make_shared<stk::Blit>(argc > 0 ? arg : 220.0);
-      break;
-    }
-    case INSTANCE_BLIT_SAW: {
-      *g = std::make_shared<stk::BlitSaw>(argc > 0 ? arg : 220.0);
-      break;
-    }
-    case INSTANCE_BLIT_SQUARE: {
-      *g = std::make_shared<stk::BlitSquare>(argc > 0 ? arg : 220.0);
-      break;
-    }
-    case INSTANCE_ENVELOPE: {
-      *g = std::make_shared<stk::Envelope>();
-      break;
-    }
-    case INSTANCE_GRANULATE: {
-      if(argc > 1) {
-        uint32_t nvoices;
-        const char* filename = JS_ToCString(ctx, argv[1]);
-        BOOL raw = FALSE;
-        JS_ToUint32(ctx, &nvoices, argv[0]);
-        if(argc > 2)
-          raw = JS_ToBool(ctx, argv[2]);
-        *g = std::make_shared<stk::Granulate>(nvoices, filename, raw);
-        JS_FreeCString(ctx, filename);
-      } else {
-        *g = std::make_shared<stk::Granulate>();
+  try {
+    switch(magic) {
+      case INSTANCE_ADSR: {
+        g = std::make_shared<stk::ADSR>();
+        break;
       }
-      break;
-    }
-    case INSTANCE_MODULATE: {
-      *g = std::make_shared<stk::Modulate>();
-      break;
-    }
-    case INSTANCE_NOISE: {
-      *g = std::make_shared<stk::Noise>(argc > 0 ? arg : 0);
-      break;
-    }
-    case INSTANCE_SINE_WAVE: {
-      *g = std::make_shared<stk::SineWave>();
-      break;
-    }
-    case INSTANCE_SING_WAVE: {
-      const char* filename = JS_ToCString(ctx, argv[0]);
-      BOOL raw = FALSE;
-      if(argc > 1)
-        raw = JS_ToBool(ctx, argv[1]);
-      *g = std::make_shared<stk::SingWave>(filename, raw);
-      JS_FreeCString(ctx, filename);
+      case INSTANCE_ASYMP: {
+        g = std::make_shared<stk::Asymp>();
+        break;
+      }
+      case INSTANCE_BLIT: {
+        g = std::make_shared<stk::Blit>(argc > 0 ? arg : 220.0);
+        break;
+      }
+      case INSTANCE_BLIT_SAW: {
+        g = std::make_shared<stk::BlitSaw>(argc > 0 ? arg : 220.0);
+        break;
+      }
+      case INSTANCE_BLIT_SQUARE: {
+        g = std::make_shared<stk::BlitSquare>(argc > 0 ? arg : 220.0);
+        break;
+      }
+      case INSTANCE_ENVELOPE: {
+        g = std::make_shared<stk::Envelope>();
+        break;
+      }
+      case INSTANCE_GRANULATE: {
+        if(argc > 1) {
+          uint32_t nvoices;
+          const char* cstr = JS_ToCString(ctx, argv[1]);
+          if(!cstr)
+            return JS_EXCEPTION;
+          std::string filename(cstr);
+          JS_FreeCString(ctx, cstr);
+          BOOL raw = FALSE;
+          JS_ToUint32(ctx, &nvoices, argv[0]);
+          if(argc > 2)
+            raw = JS_ToBool(ctx, argv[2]);
+          g = std::make_shared<stk::Granulate>(nvoices, filename, raw);
+        } else {
+          g = std::make_shared<stk::Granulate>();
+        }
+        break;
+      }
+      case INSTANCE_MODULATE: {
+        g = std::make_shared<stk::Modulate>();
+        break;
+      }
+      case INSTANCE_NOISE: {
+        g = std::make_shared<stk::Noise>(argc > 0 ? arg : 0);
+        break;
+      }
+      case INSTANCE_SINE_WAVE: {
+        g = std::make_shared<stk::SineWave>();
+        break;
+      }
+      case INSTANCE_SING_WAVE: {
+        const char* cstr = JS_ToCString(ctx, argv[0]);
+        if(!cstr)
+          return JS_EXCEPTION;
+        std::string filename(cstr);
+        JS_FreeCString(ctx, cstr);
+        BOOL raw = FALSE;
+        if(argc > 1)
+          raw = JS_ToBool(ctx, argv[1]);
+        g = std::make_shared<stk::SingWave>(filename, raw);
 
-      break;
+        break;
+      }
     }
+  } catch(stk::StkError& err) {
+    return js_throw_stkerror(ctx, err);
   }
 
-  /* using new_target to get the prototype is necessary when the class is
-   * extended. */
-  JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
-    goto fail;
-
-  if(!JS_IsObject(proto)) {
-    JS_FreeValue(ctx, proto);
-    proto = JS_DupValue(ctx, stkgenerator_proto);
-  }
-
-  /* using new_target to get the prototype is necessary when the class is
-   * extended. */
-  obj = JS_NewObjectProtoClass(ctx, proto, js_stkgenerator_class_id);
-  JS_FreeValue(ctx, proto);
+  JSValue obj = qjsx::wrap<StkGeneratorPtr>(ctx, new_target, js_stkgenerator_class_id, std::move(g));
 
   if(JS_IsException(obj))
-    goto fail;
-
-  JS_SetOpaque(obj, g);
+    return obj;
 
   js_set_tostringtag(
       ctx, obj,
@@ -663,10 +708,6 @@ js_stkgenerator_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
   );
 
   return obj;
-
-fail:
-  JS_FreeValue(ctx, obj);
-  return JS_EXCEPTION;
 }
 
 enum {
@@ -687,8 +728,8 @@ js_stkgenerator_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       uint32_t channel = 0;
 
       if(argc > 0 && (a = static_cast<StkFramesPtr*>(JS_GetOpaque(argv[0], js_stkframes_class_id)))) {
-        if(argc > 1)
-          JS_ToUint32(ctx, &channel, argv[1]);
+        if(js_stk_channel(ctx, argc > 1 ? argv[1] : JS_UNDEFINED, (*a->get()).channels(), &channel))
+          return JS_EXCEPTION;
 
         (*f)->tick(*a->get(), channel);
 
@@ -699,8 +740,8 @@ js_stkgenerator_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       /* stk::Generator only declares the StkFrames& overload virtually; each
        * subclass adds its own non-virtual single-sample tick() on top, so
        * dispatch by type for the scalar path. */
-      if(argc > 0)
-        JS_ToUint32(ctx, &channel, argv[0]);
+      if(js_stk_channel(ctx, argc > 0 ? argv[0] : JS_UNDEFINED, (*f)->channelsOut(), &channel))
+        return JS_EXCEPTION;
 
       stk::Generator* g = f->get();
       double sample = 0;
@@ -786,7 +827,7 @@ static JSClassDef js_stkgenerator_class = {
 };
 
 static const JSCFunctionListEntry js_stkgenerator_funcs[] = {
-  JS_CFUNC_MAGIC_DEF("tick", 1, js_stkgenerator_method, METHOD_TICK),
+  JS_CFUNC_MAGIC_DEF("tick", 1, guarded<js_stkgenerator_method>, METHOD_TICK),
   JS_CGETSET_MAGIC_DEF("channelsOut", js_stkgenerator_get, js_stkgenerator_set, PROP_SAMPLERATE),
   JS_PROP_STRING_DEF("[Symbol.toStringTag]", "Generator", JS_PROP_CONFIGURABLE),
 };
@@ -809,149 +850,131 @@ enum {
 
 static JSValue
 js_stkfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {
-  StkFilterPtr* f = static_cast<StkFilterPtr*>(js_mallocz(ctx, sizeof(StkFilterPtr)));
+  StkFilterPtr f;
 
-  switch(magic) {
-    case INSTANCE_DELAY:
-    case INSTANCE_DELAY_A:
-    case INSTANCE_DELAY_L: {
-      double delay = 0, maxDelay = 4095;
-      if(argc > 0)
-        JS_ToFloat64(ctx, &delay, argv[0]);
-      if(argc > 1)
-        JS_ToFloat64(ctx, &maxDelay, argv[1]);
-
-      switch(magic) {
-        case INSTANCE_DELAY: {
-          *f = std::make_shared<stk::Delay>();
-          break;
-        }
-        case INSTANCE_DELAY_A: {
-          *f = std::make_shared<stk::DelayA>(delay, maxDelay);
-          break;
-        }
-        case INSTANCE_DELAY_L: {
-          *f = std::make_shared<stk::DelayL>(delay, maxDelay);
-          break;
-        }
-      }
-
-      break;
-    }
-
-    case INSTANCE_FIR: {
-      if(argc > 0) {
-        std::vector<double> coeff;
-        if(!qjsx::read_array(ctx, argv[0], coeff)) {
-          js_free(ctx, f);
-          return JS_EXCEPTION;
-        }
-        *f = std::make_shared<stk::Fir>(coeff);
-      } else {
-        *f = std::make_shared<stk::Fir>();
-      }
-
-      break;
-    }
-    case INSTANCE_IIR: {
-      std::vector<double> acoeff, bcoeff;
-
-      if(argc > 0) {
-        if(!qjsx::read_array(ctx, argv[0], bcoeff) || (argc > 1 && !qjsx::read_array(ctx, argv[1], acoeff))) {
-          js_free(ctx, f);
-          return JS_EXCEPTION;
-        }
-
-        *f = std::make_shared<stk::Iir>(bcoeff, acoeff);
-      } else {
-        *f = std::make_shared<stk::Iir>();
-      }
-
-      break;
-    }
-    case INSTANCE_TAP_DELAY: {
-      std::vector<unsigned long> taps;
-
-      if(argc > 0) {
-        uint32_t maxDelay = 4095;
-        std::vector<uint32_t> tapValues;
-
-        if(!qjsx::read_array(ctx, argv[0], tapValues)) {
-          js_free(ctx, f);
-          return JS_EXCEPTION;
-        }
-        taps.assign(tapValues.begin(), tapValues.end());
+  try {
+    switch(magic) {
+      case INSTANCE_DELAY:
+      case INSTANCE_DELAY_A:
+      case INSTANCE_DELAY_L: {
+        double delay = 0, maxDelay = 4095;
+        if(argc > 0)
+          JS_ToFloat64(ctx, &delay, argv[0]);
         if(argc > 1)
-          JS_ToUint32(ctx, &maxDelay, argv[1]);
+          JS_ToFloat64(ctx, &maxDelay, argv[1]);
 
-        *f = std::make_shared<stk::TapDelay>(taps, maxDelay);
-      } else {
-        *f = std::make_shared<stk::TapDelay>();
+        switch(magic) {
+          case INSTANCE_DELAY: {
+            f = std::make_shared<stk::Delay>();
+            break;
+          }
+          case INSTANCE_DELAY_A: {
+            f = std::make_shared<stk::DelayA>(delay, maxDelay);
+            break;
+          }
+          case INSTANCE_DELAY_L: {
+            f = std::make_shared<stk::DelayL>(delay, maxDelay);
+            break;
+          }
+        }
+
+        break;
       }
 
-      break;
-    }
+      case INSTANCE_FIR: {
+        if(argc > 0) {
+          std::vector<double> coeff;
+          if(qjsx::read_array(ctx, argv[0], coeff))
+            return JS_EXCEPTION;
+          f = std::make_shared<stk::Fir>(coeff);
+        } else {
+          f = std::make_shared<stk::Fir>();
+        }
 
-    default: {
-      double arg = 0;
-      if(argc > 0)
-        JS_ToFloat64(ctx, &arg, argv[0]);
+        break;
+      }
+      case INSTANCE_IIR: {
+        std::vector<double> acoeff, bcoeff;
 
-      switch(magic) {
-        case INSTANCE_BIQUAD: {
-          *f = std::make_shared<stk::BiQuad>();
-          break;
+        if(argc > 0) {
+          if(qjsx::read_array(ctx, argv[0], bcoeff) || (argc > 1 && qjsx::read_array(ctx, argv[1], acoeff)))
+            return JS_EXCEPTION;
+
+          f = std::make_shared<stk::Iir>(bcoeff, acoeff);
+        } else {
+          f = std::make_shared<stk::Iir>();
         }
-        case INSTANCE_FORM_SWEP: {
-          *f = std::make_shared<stk::FormSwep>();
-          break;
+
+        break;
+      }
+      case INSTANCE_TAP_DELAY: {
+        std::vector<unsigned long> taps;
+
+        if(argc > 0) {
+          uint32_t maxDelay = 4095;
+          std::vector<uint32_t> tapValues;
+
+          if(qjsx::read_array(ctx, argv[0], tapValues))
+            return JS_EXCEPTION;
+          taps.assign(tapValues.begin(), tapValues.end());
+          if(argc > 1)
+            JS_ToUint32(ctx, &maxDelay, argv[1]);
+
+          f = std::make_shared<stk::TapDelay>(taps, maxDelay);
+        } else {
+          f = std::make_shared<stk::TapDelay>();
         }
-        case INSTANCE_ONE_POLE: {
-          *f = std::make_shared<stk::OnePole>(arg);
-          break;
-        }
-        case INSTANCE_ONE_ZERO: {
-          *f = std::make_shared<stk::OneZero>(arg);
-          break;
-        }
-        case INSTANCE_POLE_ZERO: {
-          *f = std::make_shared<stk::PoleZero>();
-          break;
-        }
-        case INSTANCE_TWO_POLE: {
-          *f = std::make_shared<stk::TwoPole>();
-          break;
-        }
-        case INSTANCE_TWO_ZERO: {
-          *f = std::make_shared<stk::TwoZero>();
-          break;
-        }
+
+        break;
       }
 
-      break;
+      default: {
+        double arg = 0;
+        if(argc > 0)
+          JS_ToFloat64(ctx, &arg, argv[0]);
+
+        switch(magic) {
+          case INSTANCE_BIQUAD: {
+            f = std::make_shared<stk::BiQuad>();
+            break;
+          }
+          case INSTANCE_FORM_SWEP: {
+            f = std::make_shared<stk::FormSwep>();
+            break;
+          }
+          case INSTANCE_ONE_POLE: {
+            f = std::make_shared<stk::OnePole>(arg);
+            break;
+          }
+          case INSTANCE_ONE_ZERO: {
+            f = std::make_shared<stk::OneZero>(arg);
+            break;
+          }
+          case INSTANCE_POLE_ZERO: {
+            f = std::make_shared<stk::PoleZero>();
+            break;
+          }
+          case INSTANCE_TWO_POLE: {
+            f = std::make_shared<stk::TwoPole>();
+            break;
+          }
+          case INSTANCE_TWO_ZERO: {
+            f = std::make_shared<stk::TwoZero>();
+            break;
+          }
+        }
+
+        break;
+      }
     }
+  } catch(stk::StkError& err) {
+    return js_throw_stkerror(ctx, err);
   }
 
-  /* using new_target to get the prototype is necessary when the class is
-   * extended. */
-  JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
-    goto fail;
-
-  if(!JS_IsObject(proto)) {
-    JS_FreeValue(ctx, proto);
-    proto = JS_DupValue(ctx, stkfilter_proto);
-  }
-
-  /* using new_target to get the prototype is necessary when the class is
-   * extended. */
-  obj = JS_NewObjectProtoClass(ctx, proto, js_stkfilter_class_id);
-  JS_FreeValue(ctx, proto);
+  JSValue obj = qjsx::wrap<StkFilterPtr>(ctx, new_target, js_stkfilter_class_id, std::move(f));
 
   if(JS_IsException(obj))
-    goto fail;
-
-  JS_SetOpaque(obj, f);
+    return obj;
 
   js_set_tostringtag(
       ctx, obj,
@@ -973,10 +996,6 @@ js_stkfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
   );
 
   return obj;
-
-fail:
-  JS_FreeValue(ctx, obj);
-  return JS_EXCEPTION;
 }
 
 enum {
@@ -997,8 +1016,8 @@ js_stkfilter_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
 
       if((a = static_cast<StkFramesPtr*>(JS_GetOpaque(argv[0], js_stkframes_class_id)))) {
         uint32_t channel = 0;
-        if(argc > 1)
-          JS_ToUint32(ctx, &channel, argv[1]);
+        if(js_stk_channel(ctx, argc > 1 ? argv[1] : JS_UNDEFINED, (*a->get()).channels(), &channel))
+          return JS_EXCEPTION;
 
         (*f)->tick(*a->get(), channel);
 
@@ -1039,7 +1058,7 @@ static JSClassDef js_stkfilter_class = {
 };
 
 static const JSCFunctionListEntry js_stkfilter_funcs[] = {
-  JS_CFUNC_MAGIC_DEF("tick", 1, js_stkfilter_method, METHOD_FILTER_TICK),
+  JS_CFUNC_MAGIC_DEF("tick", 1, guarded<js_stkfilter_method>, METHOD_FILTER_TICK),
   JS_PROP_STRING_DEF("[Symbol.toStringTag]", "Filter", JS_PROP_CONFIGURABLE),
 };
 
@@ -1056,69 +1075,57 @@ enum {
 
 static JSValue
 js_stkeffect_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {
-  StkEffectPtr* e = static_cast<StkEffectPtr*>(js_mallocz(ctx, sizeof(StkEffectPtr)));
+  StkEffectPtr e;
   double arg = 0;
   if(argc > 0)
     JS_ToFloat64(ctx, &arg, argv[0]);
 
-  switch(magic) {
-    case INSTANCE_CHORUS: {
-      *e = std::make_shared<stk::Chorus>(argc > 0 ? arg : 6000);
-      break;
+  try {
+    switch(magic) {
+      case INSTANCE_CHORUS: {
+        e = std::make_shared<stk::Chorus>(argc > 0 ? arg : 6000);
+        break;
+      }
+      case INSTANCE_ECHO: {
+        e = std::make_shared<stk::Echo>(argc > 0 ? arg : stk::Stk::sampleRate());
+        break;
+      }
+      case INSTANCE_FREEVERB: {
+        e = std::make_shared<stk::FreeVerb>();
+        break;
+      }
+      case INSTANCE_JCREV: {
+        e = std::make_shared<stk::JCRev>(argc > 0 ? arg : 1.0);
+        break;
+      }
+      case INSTANCE_LENTPITSHIFT: {
+        int32_t tmax = stk::RT_BUFFER_SIZE;
+        if(argc > 1)
+          JS_ToInt32(ctx, &tmax, argv[1]);
+        e = std::make_shared<stk::LentPitShift>(argc > 0 ? arg : 1.0, tmax);
+        break;
+      }
+      case INSTANCE_NREV: {
+        e = std::make_shared<stk::NRev>(argc > 0 ? arg : 1.0);
+        break;
+      }
+      case INSTANCE_PITSHIFT: {
+        e = std::make_shared<stk::PitShift>();
+        break;
+      }
+      case INSTANCE_PRCREV: {
+        e = std::make_shared<stk::PRCRev>(argc > 0 ? arg : 1.0);
+        break;
+      }
     }
-    case INSTANCE_ECHO: {
-      *e = std::make_shared<stk::Echo>(argc > 0 ? arg : stk::Stk::sampleRate());
-      break;
-    }
-    case INSTANCE_FREEVERB: {
-      *e = std::make_shared<stk::FreeVerb>();
-      break;
-    }
-    case INSTANCE_JCREV: {
-      *e = std::make_shared<stk::JCRev>(argc > 0 ? arg : 1.0);
-      break;
-    }
-    case INSTANCE_LENTPITSHIFT: {
-      int32_t tmax = stk::RT_BUFFER_SIZE;
-      if(argc > 1)
-        JS_ToInt32(ctx, &tmax, argv[1]);
-      *e = std::make_shared<stk::LentPitShift>(argc > 0 ? arg : 1.0, tmax);
-      break;
-    }
-    case INSTANCE_NREV: {
-      *e = std::make_shared<stk::NRev>(argc > 0 ? arg : 1.0);
-      break;
-    }
-    case INSTANCE_PITSHIFT: {
-      *e = std::make_shared<stk::PitShift>();
-      break;
-    }
-    case INSTANCE_PRCREV: {
-      *e = std::make_shared<stk::PRCRev>(argc > 0 ? arg : 1.0);
-      break;
-    }
+  } catch(stk::StkError& err) {
+    return js_throw_stkerror(ctx, err);
   }
 
-  /* using new_target to get the prototype is necessary when the class is
-   * extended. */
-  JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
-    goto fail;
-
-  if(!JS_IsObject(proto)) {
-    JS_FreeValue(ctx, proto);
-    proto = JS_DupValue(ctx, stkeffect_proto);
-  }
-
-  /* using new_target to get the prototype is necessary when the class is
-   * extended. */
-  obj = JS_NewObjectProtoClass(ctx, proto, js_stkeffect_class_id);
-  JS_FreeValue(ctx, proto);
+  JSValue obj = qjsx::wrap<StkEffectPtr>(ctx, new_target, js_stkeffect_class_id, std::move(e));
 
   if(JS_IsException(obj))
-    goto fail;
-
-  JS_SetOpaque(obj, e);
+    return obj;
 
   js_set_tostringtag(
       ctx, obj,
@@ -1135,10 +1142,6 @@ js_stkeffect_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
   );
 
   return obj;
-
-fail:
-  JS_FreeValue(ctx, obj);
-  return JS_EXCEPTION;
 }
 
 enum {
@@ -1163,8 +1166,8 @@ js_stkeffect_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
 
       if((a = static_cast<StkFramesPtr*>(JS_GetOpaque(argv[0], js_stkframes_class_id)))) {
         uint32_t channel = 0;
-        if(argc > 1)
-          JS_ToUint32(ctx, &channel, argv[1]);
+        if(js_stk_channel(ctx, argc > 1 ? argv[1] : JS_UNDEFINED, (*a->get()).channels(), &channel))
+          return JS_EXCEPTION;
 
         /* Effect subclasses don't share a common virtual tick() either, so
          * dispatch by type same as the scalar path below. */
@@ -1259,9 +1262,9 @@ static JSClassDef js_stkeffect_class = {
 };
 
 static const JSCFunctionListEntry js_stkeffect_funcs[] = {
-  JS_CFUNC_MAGIC_DEF("tick", 1, js_stkeffect_method, METHOD_EFFECT_TICK),
-  JS_CFUNC_MAGIC_DEF("setEffectMix", 1, js_stkeffect_method, METHOD_EFFECT_SET_MIX),
-  JS_CFUNC_MAGIC_DEF("clear", 0, js_stkeffect_method, METHOD_EFFECT_CLEAR),
+  JS_CFUNC_MAGIC_DEF("tick", 1, guarded<js_stkeffect_method>, METHOD_EFFECT_TICK),
+  JS_CFUNC_MAGIC_DEF("setEffectMix", 1, guarded<js_stkeffect_method>, METHOD_EFFECT_SET_MIX),
+  JS_CFUNC_MAGIC_DEF("clear", 0, guarded<js_stkeffect_method>, METHOD_EFFECT_CLEAR),
   JS_PROP_STRING_DEF("[Symbol.toStringTag]", "Effect", JS_PROP_CONFIGURABLE),
 };
 
@@ -1277,62 +1280,50 @@ enum {
 
 static JSValue
 js_stkfm_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {
-  StkFMPtr* fm = static_cast<StkFMPtr*>(js_mallocz(ctx, sizeof(StkFMPtr)));
+  StkFMPtr fm;
   double arg = 0;
   if(argc > 0)
     JS_ToFloat64(ctx, &arg, argv[0]);
 
-  switch(magic) {
-    case INSTANCE_BEETHREE: {
-      *fm = std::make_shared<stk::BeeThree>();
-      break;
+  try {
+    switch(magic) {
+      case INSTANCE_BEETHREE: {
+        fm = std::make_shared<stk::BeeThree>();
+        break;
+      }
+      case INSTANCE_FMVOICES: {
+        fm = std::make_shared<stk::FMVoices>();
+        break;
+      }
+      case INSTANCE_HEVYMETL: {
+        fm = std::make_shared<stk::HevyMetl>();
+        break;
+      }
+      case INSTANCE_PERCFLUT: {
+        fm = std::make_shared<stk::PercFlut>();
+        break;
+      }
+      case INSTANCE_RHODEY: {
+        fm = std::make_shared<stk::Rhodey>();
+        break;
+      }
+      case INSTANCE_TUBEBELL: {
+        fm = std::make_shared<stk::TubeBell>();
+        break;
+      }
+      case INSTANCE_WURLEY: {
+        fm = std::make_shared<stk::Wurley>();
+        break;
+      }
     }
-    case INSTANCE_FMVOICES: {
-      *fm = std::make_shared<stk::FMVoices>();
-      break;
-    }
-    case INSTANCE_HEVYMETL: {
-      *fm = std::make_shared<stk::HevyMetl>();
-      break;
-    }
-    case INSTANCE_PERCFLUT: {
-      *fm = std::make_shared<stk::PercFlut>();
-      break;
-    }
-    case INSTANCE_RHODEY: {
-      *fm = std::make_shared<stk::Rhodey>();
-      break;
-    }
-    case INSTANCE_TUBEBELL: {
-      *fm = std::make_shared<stk::TubeBell>();
-      break;
-    }
-    case INSTANCE_WURLEY: {
-      *fm = std::make_shared<stk::Wurley>();
-      break;
-    }
+  } catch(stk::StkError& err) {
+    return js_throw_stkerror(ctx, err);
   }
 
-  /* using new_target to get the prototype is necessary when the class is
-   * extended. */
-  JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
-    goto fail;
-
-  if(!JS_IsObject(proto)) {
-    JS_FreeValue(ctx, proto);
-    proto = JS_DupValue(ctx, stkfm_proto);
-  }
-
-  /* using new_target to get the prototype is necessary when the class is
-   * extended. */
-  obj = JS_NewObjectProtoClass(ctx, proto, js_stkfm_class_id);
-  JS_FreeValue(ctx, proto);
+  JSValue obj = qjsx::wrap<StkFMPtr>(ctx, new_target, js_stkfm_class_id, std::move(fm));
 
   if(JS_IsException(obj))
-    goto fail;
-
-  JS_SetOpaque(obj, fm);
+    return obj;
   js_set_tostringtag(
       ctx, obj,
       ((const char*[]){
@@ -1346,10 +1337,6 @@ js_stkfm_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueC
       })[magic]
   );
   return obj;
-
-fail:
-  JS_FreeValue(ctx, obj);
-  return JS_EXCEPTION;
 }
 
 enum {
@@ -1377,8 +1364,8 @@ js_stkfm_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst ar
       uint32_t channel = 0;
 
       if(argc > 0 && (a = static_cast<StkFramesPtr*>(JS_GetOpaque(argv[0], js_stkframes_class_id)))) {
-        if(argc > 1)
-          JS_ToUint32(ctx, &channel, argv[1]);
+        if(js_stk_channel(ctx, argc > 1 ? argv[1] : JS_UNDEFINED, (*a->get()).channels(), &channel))
+          return JS_EXCEPTION;
 
         (*fm)->tick(*a->get(), channel);
 
@@ -1386,8 +1373,8 @@ js_stkfm_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst ar
         break;
       }
 
-      if(argc > 0)
-        JS_ToUint32(ctx, &channel, argv[0]);
+      if(js_stk_channel(ctx, argc > 0 ? argv[0] : JS_UNDEFINED, (*fm)->channelsOut(), &channel))
+        return JS_EXCEPTION;
 
       ret = JS_NewFloat64(ctx, (*fm)->tick(channel));
       break;
@@ -1440,10 +1427,10 @@ static JSClassDef js_stkfm_class = {
 };
 
 static const JSCFunctionListEntry js_stkfm_funcs[] = {
-  JS_CFUNC_MAGIC_DEF("tick", 0, js_stkfm_method, METHOD_FM_TICK),
-  JS_CFUNC_MAGIC_DEF("noteOn", 2, js_stkfm_method, METHOD_FM_NOTE_ON),
-  JS_CFUNC_MAGIC_DEF("noteOff", 1, js_stkfm_method, METHOD_FM_NOTE_OFF),
-  JS_CFUNC_MAGIC_DEF("controlChange", 2, js_stkfm_method, METHOD_FM_CONTROL_CHANGE),
+  JS_CFUNC_MAGIC_DEF("tick", 0, guarded<js_stkfm_method>, METHOD_FM_TICK),
+  JS_CFUNC_MAGIC_DEF("noteOn", 2, guarded<js_stkfm_method>, METHOD_FM_NOTE_ON),
+  JS_CFUNC_MAGIC_DEF("noteOff", 1, guarded<js_stkfm_method>, METHOD_FM_NOTE_OFF),
+  JS_CFUNC_MAGIC_DEF("controlChange", 2, guarded<js_stkfm_method>, METHOD_FM_CONTROL_CHANGE),
   JS_PROP_STRING_DEF("[Symbol.toStringTag]", "StkFM", JS_PROP_CONFIGURABLE),
 };
 
@@ -1472,125 +1459,109 @@ enum {
 
 static JSValue
 js_stkinstrmnt_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {
-  StkInstrmntPtr* i = static_cast<StkInstrmntPtr*>(js_mallocz(ctx, sizeof(StkInstrmntPtr)));
+  StkInstrmntPtr i;
   double arg = 0;
   if(argc > 0)
     JS_ToFloat64(ctx, &arg, argv[0]);
 
-  switch(magic) {
-    case INSTANCE_BANDEDWG: {
-      *i = std::make_shared<stk::BandedWG>();
-      break;
+  try {
+    switch(magic) {
+      case INSTANCE_BANDEDWG: {
+        i = std::make_shared<stk::BandedWG>();
+        break;
+      }
+      case INSTANCE_BLOWBOTL: {
+        i = std::make_shared<stk::BlowBotl>();
+        break;
+      }
+      case INSTANCE_BLOWHOLE: {
+        i = std::make_shared<stk::BlowHole>(arg);
+        break;
+      }
+      case INSTANCE_BOWED: {
+        i = std::make_shared<stk::Bowed>(argc > 0 ? arg : 8.0);
+        break;
+      }
+      case INSTANCE_BRASS: {
+        i = std::make_shared<stk::Brass>(argc > 0 ? arg : 8.0);
+        break;
+      }
+      case INSTANCE_CLARINET: {
+        i = std::make_shared<stk::Clarinet>(argc > 0 ? arg : 8.0);
+        break;
+      }
+      case INSTANCE_DRUMMER: {
+        i = std::make_shared<stk::Drummer>();
+        break;
+      }
+      case INSTANCE_FLUTE: {
+        i = std::make_shared<stk::Flute>(arg);
+        break;
+      }
+      case INSTANCE_MANDOLIN: {
+        i = std::make_shared<stk::Mandolin>(arg);
+        break;
+      }
+      case INSTANCE_MESH2D: {
+        uint32_t nx, ny;
+        JS_ToUint32(ctx, &nx, argv[0]);
+        JS_ToUint32(ctx, &ny, argv[1]);
+        i = std::make_shared<stk::Mesh2D>(nx, ny);
+        break;
+      }
+      // case INSTANCE_MODAL: { i = std::make_shared<stk::Modal>(argc > 0 ? arg :
+      // 4); break; }
+      case INSTANCE_PLUCKED: {
+        i = std::make_shared<stk::Plucked>(argc > 0 ? arg : 10.0);
+        break;
+      }
+      case INSTANCE_RECORDER: {
+        i = std::make_shared<stk::Recorder>();
+        break;
+      }
+      case INSTANCE_RESONATE: {
+        i = std::make_shared<stk::Resonate>();
+        break;
+      }
+      // case INSTANCE_SAMPLER: { i = std::make_shared<stk::Sampler>(); break; }
+      case INSTANCE_SAXOFONY: {
+        i = std::make_shared<stk::Saxofony>(arg);
+        break;
+      }
+      case INSTANCE_SHAKERS: {
+        i = std::make_shared<stk::Shakers>(argc > 0 ? arg : 0);
+        break;
+      }
+      case INSTANCE_SIMPLE: {
+        i = std::make_shared<stk::Simple>();
+        break;
+      }
+      case INSTANCE_SITAR: {
+        i = std::make_shared<stk::Sitar>(argc > 0 ? arg : 8.0);
+        break;
+      }
+      case INSTANCE_STIFKARP: {
+        i = std::make_shared<stk::StifKarp>(argc > 0 ? arg : 10.0);
+        break;
+      }
+      case INSTANCE_VOICFORM: {
+        i = std::make_shared<stk::VoicForm>();
+        break;
+      }
+      case INSTANCE_WHISTLE: {
+        i = std::make_shared<stk::Whistle>();
+        break;
+      }
     }
-    case INSTANCE_BLOWBOTL: {
-      *i = std::make_shared<stk::BlowBotl>();
-      break;
-    }
-    case INSTANCE_BLOWHOLE: {
-      *i = std::make_shared<stk::BlowHole>(arg);
-      break;
-    }
-    case INSTANCE_BOWED: {
-      *i = std::make_shared<stk::Bowed>(argc > 0 ? arg : 8.0);
-      break;
-    }
-    case INSTANCE_BRASS: {
-      *i = std::make_shared<stk::Brass>(argc > 0 ? arg : 8.0);
-      break;
-    }
-    case INSTANCE_CLARINET: {
-      *i = std::make_shared<stk::Clarinet>(argc > 0 ? arg : 8.0);
-      break;
-    }
-    case INSTANCE_DRUMMER: {
-      *i = std::make_shared<stk::Drummer>();
-      break;
-    }
-    case INSTANCE_FLUTE: {
-      *i = std::make_shared<stk::Flute>(arg);
-      break;
-    }
-    case INSTANCE_MANDOLIN: {
-      *i = std::make_shared<stk::Mandolin>(arg);
-      break;
-    }
-    case INSTANCE_MESH2D: {
-      uint32_t nx, ny;
-      JS_ToUint32(ctx, &nx, argv[0]);
-      JS_ToUint32(ctx, &ny, argv[1]);
-      *i = std::make_shared<stk::Mesh2D>(nx, ny);
-      break;
-    }
-    // case INSTANCE_MODAL: { *i = std::make_shared<stk::Modal>(argc > 0 ? arg :
-    // 4); break; }
-    case INSTANCE_PLUCKED: {
-      *i = std::make_shared<stk::Plucked>(argc > 0 ? arg : 10.0);
-      break;
-    }
-    case INSTANCE_RECORDER: {
-      *i = std::make_shared<stk::Recorder>();
-      break;
-    }
-    case INSTANCE_RESONATE: {
-      *i = std::make_shared<stk::Resonate>();
-      break;
-    }
-    // case INSTANCE_SAMPLER: { *i = std::make_shared<stk::Sampler>(); break; }
-    case INSTANCE_SAXOFONY: {
-      *i = std::make_shared<stk::Saxofony>(arg);
-      break;
-    }
-    case INSTANCE_SHAKERS: {
-      *i = std::make_shared<stk::Shakers>(argc > 0 ? arg : 0);
-      break;
-    }
-    case INSTANCE_SIMPLE: {
-      *i = std::make_shared<stk::Simple>();
-      break;
-    }
-    case INSTANCE_SITAR: {
-      *i = std::make_shared<stk::Sitar>(argc > 0 ? arg : 8.0);
-      break;
-    }
-    case INSTANCE_STIFKARP: {
-      *i = std::make_shared<stk::StifKarp>(argc > 0 ? arg : 10.0);
-      break;
-    }
-    case INSTANCE_VOICFORM: {
-      *i = std::make_shared<stk::VoicForm>();
-      break;
-    }
-    case INSTANCE_WHISTLE: {
-      *i = std::make_shared<stk::Whistle>();
-      break;
-    }
+  } catch(stk::StkError& err) {
+    return js_throw_stkerror(ctx, err);
   }
 
-  /* using new_target to get the prototype is necessary when the class is
-   * extended. */
-  JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
-    goto fail;
-
-  if(!JS_IsObject(proto)) {
-    JS_FreeValue(ctx, proto);
-    proto = JS_DupValue(ctx, stkinstrmnt_proto);
-  }
-
-  /* using new_target to get the prototype is necessary when the class is
-   * extended. */
-  obj = JS_NewObjectProtoClass(ctx, proto, js_stkinstrmnt_class_id);
-  JS_FreeValue(ctx, proto);
+  JSValue obj = qjsx::wrap<StkInstrmntPtr>(ctx, new_target, js_stkinstrmnt_class_id, std::move(i));
 
   if(JS_IsException(obj))
-    goto fail;
-
-  JS_SetOpaque(obj, i);
+    return obj;
   return obj;
-
-fail:
-  JS_FreeValue(ctx, obj);
-  return JS_EXCEPTION;
 }
 
 enum {
@@ -1614,8 +1585,8 @@ js_stkinstrmnt_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
       uint32_t channel = 0;
 
       if(argc > 0 && (a = static_cast<StkFramesPtr*>(JS_GetOpaque(argv[0], js_stkframes_class_id)))) {
-        if(argc > 1)
-          JS_ToUint32(ctx, &channel, argv[1]);
+        if(js_stk_channel(ctx, argc > 1 ? argv[1] : JS_UNDEFINED, (*a->get()).channels(), &channel))
+          return JS_EXCEPTION;
 
         (*i)->tick(*a->get(), channel);
 
@@ -1623,8 +1594,8 @@ js_stkinstrmnt_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
         break;
       }
 
-      if(argc > 0)
-        JS_ToUint32(ctx, &channel, argv[0]);
+      if(js_stk_channel(ctx, argc > 0 ? argv[0] : JS_UNDEFINED, (*i)->channelsOut(), &channel))
+        return JS_EXCEPTION;
 
       ret = JS_NewFloat64(ctx, (*i)->tick(channel));
       break;
@@ -1677,10 +1648,10 @@ static JSClassDef js_stkinstrmnt_class = {
 };
 
 static const JSCFunctionListEntry js_stkinstrmnt_funcs[] = {
-  JS_CFUNC_MAGIC_DEF("tick", 0, js_stkinstrmnt_method, METHOD_INSTRMNT_TICK),
-  JS_CFUNC_MAGIC_DEF("noteOn", 2, js_stkinstrmnt_method, METHOD_INSTRMNT_NOTE_ON),
-  JS_CFUNC_MAGIC_DEF("noteOff", 1, js_stkinstrmnt_method, METHOD_INSTRMNT_NOTE_OFF),
-  JS_CFUNC_MAGIC_DEF("controlChange", 2, js_stkinstrmnt_method, METHOD_INSTRMNT_CONTROL_CHANGE),
+  JS_CFUNC_MAGIC_DEF("tick", 0, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_TICK),
+  JS_CFUNC_MAGIC_DEF("noteOn", 2, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_NOTE_ON),
+  JS_CFUNC_MAGIC_DEF("noteOff", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_NOTE_OFF),
+  JS_CFUNC_MAGIC_DEF("controlChange", 2, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_CONTROL_CHANGE),
   JS_PROP_STRING_DEF("[Symbol.toStringTag]", "StkInstrmnt", JS_PROP_CONFIGURABLE),
 };
 
@@ -1690,35 +1661,23 @@ enum {
 
 static JSValue
 js_stkfunction_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {
-  StkFunctionPtr* g = static_cast<StkFunctionPtr*>(js_mallocz(ctx, sizeof(StkFunctionPtr)));
+  StkFunctionPtr g;
 
-  switch(magic) {
-    case INSTANCE_CUBIC: {
-      *g = std::make_shared<stk::Cubic>();
-      break;
+  try {
+    switch(magic) {
+      case INSTANCE_CUBIC: {
+        g = std::make_shared<stk::Cubic>();
+        break;
+      }
     }
+  } catch(stk::StkError& err) {
+    return js_throw_stkerror(ctx, err);
   }
 
-  /* using new_target to get the prototype is necessary when the class is
-   * extended. */
-  JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
-    goto fail;
-
-  if(!JS_IsObject(proto)) {
-    JS_FreeValue(ctx, proto);
-    proto = JS_DupValue(ctx, stkfunction_proto);
-  }
-
-  /* using new_target to get the prototype is necessary when the class is
-   * extended. */
-  obj = JS_NewObjectProtoClass(ctx, proto, js_stkfunction_class_id);
-  JS_FreeValue(ctx, proto);
+  JSValue obj = qjsx::wrap<StkFunctionPtr>(ctx, new_target, js_stkfunction_class_id, std::move(g));
 
   if(JS_IsException(obj))
-    goto fail;
-
-  JS_SetOpaque(obj, g);
+    return obj;
 
   js_set_tostringtag(
       ctx, obj,
@@ -1728,10 +1687,6 @@ js_stkfunction_constructor(JSContext* ctx, JSValueConst new_target, int argc, JS
   );
 
   return obj;
-
-fail:
-  JS_FreeValue(ctx, obj);
-  return JS_EXCEPTION;
 }
 
 enum {
@@ -1757,8 +1712,8 @@ js_stkfunction_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
 
       if((a = static_cast<StkFramesPtr*>(JS_GetOpaque(argv[0], js_stkframes_class_id)))) {
         uint32_t channel = 0;
-        if(argc > 1)
-          JS_ToUint32(ctx, &channel, argv[1]);
+        if(js_stk_channel(ctx, argc > 1 ? argv[1] : JS_UNDEFINED, (*a->get()).channels(), &channel))
+          return JS_EXCEPTION;
 
         /* stk::Function doesn't declare a virtual StkFrames& tick(); Cubic is
          * presently the only bound subclass, so dispatch to its overload
@@ -1819,12 +1774,12 @@ static JSClassDef js_stkfunction_class = {
 };
 
 static const JSCFunctionListEntry js_stkfunction_funcs[] = {
-  JS_CFUNC_MAGIC_DEF("tick", 1, js_stkfunction_method, METHOD_FUNCTION_TICK),
-  JS_CFUNC_MAGIC_DEF("setA1", 1, js_stkfunction_method, METHOD_FUNCTION_SET_A1),
-  JS_CFUNC_MAGIC_DEF("setA2", 1, js_stkfunction_method, METHOD_FUNCTION_SET_A2),
-  JS_CFUNC_MAGIC_DEF("setA3", 1, js_stkfunction_method, METHOD_FUNCTION_SET_A3),
-  JS_CFUNC_MAGIC_DEF("setGain", 1, js_stkfunction_method, METHOD_FUNCTION_SET_GAIN),
-  JS_CFUNC_MAGIC_DEF("setThreshold", 1, js_stkfunction_method, METHOD_FUNCTION_SET_THRESHOLD),
+  JS_CFUNC_MAGIC_DEF("tick", 1, guarded<js_stkfunction_method>, METHOD_FUNCTION_TICK),
+  JS_CFUNC_MAGIC_DEF("setA1", 1, guarded<js_stkfunction_method>, METHOD_FUNCTION_SET_A1),
+  JS_CFUNC_MAGIC_DEF("setA2", 1, guarded<js_stkfunction_method>, METHOD_FUNCTION_SET_A2),
+  JS_CFUNC_MAGIC_DEF("setA3", 1, guarded<js_stkfunction_method>, METHOD_FUNCTION_SET_A3),
+  JS_CFUNC_MAGIC_DEF("setGain", 1, guarded<js_stkfunction_method>, METHOD_FUNCTION_SET_GAIN),
+  JS_CFUNC_MAGIC_DEF("setThreshold", 1, guarded<js_stkfunction_method>, METHOD_FUNCTION_SET_THRESHOLD),
   JS_PROP_STRING_DEF("[Symbol.toStringTag]", "Function", JS_PROP_CONFIGURABLE),
 };
 
@@ -1833,51 +1788,26 @@ static const JSCFunctionListEntry js_stkfunction_funcs[] = {
 #include "analog-drums.hpp"
 
 static JSValue
-js_new_stkframes(JSContext* ctx, unsigned int nFrames, unsigned int nChannels) {
-  StkFramesPtr* f = static_cast<StkFramesPtr*>(js_mallocz(ctx, sizeof(StkFramesPtr)));
-  new(f) StkFramesPtr(std::make_shared<stk::StkFrames>(nFrames, nChannels));
-
-  JSValue obj = JS_NewObjectProtoClass(ctx, stkframes_proto, js_stkframes_class_id);
-  if(JS_IsException(obj)) {
-    f->~StkFramesPtr();
-    js_free(ctx, f);
-    return JS_EXCEPTION;
-  }
-  JS_SetOpaque(obj, f);
-  return obj;
-}
-
-static JSValue
 js_twintdrum_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
   double frequency = 200.0;
   if(argc > 0)
     JS_ToFloat64(ctx, &frequency, argv[0]);
 
-  StkInstrmntPtr* i = static_cast<StkInstrmntPtr*>(js_mallocz(ctx, sizeof(StkInstrmntPtr)));
-  new(i) StkInstrmntPtr(std::make_shared<TwinTDrum>(frequency));
+  StkInstrmntPtr i;
 
-  JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
-    goto fail;
-
-  if(!JS_IsObject(proto)) {
-    JS_FreeValue(ctx, proto);
-    proto = JS_DupValue(ctx, twintdrum_proto);
+  try {
+    i = std::make_shared<TwinTDrum>(frequency);
+  } catch(stk::StkError& err) {
+    return js_throw_stkerror(ctx, err);
   }
 
-  obj = JS_NewObjectProtoClass(ctx, proto, js_stkinstrmnt_class_id);
-  JS_FreeValue(ctx, proto);
+  JSValue obj = qjsx::wrap<StkInstrmntPtr>(ctx, new_target, js_stkinstrmnt_class_id, std::move(i));
 
   if(JS_IsException(obj))
-    goto fail;
+    return obj;
 
-  JS_SetOpaque(obj, i);
   js_set_tostringtag(ctx, obj, "TwinTDrum");
   return obj;
-
-fail:
-  JS_FreeValue(ctx, obj);
-  return JS_EXCEPTION;
 }
 
 enum {
@@ -1918,17 +1848,16 @@ js_twintdrum_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
     case METHOD_TWINT_SET_CLICK: d->setClick(a); break;
     case METHOD_TWINT_STRIKE: d->strike(argc > 0 ? a : 1.0); break;
     case METHOD_TWINT_RENDER: {
+      if(a < 0 || a > 0x7fffffff)
+        return JS_ThrowRangeError(ctx, "frame count out of range");
       uint32_t n = (uint32_t)a;
       double amp = argc > 1 ? b : 1.0;
-      JSValue frames = js_new_stkframes(ctx, n, 1);
-      if(JS_IsException(frames))
-        return frames;
-      StkFramesPtr* fp = static_cast<StkFramesPtr*>(JS_GetOpaque(frames, js_stkframes_class_id));
-      stk::StkFrames& fr = **fp;
+      StkFramesPtr f = std::make_shared<stk::StkFrames>(n, 1);
+      stk::StkFrames& fr = *f;
       d->strike(amp);
       for(uint32_t k = 0; k < n; k++)
         fr[k] = d->tick();
-      ret = frames;
+      ret = qjsx::wrap_proto<StkFramesPtr>(ctx, stkframes_proto, js_stkframes_class_id, std::move(f));
       break;
     }
   }
@@ -1937,43 +1866,33 @@ js_twintdrum_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
 }
 
 static const JSCFunctionListEntry js_twintdrum_funcs[] = {
-  JS_CFUNC_MAGIC_DEF("setFrequency", 1, js_twintdrum_method, METHOD_TWINT_SET_FREQUENCY),
-  JS_CFUNC_MAGIC_DEF("setDecay", 1, js_twintdrum_method, METHOD_TWINT_SET_DECAY),
-  JS_CFUNC_MAGIC_DEF("setDrive", 1, js_twintdrum_method, METHOD_TWINT_SET_DRIVE),
-  JS_CFUNC_MAGIC_DEF("setPitchDrop", 2, js_twintdrum_method, METHOD_TWINT_SET_PITCH_DROP),
-  JS_CFUNC_MAGIC_DEF("setSecondary", 2, js_twintdrum_method, METHOD_TWINT_SET_SECONDARY),
-  JS_CFUNC_MAGIC_DEF("setClick", 1, js_twintdrum_method, METHOD_TWINT_SET_CLICK),
-  JS_CFUNC_MAGIC_DEF("strike", 1, js_twintdrum_method, METHOD_TWINT_STRIKE),
-  JS_CFUNC_MAGIC_DEF("render", 2, js_twintdrum_method, METHOD_TWINT_RENDER),
+  JS_CFUNC_MAGIC_DEF("setFrequency", 1, guarded<js_twintdrum_method>, METHOD_TWINT_SET_FREQUENCY),
+  JS_CFUNC_MAGIC_DEF("setDecay", 1, guarded<js_twintdrum_method>, METHOD_TWINT_SET_DECAY),
+  JS_CFUNC_MAGIC_DEF("setDrive", 1, guarded<js_twintdrum_method>, METHOD_TWINT_SET_DRIVE),
+  JS_CFUNC_MAGIC_DEF("setPitchDrop", 2, guarded<js_twintdrum_method>, METHOD_TWINT_SET_PITCH_DROP),
+  JS_CFUNC_MAGIC_DEF("setSecondary", 2, guarded<js_twintdrum_method>, METHOD_TWINT_SET_SECONDARY),
+  JS_CFUNC_MAGIC_DEF("setClick", 1, guarded<js_twintdrum_method>, METHOD_TWINT_SET_CLICK),
+  JS_CFUNC_MAGIC_DEF("strike", 1, guarded<js_twintdrum_method>, METHOD_TWINT_STRIKE),
+  JS_CFUNC_MAGIC_DEF("render", 2, guarded<js_twintdrum_method>, METHOD_TWINT_RENDER),
 };
 
 static JSValue
 js_tr909bassdrum_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
-  StkInstrmntPtr* i = static_cast<StkInstrmntPtr*>(js_mallocz(ctx, sizeof(StkInstrmntPtr)));
-  new(i) StkInstrmntPtr(std::make_shared<Tr909BassDrum>());
+  StkInstrmntPtr i;
 
-  JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
-    goto fail;
-
-  if(!JS_IsObject(proto)) {
-    JS_FreeValue(ctx, proto);
-    proto = JS_DupValue(ctx, tr909bassdrum_proto);
+  try {
+    i = std::make_shared<Tr909BassDrum>();
+  } catch(stk::StkError& err) {
+    return js_throw_stkerror(ctx, err);
   }
 
-  obj = JS_NewObjectProtoClass(ctx, proto, js_stkinstrmnt_class_id);
-  JS_FreeValue(ctx, proto);
+  JSValue obj = qjsx::wrap<StkInstrmntPtr>(ctx, new_target, js_stkinstrmnt_class_id, std::move(i));
 
   if(JS_IsException(obj))
-    goto fail;
+    return obj;
 
-  JS_SetOpaque(obj, i);
   js_set_tostringtag(ctx, obj, "Tr909BassDrum");
   return obj;
-
-fail:
-  JS_FreeValue(ctx, obj);
-  return JS_EXCEPTION;
 }
 
 static int
@@ -2155,19 +2074,17 @@ js_tr909bassdrum_method(JSContext* ctx, JSValueConst this_val, int argc, JSValue
     case METHOD_TR909_RENDER: {
       uint32_t n = 0;
       double v = 1.0;
-      JS_ToUint32(ctx, &n, argv[0]);
+      if(argc < 1 || js_stk_count(ctx, argv[0], &n))
+        return JS_EXCEPTION;
       if(argc > 1)
         JS_ToFloat64(ctx, &v, argv[1]);
 
-      JSValue frames = js_new_stkframes(ctx, n, 1);
-      if(JS_IsException(frames))
-        return frames;
-      StkFramesPtr* fp = static_cast<StkFramesPtr*>(JS_GetOpaque(frames, js_stkframes_class_id));
-      stk::StkFrames& fr = **fp;
+      StkFramesPtr f = std::make_shared<stk::StkFrames>(n, 1);
+      stk::StkFrames& fr = *f;
       d->trigger(v);
       for(uint32_t k = 0; k < n; k++)
         fr[k] = d->tick();
-      ret = frames;
+      ret = qjsx::wrap_proto<StkFramesPtr>(ctx, stkframes_proto, js_stkframes_class_id, std::move(f));
       break;
     }
   }
@@ -2176,48 +2093,38 @@ js_tr909bassdrum_method(JSContext* ctx, JSValueConst this_val, int argc, JSValue
 }
 
 static const JSCFunctionListEntry js_tr909bassdrum_funcs[] = {
-  JS_CFUNC_MAGIC_DEF("setPitchEnvelope", 4, js_tr909bassdrum_method, METHOD_TR909_SET_PITCH_ENV),
-  JS_CFUNC_MAGIC_DEF("setPitchSpike", 2, js_tr909bassdrum_method, METHOD_TR909_SET_PITCH_SPIKE),
-  JS_CFUNC_MAGIC_DEF("setAmpEnvelope", 2, js_tr909bassdrum_method, METHOD_TR909_SET_AMP_ENV),
-  JS_CFUNC_MAGIC_DEF("setPunch", 2, js_tr909bassdrum_method, METHOD_TR909_SET_PUNCH),
-  JS_CFUNC_MAGIC_DEF("setDrive", 2, js_tr909bassdrum_method, METHOD_TR909_SET_DRIVE),
-  JS_CFUNC_MAGIC_DEF("setWaveform", 1, js_tr909bassdrum_method, METHOD_TR909_SET_WAVEFORM),
-  JS_CFUNC_MAGIC_DEF("setTone", 1, js_tr909bassdrum_method, METHOD_TR909_SET_TONE),
-  JS_CFUNC_MAGIC_DEF("setToneResonance", 1, js_tr909bassdrum_method, METHOD_TR909_SET_TONE_RESONANCE),
-  JS_CFUNC_MAGIC_DEF("setClick", 2, js_tr909bassdrum_method, METHOD_TR909_SET_CLICK),
-  JS_CFUNC_MAGIC_DEF("setSub", 2, js_tr909bassdrum_method, METHOD_TR909_SET_SUB),
-  JS_CFUNC_MAGIC_DEF("setTune", 1, js_tr909bassdrum_method, METHOD_TR909_SET_TUNE),
-  JS_CFUNC_MAGIC_DEF("trigger", 1, js_tr909bassdrum_method, METHOD_TR909_TRIGGER),
-  JS_CFUNC_MAGIC_DEF("render", 2, js_tr909bassdrum_method, METHOD_TR909_RENDER),
+  JS_CFUNC_MAGIC_DEF("setPitchEnvelope", 4, guarded<js_tr909bassdrum_method>, METHOD_TR909_SET_PITCH_ENV),
+  JS_CFUNC_MAGIC_DEF("setPitchSpike", 2, guarded<js_tr909bassdrum_method>, METHOD_TR909_SET_PITCH_SPIKE),
+  JS_CFUNC_MAGIC_DEF("setAmpEnvelope", 2, guarded<js_tr909bassdrum_method>, METHOD_TR909_SET_AMP_ENV),
+  JS_CFUNC_MAGIC_DEF("setPunch", 2, guarded<js_tr909bassdrum_method>, METHOD_TR909_SET_PUNCH),
+  JS_CFUNC_MAGIC_DEF("setDrive", 2, guarded<js_tr909bassdrum_method>, METHOD_TR909_SET_DRIVE),
+  JS_CFUNC_MAGIC_DEF("setWaveform", 1, guarded<js_tr909bassdrum_method>, METHOD_TR909_SET_WAVEFORM),
+  JS_CFUNC_MAGIC_DEF("setTone", 1, guarded<js_tr909bassdrum_method>, METHOD_TR909_SET_TONE),
+  JS_CFUNC_MAGIC_DEF("setToneResonance", 1, guarded<js_tr909bassdrum_method>, METHOD_TR909_SET_TONE_RESONANCE),
+  JS_CFUNC_MAGIC_DEF("setClick", 2, guarded<js_tr909bassdrum_method>, METHOD_TR909_SET_CLICK),
+  JS_CFUNC_MAGIC_DEF("setSub", 2, guarded<js_tr909bassdrum_method>, METHOD_TR909_SET_SUB),
+  JS_CFUNC_MAGIC_DEF("setTune", 1, guarded<js_tr909bassdrum_method>, METHOD_TR909_SET_TUNE),
+  JS_CFUNC_MAGIC_DEF("trigger", 1, guarded<js_tr909bassdrum_method>, METHOD_TR909_TRIGGER),
+  JS_CFUNC_MAGIC_DEF("render", 2, guarded<js_tr909bassdrum_method>, METHOD_TR909_RENDER),
 };
 
 static JSValue
 js_tr909percussion_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
-  StkInstrmntPtr* i = static_cast<StkInstrmntPtr*>(js_mallocz(ctx, sizeof(StkInstrmntPtr)));
-  new(i) StkInstrmntPtr(std::make_shared<Tr909Percussion>());
+  StkInstrmntPtr i;
 
-  JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
-    goto fail;
-
-  if(!JS_IsObject(proto)) {
-    JS_FreeValue(ctx, proto);
-    proto = JS_DupValue(ctx, tr909percussion_proto);
+  try {
+    i = std::make_shared<Tr909Percussion>();
+  } catch(stk::StkError& err) {
+    return js_throw_stkerror(ctx, err);
   }
 
-  obj = JS_NewObjectProtoClass(ctx, proto, js_stkinstrmnt_class_id);
-  JS_FreeValue(ctx, proto);
+  JSValue obj = qjsx::wrap<StkInstrmntPtr>(ctx, new_target, js_stkinstrmnt_class_id, std::move(i));
 
   if(JS_IsException(obj))
-    goto fail;
+    return obj;
 
-  JS_SetOpaque(obj, i);
   js_set_tostringtag(ctx, obj, "Tr909Percussion");
   return obj;
-
-fail:
-  JS_FreeValue(ctx, obj);
-  return JS_EXCEPTION;
 }
 
 enum {
@@ -2310,19 +2217,17 @@ js_tr909percussion_method(JSContext* ctx, JSValueConst this_val, int argc, JSVal
     case METHOD_PERC_RENDER: {
       uint32_t n = 0;
       double v = 1.0;
-      JS_ToUint32(ctx, &n, argv[0]);
+      if(argc < 1 || js_stk_count(ctx, argv[0], &n))
+        return JS_EXCEPTION;
       if(argc > 1)
         JS_ToFloat64(ctx, &v, argv[1]);
 
-      JSValue frames = js_new_stkframes(ctx, n, 1);
-      if(JS_IsException(frames))
-        return frames;
-      StkFramesPtr* fp = static_cast<StkFramesPtr*>(JS_GetOpaque(frames, js_stkframes_class_id));
-      stk::StkFrames& fr = **fp;
+      StkFramesPtr f = std::make_shared<stk::StkFrames>(n, 1);
+      stk::StkFrames& fr = *f;
       d->trigger(v);
       for(uint32_t k = 0; k < n; k++)
         fr[k] = d->tick();
-      ret = frames;
+      ret = qjsx::wrap_proto<StkFramesPtr>(ctx, stkframes_proto, js_stkframes_class_id, std::move(f));
       break;
     }
   }
@@ -2331,15 +2236,15 @@ js_tr909percussion_method(JSContext* ctx, JSValueConst this_val, int argc, JSVal
 }
 
 static const JSCFunctionListEntry js_tr909percussion_funcs[] = {
-  JS_CFUNC_MAGIC_DEF("setTone", 4, js_tr909percussion_method, METHOD_PERC_SET_TONE),
-  JS_CFUNC_MAGIC_DEF("setMetallic", 3, js_tr909percussion_method, METHOD_PERC_SET_METALLIC),
-  JS_CFUNC_MAGIC_DEF("setNoise", 2, js_tr909percussion_method, METHOD_PERC_SET_NOISE),
-  JS_CFUNC_MAGIC_DEF("setNoiseFilter", 1, js_tr909percussion_method, METHOD_PERC_SET_NOISE_FILTER),
-  JS_CFUNC_MAGIC_DEF("setCrunch", 1, js_tr909percussion_method, METHOD_PERC_SET_CRUNCH),
-  JS_CFUNC_MAGIC_DEF("setClap", 1, js_tr909percussion_method, METHOD_PERC_SET_CLAP),
-  JS_CFUNC_MAGIC_DEF("setTune", 1, js_tr909percussion_method, METHOD_PERC_SET_TUNE),
-  JS_CFUNC_MAGIC_DEF("trigger", 1, js_tr909percussion_method, METHOD_PERC_TRIGGER),
-  JS_CFUNC_MAGIC_DEF("render", 2, js_tr909percussion_method, METHOD_PERC_RENDER),
+  JS_CFUNC_MAGIC_DEF("setTone", 4, guarded<js_tr909percussion_method>, METHOD_PERC_SET_TONE),
+  JS_CFUNC_MAGIC_DEF("setMetallic", 3, guarded<js_tr909percussion_method>, METHOD_PERC_SET_METALLIC),
+  JS_CFUNC_MAGIC_DEF("setNoise", 2, guarded<js_tr909percussion_method>, METHOD_PERC_SET_NOISE),
+  JS_CFUNC_MAGIC_DEF("setNoiseFilter", 1, guarded<js_tr909percussion_method>, METHOD_PERC_SET_NOISE_FILTER),
+  JS_CFUNC_MAGIC_DEF("setCrunch", 1, guarded<js_tr909percussion_method>, METHOD_PERC_SET_CRUNCH),
+  JS_CFUNC_MAGIC_DEF("setClap", 1, guarded<js_tr909percussion_method>, METHOD_PERC_SET_CLAP),
+  JS_CFUNC_MAGIC_DEF("setTune", 1, guarded<js_tr909percussion_method>, METHOD_PERC_SET_TUNE),
+  JS_CFUNC_MAGIC_DEF("trigger", 1, guarded<js_tr909percussion_method>, METHOD_PERC_TRIGGER),
+  JS_CFUNC_MAGIC_DEF("render", 2, guarded<js_tr909percussion_method>, METHOD_PERC_RENDER),
 };
 
 /* ============================================================ */
@@ -2435,8 +2340,8 @@ js_stkwvin_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst 
       uint32_t channel = 0;
 
       if(argc > 0 && (a = static_cast<StkFramesPtr*>(JS_GetOpaque(argv[0], js_stkframes_class_id)))) {
-        if(argc > 1)
-          JS_ToUint32(ctx, &channel, argv[1]);
+        if(js_stk_channel(ctx, argc > 1 ? argv[1] : JS_UNDEFINED, (*a->get()).channels(), &channel))
+          return JS_EXCEPTION;
 
         (*w)->tick(*a->get(), channel);
 
@@ -2444,8 +2349,8 @@ js_stkwvin_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst 
         break;
       }
 
-      if(argc > 0)
-        JS_ToUint32(ctx, &channel, argv[0]);
+      if(js_stk_channel(ctx, argc > 0 ? argv[0] : JS_UNDEFINED, (*w)->channelsOut(), &channel))
+        return JS_EXCEPTION;
 
       ret = JS_NewFloat64(ctx, (*w)->tick(channel));
       break;
@@ -2503,7 +2408,7 @@ static JSClassDef js_stkwvin_class = {
 };
 
 static const JSCFunctionListEntry js_stkwvin_funcs[] = {
-  JS_CFUNC_MAGIC_DEF("tick", 1, js_stkwvin_method, METHOD_WVIN_TICK),
+  JS_CFUNC_MAGIC_DEF("tick", 1, guarded<js_stkwvin_method>, METHOD_WVIN_TICK),
   JS_CGETSET_MAGIC_DEF("channelsOut", js_stkwvin_get, 0, PROP_WVIN_CHANNELS_OUT),
   JS_CGETSET_MAGIC_DEF("lastFrame", js_stkwvin_get, 0, PROP_WVIN_LAST_FRAME),
   JS_PROP_STRING_DEF("[Symbol.toStringTag]", "StkWvIn", JS_PROP_CONFIGURABLE),
@@ -2537,8 +2442,8 @@ js_rtwvin_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst a
 }
 
 static const JSCFunctionListEntry js_rtwvin_funcs[] = {
-  JS_CFUNC_MAGIC_DEF("start", 0, js_rtwvin_method, METHOD_RTWVIN_START),
-  JS_CFUNC_MAGIC_DEF("stop", 0, js_rtwvin_method, METHOD_RTWVIN_STOP),
+  JS_CFUNC_MAGIC_DEF("start", 0, guarded<js_rtwvin_method>, METHOD_RTWVIN_START),
+  JS_CFUNC_MAGIC_DEF("stop", 0, guarded<js_rtwvin_method>, METHOD_RTWVIN_STOP),
 };
 
 /* InetWvIn-only controls. */
@@ -2590,8 +2495,8 @@ js_inetwvin_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
 }
 
 static const JSCFunctionListEntry js_inetwvin_funcs[] = {
-  JS_CFUNC_MAGIC_DEF("listen", 0, js_inetwvin_method, METHOD_INETWVIN_LISTEN),
-  JS_CFUNC_MAGIC_DEF("isConnected", 0, js_inetwvin_method, METHOD_INETWVIN_IS_CONNECTED),
+  JS_CFUNC_MAGIC_DEF("listen", 0, guarded<js_inetwvin_method>, METHOD_INETWVIN_LISTEN),
+  JS_CFUNC_MAGIC_DEF("isConnected", 0, guarded<js_inetwvin_method>, METHOD_INETWVIN_IS_CONNECTED),
 };
 
 /* ============================================================ */
@@ -2755,9 +2660,9 @@ static JSClassDef js_stkwvout_class = {
 };
 
 static const JSCFunctionListEntry js_stkwvout_funcs[] = {
-  JS_CFUNC_MAGIC_DEF("tick", 1, js_stkwvout_method, METHOD_WVOUT_TICK),
-  JS_CFUNC_MAGIC_DEF("clipStatus", 0, js_stkwvout_method, METHOD_WVOUT_CLIP_STATUS),
-  JS_CFUNC_MAGIC_DEF("resetClipStatus", 0, js_stkwvout_method, METHOD_WVOUT_RESET_CLIP_STATUS),
+  JS_CFUNC_MAGIC_DEF("tick", 1, guarded<js_stkwvout_method>, METHOD_WVOUT_TICK),
+  JS_CFUNC_MAGIC_DEF("clipStatus", 0, guarded<js_stkwvout_method>, METHOD_WVOUT_CLIP_STATUS),
+  JS_CFUNC_MAGIC_DEF("resetClipStatus", 0, guarded<js_stkwvout_method>, METHOD_WVOUT_RESET_CLIP_STATUS),
   JS_CGETSET_MAGIC_DEF("frameCount", js_stkwvout_get, 0, PROP_WVOUT_FRAME_COUNT),
   JS_CGETSET_MAGIC_DEF("time", js_stkwvout_get, 0, PROP_WVOUT_TIME),
   JS_PROP_STRING_DEF("[Symbol.toStringTag]", "StkWvOut", JS_PROP_CONFIGURABLE),
@@ -2789,8 +2694,8 @@ js_rtwvout_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst 
 }
 
 static const JSCFunctionListEntry js_rtwvout_funcs[] = {
-  JS_CFUNC_MAGIC_DEF("start", 0, js_rtwvout_method, METHOD_RTWVOUT_START),
-  JS_CFUNC_MAGIC_DEF("stop", 0, js_rtwvout_method, METHOD_RTWVOUT_STOP),
+  JS_CFUNC_MAGIC_DEF("start", 0, guarded<js_rtwvout_method>, METHOD_RTWVOUT_START),
+  JS_CFUNC_MAGIC_DEF("stop", 0, guarded<js_rtwvout_method>, METHOD_RTWVOUT_STOP),
 };
 
 /* InetWvOut-only controls. */
@@ -2853,8 +2758,8 @@ js_inetwvout_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
 }
 
 static const JSCFunctionListEntry js_inetwvout_funcs[] = {
-  JS_CFUNC_MAGIC_DEF("connect", 1, js_inetwvout_method, METHOD_INETWVOUT_CONNECT),
-  JS_CFUNC_MAGIC_DEF("disconnect", 0, js_inetwvout_method, METHOD_INETWVOUT_DISCONNECT),
+  JS_CFUNC_MAGIC_DEF("connect", 1, guarded<js_inetwvout_method>, METHOD_INETWVOUT_CONNECT),
+  JS_CFUNC_MAGIC_DEF("disconnect", 0, guarded<js_inetwvout_method>, METHOD_INETWVOUT_DISCONNECT),
 };
 
 /* ============================================================ */
@@ -3004,10 +2909,10 @@ static JSClassDef js_midifilein_class = {
 };
 
 static const JSCFunctionListEntry js_midifilein_funcs[] = {
-  JS_CFUNC_MAGIC_DEF("rewindTrack", 0, js_midifilein_method, METHOD_MIDIFILE_REWIND_TRACK),
-  JS_CFUNC_MAGIC_DEF("getTickSeconds", 0, js_midifilein_method, METHOD_MIDIFILE_GET_TICK_SECONDS),
-  JS_CFUNC_MAGIC_DEF("getNextEvent", 0, js_midifilein_method, METHOD_MIDIFILE_GET_NEXT_EVENT),
-  JS_CFUNC_MAGIC_DEF("getNextMidiEvent", 0, js_midifilein_method, METHOD_MIDIFILE_GET_NEXT_MIDI_EVENT),
+  JS_CFUNC_MAGIC_DEF("rewindTrack", 0, guarded<js_midifilein_method>, METHOD_MIDIFILE_REWIND_TRACK),
+  JS_CFUNC_MAGIC_DEF("getTickSeconds", 0, guarded<js_midifilein_method>, METHOD_MIDIFILE_GET_TICK_SECONDS),
+  JS_CFUNC_MAGIC_DEF("getNextEvent", 0, guarded<js_midifilein_method>, METHOD_MIDIFILE_GET_NEXT_EVENT),
+  JS_CFUNC_MAGIC_DEF("getNextMidiEvent", 0, guarded<js_midifilein_method>, METHOD_MIDIFILE_GET_NEXT_MIDI_EVENT),
   JS_CGETSET_MAGIC_DEF("format", js_midifilein_get, 0, PROP_MIDIFILE_FORMAT),
   JS_CGETSET_MAGIC_DEF("numberOfTracks", js_midifilein_get, 0, PROP_MIDIFILE_NUM_TRACKS),
   JS_CGETSET_MAGIC_DEF("division", js_midifilein_get, 0, PROP_MIDIFILE_DIVISION),
@@ -3202,15 +3107,15 @@ static JSClassDef js_rtmidiin_class = {
 };
 
 static const JSCFunctionListEntry js_rtmidiin_funcs[] = {
-  JS_CFUNC_MAGIC_DEF("openPort", 0, js_rtmidiin_method, METHOD_RTMIDIIN_OPEN_PORT),
-  JS_CFUNC_MAGIC_DEF("openVirtualPort", 0, js_rtmidiin_method, METHOD_RTMIDIIN_OPEN_VIRTUAL_PORT),
-  JS_CFUNC_MAGIC_DEF("closePort", 0, js_rtmidiin_method, METHOD_RTMIDIIN_CLOSE_PORT),
-  JS_CFUNC_MAGIC_DEF("isPortOpen", 0, js_rtmidiin_method, METHOD_RTMIDIIN_IS_PORT_OPEN),
-  JS_CFUNC_MAGIC_DEF("getPortCount", 0, js_rtmidiin_method, METHOD_RTMIDIIN_GET_PORT_COUNT),
-  JS_CFUNC_MAGIC_DEF("getPortName", 0, js_rtmidiin_method, METHOD_RTMIDIIN_GET_PORT_NAME),
-  JS_CFUNC_MAGIC_DEF("ignoreTypes", 0, js_rtmidiin_method, METHOD_RTMIDIIN_IGNORE_TYPES),
-  JS_CFUNC_MAGIC_DEF("getMessage", 0, js_rtmidiin_method, METHOD_RTMIDIIN_GET_MESSAGE),
-  JS_CFUNC_MAGIC_DEF("getCurrentApi", 0, js_rtmidiin_method, METHOD_RTMIDIIN_GET_CURRENT_API),
+  JS_CFUNC_MAGIC_DEF("openPort", 0, guarded<js_rtmidiin_method>, METHOD_RTMIDIIN_OPEN_PORT),
+  JS_CFUNC_MAGIC_DEF("openVirtualPort", 0, guarded<js_rtmidiin_method>, METHOD_RTMIDIIN_OPEN_VIRTUAL_PORT),
+  JS_CFUNC_MAGIC_DEF("closePort", 0, guarded<js_rtmidiin_method>, METHOD_RTMIDIIN_CLOSE_PORT),
+  JS_CFUNC_MAGIC_DEF("isPortOpen", 0, guarded<js_rtmidiin_method>, METHOD_RTMIDIIN_IS_PORT_OPEN),
+  JS_CFUNC_MAGIC_DEF("getPortCount", 0, guarded<js_rtmidiin_method>, METHOD_RTMIDIIN_GET_PORT_COUNT),
+  JS_CFUNC_MAGIC_DEF("getPortName", 0, guarded<js_rtmidiin_method>, METHOD_RTMIDIIN_GET_PORT_NAME),
+  JS_CFUNC_MAGIC_DEF("ignoreTypes", 0, guarded<js_rtmidiin_method>, METHOD_RTMIDIIN_IGNORE_TYPES),
+  JS_CFUNC_MAGIC_DEF("getMessage", 0, guarded<js_rtmidiin_method>, METHOD_RTMIDIIN_GET_MESSAGE),
+  JS_CFUNC_MAGIC_DEF("getCurrentApi", 0, guarded<js_rtmidiin_method>, METHOD_RTMIDIIN_GET_CURRENT_API),
   JS_PROP_STRING_DEF("[Symbol.toStringTag]", "RtMidiIn", JS_PROP_CONFIGURABLE),
 };
 
@@ -3343,7 +3248,7 @@ js_rtmidiout_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
     }
     case METHOD_RTMIDIOUT_SEND_MESSAGE: {
       std::vector<unsigned char> message;
-      if(argc < 1 || !qjsx::read_array(ctx, argv[0], message))
+      if(argc < 1 || qjsx::read_array(ctx, argv[0], message))
         return JS_EXCEPTION;
       try {
         r->sendMessage(&message);
@@ -3373,14 +3278,14 @@ static JSClassDef js_rtmidiout_class = {
 };
 
 static const JSCFunctionListEntry js_rtmidiout_funcs[] = {
-  JS_CFUNC_MAGIC_DEF("openPort", 0, js_rtmidiout_method, METHOD_RTMIDIOUT_OPEN_PORT),
-  JS_CFUNC_MAGIC_DEF("openVirtualPort", 0, js_rtmidiout_method, METHOD_RTMIDIOUT_OPEN_VIRTUAL_PORT),
-  JS_CFUNC_MAGIC_DEF("closePort", 0, js_rtmidiout_method, METHOD_RTMIDIOUT_CLOSE_PORT),
-  JS_CFUNC_MAGIC_DEF("isPortOpen", 0, js_rtmidiout_method, METHOD_RTMIDIOUT_IS_PORT_OPEN),
-  JS_CFUNC_MAGIC_DEF("getPortCount", 0, js_rtmidiout_method, METHOD_RTMIDIOUT_GET_PORT_COUNT),
-  JS_CFUNC_MAGIC_DEF("getPortName", 0, js_rtmidiout_method, METHOD_RTMIDIOUT_GET_PORT_NAME),
-  JS_CFUNC_MAGIC_DEF("sendMessage", 1, js_rtmidiout_method, METHOD_RTMIDIOUT_SEND_MESSAGE),
-  JS_CFUNC_MAGIC_DEF("getCurrentApi", 0, js_rtmidiout_method, METHOD_RTMIDIOUT_GET_CURRENT_API),
+  JS_CFUNC_MAGIC_DEF("openPort", 0, guarded<js_rtmidiout_method>, METHOD_RTMIDIOUT_OPEN_PORT),
+  JS_CFUNC_MAGIC_DEF("openVirtualPort", 0, guarded<js_rtmidiout_method>, METHOD_RTMIDIOUT_OPEN_VIRTUAL_PORT),
+  JS_CFUNC_MAGIC_DEF("closePort", 0, guarded<js_rtmidiout_method>, METHOD_RTMIDIOUT_CLOSE_PORT),
+  JS_CFUNC_MAGIC_DEF("isPortOpen", 0, guarded<js_rtmidiout_method>, METHOD_RTMIDIOUT_IS_PORT_OPEN),
+  JS_CFUNC_MAGIC_DEF("getPortCount", 0, guarded<js_rtmidiout_method>, METHOD_RTMIDIOUT_GET_PORT_COUNT),
+  JS_CFUNC_MAGIC_DEF("getPortName", 0, guarded<js_rtmidiout_method>, METHOD_RTMIDIOUT_GET_PORT_NAME),
+  JS_CFUNC_MAGIC_DEF("sendMessage", 1, guarded<js_rtmidiout_method>, METHOD_RTMIDIOUT_SEND_MESSAGE),
+  JS_CFUNC_MAGIC_DEF("getCurrentApi", 0, guarded<js_rtmidiout_method>, METHOD_RTMIDIOUT_GET_CURRENT_API),
   JS_PROP_STRING_DEF("[Symbol.toStringTag]", "RtMidiOut", JS_PROP_CONFIGURABLE),
 };
 
@@ -3585,25 +3490,25 @@ static JSClassDef js_rtaudio_class = {
 };
 
 static const JSCFunctionListEntry js_rtaudio_funcs[] = {
-  JS_CFUNC_MAGIC_DEF("getCurrentApi", 0, js_rtaudio_method, METHOD_RTAUDIO_GET_CURRENT_API),
-  JS_CFUNC_MAGIC_DEF("getDeviceCount", 0, js_rtaudio_method, METHOD_RTAUDIO_GET_DEVICE_COUNT),
-  JS_CFUNC_MAGIC_DEF("getDeviceIds", 0, js_rtaudio_method, METHOD_RTAUDIO_GET_DEVICE_IDS),
-  JS_CFUNC_MAGIC_DEF("getDeviceNames", 0, js_rtaudio_method, METHOD_RTAUDIO_GET_DEVICE_NAMES),
-  JS_CFUNC_MAGIC_DEF("getDeviceInfo", 1, js_rtaudio_method, METHOD_RTAUDIO_GET_DEVICE_INFO),
-  JS_CFUNC_MAGIC_DEF("getDefaultOutputDevice", 0, js_rtaudio_method, METHOD_RTAUDIO_GET_DEFAULT_OUTPUT_DEVICE),
-  JS_CFUNC_MAGIC_DEF("getDefaultInputDevice", 0, js_rtaudio_method, METHOD_RTAUDIO_GET_DEFAULT_INPUT_DEVICE),
-  JS_CFUNC_MAGIC_DEF("closeStream", 0, js_rtaudio_method, METHOD_RTAUDIO_CLOSE_STREAM),
-  JS_CFUNC_MAGIC_DEF("startStream", 0, js_rtaudio_method, METHOD_RTAUDIO_START_STREAM),
-  JS_CFUNC_MAGIC_DEF("stopStream", 0, js_rtaudio_method, METHOD_RTAUDIO_STOP_STREAM),
-  JS_CFUNC_MAGIC_DEF("abortStream", 0, js_rtaudio_method, METHOD_RTAUDIO_ABORT_STREAM),
-  JS_CFUNC_MAGIC_DEF("getErrorText", 0, js_rtaudio_method, METHOD_RTAUDIO_GET_ERROR_TEXT),
-  JS_CFUNC_MAGIC_DEF("isStreamOpen", 0, js_rtaudio_method, METHOD_RTAUDIO_IS_STREAM_OPEN),
-  JS_CFUNC_MAGIC_DEF("isStreamRunning", 0, js_rtaudio_method, METHOD_RTAUDIO_IS_STREAM_RUNNING),
-  JS_CFUNC_MAGIC_DEF("getStreamTime", 0, js_rtaudio_method, METHOD_RTAUDIO_GET_STREAM_TIME),
-  JS_CFUNC_MAGIC_DEF("setStreamTime", 1, js_rtaudio_method, METHOD_RTAUDIO_SET_STREAM_TIME),
-  JS_CFUNC_MAGIC_DEF("getStreamLatency", 0, js_rtaudio_method, METHOD_RTAUDIO_GET_STREAM_LATENCY),
-  JS_CFUNC_MAGIC_DEF("getStreamSampleRate", 0, js_rtaudio_method, METHOD_RTAUDIO_GET_STREAM_SAMPLE_RATE),
-  JS_CFUNC_MAGIC_DEF("showWarnings", 1, js_rtaudio_method, METHOD_RTAUDIO_SHOW_WARNINGS),
+  JS_CFUNC_MAGIC_DEF("getCurrentApi", 0, guarded<js_rtaudio_method>, METHOD_RTAUDIO_GET_CURRENT_API),
+  JS_CFUNC_MAGIC_DEF("getDeviceCount", 0, guarded<js_rtaudio_method>, METHOD_RTAUDIO_GET_DEVICE_COUNT),
+  JS_CFUNC_MAGIC_DEF("getDeviceIds", 0, guarded<js_rtaudio_method>, METHOD_RTAUDIO_GET_DEVICE_IDS),
+  JS_CFUNC_MAGIC_DEF("getDeviceNames", 0, guarded<js_rtaudio_method>, METHOD_RTAUDIO_GET_DEVICE_NAMES),
+  JS_CFUNC_MAGIC_DEF("getDeviceInfo", 1, guarded<js_rtaudio_method>, METHOD_RTAUDIO_GET_DEVICE_INFO),
+  JS_CFUNC_MAGIC_DEF("getDefaultOutputDevice", 0, guarded<js_rtaudio_method>, METHOD_RTAUDIO_GET_DEFAULT_OUTPUT_DEVICE),
+  JS_CFUNC_MAGIC_DEF("getDefaultInputDevice", 0, guarded<js_rtaudio_method>, METHOD_RTAUDIO_GET_DEFAULT_INPUT_DEVICE),
+  JS_CFUNC_MAGIC_DEF("closeStream", 0, guarded<js_rtaudio_method>, METHOD_RTAUDIO_CLOSE_STREAM),
+  JS_CFUNC_MAGIC_DEF("startStream", 0, guarded<js_rtaudio_method>, METHOD_RTAUDIO_START_STREAM),
+  JS_CFUNC_MAGIC_DEF("stopStream", 0, guarded<js_rtaudio_method>, METHOD_RTAUDIO_STOP_STREAM),
+  JS_CFUNC_MAGIC_DEF("abortStream", 0, guarded<js_rtaudio_method>, METHOD_RTAUDIO_ABORT_STREAM),
+  JS_CFUNC_MAGIC_DEF("getErrorText", 0, guarded<js_rtaudio_method>, METHOD_RTAUDIO_GET_ERROR_TEXT),
+  JS_CFUNC_MAGIC_DEF("isStreamOpen", 0, guarded<js_rtaudio_method>, METHOD_RTAUDIO_IS_STREAM_OPEN),
+  JS_CFUNC_MAGIC_DEF("isStreamRunning", 0, guarded<js_rtaudio_method>, METHOD_RTAUDIO_IS_STREAM_RUNNING),
+  JS_CFUNC_MAGIC_DEF("getStreamTime", 0, guarded<js_rtaudio_method>, METHOD_RTAUDIO_GET_STREAM_TIME),
+  JS_CFUNC_MAGIC_DEF("setStreamTime", 1, guarded<js_rtaudio_method>, METHOD_RTAUDIO_SET_STREAM_TIME),
+  JS_CFUNC_MAGIC_DEF("getStreamLatency", 0, guarded<js_rtaudio_method>, METHOD_RTAUDIO_GET_STREAM_LATENCY),
+  JS_CFUNC_MAGIC_DEF("getStreamSampleRate", 0, guarded<js_rtaudio_method>, METHOD_RTAUDIO_GET_STREAM_SAMPLE_RATE),
+  JS_CFUNC_MAGIC_DEF("showWarnings", 1, guarded<js_rtaudio_method>, METHOD_RTAUDIO_SHOW_WARNINGS),
   JS_PROP_STRING_DEF("[Symbol.toStringTag]", "RtAudio", JS_PROP_CONFIGURABLE),
 };
 
@@ -3646,30 +3551,43 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
 
   if(m) {
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "BiQuad", 0, JS_CFUNC_constructor_magic, INSTANCE_BIQUAD);
+    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
     JS_SetModuleExport(ctx, m, "BiQuad", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "DelayA", 0, JS_CFUNC_constructor_magic, INSTANCE_DELAY_A);
+    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
     JS_SetModuleExport(ctx, m, "DelayA", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "DelayL", 0, JS_CFUNC_constructor_magic, INSTANCE_DELAY_L);
+    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
     JS_SetModuleExport(ctx, m, "DelayL", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "Delay", 0, JS_CFUNC_constructor_magic, INSTANCE_DELAY);
+    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
     JS_SetModuleExport(ctx, m, "Delay", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "Fir", 1, JS_CFUNC_constructor_magic, INSTANCE_FIR);
+    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
     JS_SetModuleExport(ctx, m, "Fir", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "FormSwep", 0, JS_CFUNC_constructor_magic, INSTANCE_FORM_SWEP);
+    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
     JS_SetModuleExport(ctx, m, "FormSwep", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "Iir", 0, JS_CFUNC_constructor_magic, INSTANCE_IIR);
+    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
     JS_SetModuleExport(ctx, m, "Iir", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "OnePole", 0, JS_CFUNC_constructor_magic, INSTANCE_ONE_POLE);
+    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
     JS_SetModuleExport(ctx, m, "OnePole", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "OneZero", 0, JS_CFUNC_constructor_magic, INSTANCE_ONE_ZERO);
+    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
     JS_SetModuleExport(ctx, m, "OneZero", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "PoleZero", 0, JS_CFUNC_constructor_magic, INSTANCE_POLE_ZERO);
+    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
     JS_SetModuleExport(ctx, m, "PoleZero", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "TapDelay", 0, JS_CFUNC_constructor_magic, INSTANCE_TAP_DELAY);
+    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
     JS_SetModuleExport(ctx, m, "TapDelay", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "TwoPole", 0, JS_CFUNC_constructor_magic, INSTANCE_TWO_POLE);
+    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
     JS_SetModuleExport(ctx, m, "TwoPole", ctor);
     ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "TwoZero", 0, JS_CFUNC_constructor_magic, INSTANCE_TWO_ZERO);
+    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
     JS_SetModuleExport(ctx, m, "TwoZero", ctor);
   }
   JS_NewClassID(&js_stkgenerator_class_id);

@@ -12,8 +12,8 @@
 
 /* Typed marshalling helpers shared by the C++ bindings: JS TypedArrays and
  * array-likes to and from C++ element types. Built on js-typedarray.h, so
- * the module must link js-typedarray.c. Every function that returns false
- * has thrown a JS exception. */
+ * the module must link js-typedarray.c. Every function that returns
+ * nonzero has thrown a JS exception. */
 namespace qjsx {
 
 /* Maps a C++ element type to its TypedArray kind and to the JS-to-C++ number
@@ -317,12 +317,9 @@ JSValue
 view_array(JSContext* ctx, T* data, size_t count, Owner owner) {
   Owner* keep = new Owner(std::move(owner));
   JSValue buf = JS_NewArrayBuffer(
-      ctx,
-      reinterpret_cast<uint8_t*>(data),
-      count * sizeof(T),
-      [](JSRuntime*, void* opaque, void*) { delete static_cast<Owner*>(opaque); },
-      keep,
-      FALSE);
+      ctx, reinterpret_cast<uint8_t*>(data), count * sizeof(T),
+      [](JSRuntime*, void* opaque, void*) { delete static_cast<Owner*>(opaque); }, keep, FALSE
+  );
 
   if(JS_IsException(buf)) {
     delete keep;

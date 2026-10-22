@@ -20,6 +20,7 @@
 #include "LabSound/core/AnalyserNode.h"
 #include "LabSound/core/DynamicsCompressorNode.h"
 #include "LabSound/core/ConstantSourceNode.h"
+#include "LabSound/extended/Logging.h"
 #include "libnyquist/Encoders.h"
 
 #include <algorithm>
@@ -821,7 +822,8 @@ js_offline_suspend(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
   const int quantum = lab::AudioNode::ProcessingSizeInFrames;
   int32_t length = qjsx::property_default(ctx, this_val, "__offlineLength", 0);
   OfflineRender& st = offline_state[ac.get()];
-  int frame = static_cast<int>(std::ceil(t * ac->sampleRate() / quantum - 1e-6)) * quantum; // 1e-6: 8 * 128 / 44100 s stays 8 quanta
+  int frame = static_cast<int>(std::ceil(t * ac->sampleRate() / quantum - 1e-6)) *
+              quantum; // 1e-6: 8 * 128 / 44100 s stays 8 quanta
 
   if(frame < st.rendered || (st.started && frame == st.rendered) || frame >= length || st.suspends.count(frame))
     return rejected_promise(ctx, "InvalidStateError", "cannot schedule a suspend at that time");
@@ -1310,7 +1312,7 @@ js_gain_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueCo
     g->gain()->setValue(gain);
 
   JSValue obj = qjsx::wrap(ctx, new_target, js_gainnode_class_id, JsAudioNode{ std::static_pointer_cast<lab::AudioNode>(g), ac });
-    if(JS_IsException(obj))
+  if(JS_IsException(obj))
     return obj;
   anchor_node_in_context(ctx, argv[0], obj);
   return obj;
@@ -2035,7 +2037,8 @@ js_absource_set_buffer(JSContext* ctx, JSValueConst this_val, JSValueConst value
     return w ? JS_ThrowInternalError(ctx, "not a SampledAudioNode") : JS_EXCEPTION;
 
   JsAudioBuffer* ab = nullptr;
-  if(!JS_IsNull(value) && !JS_IsUndefined(value) && !(ab = static_cast<JsAudioBuffer*>(JS_GetOpaque2(ctx, value, js_audiobuffer_class_id))))
+  if(!JS_IsNull(value) && !JS_IsUndefined(value) &&
+     !(ab = static_cast<JsAudioBuffer*>(JS_GetOpaque2(ctx, value, js_audiobuffer_class_id))))
     return JS_EXCEPTION;
 
   src->setBus(ab ? ab->bus : nullptr);
@@ -2314,9 +2317,9 @@ js_iirfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
   const char* keys[2] = { "feedforward", "feedback" };
   for(int i = 0; i < 2; i++) {
     JSValue v = JS_GetPropertyStr(ctx, argv[1], keys[i]);
-    bool ok = qjsx::read_array(ctx, v, coeffs[i]);
+    int err = qjsx::read_array(ctx, v, coeffs[i]);
     JS_FreeValue(ctx, v);
-    if(!ok)
+    if(err)
       return JS_EXCEPTION;
   }
 
@@ -3269,8 +3272,26 @@ js_labsound_add_exports(JSContext* ctx, JSModuleDef* m) {
 extern "C" VISIBLE JSModuleDef*
 JS_INIT_MODULE(JSContext* ctx, const char* module_name) {
   JSModuleDef* m;
+
   if((m = JS_NewCModule(ctx, module_name, js_labsound_init))) {
+    char *lf, *ll;
+
+    if((lf = getenv("LABSOUND_LOGFILE"))) {
+      FILE* f;
+
+      if((f = fopen(lf, "a")))
+        log_set_fp(f);
+    }
+
+    if((ll = getenv("LABSOUND_LOGLEVEL"))) {
+      log_set_level(atoi(ll));
+    }
+
+    if(!lf && !ll)
+      log_set_quiet(1);
+
     js_labsound_add_exports(ctx, m);
   }
+
   return m;
 }

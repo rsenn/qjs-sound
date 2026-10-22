@@ -101,7 +101,6 @@
     // engine calls, bypassing the binding: disconnect all outputs of gain, then connect again
     // -> gain.connect(ctx.destination) is wiped by the pending disconnect and the output goes silent
 
-
 - labsound-scheduler-epoch-inconsistent-start-stop (third_party/LabSound/src/core/AudioNode.cpp:236,262):
   AudioNodeScheduler::start/stop compute _startWhen/_stopWhen as _epoch + when * sampleRate, but _epoch stays
   0 until the audio thread first processes the node and then tracks the context clock. The same call therefore
