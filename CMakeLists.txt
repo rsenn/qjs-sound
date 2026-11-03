@@ -195,6 +195,8 @@ add_definitions(-fvisibility=hidden)
 include_directories(${QUICKJS_INCLUDE_DIR})
 link_directories(${QUICKJS_LIBRARY_DIR})
 
+file(GLOB JS_HELPER_SOURCES js-utils.[ch] js-typedarray.[ch])
+
 if(USE_STK)
   if(LINUX OR ANDROID)
     add_definitions(-D__LINUX_ALSA__ #-D__LINUX_PULSE__
@@ -223,11 +225,7 @@ if(USE_STK)
 
   add_definitions(-DUSE_STK)
 
-  set(COMMON_SOURCES js-typedarray.c)
-
-  make_module(stk quickjs-stk.cpp js-utils.c)
-
-  unset(COMMON_SOURCES)
+  make_module(stk quickjs-stk.cpp ${JS_HELPER_SOURCES})
 
   include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/include"
                       "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/src/include")
@@ -239,7 +237,7 @@ if(USE_AUBIO)
 
   set(aubio_LIBRARIES ${AUBIO_LIBRARIES})
 
-  make_module(aubio quickjs-aubio.c js-typedarray.c)
+  make_module(aubio quickjs-aubio.c ${JS_HELPER_SOURCES})
 
   include_directories(${AUBIO_INCLUDE_DIRS})
   module_include_directories(aubio ${AUBIO_INCLUDE_DIRS})
@@ -256,11 +254,7 @@ if(USE_LABSOUND)
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/src/internal/src/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/src/core/*.cpp)]]
 
-  set(COMMON_SOURCES js-typedarray.c)
-
-  make_module(labsound quickjs-labsound.cpp js-utils.c)
-
-  unset(COMMON_SOURCES)
+  make_module(labsound quickjs-labsound.cpp ${JS_HELPER_SOURCES})
 
   include_directories(
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include"
@@ -276,7 +270,7 @@ endif(USE_LABSOUND)
 if(USE_PORTAUDIO)
   include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindPortAudio.cmake")
 
-  make_module(portaudio)
+  make_module(portaudio quickjs-portaudio.c ${JS_HELPER_SOURCES})
 
   # check_symbol_exists (a header check) rather than check_library_exists
   # (a compiled-library check): the latter needs an already-built library
@@ -302,7 +296,7 @@ endif(USE_PORTAUDIO)
 if(USE_PORTMIDI)
   include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindPortMIDI.cmake")
 
-  make_module(portmidi)
+  make_module(portmidi quickjs-portmidi.c ${JS_HELPER_SOURCES})
 
   module_include_directories(portmidi ${PORTMIDI_INCLUDE_DIRS})
   module_link_libraries(portmidi ${PORTMIDI_LIBRARIES})
@@ -315,11 +309,8 @@ if(USE_SNDFILE)
   # js-typedarray.c is shared TypedArray/ArrayBuffer marshalling
   # code, not part of libsndfile itself - see doc/native/sndfile.md's "Shared
   # TypedArray/buffer interop" section.
-  set(COMMON_SOURCES js-typedarray.c)
 
-  make_module(sndfile)
-
-  unset(COMMON_SOURCES)
+  make_module(sndfile quickjs-sndfile.c ${JS_HELPER_SOURCES})
 
   include_directories(${SNDFILE_INCLUDE_DIRS})
   module_include_directories(sndfile ${SNDFILE_INCLUDE_DIRS})
@@ -329,11 +320,8 @@ if(USE_SAMPLERATE)
   include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindSampleRate.cmake")
 
   set(samplerate_LIBRARIES ${SAMPLERATE_LIBRARIES})
-  set(COMMON_SOURCES js-typedarray.c)
 
-  make_module(samplerate)
-
-  unset(COMMON_SOURCES)
+  make_module(samplerate quickjs-samplerate.c ${JS_HELPER_SOURCES})
 
   include_directories(${SAMPLERATE_INCLUDE_DIRS})
   module_include_directories(samplerate ${SAMPLERATE_INCLUDE_DIRS})
@@ -343,11 +331,8 @@ if(USE_SOUNDTOUCH)
   include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindSoundTouch.cmake")
 
   set(soundtouch_LIBRARIES ${SOUNDTOUCH_LIBRARIES})
-  set(COMMON_SOURCES js-typedarray.c)
 
-  make_module(soundtouch quickjs-soundtouch.cpp)
-
-  unset(COMMON_SOURCES)
+  make_module(soundtouch quickjs-soundtouch.cpp ${JS_HELPER_SOURCES})
 
   include_directories(${SOUNDTOUCH_INCLUDE_DIRS})
   module_include_directories(soundtouch ${SOUNDTOUCH_INCLUDE_DIRS})
@@ -357,11 +342,8 @@ if(USE_RUBBERBAND)
   include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindRubberBand.cmake")
 
   set(rubberband_LIBRARIES ${RUBBERBAND_LIBRARIES})
-  set(COMMON_SOURCES js-typedarray.c)
 
-  make_module(rubberband)
-
-  unset(COMMON_SOURCES)
+  make_module(rubberband quickjs-rubberband.c ${JS_HELPER_SOURCES})
 
   include_directories(${RUBBERBAND_INCLUDE_DIRS})
   module_include_directories(rubberband ${RUBBERBAND_INCLUDE_DIRS})
@@ -392,11 +374,8 @@ if(USE_SNDOBJ)
       ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Gain.cpp
       ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Mix.cpp)
 
-  set(COMMON_SOURCES js-typedarray.c)
 
-  make_module(sndobj quickjs-sndobj.cpp js-utils.c)
-
-  unset(COMMON_SOURCES)
+  make_module(sndobj quickjs-sndobj.cpp ${JS_HELPER_SOURCES})
 
   include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src")
   module_include_directories(sndobj "${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src")
