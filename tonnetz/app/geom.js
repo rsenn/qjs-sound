@@ -22,3 +22,5 @@ export const keysGeo = () => {
 };
 
 export const handleAt = m => ({ x: (m.x + m.target.x) / 2, y: (m.y + m.target.y) / 2 });
+
+export const minTable = () => clamp(app.H * 0.35, 120, 240);

@@ -1,8 +1,8 @@
 'use strict';
 
 /* Bump when the shell file list changes; content edits reach users via the revalidation below without a bump. */
-const CACHE = 'tonnetz-v7';
-const SHELL = ['./', 'index.html', 'lib/theory.js', 'lib/geometry.js', 'lib/harmony.js', 'lib/synth.js', 'lib/sequencer.js', 'lib/player.js', 'lib/presets.js', 'lib/improv.js', 'lib/song.js', 'lib/arp.js', 'app/store.js', 'app/state.js', 'app/consts.js', 'app/geom.js', 'app/draw-table.js', 'app/draw-strip.js', 'app/draw-seq.js', 'app/draw-keys.js', 'app/draw-arp.js', 'app/draw-tonnetz.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
+const CACHE = 'tonnetz-v8';
+const SHELL = ['./', 'index.html', 'lib/theory.js', 'lib/geometry.js', 'lib/harmony.js', 'lib/synth.js', 'lib/sequencer.js', 'lib/player.js', 'lib/presets.js', 'lib/improv.js', 'lib/song.js', 'lib/arp.js', 'app/store.js', 'app/state.js', 'app/consts.js', 'app/geom.js', 'app/draw-table.js', 'app/draw-strip.js', 'app/draw-seq.js', 'app/draw-keys.js', 'app/draw-arp.js', 'app/draw-tonnetz.js', 'app/view.js', 'app/modules.js', 'app/input.js', 'app/dom-input.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
