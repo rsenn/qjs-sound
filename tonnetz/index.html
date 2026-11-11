@@ -113,27 +113,19 @@ import { generateSong, songToChords } from './lib/song.js';
 import { ARP_STYLES } from './lib/arp.js';
 import { createStore } from './app/store.js';
 import { app } from './app/state.js';
+import { A0, BLACK_KEYS, ROOT_NAMES, SCALE_OPTS, SPAN, SPL, U, WHITE_OFFS, Z_MAX, Z_MIN, outerR, stripH } from './app/consts.js';
+import { drawArp } from './app/draw-arp.js';
+import { drawKeys } from './app/draw-keys.js';
+import { drawSeq } from './app/draw-seq.js';
+import { drawStrip, statusText } from './app/draw-strip.js';
+import { analyse, drawCable, drawGrid, drawMaster, drawModule } from './app/draw-table.js';
+import { buildCache, drawTonnetz } from './app/draw-tonnetz.js';
+import { direct, handleAt, keysGeo, seqGeo, sideOn } from './app/geom.js';
 
 const cv = document.getElementById('cv');
-const g = cv.getContext('2d');
+app.g = cv.getContext('2d');
+app.makeCanvas = () => document.createElement('canvas');
 const $ = id => document.getElementById(id);
-
-const al = (hex, a) => hex + Math.round(clamp(a, 0, 1) * 255).toString(16).padStart(2, '0');
-const pcHue = pc => mod12(pc * 7) * 30;
-
-/* Module size in world units, and the zoom limits of the table view. */
-const U = 34, Z_MIN = 0.3, Z_MAX = 3;
-
-const stripH = 22, SPL = 10;
-
-const sideOn = () => app.panes.ton.show && app.panes.ton.side;
-
-const direct = () => !!app.player && app.player.mode === 'direct';
-
-const ringInner = i => U * (1 + 0.5 * i);
-const outerR = m => ringInner(TYPES[m.type].params.length) + 3;
-
-const nameOf = s => (s.kind === 'tri' ? cname(s.id) : s.kind === 'node' ? NOTES[s.root] : `${NOTES[s.pcs[0]]}+${NOTES[s.pcs[1]]}`);
 
 function refreshHintTris() {
   app.hintTris = [];
@@ -241,24 +233,6 @@ function resize() {
   if (!oh) defaultView();
 }
 
-const seqGeo = () => {
-  const p = app.panes.seq, lw = 26, x0 = lw + 8, cw = (app.LW - x0 - 8) / STEPS;
-  const th = clamp(Math.round(p.h * 0.1), 12, 18);
-  const hh = p.h >= 130 ? 20 : 0;
-  const sy = p.top + p.h - th - 4, ay = sy - th - 2, gy0 = p.top + 4 + hh;
-  return { lw, x0, cw, th, sy, ay, gy0, hh, rh: (ay - 4 - gy0) / 8 };
-};
-
-const WHITE_OFFS = [0, 2, 4, 5, 7, 9, 11];
-/* Black keys sit on the boundary after the white key with this index. */
-const BLACK_KEYS = [[1, 1], [3, 2], [6, 4], [8, 5], [10, 6]];
-
-/* Whole octaves from C, as many as fit at a comfortable key width. */
-const keysGeo = () => {
-  const p = app.panes.keys, oct = clamp(Math.floor(app.LW / clamp(app.LW / 5, 140, 210)), 1, 8);
-  return { top: p.top, h: p.h, oct, ww: app.LW / (7 * oct), bh: p.h * 0.62, base: 12 * (app.harmony.octave + 1) };
-};
-
 /* Black keys overlap the white ones, so they get first claim on the upper part of the keyboard. */
 const keysMidiAt = p => {
   const K = keysGeo(), o = clamp(Math.floor(p.x / (7 * K.ww)), 0, K.oct - 1), xi = p.x - o * 7 * K.ww;
@@ -345,8 +319,6 @@ function hitModule(p) {
   return best;
 }
 
-const A0 = 0.75 * Math.PI, SPAN = 1.5 * Math.PI;
-
 /* The knob follows the finger's angle directly. In the gap at the bottom of the arc the value holds the end it came from,
    so a sweep can never wrap from max to min. */
 function setRing(s, p) {
@@ -357,8 +329,6 @@ function setRing(s, p) {
   s.m.p[s.key] = t;
   app.rack.apply(s.m);
 }
-
-const handleAt = m => ({ x: (m.x + m.target.x) / 2, y: (m.y + m.target.y) / 2 });
 
 function hitHandle(p) {
   for (const m of app.mods) {
@@ -676,8 +646,6 @@ $('tside').onclick = () => {
 };
 try { if (localStorage.getItem('tonnetz.dock') === 'right') { app.panes.ton.side = true; $('tside').textContent = 'Dock: right'; } } catch {}
 
-const ROOT_NAMES = NOTES, SCALE_OPTS = [null, ...SCALES];
-
 function applyScale() {
   const sc = SCALE_OPTS[app.scaleIdx];
   $('scale').textContent = 'Scale: ' + (sc ? sc.name : 'free');
@@ -716,495 +684,7 @@ document.addEventListener('pointerdown', e => { if (!$('mod').contains(e.target)
 
 /* ---------- drawing ---------- */
 
-function analyse(m) {
-  m.an.getFloatTimeDomainData(m.buf);
-  let pk = 0, sum = 0;
-  for (const v of m.buf) { const a = Math.abs(v); if (a > pk) pk = a; sum += v * v; }
-  m.pk = pk; m.rms = Math.sqrt(sum / m.buf.length);
-}
-
-const norm = (m, v) => (m.pk > 1e-4 ? v / m.pk : 0);
-
-function drawCable(m) {
-  const t = m.target;
-  const dx = t.x - m.x, dy = t.y - m.y, d = Math.hypot(dx, dy);
-  const ux = dx / d, uy = dy / d, nx = -uy, ny = ux;
-  const s0 = outerR(m), s1 = d - (t === app.master ? U * 1.9 : outerR(t));
-  const c0 = TYPES[m.type].color, c1 = t === app.master ? '#ffffff' : TYPES[t.type].color;
-  if (s1 > s0) {
-    const amp = Math.min(14, 3 + m.rms * 70);
-    const grad = g.createLinearGradient(m.x, m.y, t.x, t.y);
-    grad.addColorStop(0, c0); grad.addColorStop(1, c1);
-    g.strokeStyle = grad; g.lineWidth = 2 + Math.min(3, m.rms * 20); g.lineCap = 'round'; g.lineJoin = 'round';
-    g.beginPath();
-    const n = clamp(Math.round((s1 - s0) / 4), 40, 160);
-    const win = Math.min(m.buf.length, n * 6);
-    for (let k = 0; k <= n; k++) {
-      const f = k / n, s = s0 + (s1 - s0) * f;
-      const off = norm(m, m.buf[Math.floor(f * (win - 1))]) * amp * Math.sin(Math.PI * f);
-      const x = m.x + ux * s + nx * off, y = m.y + uy * s + ny * off;
-      if (k) g.lineTo(x, y); else g.moveTo(x, y);
-    }
-    g.stroke();
-  }
-  const h = handleAt(m), r = U * 0.3;
-  g.fillStyle = '#0d1020'; g.strokeStyle = '#ffffffcc'; g.lineWidth = 1.5;
-  g.beginPath(); g.arc(h.x, h.y, r, 0, 7); g.fill(); g.stroke();
-  g.beginPath();
-  g.moveTo(h.x - r * 0.45, h.y - r * 0.45); g.lineTo(h.x + r * 0.45, h.y + r * 0.45);
-  g.moveTo(h.x + r * 0.45, h.y - r * 0.45); g.lineTo(h.x - r * 0.45, h.y + r * 0.45);
-  g.stroke();
-}
-
-function drawRing(c, r, w, v, active, dim) {
-  g.lineWidth = w; g.lineCap = 'round';
-  g.strokeStyle = al(c, dim ? 0.06 : active ? 0.3 : 0.14);
-  g.beginPath(); g.arc(0, 0, r, A0, A0 + SPAN); g.stroke();
-  g.strokeStyle = al(c, dim ? 0.3 : active ? 1 : 0.7);
-  g.beginPath(); g.arc(0, 0, r, A0, A0 + SPAN * Math.max(v, 0.001)); g.stroke();
-  const a = A0 + SPAN * v;
-  g.fillStyle = dim ? '#ffffff55' : '#fff';
-  g.beginPath(); g.arc(Math.cos(a) * r, Math.sin(a) * r, w * (active ? 0.7 : 0.45), 0, 7); g.fill();
-}
-
-/* The pill sits above the module so the dragging finger never covers the reading. */
-function drawBubble(m, label, value) {
-  const fs = Math.round(clamp(U * 0.5, 13, 20));
-  g.font = `600 ${fs}px system-ui, sans-serif`;
-  const text = `${label}  ${value}`, w = g.measureText(text).width + fs, h = fs * 1.7;
-  const vl = -app.view.x / app.view.z, vr = (app.LW - app.view.x) / app.view.z;
-  const x = clamp(m.x, vl + w / 2 + 4, vr - w / 2 - 4), y = Math.max(-app.view.y / app.view.z + 4, m.y - outerR(m) - h - 6);
-  g.fillStyle = 'rgba(7,8,13,0.92)'; g.strokeStyle = '#ffffffcc'; g.lineWidth = 1.5;
-  g.beginPath(); g.roundRect(x - w / 2, y, w, h, h / 2); g.fill(); g.stroke();
-  g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText(text, x, y + h / 2 + 1);
-}
-
-function dashRing(x, y, r, alpha, now) {
-  g.strokeStyle = `rgba(255,255,255,${alpha})`; g.lineWidth = 1.5;
-  g.setLineDash([5, 6]); g.lineDashOffset = -now / 40;
-  g.beginPath(); g.arc(x, y, r, 0, 7); g.stroke();
-  g.setLineDash([]);
-}
-
-function drawModule(m, touched, now) {
-  const T = TYPES[m.type], c = T.color, n = T.params.length;
-  g.save(); g.translate(m.x, m.y);
-  const halo = g.createRadialGradient(0, 0, U * 0.5, 0, 0, outerR(m) + U);
-  halo.addColorStop(0, al(c, 0.1 + Math.min(0.5, m.rms * 3)));
-  halo.addColorStop(1, al(c, 0));
-  g.fillStyle = halo; g.beginPath(); g.arc(0, 0, outerR(m) + U, 0, 7); g.fill();
-
-  g.fillStyle = '#0d1020'; g.strokeStyle = m === app.selected ? '#ffffff' : c; g.lineWidth = m === app.selected ? 3 : 2;
-  g.beginPath(); g.arc(0, 0, U, 0, 7); g.fill(); g.stroke();
-
-  g.strokeStyle = al(c, 0.9); g.lineWidth = 1.5; g.lineJoin = 'round';
-  g.beginPath();
-  const pts = 128, r0 = U * 0.62, amp = U * 0.3;
-  for (let i = 0; i <= pts; i++) {
-    const a = (i / pts) * 2 * Math.PI;
-    const r = r0 + norm(m, m.buf[Math.floor((i % pts) / pts * 511)]) * amp;
-    if (i) g.lineTo(Math.cos(a) * r, Math.sin(a) * r); else g.moveTo(Math.cos(a) * r, Math.sin(a) * r);
-  }
-  g.stroke();
-
-  T.params.forEach((q, i) => drawRing(c, U * (1.25 + 0.5 * i), U * 0.34, m.p[i], touched.has(i), touched.size > 0 && !touched.has(i)));
-
-  g.fillStyle = al(c, 0.95);
-  g.font = `600 ${Math.round(U * 0.3)}px system-ui, sans-serif`;
-  g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText(T.name, 0, 0);
-
-  const fs = Math.round(U * 0.28);
-  g.font = `${fs}px system-ui, sans-serif`;
-  g.textBaseline = 'top';
-  T.params.forEach((q, i) => {
-    g.fillStyle = touched.has(i) ? '#fff' : al('#d8def0', 0.55);
-    g.fillText(`${q.label} ${q.fmt(m.p[i])}`, 0, outerR(m) + 4 + i * fs * 1.2);
-  });
-  g.restore();
-
-  for (const i of touched) drawBubble(m, T.params[i].label, T.params[i].fmt(m.p[i]));
-  if (m === app.selected) dashRing(m.x, m.y, U * (1 + 0.5 * n) + 8, 0.9, now);
-  else if (app.selected && !app.selected.target && app.rack.canConnect(app.selected, m)) dashRing(m.x, m.y, U * 1.12, 0.35 + 0.25 * Math.sin(now / 200), now);
-}
-
-const dbOf = v => (v > 1e-5 ? 20 * Math.log10(v) : -100);
-
-function drawMeter() {
-  app.master.an.getFloatTimeDomainData(app.master.tb);
-  let pk = 0;
-  for (const v of app.master.tb) { const a = Math.abs(v); if (a > pk) pk = a; }
-  const now = performance.now();
-  app.master.level = Math.max(pk, app.master.level * 0.9);
-  if (pk >= app.master.hold || now - app.master.holdT > 1200) { app.master.hold = pk; app.master.holdT = now; }
-
-  const w = U * 3, h = Math.max(6, U * 0.2), segs = 24, y = U * 2.15;
-  const frac = v => clamp((dbOf(v) + 60) / 60, 0, 1);
-  const lit = frac(app.master.level) * segs, holdSeg = Math.min(segs - 1, Math.floor(frac(app.master.hold) * segs));
-  const sw = w / segs;
-  g.save(); g.translate(app.master.x, app.master.y);
-  for (let k = 0; k < segs; k++) {
-    const hue = 130 - (k / segs) * 130;
-    const on = k < lit || k === holdSeg;
-    g.fillStyle = on ? `hsl(${hue},85%,55%)` : 'rgba(255,255,255,0.07)';
-    g.fillRect(-w / 2 + k * sw + 1, y, sw - 2, h);
-  }
-  const db = dbOf(app.master.hold);
-  g.fillStyle = db > -1 ? '#ff5050' : al('#d8def0', 0.7);
-  g.font = `${Math.round(U * 0.3)}px system-ui, sans-serif`;
-  g.textAlign = 'center'; g.textBaseline = 'top';
-  g.fillText(db <= -99 ? '-inf dB' : db.toFixed(1) + ' dB', 0, y + h + 4);
-  g.restore();
-}
-
-function drawMaster(now) {
-  app.master.an.getByteFrequencyData(app.master.fr);
-  g.save(); g.translate(app.master.x, app.master.y);
-  const bars = 32, r = U * 1.1;
-  g.lineCap = 'round'; g.lineWidth = 4;
-  for (let k = 0; k < bars; k++) {
-    const a = (k / bars) * 2 * Math.PI - Math.PI / 2;
-    const v = app.master.fr[Math.floor(k * 1.4)] / 255;
-    g.strokeStyle = `hsla(${190 + k * 4},90%,${50 + v * 25}%,${0.35 + v * 0.65})`;
-    g.beginPath();
-    g.moveTo(Math.cos(a) * r, Math.sin(a) * r);
-    g.lineTo(Math.cos(a) * (r + 3 + v * U * 0.7), Math.sin(a) * (r + 3 + v * U * 0.7));
-    g.stroke();
-  }
-  g.fillStyle = '#0d1020'; g.strokeStyle = '#ffffff'; g.lineWidth = 2;
-  g.beginPath(); g.arc(0, 0, r, 0, 7); g.fill(); g.stroke();
-  g.fillStyle = '#fff'; g.font = `600 ${Math.round(U * 0.3)}px system-ui, sans-serif`;
-  g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText('OUT', 0, 0);
-  g.restore();
-  if (app.selected && !app.selected.target) dashRing(app.master.x, app.master.y, r + 6, 0.35 + 0.25 * Math.sin(now / 200), now);
-  drawMeter();
-}
-
-function drawStrip() {
-  const fs = Math.round(clamp(U * 0.34, 11, 14)), y = app.tableH + stripH / 2 + 1;
-  g.font = `${fs}px system-ui, sans-serif`;
-  g.textBaseline = 'middle'; g.textAlign = 'left'; g.fillStyle = '#d8def0';
-  const { sel, analysis, hints } = app.harmony;
-  const mode = MODES[analysis.mode] || '';
-  const scale = app.harmony.lock ? `scale ${NOTES[app.harmony.lock.root]} ${SCALE_OPTS[app.scaleIdx].name}` : `${NOTES[sel.root]} ${mode}${app.LW > 560 ? ` (${NOTES[analysis.key]} major)` : ''}`;
-  g.fillText(`${nameOf(sel)}  ${scale}`, 8, y);
-  g.textAlign = 'right'; g.fillStyle = al('#d8def0', 0.7);
-  if (direct()) { g.fillText('direct play', app.LW - 8, y); return; }
-  const next = hints.length ? 'next: ' + hints.map(h => (h.back ? '↩' : '') + cname(h.id)).join('  ') : '';
-  const seq = app.player && app.player.seq, song = app.harmony.song;
-  const bars = song ? `song bar ${(song.bar + song.chords.length - 1) % song.chords.length + 1}/${song.chords.length}` : `bar ${Math.max(1, seq ? seq.barsInChord : 0)}/${seq ? seq.chordBars : 2}`;
-  g.fillText(`${next}   ${bars}`, app.LW - 8, y);
-}
-
-function drawSeq() {
-  const S = seqGeo(), seq = app.player.seq, pattern = seq.pattern;
-  g.textBaseline = 'middle';
-  if (S.hh) {
-    g.font = `${Math.round(clamp(U * 0.36, 11, 13))}px system-ui, sans-serif`;
-    g.textAlign = 'left'; g.fillStyle = '#d8def0';
-    const tonality = app.harmony.lock ? `${NOTES[app.harmony.lock.root]} ${SCALE_OPTS[app.scaleIdx].name}` : `${NOTES[app.harmony.analysis.key]} major`;
-    g.fillText(app.LW > 700 ? `SEQUENCER  ${tonality}` : tonality, 8, app.panes.seq.top + 4 + S.hh / 2);
-  }
-  for (let r = 0; r < 8; r++) {
-    const y = S.gy0 + (7 - r) * S.rh, tone = [0, 2, 4].includes(r % 7);
-    g.fillStyle = tone ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.025)';
-    g.fillRect(S.x0, y, S.cw * STEPS, S.rh - 1);
-    g.font = `${Math.round(clamp(S.rh * 0.75, 8, 11))}px system-ui, sans-serif`;
-    g.fillStyle = tone ? '#d8def0' : al('#d8def0', 0.45);
-    g.textAlign = 'right';
-    g.fillText(NOTES[mod12(app.harmony.pitchOf(r))], S.x0 - 4, y + S.rh / 2);
-  }
-  g.lineWidth = 1;
-  for (const [alpha, from, every] of [[0.05, 0, 1], [0.28, 0, 4]]) {
-    g.strokeStyle = `rgba(255,255,255,${alpha})`;
-    g.beginPath();
-    for (let k = from; k <= STEPS; k += every) { const x = Math.round(S.x0 + k * S.cw) + 0.5; g.moveTo(x, S.gy0); g.lineTo(x, S.sy + S.th); }
-    g.stroke();
-  }
-
-  for (let k = 0; k < STEPS; k++) {
-    const st = pattern[k], x = S.x0 + k * S.cw, y = S.gy0 + (7 - st.deg) * S.rh;
-    if (st.rest) {
-      g.strokeStyle = 'rgba(255,255,255,0.3)'; g.lineWidth = 1;
-      g.strokeRect(x + 2.5, y + 2.5, S.cw - 5, S.rh - 5);
-    } else {
-      g.fillStyle = st.accent ? '#ff4fd8' : '#39d5ff';
-      g.fillRect(x + 1, y + 1, S.cw - 2, S.rh - 2);
-      if (st.slide && k > 0 && !pattern[k - 1].rest) {
-        const py = S.gy0 + (7 - pattern[k - 1].deg) * S.rh + S.rh / 2;
-        g.strokeStyle = '#fff'; g.lineWidth = 2;
-        g.beginPath(); g.moveTo(x - S.cw / 2, py); g.lineTo(x + S.cw / 2, y + S.rh / 2); g.stroke();
-      }
-    }
-    g.fillStyle = 'rgba(255,255,255,0.05)';
-    g.fillRect(x + 1, S.ay, S.cw - 2, S.th - 1);
-    g.fillRect(x + 1, S.sy, S.cw - 2, S.th - 1);
-    if (st.accent) { g.fillStyle = '#ff4fd8'; g.fillRect(x + 1, S.ay, S.cw - 2, S.th - 1); }
-    if (st.slide) { g.fillStyle = '#7dffb0'; g.fillRect(x + 1, S.sy, S.cw - 2, S.th - 1); }
-    if (seq.running && k === app.curStep) {
-      g.fillStyle = 'rgba(255,255,255,0.18)';
-      g.fillRect(x, S.gy0, S.cw, S.sy + S.th - S.gy0);
-      g.fillStyle = '#fff';
-      g.fillRect(x, S.gy0 - 3, S.cw, 3);
-    }
-  }
-  g.font = `${Math.round(clamp(S.th * 0.6, 8, 10))}px system-ui, sans-serif`;
-  g.textAlign = 'right'; g.fillStyle = al('#d8def0', 0.5);
-  g.fillText('ACC', S.x0 - 4, S.ay + S.th / 2);
-  g.fillText('SLD', S.x0 - 4, S.sy + S.th / 2);
-}
-
-/* Free mode has no scale to colour, so no key is marked. */
-const scaleSet = () => new Set(app.harmony.lock ? app.harmony.lock.pcs : []);
-
-function drawKeys(now) {
-  const K = keysGeo(), inScale = scaleSet();
-  const sounding = new Set(app.trail.filter(n => n.t0 <= now && (n.t1 === null || n.t1 >= now)).map(n => n.midi));
-  const paint = (m, x, w, h, black) => {
-    const pc = mod12(m), on = inScale.has(pc);
-    g.fillStyle = on ? `hsl(${pcHue(pc)},${black ? 75 : 85}%,${black ? 40 : 62}%)` : black ? '#14172a' : '#e9ecf5';
-    g.fillRect(x, K.top, w, h);
-    if (!sounding.has(m)) return;
-    g.strokeStyle = '#fff'; g.lineWidth = 3;
-    g.strokeRect(x + 1.5, K.top + 1.5, w - 3, h - 3);
-    g.fillStyle = 'rgba(255,255,255,0.35)';
-    g.fillRect(x, K.top, w, h);
-  };
-  g.font = `${Math.round(clamp(K.ww * 0.4, 8, 11))}px system-ui, sans-serif`;
-  g.textAlign = 'center'; g.textBaseline = 'bottom';
-  for (let o = 0; o < K.oct; o++) {
-    WHITE_OFFS.forEach((off, wi) => {
-      const m = K.base + 12 * o + off, x = (o * 7 + wi) * K.ww;
-      paint(m, x + 1, K.ww - 2, K.h - 1, false);
-      if (off === 0) {
-        g.fillStyle = '#07080d';
-        g.fillText('C' + (Math.floor(m / 12) - 1), x + K.ww / 2, K.top + K.h - 4);
-      }
-    });
-  }
-  for (let o = 0; o < K.oct; o++) {
-    for (const [pc, wi] of BLACK_KEYS) paint(K.base + 12 * o + pc, (o * 7 + wi) * K.ww - K.ww * 0.3, K.ww * 0.6, K.bh, true);
-  }
-}
-
-/* The arpeggiator pane: the tonality's chords to pick from, the run style and octave range, and the run that is playing. */
-function drawArp() {
-  const p = app.panes.arp, seq = app.player.seq, key = app.harmony.analysis.key, PAD = 8, chH = 24;
-  app.arpHits.length = 0;
-  g.font = `${Math.round(clamp(U * 0.36, 11, 13))}px system-ui, sans-serif`;
-  g.textBaseline = 'middle';
-
-  const chip = (x, y, w, h, label, { active, hue, mark, action }) => {
-    g.fillStyle = hue === undefined ? (active ? '#232842' : '#141726') : `hsl(${hue},${active ? 85 : 55}%,${active ? 62 : 32}%)`;
-    g.beginPath(); g.roundRect(x, y, w, h, h / 2); g.fill();
-    g.strokeStyle = active ? '#fff' : '#2a2f4a'; g.lineWidth = active ? 2 : 1; g.stroke();
-    g.fillStyle = hue !== undefined && active ? '#07080d' : '#d8def0'; g.textAlign = 'center';
-    g.fillText(label, x + w / 2, y + h / 2 + 1);
-    if (mark) { g.fillStyle = '#fff'; g.beginPath(); g.arc(x + w - 7, y + 7, 3, 0, 7); g.fill(); }
-    app.arpHits.push({ x, y, w, h, action });
-  };
-
-  const rowA = p.top + 6;
-  const tonality = app.harmony.lock ? `${NOTES[app.harmony.lock.root]} ${SCALE_OPTS[app.scaleIdx].name}` : `${NOTES[key]} major`;
-  const title = app.LW > 700 ? `ARPEGGIATOR  ${tonality}` : tonality;
-  const styleW = ARP_STYLES.reduce((a, st) => a + g.measureText(st).width + 22, 0);
-  const need = 2 * PAD + g.measureText(title).width + 16 + styleW + g.measureText('oct').width + 16 + 4 * 26 + 56;
-  /* Too narrow for one line: the title and Save keep the first row, styles and octaves drop to a second. */
-  const wrap = need > app.LW, rowS = wrap ? rowA + chH + 6 : rowA;
-  let x = app.LW - PAD;
-  for (const o of [4, 3, 2, 1]) {
-    x -= 26;
-    chip(x, rowS, 24, chH, String(o), { active: seq.arp.octaves === o, action: () => seq.setArp({ octaves: o }) });
-  }
-  g.fillStyle = al('#d8def0', 0.5); g.textAlign = 'right';
-  g.fillText('oct', x - 6, rowS + chH / 2 + 1);
-  x -= g.measureText('oct').width + 16;
-  for (const st of [...ARP_STYLES].reverse()) {
-    const w = g.measureText(st).width + 18;
-    x -= w + 4;
-    chip(x, rowS, w, chH, st, { active: seq.arp.style === st, action: () => seq.setArp({ style: st }) });
-  }
-  chip(wrap ? app.LW - PAD - 52 : x - 56, rowA, 52, chH, 'Save', { action: () => store.saveArpPreset() });
-  g.fillStyle = '#d8def0'; g.textAlign = 'left';
-  g.fillText(title, PAD, rowA + chH / 2 + 1);
-
-  const rowB = rowS + chH + 8, ids = [0, 1, 2, 3, 4, 5].map(i => cid(KEYS[key][i], [1, 2, 5].includes(i)));
-  const cur = app.harmony.sel.kind === 'tri' ? app.harmony.sel.id : null, next = app.harmony.hints.length ? app.harmony.hints[0].id : null;
-  if (cur !== null && !ids.includes(cur)) ids.push(cur);
-  const cw = clamp((app.LW - 2 * PAD - 6 * (ids.length - 1)) / ids.length, 36, 72);
-  ids.forEach((id, i) => chip(PAD + i * (cw + 6), rowB, cw, 28, cname(id), {
-    active: id === cur, hue: pcHue(id >> 1), mark: id === next,
-    action: () => app.player.pickChord(app.harmony.locate(id, app.harmony.sel)),
-  }));
-
-  const y0 = rowB + 28 + 10, h = p.top + p.h - 6 - y0;
-  if (h < 28) return;
-  const n = 3 * seq.arp.octaves, colW = (app.LW - 2 * PAD) / STEPS, pill = clamp(h / (n + 1), 3, 8);
-  const yOf = d => y0 + h - pill - (n > 1 ? d / (n - 1) : 0) * (h - pill);
-  g.fillStyle = 'rgba(255,255,255,0.04)'; g.fillRect(PAD, y0, app.LW - 2 * PAD, h);
-  seq.pattern.forEach((s, k) => {
-    const cx = PAD + k * colW, y = yOf(Math.min(s.deg, n - 1));
-    if (seq.running && k === app.curStep) { g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(cx, y0, colW, h); }
-    if (s.rest) { g.strokeStyle = 'rgba(255,255,255,0.3)'; g.lineWidth = 1; g.strokeRect(cx + 2.5, y + 0.5, colW - 5, pill - 1); return; }
-    g.fillStyle = s.accent ? '#ff4fd8' : '#39d5ff';
-    g.fillRect(cx + 1, y, colW - 2, pill);
-    const prev = seq.pattern[k - 1];
-    if (s.slide && prev && !prev.rest) {
-      g.strokeStyle = '#fff'; g.lineWidth = 2;
-      g.beginPath(); g.moveTo(cx, yOf(Math.min(prev.deg, n - 1)) + pill / 2); g.lineTo(cx + colW / 2, y + pill / 2); g.stroke();
-    }
-  });
-}
-
-function tracePath(c, pts) {
-  c.beginPath();
-  c.moveTo(pts[0][0], pts[0][1]); c.lineTo(pts[1][0], pts[1][1]); c.lineTo(pts[2][0], pts[2][1]); c.closePath();
-}
-
-function paintNode(c, i, j, on) {
-  const [x, y] = app.geo.np(i, j), pc = mod12(7 * i + 4 * j);
-  c.fillStyle = on ? `hsl(${pcHue(pc)},90%,62%)` : `hsla(${pcHue(pc)},45%,35%,0.9)`;
-  c.beginPath(); c.arc(x, y, app.geo.s * (on ? 0.29 : 0.24), 0, 7); c.fill();
-  if (on) { c.strokeStyle = '#fff'; c.lineWidth = 2; c.stroke(); }
-  c.fillStyle = on ? '#07080d' : 'rgba(255,255,255,0.8)';
-  c.fillText(NOTES[pc], x, y + 1);
-}
-
 /* Everything that never changes between frames is painted once; phones can't repaint the lattice at 60 fps. */
-
-function buildCache() {
-  app.cache = document.createElement('canvas');
-  app.cache.width = Math.round(app.W * app.DPR); app.cache.height = Math.round(app.H * app.DPR);
-  const c = app.cache.getContext('2d');
-  c.setTransform(app.DPR, 0, 0, app.DPR, 0, 0);
-  c.fillStyle = '#07080d'; c.fillRect(0, 0, app.W, app.H);
-
-  c.fillStyle = '#090b13'; c.fillRect(0, app.tableH, app.LW, stripH);
-  c.strokeStyle = '#2a2f4a'; c.lineWidth = 1;
-  c.beginPath();
-  c.moveTo(0, app.tableH + 0.5); c.lineTo(app.LW, app.tableH + 0.5);
-  c.stroke();
-  for (const p of app.paneList) {
-    if (!p.show) continue;
-    c.fillStyle = '#10131f'; c.fillRect(0, p.split, app.LW, SPL);
-    c.fillStyle = p === app.panes.ton ? '#0b0d16' : '#090b13'; c.fillRect(0, p.top, app.LW, p.h);
-    c.fillStyle = '#4a5178';
-    for (let k = -2; k <= 2; k++) c.fillRect(Math.round(app.LW / 2 + k * 10) - 2, p.split + SPL / 2 - 1, 4, 2);
-    c.beginPath();
-    c.moveTo(0, p.split + 0.5); c.lineTo(app.LW, p.split + 0.5);
-    c.moveTo(0, p.top - 0.5); c.lineTo(app.LW, p.top - 0.5);
-    c.stroke();
-  }
-  if (sideOn()) {
-    c.fillStyle = '#10131f'; c.fillRect(app.LW, 0, SPL, app.H);
-    c.fillStyle = '#0b0d16'; c.fillRect(app.LW + SPL, 0, app.panes.ton.w, app.H);
-    c.fillStyle = '#4a5178';
-    for (let k = -2; k <= 2; k++) c.fillRect(app.LW + SPL / 2 - 1, Math.round(app.H / 2 + k * 10) - 2, 2, 4);
-    c.beginPath();
-    c.moveTo(app.LW + 0.5, 0); c.lineTo(app.LW + 0.5, app.H);
-    c.moveTo(app.LW + SPL - 0.5, 0); c.lineTo(app.LW + SPL - 0.5, app.H);
-    c.stroke();
-  }
-  if (!app.panes.ton.show) return;
-
-  const { imin, imax } = app.geo.latticeRange();
-  c.lineJoin = 'round';
-  c.fillStyle = 'rgba(255,255,255,0.025)'; c.strokeStyle = 'rgba(255,255,255,0.09)';
-  for (let j = 0; j < 3; j++) for (let i = imin; i <= imax; i++) for (const up of [true, false]) {
-    tracePath(c, app.geo.triPts(i, j, up)); c.fill(); c.stroke();
-  }
-  c.textAlign = 'center'; c.textBaseline = 'middle';
-  c.font = `600 ${Math.round(app.geo.s * 0.2)}px system-ui, sans-serif`;
-  for (let j = 0; j <= 3; j++) for (let i = imin; i <= imax + 1; i++) {
-    const [x, y] = app.geo.np(i, j);
-    if (x > -app.geo.s && x < app.W + app.geo.s && y > -app.geo.s && y < app.H + app.geo.s) paintNode(c, i, j, false);
-  }
-}
-
-const FLASH_MS = 450;
-
-/* Every sounding or just-released note lights all copies of its pitch class on the lattice, fading out after release. */
-function drawFlashes(now) {
-  const lit = new Array(12).fill(0);
-  for (const n of app.trail) {
-    if (n.t0 > now) continue;
-    const a = n.t1 === null || now <= n.t1 ? 1 : 1 - (now - n.t1) / FLASH_MS;
-    if (a > 0) lit[mod12(n.midi)] = Math.max(lit[mod12(n.midi)], a);
-  }
-  if (!lit.some(a => a > 0)) return;
-  const { imin, imax } = app.geo.latticeRange();
-  for (let j = 0; j <= 3; j++) for (let i = imin; i <= imax + 1; i++) {
-    const pc = mod12(7 * i + 4 * j), a = lit[pc];
-    if (a <= 0) continue;
-    const [x, y] = app.geo.np(i, j);
-    if (x < -app.geo.s || x > app.W + app.geo.s || y < -app.geo.s || y > app.H + app.geo.s) continue;
-    const hue = pcHue(pc);
-    g.fillStyle = `hsla(${hue},95%,70%,${0.45 * a})`;
-    g.beginPath(); g.arc(x, y, app.geo.s * (0.2 + 0.04 * a), 0, 7); g.fill();
-    g.fillStyle = `hsla(${hue},95%,75%,${a})`;
-    g.beginPath(); g.arc(x, y, app.geo.s * 0.18, 0, 7); g.fill();
-    g.strokeStyle = `rgba(255,255,255,${a})`; g.lineWidth = 2; g.stroke();
-    g.fillStyle = '#07080d';
-    g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.font = `600 ${Math.round(app.geo.s * 0.2)}px system-ui, sans-serif`;
-    g.fillText(NOTES[pc], x, y + 1);
-  }
-}
-
-function drawTonnetz(now) {
-  const sel = app.harmony.sel;
-
-  for (const h of app.hintTris) {
-    const pts = app.geo.triPts(h.i, h.j, h.up);
-    const a = h.rank === 0 ? 0.55 + 0.35 * Math.sin(now / 220) : 0.3;
-    g.fillStyle = `rgba(255,255,255,${a * 0.12})`;
-    g.strokeStyle = `rgba(255,255,255,${a})`; g.lineWidth = h.rank === 0 ? 2.5 : 1.5;
-    g.setLineDash([4, 4]);
-    tracePath(g, pts); g.fill(); g.stroke();
-    g.setLineDash([]);
-    g.fillStyle = `rgba(255,255,255,${h.rank === 0 ? 0.9 : 0.6})`;
-    g.font = `600 ${Math.round(app.geo.s * 0.22)}px system-ui, sans-serif`;
-    g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(h.name, (pts[0][0] + pts[1][0] + pts[2][0]) / 3, (pts[0][1] + pts[1][1] + pts[2][1]) / 3);
-  }
-
-  if (sel.kind === 'tri') {
-    const { i, j, up } = sel.tri, hue = pcHue(sel.root);
-    g.fillStyle = `hsla(${hue},80%,55%,${0.3 + 0.35 * app.pulse})`;
-    g.strokeStyle = `hsla(${hue},90%,70%,0.9)`; g.lineWidth = 1.5;
-    tracePath(g, app.geo.triPts(i, j, up)); g.fill(); g.stroke();
-  } else if (sel.kind === 'edge') {
-    const [a, b] = sel.edge.map(n => app.geo.np(...n));
-    g.strokeStyle = `hsla(${pcHue(sel.root)},90%,65%,${0.6 + 0.4 * app.pulse})`; g.lineWidth = 5; g.lineCap = 'round';
-    g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
-  }
-  g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.font = `600 ${Math.round(app.geo.s * 0.2)}px system-ui, sans-serif`;
-  for (const k of sel.nodes) {
-    const n = /^n(-?\d+),(-?\d+)$/.exec(k);
-    paintNode(g, +n[1], +n[2], true);
-  }
-  drawFlashes(now);
-}
-
-function statusText() {
-  if (app.selected && !app.selected.target) return `${TYPES[app.selected.type].name} selected: tap a module or OUT to send its output there`;
-  if (app.selected) return `${TYPES[app.selected.type].name} is patched: tap the x on its cable to disconnect, or tap another module`;
-  return '';
-}
-
-/* Too dense to read once zoomed out, and it is redrawn every frame. */
-function drawGrid() {
-  const step = U * 0.8;
-  if (step * app.view.z < 16) return;
-  const x1 = (app.LW - app.view.x) / app.view.z, y1 = (app.tableH - app.view.y) / app.view.z;
-  g.fillStyle = 'rgba(255,255,255,0.05)';
-  for (let y = Math.floor(-app.view.y / app.view.z / step) * step; y < y1; y += step) {
-    for (let x = Math.floor(-app.view.x / app.view.z / step) * step; x < x1; x += step) g.fillRect(x, y, 1.5, 1.5);
-  }
-}
 
 function frame() {
   requestAnimationFrame(frame);
@@ -1212,8 +692,8 @@ function frame() {
   if (now - app.lastFrame < 30) return;
   app.lastFrame = now;
   if (app.layoutDirty) { app.layoutDirty = false; relayout(); }
-  g.setTransform(app.DPR, 0, 0, app.DPR, 0, 0);
-  g.drawImage(app.cache, 0, 0, app.W, app.H);
+  app.g.setTransform(app.DPR, 0, 0, app.DPR, 0, 0);
+  app.g.drawImage(app.cache, 0, 0, app.W, app.H);
   if (!app.ctx) return;
 
   const q = app.player.seq.stepQueue;
@@ -1230,9 +710,9 @@ function frame() {
   app.pulse *= 0.92;
 
   for (const m of app.mods) analyse(m);
-  g.save();
-  g.beginPath(); g.rect(0, 0, app.LW, app.tableH); g.clip();
-  g.translate(app.view.x, app.view.y); g.scale(app.view.z, app.view.z);
+  app.g.save();
+  app.g.beginPath(); app.g.rect(0, 0, app.LW, app.tableH); app.g.clip();
+  app.g.translate(app.view.x, app.view.y); app.g.scale(app.view.z, app.view.z);
   drawGrid();
   for (const m of app.mods) if (m.target) drawCable(m);
   drawMaster(now);
@@ -1241,11 +721,11 @@ function frame() {
     for (const s of app.ptr.values()) if (s.kind === 'ring' && s.m === m) touched.add(s.key);
     drawModule(m, touched, now);
   }
-  g.restore();
-  g.fillStyle = 'rgba(216,222,240,0.5)';
-  g.font = `${Math.round(U * 0.3)}px system-ui, sans-serif`;
-  g.textAlign = 'center'; g.textBaseline = 'bottom';
-  g.fillText(statusText(), app.LW / 2, 34);
+  app.g.restore();
+  app.g.fillStyle = 'rgba(216,222,240,0.5)';
+  app.g.font = `${Math.round(U * 0.3)}px system-ui, sans-serif`;
+  app.g.textAlign = 'center'; app.g.textBaseline = 'bottom';
+  app.g.fillText(statusText(), app.LW / 2, 34);
   drawStrip();
   if (app.panes.seq.show) drawSeq();
   if (app.panes.arp.show) drawArp();
@@ -1253,8 +733,8 @@ function frame() {
   if (app.panes.ton.show) drawTonnetz(now);
   for (const s of app.ptr.values()) {
     if (s.kind !== 'split') continue;
-    g.fillStyle = 'rgba(255,255,255,0.14)';
-    g.fillRect(0, s.pane.split, app.LW, SPL);
+    app.g.fillStyle = 'rgba(255,255,255,0.14)';
+    app.g.fillRect(0, s.pane.split, app.LW, SPL);
   }
 }
 
@@ -1264,6 +744,7 @@ const store = createStore({
   storage: localStorage, capture: captureState, apply: applyState, ready: () => !!app.player, onChange: renderPresets,
   stock: () => stockPresets({ x0: 0, x1: app.master.x - U * 3.2, y: app.master.y }),
 });
+app.store = store;
 
 /* One snapshot serves the autosaved session and every preset: rack (parameters, wiring, positions), table view, sequencer, scale lock. */
 function captureState() {

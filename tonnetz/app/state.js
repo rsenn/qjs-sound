@@ -6,6 +6,11 @@ import { Harmony } from '../lib/harmony.js';
 const geo = new TonnetzGeometry();
 
 export const app = {
+  /* drawing context (Canvas2D-shaped) and a factory for offscreen canvases; both set by the page */
+  g: undefined, makeCanvas: undefined,
+  /* session and preset storage; set by the page */
+  store: undefined,
+
   /* audio; created by start() */
   ctx: undefined, rack: undefined, player: undefined, master: undefined, mods: [],
 
