@@ -105,8 +105,6 @@ button.off { opacity: .45; }
 </div>
 <script type="module">
 import { NOTES, MODES, STYLES, STEPS, SCALES, KEYS, clamp, mod12, cname, cid } from './lib/theory.js';
-import { TonnetzGeometry } from './lib/geometry.js';
-import { Harmony } from './lib/harmony.js';
 import { Rack, TYPES } from './lib/synth.js';
 import { Player } from './lib/player.js';
 import { stockPresets } from './lib/presets.js';
@@ -114,6 +112,7 @@ import { fillBluesImprov } from './lib/improv.js';
 import { generateSong, songToChords } from './lib/song.js';
 import { ARP_STYLES } from './lib/arp.js';
 import { createStore } from './app/store.js';
+import { app } from './app/state.js';
 
 const cv = document.getElementById('cv');
 const g = cv.getContext('2d');
@@ -122,37 +121,14 @@ const $ = id => document.getElementById(id);
 const al = (hex, a) => hex + Math.round(clamp(a, 0, 1) * 255).toString(16).padStart(2, '0');
 const pcHue = pc => mod12(pc * 7) * 30;
 
-let ctx, rack, player, master, mods = [];
-let W, H, DPR, tableH, tonS;
-/* Width of everything but the docked-right tonnetz; equals W otherwise. */
-let LW;
-/* The table lives in world coordinates with a fixed module size; `view` maps them to the screen. */
+/* Module size in world units, and the zoom limits of the table view. */
 const U = 34, Z_MIN = 0.3, Z_MAX = 3;
-const view = { z: 1, x: 0, y: 0 };
-let lastBgTap = 0, pinch = null;
-const stripH = 22, SPL = 10;
-/* Panes stack below the table in this order, each under its own splitter; hidden ones keep their height for when they return. */
-const panes = {
-  seq: { want: true, show: true, h: 0, min: 100, split: 0, top: 0 },
-  arp: { want: true, show: false, h: 0, min: 130, split: 0, top: 0 },
-  keys: { want: false, show: false, h: 0, min: 60, split: 0, top: 0 },
-  ton: { want: true, show: true, h: 0, min: 80, split: 0, top: 0, side: false, w: 0 },
-};
-let paneList = [panes.seq, panes.arp, panes.keys, panes.ton];
-const sideOn = () => panes.ton.show && panes.ton.side;
-let layoutDirty = false, curStep = -1;
-const arpHits = [];
-const trail = [];
-const keysDown = new Map();
-const ptr = new Map();
-let selected = null;
-let lastTap = { t: 0, m: null };
-let hintTris = [];
-let pulse = 0;
 
-const geo = new TonnetzGeometry();
-const harmony = new Harmony({ locate: (id, from) => geo.findTri(id, from), onChange: refreshHintTris });
-const direct = () => !!player && player.mode === 'direct';
+const stripH = 22, SPL = 10;
+
+const sideOn = () => app.panes.ton.show && app.panes.ton.side;
+
+const direct = () => !!app.player && app.player.mode === 'direct';
 
 const ringInner = i => U * (1 + 0.5 * i);
 const outerR = m => ringInner(TYPES[m.type].params.length) + 3;
@@ -160,61 +136,63 @@ const outerR = m => ringInner(TYPES[m.type].params.length) + 3;
 const nameOf = s => (s.kind === 'tri' ? cname(s.id) : s.kind === 'node' ? NOTES[s.root] : `${NOTES[s.pcs[0]]}+${NOTES[s.pcs[1]]}`);
 
 function refreshHintTris() {
-  hintTris = [];
-  if (!geo.width || direct()) return;
-  harmony.hints.forEach((h, rank) => {
-    for (const c of geo.copiesOf(h.id)) hintTris.push({ ...c, rank, name: (h.back ? '↩' : '') + cname(h.id) });
+  app.hintTris = [];
+  if (!app.geo.width || direct()) return;
+  app.harmony.hints.forEach((h, rank) => {
+    for (const c of app.geo.copiesOf(h.id)) app.hintTris.push({ ...c, rank, name: (h.back ? '↩' : '') + cname(h.id) });
   });
 }
 
+app.onHarmonyChange = refreshHintTris;
+
 /* ---------- modules ---------- */
 
-const toWorld = p => ({ x: (p.x - view.x) / view.z, y: (p.y - view.y) / view.z });
+const toWorld = p => ({ x: (p.x - app.view.x) / app.view.z, y: (p.y - app.view.y) / app.view.z });
 
 function zoomAt(sx, sy, z) {
   const w = toWorld({ x: sx, y: sy });
-  view.z = clamp(z, Z_MIN, Z_MAX);
-  view.x = sx - w.x * view.z; view.y = sy - w.y * view.z;
+  app.view.z = clamp(z, Z_MIN, Z_MAX);
+  app.view.x = sx - w.x * app.view.z; app.view.y = sy - w.y * app.view.z;
 }
 
 /* Sized so the default patch fills the table the way it did before the view could move. */
 function defaultView() {
-  view.z = clamp(Math.min(LW / 13, (tableH - 30) / 7.6), 20, 44) / U;
-  view.x = view.y = 0;
+  app.view.z = clamp(Math.min(app.LW / 13, (app.tableH - 30) / 7.6), 20, 44) / U;
+  app.view.x = app.view.y = 0;
 }
 
 function fitView() {
-  const items = [...mods, master];
+  const items = [...app.mods, app.master];
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const m of items) {
-    const isMod = m !== master, r = isMod ? outerR(m) : U * 1.9;
+    const isMod = m !== app.master, r = isMod ? outerR(m) : U * 1.9;
     x0 = Math.min(x0, m.x - r); x1 = Math.max(x1, m.x + r);
     y0 = Math.min(y0, m.y - r - (isMod ? U * 0.9 : 0)); y1 = Math.max(y1, m.y + r + (isMod ? U * 2 : U * 1.5));
   }
-  const z = clamp(Math.min(LW / (x1 - x0 + U), tableH / (y1 - y0 + U)), Z_MIN, 1.6);
-  view.z = z;
-  view.x = LW / 2 - (x0 + x1) / 2 * z; view.y = tableH / 2 - (y0 + y1) / 2 * z;
+  const z = clamp(Math.min(app.LW / (x1 - x0 + U), app.tableH / (y1 - y0 + U)), Z_MIN, 1.6);
+  app.view.z = z;
+  app.view.x = app.LW / 2 - (x0 + x1) / 2 * z; app.view.y = app.tableH / 2 - (y0 + y1) / 2 * z;
 }
 
 function addModule(type, x, y) {
-  const m = rack.makeModule(type, x, y);
-  if (type === 'pad' && player.seq.running) rack.padSet(m, harmony.padVoicing());
+  const m = app.rack.makeModule(type, x, y);
+  if (type === 'pad' && app.player.seq.running) app.rack.padSet(m, app.harmony.padVoicing());
   return m;
 }
 
 function removeModule(m) {
-  rack.removeModule(m);
-  if (selected === m) selected = null;
+  app.rack.removeModule(m);
+  if (app.selected === m) app.selected = null;
 }
 
 /* ---------- layout ---------- */
 
-const minTable = () => clamp(H * 0.35, 120, 240);
+const minTable = () => clamp(app.H * 0.35, 120, 240);
 
 /* When the panes don't fit, the lower ones give up height first, but never below their minimum. */
 function fitPanes() {
-  const vis = paneList.filter(p => p.show);
-  let over = vis.reduce((a, p) => a + Math.max(p.h, p.min) + SPL, 0) - (H - stripH - minTable());
+  const vis = app.paneList.filter(p => p.show);
+  let over = vis.reduce((a, p) => a + Math.max(p.h, p.min) + SPL, 0) - (app.H - stripH - minTable());
   for (const p of vis) {
     p.h = Math.max(p.h, p.min);
     const cut = clamp(over, 0, p.h - p.min);
@@ -224,47 +202,47 @@ function fitPanes() {
 
 function relayout() {
   const side = sideOn();
-  panes.ton.w = clamp(panes.ton.w, 160, Math.max(160, W - 300));
-  LW = side ? W - panes.ton.w - SPL : W;
-  $('ctl').style.right = side ? panes.ton.w + SPL + 8 + 'px' : '';
-  $('ctl').style.maxWidth = side ? Math.round(LW * 0.55) + 'px' : '';
-  $('add').style.maxWidth = side ? Math.round(LW * 0.42) + 'px' : '';
-  paneList = [panes.seq, panes.arp, panes.keys, ...(side ? [] : [panes.ton])];
+  app.panes.ton.w = clamp(app.panes.ton.w, 160, Math.max(160, app.W - 300));
+  app.LW = side ? app.W - app.panes.ton.w - SPL : app.W;
+  $('ctl').style.right = side ? app.panes.ton.w + SPL + 8 + 'px' : '';
+  $('ctl').style.maxWidth = side ? Math.round(app.LW * 0.55) + 'px' : '';
+  $('add').style.maxWidth = side ? Math.round(app.LW * 0.42) + 'px' : '';
+  app.paneList = [app.panes.seq, app.panes.arp, app.panes.keys, ...(side ? [] : [app.panes.ton])];
   fitPanes();
-  tableH = H - stripH - paneList.reduce((a, p) => a + (p.show ? SPL + p.h : 0), 0);
-  let y = tableH + stripH;
-  for (const p of paneList) {
-    if (p.show) { p.split = y; p.top = y + SPL; y = p.top + p.h; } else p.split = p.top = H;
+  app.tableH = app.H - stripH - app.paneList.reduce((a, p) => a + (p.show ? SPL + p.h : 0), 0);
+  let y = app.tableH + stripH;
+  for (const p of app.paneList) {
+    if (p.show) { p.split = y; p.top = y + SPL; y = p.top + p.h; } else p.split = p.top = app.H;
   }
   if (side) {
-    panes.ton.split = panes.ton.top = H;
-    tonS = clamp(Math.min(H / 5, panes.ton.w / 3.5), 20, 140);
-    geo.layout(H, tonS, (panes.ton.w - 3.35 * tonS) / 2, { x: LW + SPL, y: 0 });
+    app.panes.ton.split = app.panes.ton.top = app.H;
+    app.tonS = clamp(Math.min(app.H / 5, app.panes.ton.w / 3.5), 20, 140);
+    app.geo.layout(app.H, app.tonS, (app.panes.ton.w - 3.35 * app.tonS) / 2, { x: app.LW + SPL, y: 0 });
   } else {
-    tonS = clamp(Math.min(W / 5, panes.ton.h / 3.35), 20, W / 5);
-    geo.layout(W, tonS, panes.ton.top + (panes.ton.h - 3.35 * tonS) / 2);
+    app.tonS = clamp(Math.min(app.W / 5, app.panes.ton.h / 3.35), 20, app.W / 5);
+    app.geo.layout(app.W, app.tonS, app.panes.ton.top + (app.panes.ton.h - 3.35 * app.tonS) / 2);
   }
   refreshHintTris();
   buildCache();
 }
 
 function resize() {
-  const oh = H;
-  W = innerWidth; H = innerHeight; DPR = Math.min(devicePixelRatio || 1, 1.5);
-  cv.width = W * DPR; cv.height = H * DPR;
-  if (oh) for (const p of paneList) p.h = Math.round(p.h * H / oh);
+  const oh = app.H;
+  app.W = innerWidth; app.H = innerHeight; app.DPR = Math.min(devicePixelRatio || 1, 1.5);
+  cv.width = app.W * app.DPR; cv.height = app.H * app.DPR;
+  if (oh) for (const p of app.paneList) p.h = Math.round(p.h * app.H / oh);
   else {
-    panes.seq.h = panes.arp.h = clamp(Math.round(H * 0.24), 110, 220);
-    panes.keys.h = clamp(Math.round(H * 0.15), 90, 150);
-    panes.ton.w = clamp(Math.round(W * 0.28), 200, 360);
-    panes.ton.h = Math.round(Math.min(W / 8, H * 0.4 / 3.35) * 3.35);
+    app.panes.seq.h = app.panes.arp.h = clamp(Math.round(app.H * 0.24), 110, 220);
+    app.panes.keys.h = clamp(Math.round(app.H * 0.15), 90, 150);
+    app.panes.ton.w = clamp(Math.round(app.W * 0.28), 200, 360);
+    app.panes.ton.h = Math.round(Math.min(app.W / 8, app.H * 0.4 / 3.35) * 3.35);
   }
   relayout();
   if (!oh) defaultView();
 }
 
 const seqGeo = () => {
-  const p = panes.seq, lw = 26, x0 = lw + 8, cw = (LW - x0 - 8) / STEPS;
+  const p = app.panes.seq, lw = 26, x0 = lw + 8, cw = (app.LW - x0 - 8) / STEPS;
   const th = clamp(Math.round(p.h * 0.1), 12, 18);
   const hh = p.h >= 130 ? 20 : 0;
   const sy = p.top + p.h - th - 4, ay = sy - th - 2, gy0 = p.top + 4 + hh;
@@ -277,8 +255,8 @@ const BLACK_KEYS = [[1, 1], [3, 2], [6, 4], [8, 5], [10, 6]];
 
 /* Whole octaves from C, as many as fit at a comfortable key width. */
 const keysGeo = () => {
-  const p = panes.keys, oct = clamp(Math.floor(LW / clamp(LW / 5, 140, 210)), 1, 8);
-  return { top: p.top, h: p.h, oct, ww: LW / (7 * oct), bh: p.h * 0.62, base: 12 * (harmony.octave + 1) };
+  const p = app.panes.keys, oct = clamp(Math.floor(app.LW / clamp(app.LW / 5, 140, 210)), 1, 8);
+  return { top: p.top, h: p.h, oct, ww: app.LW / (7 * oct), bh: p.h * 0.62, base: 12 * (app.harmony.octave + 1) };
 };
 
 /* Black keys overlap the white ones, so they get first claim on the upper part of the keyboard. */
@@ -292,9 +270,9 @@ const keysMidiAt = p => {
 
 /* Notes from the piano and the computer keyboard are snapped to the locked scale, the same as everything else the player sounds. */
 function startNote(midi, sliding) {
-  const m = harmony.snapMidi(midi), entry = { midi: m, t0: performance.now(), t1: null };
-  player.noteOn(m, sliding);
-  trail.push(entry);
+  const m = app.harmony.snapMidi(midi), entry = { midi: m, t0: performance.now(), t1: null };
+  app.player.noteOn(m, sliding);
+  app.trail.push(entry);
   return entry;
 }
 
@@ -312,8 +290,8 @@ const KEY_NOTES = (() => {
   return map;
 })();
 
-const splitAt = p => p.x < LW && paneList.find(q => q.show && p.y >= q.split - 4 && p.y < q.top + 4);
-const sideSplitAt = p => sideOn() && p.x >= LW - 4 && p.x < LW + SPL + 4;
+const splitAt = p => p.x < app.LW && app.paneList.find(q => q.show && p.y >= q.split - 4 && p.y < q.top + 4);
+const sideSplitAt = p => sideOn() && p.x >= app.LW - 4 && p.x < app.LW + SPL + 4;
 
 /* Dragging a splitter moves the boundary above its pane: the pane above (or the table) gives or takes the difference. */
 function dragSplit(s, p) {
@@ -325,22 +303,22 @@ function dragSplit(s, p) {
   s.pane.h = s.pane.h0 + d;
   if (s.prev) s.prev.h = s.prev.h0 - (want < 0 ? d : fromAbove);
   if (s.next) s.next.h = s.next.h0 - fromBelow;
-  layoutDirty = true;
+  app.layoutDirty = true;
 }
 
 /* Direct mode plays no pattern, so the sequencer hides itself there and returns with the user's own choice on going back to auto. */
-const arpMode = () => !!player && player.seq.mode === 'arp';
+const arpMode = () => !!app.player && app.player.seq.mode === 'arp';
 
 /* The arpeggiator pane takes the sequencer grid's place while the engine is in arp mode; both share one show/hide choice. */
 function applyPanes() {
-  const engine = panes.seq.want && !direct();
-  panes.seq.show = engine && !arpMode();
-  panes.arp.show = engine && arpMode();
-  panes.keys.show = panes.keys.want;
-  panes.ton.show = panes.ton.want;
-  for (const [id, btn] of [['seq', 'tseq'], ['keys', 'tkeys'], ['ton', 'tton']]) $(btn).classList.toggle('off', !(id === 'seq' ? engine : panes[id].show));
+  const engine = app.panes.seq.want && !direct();
+  app.panes.seq.show = engine && !arpMode();
+  app.panes.arp.show = engine && arpMode();
+  app.panes.keys.show = app.panes.keys.want;
+  app.panes.ton.show = app.panes.ton.want;
+  for (const [id, btn] of [['seq', 'tseq'], ['keys', 'tkeys'], ['ton', 'tton']]) $(btn).classList.toggle('off', !(id === 'seq' ? engine : app.panes[id].show));
   $('tseq').textContent = arpMode() ? 'Arpeggiator' : 'Sequencer';
-  layoutDirty = true;
+  app.layoutDirty = true;
 }
 
 function togglePane(p) {
@@ -355,7 +333,7 @@ const pos = e => ({ x: e.clientX, y: e.clientY });
 /* The module whose centre is closest wins, so overlapping rings of neighbours never steal a touch from the nearer one. */
 function hitModule(p) {
   let best = null, bd = Infinity;
-  for (const m of mods) {
+  for (const m of app.mods) {
     const d = Math.hypot(p.x - m.x, p.y - m.y);
     let zone = -1;
     if (d >= U) {
@@ -377,13 +355,13 @@ function setRing(s, p) {
   let t = ((Math.atan2(dy, dx) - A0) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) / SPAN;
   if (t > 1) t = s.m.p[s.key] > 0.5 ? 1 : 0;
   s.m.p[s.key] = t;
-  rack.apply(s.m);
+  app.rack.apply(s.m);
 }
 
 const handleAt = m => ({ x: (m.x + m.target.x) / 2, y: (m.y + m.target.y) / 2 });
 
 function hitHandle(p) {
-  for (const m of mods) {
+  for (const m of app.mods) {
     if (!m.target) continue;
     const h = handleAt(m);
     if (Math.hypot(p.x - h.x, p.y - h.y) < U * 0.5) return m;
@@ -393,120 +371,120 @@ function hitHandle(p) {
 
 function tapModule(m) {
   const now = performance.now();
-  if (lastTap.m === m && now - lastTap.t < 350) { removeModule(m); lastTap = { t: 0, m: null }; return; }
-  lastTap = { t: now, m };
-  if (selected && selected !== m && !selected.target && rack.canConnect(selected, m)) {
-    rack.connect(selected, m);
-    selected = null;
+  if (app.lastTap.m === m && now - app.lastTap.t < 350) { removeModule(m); app.lastTap = { t: 0, m: null }; return; }
+  app.lastTap = { t: now, m };
+  if (app.selected && app.selected !== m && !app.selected.target && app.rack.canConnect(app.selected, m)) {
+    app.rack.connect(app.selected, m);
+    app.selected = null;
   } else {
-    selected = selected === m ? null : m;
+    app.selected = app.selected === m ? null : m;
   }
 }
 
 cv.addEventListener('pointerdown', e => {
-  if (!ctx) return;
-  if (ctx.state !== 'running') ctx.resume();
+  if (!app.ctx) return;
+  if (app.ctx.state !== 'running') app.ctx.resume();
   const p = pos(e);
   cv.setPointerCapture(e.pointerId);
   if (sideSplitAt(p)) {
-    ptr.set(e.pointerId, { kind: 'vsplit', x0: p.x, w0: panes.ton.w });
+    app.ptr.set(e.pointerId, { kind: 'vsplit', x0: p.x, w0: app.panes.ton.w });
     return;
   }
   const sp = splitAt(p);
   if (sp) {
-    for (const q of paneList) q.h0 = q.h;
-    const prev = paneList.slice(0, paneList.indexOf(sp)).reverse().find(q => q.show) || null;
-    const next = paneList.slice(paneList.indexOf(sp) + 1).find(q => q.show) || null;
-    ptr.set(e.pointerId, { kind: 'split', pane: sp, prev, next, y0: p.y, table0: tableH });
+    for (const q of app.paneList) q.h0 = q.h;
+    const prev = app.paneList.slice(0, app.paneList.indexOf(sp)).reverse().find(q => q.show) || null;
+    const next = app.paneList.slice(app.paneList.indexOf(sp) + 1).find(q => q.show) || null;
+    app.ptr.set(e.pointerId, { kind: 'split', pane: sp, prev, next, y0: p.y, table0: app.tableH });
     return;
   }
-  if (sideOn() ? p.x >= LW + SPL : panes.ton.show && p.y >= panes.ton.top) {
-    ptr.set(e.pointerId, { kind: 'ton' });
-    player.press(geo.hit(p));
-    if (player.live) pulse = 1;
+  if (sideOn() ? p.x >= app.LW + SPL : app.panes.ton.show && p.y >= app.panes.ton.top) {
+    app.ptr.set(e.pointerId, { kind: 'ton' });
+    app.player.press(app.geo.hit(p));
+    if (app.player.live) app.pulse = 1;
     return;
   }
-  if (panes.keys.show && p.y >= panes.keys.top) {
+  if (app.panes.keys.show && p.y >= app.panes.keys.top) {
     const s = { kind: 'keys', midi: keysMidiAt(p) };
     s.entry = startNote(s.midi, false);
-    ptr.set(e.pointerId, s);
+    app.ptr.set(e.pointerId, s);
     return;
   }
-  if (panes.arp.show && p.y >= panes.arp.top) {
-    const hit = arpHits.find(h => p.x >= h.x && p.x < h.x + h.w && p.y >= h.y && p.y < h.y + h.h);
+  if (app.panes.arp.show && p.y >= app.panes.arp.top) {
+    const hit = app.arpHits.find(h => p.x >= h.x && p.x < h.x + h.w && p.y >= h.y && p.y < h.y + h.h);
     if (hit) hit.action();
     return;
   }
-  if (panes.seq.show && p.y >= panes.seq.top) {
+  if (app.panes.seq.show && p.y >= app.panes.seq.top) {
     const S = seqGeo(), col = Math.floor((p.x - S.x0) / S.cw), area = seqArea(p, S);
     if (col < 0 || col >= STEPS || !area) return;
-    const st = player.seq.pattern[col], s = { kind: 'seq', area, col };
+    const st = app.player.seq.pattern[col], s = { kind: 'seq', area, col };
     if (area === 'grid') {
       const deg = clamp(7 - Math.floor((p.y - S.gy0) / S.rh), 0, 7);
       s.mode = !st.rest && st.deg === deg ? 'erase' : 'note';
     } else {
       s.val = !st[area];
     }
-    ptr.set(e.pointerId, s);
+    app.ptr.set(e.pointerId, s);
     paintStep(s, col, p);
     syncStyle();
     return;
   }
-  if (p.y >= tableH) return;
+  if (p.y >= app.tableH) return;
   const wp = toWorld(p);
   const cable = hitHandle(wp);
-  if (cable) { rack.disconnect(cable); return; }
+  if (cable) { app.rack.disconnect(cable); return; }
   const hit = hitModule(wp);
   if (!hit) {
-    if (Math.hypot(wp.x - master.x, wp.y - master.y) < U * 1.5) {
-      if (selected && !selected.target) { rack.connect(selected, master); selected = null; }
+    if (Math.hypot(wp.x - app.master.x, wp.y - app.master.y) < U * 1.5) {
+      if (app.selected && !app.selected.target) { app.rack.connect(app.selected, app.master); app.selected = null; }
       return;
     }
-    ptr.set(e.pointerId, { kind: 'pan', x: p.x, y: p.y, t0: performance.now(), moved: false });
+    app.ptr.set(e.pointerId, { kind: 'pan', x: p.x, y: p.y, t0: performance.now(), moved: false });
     beginGesture();
     return;
   }
   const { m, zone } = hit;
-  mods.splice(mods.indexOf(m), 1); mods.push(m);
+  app.mods.splice(app.mods.indexOf(m), 1); app.mods.push(m);
   if (zone < 0) {
-    ptr.set(e.pointerId, { kind: 'move', m, dx: m.x - wp.x, dy: m.y - wp.y, x0: p.x, y0: p.y, t0: performance.now(), moved: false });
+    app.ptr.set(e.pointerId, { kind: 'move', m, dx: m.x - wp.x, dy: m.y - wp.y, x0: p.x, y0: p.y, t0: performance.now(), moved: false });
   } else {
     const s = { kind: 'ring', m, key: zone };
-    ptr.set(e.pointerId, s);
+    app.ptr.set(e.pointerId, s);
     setRing(s, wp);
   }
 });
 
-const panPointers = () => [...ptr.values()].filter(s => s.kind === 'pan');
+const panPointers = () => [...app.ptr.values()].filter(s => s.kind === 'pan');
 
 /* One finger on the background pans; a second one turns it into a pinch that zooms about the midpoint. */
 function beginGesture() {
   const ps = panPointers();
-  for (const s of ps) { s.ox = s.x; s.oy = s.y; s.vx = view.x; s.vy = view.y; }
-  if (ps.length !== 2) { pinch = null; return; }
+  for (const s of ps) { s.ox = s.x; s.oy = s.y; s.vx = app.view.x; s.vy = app.view.y; }
+  if (ps.length !== 2) { app.pinch = null; return; }
   const [a, b] = ps;
-  pinch = { d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, z0: view.z, w: toWorld({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }) };
+  app.pinch = { d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, z0: app.view.z, w: toWorld({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }) };
   a.moved = b.moved = true;
 }
 
 function moveGesture(s, p) {
   s.x = p.x; s.y = p.y;
   const ps = panPointers();
-  if (ps.length === 2 && pinch) {
+  if (ps.length === 2 && app.pinch) {
     const [a, b] = ps, mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-    view.z = clamp(pinch.z0 * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d0, Z_MIN, Z_MAX);
-    view.x = mx - pinch.w.x * view.z; view.y = my - pinch.w.y * view.z;
+    app.view.z = clamp(app.pinch.z0 * Math.hypot(a.x - b.x, a.y - b.y) / app.pinch.d0, Z_MIN, Z_MAX);
+    app.view.x = mx - app.pinch.w.x * app.view.z; app.view.y = my - app.pinch.w.y * app.view.z;
   } else {
     if (Math.hypot(s.x - s.ox, s.y - s.oy) > 6) s.moved = true;
-    view.x = s.vx + s.x - s.ox; view.y = s.vy + s.y - s.oy;
+    app.view.x = s.vx + s.x - s.ox; app.view.y = s.vy + s.y - s.oy;
   }
 }
 
 cv.addEventListener('wheel', e => {
   const p = pos(e);
-  if (p.y >= tableH || p.x >= LW) return;
+  if (p.y >= app.tableH || p.x >= app.LW) return;
   e.preventDefault();
-  zoomAt(p.x, p.y, view.z * Math.exp(-e.deltaY * 0.0015));
+  zoomAt(p.x, p.y, app.view.z * Math.exp(-e.deltaY * 0.0015));
 }, { passive: false });
 
 function seqArea(p, S) {
@@ -517,23 +495,23 @@ function seqArea(p, S) {
 }
 
 function paintStep(s, col, p) {
-  const S = seqGeo(), seq = player.seq;
+  const S = seqGeo(), seq = app.player.seq;
   if (s.area !== 'grid') seq.edit(col, { [s.area]: s.val });
   else if (s.mode === 'erase') seq.edit(col, { rest: true });
   else seq.edit(col, { deg: clamp(7 - Math.floor((p.y - S.gy0) / S.rh), 0, 7), rest: false });
 }
 
 cv.addEventListener('pointermove', e => {
-  const s = ptr.get(e.pointerId);
+  const s = app.ptr.get(e.pointerId);
   if (!s) { cv.style.cursor = sideSplitAt(pos(e)) ? 'col-resize' : splitAt(pos(e)) ? 'row-resize' : ''; return; }
   const p = pos(e);
   if (s.kind === 'vsplit') {
-    panes.ton.w = s.w0 + s.x0 - p.x;
-    layoutDirty = true;
+    app.panes.ton.w = s.w0 + s.x0 - p.x;
+    app.layoutDirty = true;
   } else if (s.kind === 'split') {
     dragSplit(s, p);
   } else if (s.kind === 'keys') {
-    const m = harmony.snapMidi(keysMidiAt(p));
+    const m = app.harmony.snapMidi(keysMidiAt(p));
     if (m !== s.entry.midi) { endNote(s.entry); s.entry = startNote(m, true); }
   } else if (s.kind === 'seq') {
     const S = seqGeo(), col = clamp(Math.floor((p.x - S.x0) / S.cw), 0, STEPS - 1), dir = col >= s.col ? 1 : -1;
@@ -541,9 +519,9 @@ cv.addEventListener('pointermove', e => {
     if (col === s.col) paintStep(s, col, p);
     s.col = col;
   } else if (s.kind === 'ton') {
-    const before = harmony.sel.key;
-    player.slide(geo.hit(p));
-    if (player.live && harmony.sel.key !== before) pulse = 1;
+    const before = app.harmony.sel.key;
+    app.player.slide(app.geo.hit(p));
+    if (app.player.live && app.harmony.sel.key !== before) app.pulse = 1;
   } else if (s.kind === 'pan') {
     moveGesture(s, p);
   } else if (s.kind === 'move') {
@@ -555,22 +533,22 @@ cv.addEventListener('pointermove', e => {
   }
 });
 
-const tonTouches = () => [...ptr.values()].filter(s => s.kind === 'ton').length;
+const tonTouches = () => [...app.ptr.values()].filter(s => s.kind === 'ton').length;
 
 function release(e) {
-  if (ctx && ctx.state !== 'running') ctx.resume();
-  const s = ptr.get(e.pointerId);
+  if (app.ctx && app.ctx.state !== 'running') app.ctx.resume();
+  const s = app.ptr.get(e.pointerId);
   if (!s) return;
-  ptr.delete(e.pointerId);
-  if (s.kind === 'ton') player.lift(tonTouches());
+  app.ptr.delete(e.pointerId);
+  if (s.kind === 'ton') app.player.lift(tonTouches());
   else if (s.kind === 'keys') { endNote(s.entry); noteOffIfIdle(); }
   else if (s.kind === 'pan') {
     beginGesture();
     if (!s.moved && performance.now() - s.t0 < 300) {
-      selected = null;
+      app.selected = null;
       const now = performance.now();
-      if (now - lastBgTap < 350) fitView();
-      lastBgTap = now;
+      if (now - app.lastBgTap < 350) fitView();
+      app.lastBgTap = now;
     }
   }
   else if (s.kind === 'move' && !s.moved && performance.now() - s.t0 < 300) tapModule(s.m);
@@ -579,33 +557,33 @@ cv.addEventListener('pointerup', release);
 cv.addEventListener('pointercancel', release);
 cv.addEventListener('contextmenu', e => e.preventDefault());
 addEventListener('blur', () => {
-  ptr.clear();
-  if (!player) return;
-  player.lift(0);
-  for (const k of keysDown.values()) endNote(k);
-  keysDown.clear();
-  player.noteOff();
+  app.ptr.clear();
+  if (!app.player) return;
+  app.player.lift(0);
+  for (const k of app.keysDown.values()) endNote(k);
+  app.keysDown.clear();
+  app.player.noteOff();
 });
 
 const HIDDEN_IN_DIRECT = ['play', 'engine', 'style', 'blues', 'song', 'len', 'bpmg', 'tseq'];
 function syncButtons() {
-  $('play').textContent = player && player.paused ? 'Play' : 'Pause';
+  $('play').textContent = app.player && app.player.paused ? 'Play' : 'Pause';
   $('mode').textContent = 'Mode: ' + (direct() ? 'direct' : 'auto');
   for (const id of HIDDEN_IN_DIRECT) $(id).style.display = direct() ? 'none' : '';
   if (arpMode()) for (const id of ['style', 'blues']) $(id).style.display = 'none';
-  $('songoff').style.display = harmony.song && !direct() ? '' : 'none';
+  $('songoff').style.display = app.harmony.song && !direct() ? '' : 'none';
   applyPanes();
 }
 
 function syncStyle() {
-  if (player) $('style').textContent = 'Style: ' + (player.seq.edited ? 'custom' : player.seq.styleSel);
+  if (app.player) $('style').textContent = 'Style: ' + (app.player.seq.edited ? 'custom' : app.player.seq.styleSel);
 }
 
-const togglePause = () => { if (!player || direct()) return; player.setPaused(!player.paused); syncButtons(); };
+const togglePause = () => { if (!app.player || direct()) return; app.player.setPaused(!app.player.paused); syncButtons(); };
 
 /* Preventing keyup too stops a focused button from also firing its own click on space. */
 const noteOffIfIdle = () => {
-  if (!keysDown.size && ![...ptr.values()].some(s => s.kind === 'keys')) player.noteOff();
+  if (!app.keysDown.size && ![...app.ptr.values()].some(s => s.kind === 'keys')) app.player.noteOff();
 };
 
 addEventListener('keydown', e => {
@@ -616,107 +594,107 @@ addEventListener('keydown', e => {
     return;
   }
   const note = KEY_NOTES[e.code];
-  if (note === undefined || !player || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (note === undefined || !app.player || e.ctrlKey || e.metaKey || e.altKey) return;
   e.preventDefault();
-  if (e.repeat || keysDown.has(e.code)) return;
-  if (ctx.state !== 'running') ctx.resume();
-  keysDown.set(e.code, startNote(12 * (harmony.octave + 1) + note, keysDown.size > 0));
+  if (e.repeat || app.keysDown.has(e.code)) return;
+  if (app.ctx.state !== 'running') app.ctx.resume();
+  app.keysDown.set(e.code, startNote(12 * (app.harmony.octave + 1) + note, app.keysDown.size > 0));
 });
 addEventListener('keyup', e => {
   if (e.target.tagName === 'INPUT') return;
   if (e.code === 'Space') e.preventDefault();
-  if (!keysDown.has(e.code)) return;
-  endNote(keysDown.get(e.code));
-  keysDown.delete(e.code);
+  if (!app.keysDown.has(e.code)) return;
+  endNote(app.keysDown.get(e.code));
+  app.keysDown.delete(e.code);
   noteOffIfIdle();
 });
 
 const setOctave = o => {
-  harmony.octave = clamp(o, 0, 5);
-  $('octv').textContent = 'oct ' + harmony.octave;
-  if (ctx) harmony.recompute();
+  app.harmony.octave = clamp(o, 0, 5);
+  $('octv').textContent = 'oct ' + app.harmony.octave;
+  if (app.ctx) app.harmony.recompute();
 };
 const setBpm = b => {
   const v = clamp(b, 60, 200);
-  if (player) player.seq.bpm = v;
+  if (app.player) app.player.seq.bpm = v;
   $('bpmv').textContent = v + ' bpm';
 };
 const STYLE_OPTS = ['auto', ...STYLES], LEN_OPTS = [1, 2, 4];
-$('octd').onclick = () => setOctave(harmony.octave - 1);
-$('octu').onclick = () => setOctave(harmony.octave + 1);
-$('bpmd').onclick = () => player && setBpm(player.seq.bpm - 4);
-$('bpmu').onclick = () => player && setBpm(player.seq.bpm + 4);
+$('octd').onclick = () => setOctave(app.harmony.octave - 1);
+$('octu').onclick = () => setOctave(app.harmony.octave + 1);
+$('bpmd').onclick = () => app.player && setBpm(app.player.seq.bpm - 4);
+$('bpmu').onclick = () => app.player && setBpm(app.player.seq.bpm + 4);
 $('play').onclick = togglePause;
 $('mode').onclick = () => {
-  if (!player) return;
-  player.setMode(direct() ? 'auto' : 'direct');
+  if (!app.player) return;
+  app.player.setMode(direct() ? 'auto' : 'direct');
   syncButtons();
   refreshHintTris();
 };
 $('style').onclick = () => {
-  if (!player) return;
-  const seq = player.seq;
+  if (!app.player) return;
+  const seq = app.player.seq;
   seq.setStyle(STYLE_OPTS[(STYLE_OPTS.indexOf(seq.styleSel) + 1) % STYLE_OPTS.length]);
   syncStyle();
 };
 /* Every press deals a new riff; it keeps the scale root if one is locked, else it takes the current chord's root. */
 $('engine').onclick = () => {
-  if (!player) return;
-  player.seq.setMode(arpMode() ? 'steps' : 'arp');
+  if (!app.player) return;
+  app.player.seq.setMode(arpMode() ? 'steps' : 'arp');
   syncSeqUi();
   syncButtons();
 };
 
 /* Every press deals a new arrangement in the current key and plays it from the top, one chord per bar. */
 $('song').onclick = () => {
-  if (!player) return;
-  const tonic = harmony.lock ? harmony.lock.root : harmony.sel.root;
-  harmony.setSong(songToChords(generateSong({ seed: (Math.random() * 0x7fffffff) | 0, bars: 16 }), tonic));
-  player.seq.barsInChord = 0;
+  if (!app.player) return;
+  const tonic = app.harmony.lock ? app.harmony.lock.root : app.harmony.sel.root;
+  app.harmony.setSong(songToChords(generateSong({ seed: (Math.random() * 0x7fffffff) | 0, bars: 16 }), tonic));
+  app.player.seq.barsInChord = 0;
   syncButtons();
 };
-$('songoff').onclick = () => { harmony.setSong(null); syncButtons(); };
+$('songoff').onclick = () => { app.harmony.setSong(null); syncButtons(); };
 
 $('blues').onclick = () => {
-  if (!player) return;
-  const root = harmony.lock ? harmony.lock.root : harmony.sel.root;
-  fillBluesImprov(player.seq, harmony, { root, seed: (Math.random() * 0x7fffffff) | 0 });
-  scaleIdx = SCALE_OPTS.findIndex(s => s && s.name === 'blues');
-  scaleRoot = root;
+  if (!app.player) return;
+  const root = app.harmony.lock ? app.harmony.lock.root : app.harmony.sel.root;
+  fillBluesImprov(app.player.seq, app.harmony, { root, seed: (Math.random() * 0x7fffffff) | 0 });
+  app.scaleIdx = SCALE_OPTS.findIndex(s => s && s.name === 'blues');
+  app.scaleRoot = root;
   applyScale();
   syncSeqUi();
 };
-$('fit').onclick =() => { if (master) fitView(); };
-$('tseq').onclick = () => togglePane(panes.seq);
-$('tkeys').onclick = () => togglePane(panes.keys);
-$('tton').onclick = () => togglePane(panes.ton);
+$('fit').onclick =() => { if (app.master) fitView(); };
+$('tseq').onclick = () => togglePane(app.panes.seq);
+$('tkeys').onclick = () => togglePane(app.panes.keys);
+$('tton').onclick = () => togglePane(app.panes.ton);
 $('tside').onclick = () => {
-  panes.ton.side = !panes.ton.side;
-  $('tside').textContent = 'Dock: ' + (panes.ton.side ? 'right' : 'bottom');
-  try { localStorage.setItem('tonnetz.dock', panes.ton.side ? 'right' : 'bottom'); } catch {}
+  app.panes.ton.side = !app.panes.ton.side;
+  $('tside').textContent = 'Dock: ' + (app.panes.ton.side ? 'right' : 'bottom');
+  try { localStorage.setItem('tonnetz.dock', app.panes.ton.side ? 'right' : 'bottom'); } catch {}
   applyPanes();
 };
-try { if (localStorage.getItem('tonnetz.dock') === 'right') { panes.ton.side = true; $('tside').textContent = 'Dock: right'; } } catch {}
+try { if (localStorage.getItem('tonnetz.dock') === 'right') { app.panes.ton.side = true; $('tside').textContent = 'Dock: right'; } } catch {}
 
 const ROOT_NAMES = NOTES, SCALE_OPTS = [null, ...SCALES];
-let scaleIdx = 0, scaleRoot = 0;
+
 function applyScale() {
-  const sc = SCALE_OPTS[scaleIdx];
+  const sc = SCALE_OPTS[app.scaleIdx];
   $('scale').textContent = 'Scale: ' + (sc ? sc.name : 'free');
-  $('root').textContent = 'Root: ' + ROOT_NAMES[scaleRoot];
+  $('root').textContent = 'Root: ' + ROOT_NAMES[app.scaleRoot];
   $('root').style.display = sc ? '' : 'none';
-  harmony.setLock(scaleRoot, sc && sc.iv);
+  app.harmony.setLock(app.scaleRoot, sc && sc.iv);
 }
-$('scale').onclick = () => { scaleIdx = (scaleIdx + 1) % SCALE_OPTS.length; applyScale(); };
-$('root').onclick = () => { scaleRoot = (scaleRoot + 1) % 12; applyScale(); };
+$('scale').onclick = () => { app.scaleIdx = (app.scaleIdx + 1) % SCALE_OPTS.length; applyScale(); };
+$('root').onclick = () => { app.scaleRoot = (app.scaleRoot + 1) % 12; applyScale(); };
 applyScale();
 $('len').onclick = () => {
-  if (!player) return;
-  const seq = player.seq;
+  if (!app.player) return;
+  const seq = app.player.seq;
   seq.chordBars = LEN_OPTS[(LEN_OPTS.indexOf(seq.chordBars) + 1) % LEN_OPTS.length];
   $('len').textContent = `Chord: ${seq.chordBars} bar${seq.chordBars > 1 ? 's' : ''}`;
 };
-setOctave(harmony.octave);
+setOctave(app.harmony.octave);
 $('bpmv').textContent = '116 bpm';
 
 const MODULE_ORDER = ['fmp', 'fm', 'dist', 'vco', 'vcf', 'pad', 'delay', 'reverb'];
@@ -727,8 +705,8 @@ for (const type of MODULE_ORDER) {
   row.append(dot, name);
   row.onclick = () => {
     $('modpanel').hidden = true;
-    if (!ctx) return;
-    const at = toWorld({ x: LW * (0.15 + Math.random() * 0.4), y: tableH * (0.25 + Math.random() * 0.5) });
+    if (!app.ctx) return;
+    const at = toWorld({ x: app.LW * (0.15 + Math.random() * 0.4), y: app.tableH * (0.25 + Math.random() * 0.5) });
     addModule(type, at.x, at.y);
   };
   $('modlist').append(row);
@@ -751,8 +729,8 @@ function drawCable(m) {
   const t = m.target;
   const dx = t.x - m.x, dy = t.y - m.y, d = Math.hypot(dx, dy);
   const ux = dx / d, uy = dy / d, nx = -uy, ny = ux;
-  const s0 = outerR(m), s1 = d - (t === master ? U * 1.9 : outerR(t));
-  const c0 = TYPES[m.type].color, c1 = t === master ? '#ffffff' : TYPES[t.type].color;
+  const s0 = outerR(m), s1 = d - (t === app.master ? U * 1.9 : outerR(t));
+  const c0 = TYPES[m.type].color, c1 = t === app.master ? '#ffffff' : TYPES[t.type].color;
   if (s1 > s0) {
     const amp = Math.min(14, 3 + m.rms * 70);
     const grad = g.createLinearGradient(m.x, m.y, t.x, t.y);
@@ -794,8 +772,8 @@ function drawBubble(m, label, value) {
   const fs = Math.round(clamp(U * 0.5, 13, 20));
   g.font = `600 ${fs}px system-ui, sans-serif`;
   const text = `${label}  ${value}`, w = g.measureText(text).width + fs, h = fs * 1.7;
-  const vl = -view.x / view.z, vr = (LW - view.x) / view.z;
-  const x = clamp(m.x, vl + w / 2 + 4, vr - w / 2 - 4), y = Math.max(-view.y / view.z + 4, m.y - outerR(m) - h - 6);
+  const vl = -app.view.x / app.view.z, vr = (app.LW - app.view.x) / app.view.z;
+  const x = clamp(m.x, vl + w / 2 + 4, vr - w / 2 - 4), y = Math.max(-app.view.y / app.view.z + 4, m.y - outerR(m) - h - 6);
   g.fillStyle = 'rgba(7,8,13,0.92)'; g.strokeStyle = '#ffffffcc'; g.lineWidth = 1.5;
   g.beginPath(); g.roundRect(x - w / 2, y, w, h, h / 2); g.fill(); g.stroke();
   g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -817,7 +795,7 @@ function drawModule(m, touched, now) {
   halo.addColorStop(1, al(c, 0));
   g.fillStyle = halo; g.beginPath(); g.arc(0, 0, outerR(m) + U, 0, 7); g.fill();
 
-  g.fillStyle = '#0d1020'; g.strokeStyle = m === selected ? '#ffffff' : c; g.lineWidth = m === selected ? 3 : 2;
+  g.fillStyle = '#0d1020'; g.strokeStyle = m === app.selected ? '#ffffff' : c; g.lineWidth = m === app.selected ? 3 : 2;
   g.beginPath(); g.arc(0, 0, U, 0, 7); g.fill(); g.stroke();
 
   g.strokeStyle = al(c, 0.9); g.lineWidth = 1.5; g.lineJoin = 'round';
@@ -847,32 +825,32 @@ function drawModule(m, touched, now) {
   g.restore();
 
   for (const i of touched) drawBubble(m, T.params[i].label, T.params[i].fmt(m.p[i]));
-  if (m === selected) dashRing(m.x, m.y, U * (1 + 0.5 * n) + 8, 0.9, now);
-  else if (selected && !selected.target && rack.canConnect(selected, m)) dashRing(m.x, m.y, U * 1.12, 0.35 + 0.25 * Math.sin(now / 200), now);
+  if (m === app.selected) dashRing(m.x, m.y, U * (1 + 0.5 * n) + 8, 0.9, now);
+  else if (app.selected && !app.selected.target && app.rack.canConnect(app.selected, m)) dashRing(m.x, m.y, U * 1.12, 0.35 + 0.25 * Math.sin(now / 200), now);
 }
 
 const dbOf = v => (v > 1e-5 ? 20 * Math.log10(v) : -100);
 
 function drawMeter() {
-  master.an.getFloatTimeDomainData(master.tb);
+  app.master.an.getFloatTimeDomainData(app.master.tb);
   let pk = 0;
-  for (const v of master.tb) { const a = Math.abs(v); if (a > pk) pk = a; }
+  for (const v of app.master.tb) { const a = Math.abs(v); if (a > pk) pk = a; }
   const now = performance.now();
-  master.level = Math.max(pk, master.level * 0.9);
-  if (pk >= master.hold || now - master.holdT > 1200) { master.hold = pk; master.holdT = now; }
+  app.master.level = Math.max(pk, app.master.level * 0.9);
+  if (pk >= app.master.hold || now - app.master.holdT > 1200) { app.master.hold = pk; app.master.holdT = now; }
 
   const w = U * 3, h = Math.max(6, U * 0.2), segs = 24, y = U * 2.15;
   const frac = v => clamp((dbOf(v) + 60) / 60, 0, 1);
-  const lit = frac(master.level) * segs, holdSeg = Math.min(segs - 1, Math.floor(frac(master.hold) * segs));
+  const lit = frac(app.master.level) * segs, holdSeg = Math.min(segs - 1, Math.floor(frac(app.master.hold) * segs));
   const sw = w / segs;
-  g.save(); g.translate(master.x, master.y);
+  g.save(); g.translate(app.master.x, app.master.y);
   for (let k = 0; k < segs; k++) {
     const hue = 130 - (k / segs) * 130;
     const on = k < lit || k === holdSeg;
     g.fillStyle = on ? `hsl(${hue},85%,55%)` : 'rgba(255,255,255,0.07)';
     g.fillRect(-w / 2 + k * sw + 1, y, sw - 2, h);
   }
-  const db = dbOf(master.hold);
+  const db = dbOf(app.master.hold);
   g.fillStyle = db > -1 ? '#ff5050' : al('#d8def0', 0.7);
   g.font = `${Math.round(U * 0.3)}px system-ui, sans-serif`;
   g.textAlign = 'center'; g.textBaseline = 'top';
@@ -881,13 +859,13 @@ function drawMeter() {
 }
 
 function drawMaster(now) {
-  master.an.getByteFrequencyData(master.fr);
-  g.save(); g.translate(master.x, master.y);
+  app.master.an.getByteFrequencyData(app.master.fr);
+  g.save(); g.translate(app.master.x, app.master.y);
   const bars = 32, r = U * 1.1;
   g.lineCap = 'round'; g.lineWidth = 4;
   for (let k = 0; k < bars; k++) {
     const a = (k / bars) * 2 * Math.PI - Math.PI / 2;
-    const v = master.fr[Math.floor(k * 1.4)] / 255;
+    const v = app.master.fr[Math.floor(k * 1.4)] / 255;
     g.strokeStyle = `hsla(${190 + k * 4},90%,${50 + v * 25}%,${0.35 + v * 0.65})`;
     g.beginPath();
     g.moveTo(Math.cos(a) * r, Math.sin(a) * r);
@@ -900,34 +878,34 @@ function drawMaster(now) {
   g.textAlign = 'center'; g.textBaseline = 'middle';
   g.fillText('OUT', 0, 0);
   g.restore();
-  if (selected && !selected.target) dashRing(master.x, master.y, r + 6, 0.35 + 0.25 * Math.sin(now / 200), now);
+  if (app.selected && !app.selected.target) dashRing(app.master.x, app.master.y, r + 6, 0.35 + 0.25 * Math.sin(now / 200), now);
   drawMeter();
 }
 
 function drawStrip() {
-  const fs = Math.round(clamp(U * 0.34, 11, 14)), y = tableH + stripH / 2 + 1;
+  const fs = Math.round(clamp(U * 0.34, 11, 14)), y = app.tableH + stripH / 2 + 1;
   g.font = `${fs}px system-ui, sans-serif`;
   g.textBaseline = 'middle'; g.textAlign = 'left'; g.fillStyle = '#d8def0';
-  const { sel, analysis, hints } = harmony;
+  const { sel, analysis, hints } = app.harmony;
   const mode = MODES[analysis.mode] || '';
-  const scale = harmony.lock ? `scale ${NOTES[harmony.lock.root]} ${SCALE_OPTS[scaleIdx].name}` : `${NOTES[sel.root]} ${mode}${LW > 560 ? ` (${NOTES[analysis.key]} major)` : ''}`;
+  const scale = app.harmony.lock ? `scale ${NOTES[app.harmony.lock.root]} ${SCALE_OPTS[app.scaleIdx].name}` : `${NOTES[sel.root]} ${mode}${app.LW > 560 ? ` (${NOTES[analysis.key]} major)` : ''}`;
   g.fillText(`${nameOf(sel)}  ${scale}`, 8, y);
   g.textAlign = 'right'; g.fillStyle = al('#d8def0', 0.7);
-  if (direct()) { g.fillText('direct play', LW - 8, y); return; }
+  if (direct()) { g.fillText('direct play', app.LW - 8, y); return; }
   const next = hints.length ? 'next: ' + hints.map(h => (h.back ? '↩' : '') + cname(h.id)).join('  ') : '';
-  const seq = player && player.seq, song = harmony.song;
+  const seq = app.player && app.player.seq, song = app.harmony.song;
   const bars = song ? `song bar ${(song.bar + song.chords.length - 1) % song.chords.length + 1}/${song.chords.length}` : `bar ${Math.max(1, seq ? seq.barsInChord : 0)}/${seq ? seq.chordBars : 2}`;
-  g.fillText(`${next}   ${bars}`, LW - 8, y);
+  g.fillText(`${next}   ${bars}`, app.LW - 8, y);
 }
 
 function drawSeq() {
-  const S = seqGeo(), seq = player.seq, pattern = seq.pattern;
+  const S = seqGeo(), seq = app.player.seq, pattern = seq.pattern;
   g.textBaseline = 'middle';
   if (S.hh) {
     g.font = `${Math.round(clamp(U * 0.36, 11, 13))}px system-ui, sans-serif`;
     g.textAlign = 'left'; g.fillStyle = '#d8def0';
-    const tonality = harmony.lock ? `${NOTES[harmony.lock.root]} ${SCALE_OPTS[scaleIdx].name}` : `${NOTES[harmony.analysis.key]} major`;
-    g.fillText(LW > 700 ? `SEQUENCER  ${tonality}` : tonality, 8, panes.seq.top + 4 + S.hh / 2);
+    const tonality = app.harmony.lock ? `${NOTES[app.harmony.lock.root]} ${SCALE_OPTS[app.scaleIdx].name}` : `${NOTES[app.harmony.analysis.key]} major`;
+    g.fillText(app.LW > 700 ? `SEQUENCER  ${tonality}` : tonality, 8, app.panes.seq.top + 4 + S.hh / 2);
   }
   for (let r = 0; r < 8; r++) {
     const y = S.gy0 + (7 - r) * S.rh, tone = [0, 2, 4].includes(r % 7);
@@ -936,7 +914,7 @@ function drawSeq() {
     g.font = `${Math.round(clamp(S.rh * 0.75, 8, 11))}px system-ui, sans-serif`;
     g.fillStyle = tone ? '#d8def0' : al('#d8def0', 0.45);
     g.textAlign = 'right';
-    g.fillText(NOTES[mod12(harmony.pitchOf(r))], S.x0 - 4, y + S.rh / 2);
+    g.fillText(NOTES[mod12(app.harmony.pitchOf(r))], S.x0 - 4, y + S.rh / 2);
   }
   g.lineWidth = 1;
   for (const [alpha, from, every] of [[0.05, 0, 1], [0.28, 0, 4]]) {
@@ -965,7 +943,7 @@ function drawSeq() {
     g.fillRect(x + 1, S.sy, S.cw - 2, S.th - 1);
     if (st.accent) { g.fillStyle = '#ff4fd8'; g.fillRect(x + 1, S.ay, S.cw - 2, S.th - 1); }
     if (st.slide) { g.fillStyle = '#7dffb0'; g.fillRect(x + 1, S.sy, S.cw - 2, S.th - 1); }
-    if (seq.running && k === curStep) {
+    if (seq.running && k === app.curStep) {
       g.fillStyle = 'rgba(255,255,255,0.18)';
       g.fillRect(x, S.gy0, S.cw, S.sy + S.th - S.gy0);
       g.fillStyle = '#fff';
@@ -979,11 +957,11 @@ function drawSeq() {
 }
 
 /* Free mode has no scale to colour, so no key is marked. */
-const scaleSet = () => new Set(harmony.lock ? harmony.lock.pcs : []);
+const scaleSet = () => new Set(app.harmony.lock ? app.harmony.lock.pcs : []);
 
 function drawKeys(now) {
   const K = keysGeo(), inScale = scaleSet();
-  const sounding = new Set(trail.filter(n => n.t0 <= now && (n.t1 === null || n.t1 >= now)).map(n => n.midi));
+  const sounding = new Set(app.trail.filter(n => n.t0 <= now && (n.t1 === null || n.t1 >= now)).map(n => n.midi));
   const paint = (m, x, w, h, black) => {
     const pc = mod12(m), on = inScale.has(pc);
     g.fillStyle = on ? `hsl(${pcHue(pc)},${black ? 75 : 85}%,${black ? 40 : 62}%)` : black ? '#14172a' : '#e9ecf5';
@@ -1013,8 +991,8 @@ function drawKeys(now) {
 
 /* The arpeggiator pane: the tonality's chords to pick from, the run style and octave range, and the run that is playing. */
 function drawArp() {
-  const p = panes.arp, seq = player.seq, key = harmony.analysis.key, PAD = 8, chH = 24;
-  arpHits.length = 0;
+  const p = app.panes.arp, seq = app.player.seq, key = app.harmony.analysis.key, PAD = 8, chH = 24;
+  app.arpHits.length = 0;
   g.font = `${Math.round(clamp(U * 0.36, 11, 13))}px system-ui, sans-serif`;
   g.textBaseline = 'middle';
 
@@ -1025,17 +1003,17 @@ function drawArp() {
     g.fillStyle = hue !== undefined && active ? '#07080d' : '#d8def0'; g.textAlign = 'center';
     g.fillText(label, x + w / 2, y + h / 2 + 1);
     if (mark) { g.fillStyle = '#fff'; g.beginPath(); g.arc(x + w - 7, y + 7, 3, 0, 7); g.fill(); }
-    arpHits.push({ x, y, w, h, action });
+    app.arpHits.push({ x, y, w, h, action });
   };
 
   const rowA = p.top + 6;
-  const tonality = harmony.lock ? `${NOTES[harmony.lock.root]} ${SCALE_OPTS[scaleIdx].name}` : `${NOTES[key]} major`;
-  const title = LW > 700 ? `ARPEGGIATOR  ${tonality}` : tonality;
+  const tonality = app.harmony.lock ? `${NOTES[app.harmony.lock.root]} ${SCALE_OPTS[app.scaleIdx].name}` : `${NOTES[key]} major`;
+  const title = app.LW > 700 ? `ARPEGGIATOR  ${tonality}` : tonality;
   const styleW = ARP_STYLES.reduce((a, st) => a + g.measureText(st).width + 22, 0);
   const need = 2 * PAD + g.measureText(title).width + 16 + styleW + g.measureText('oct').width + 16 + 4 * 26 + 56;
   /* Too narrow for one line: the title and Save keep the first row, styles and octaves drop to a second. */
-  const wrap = need > LW, rowS = wrap ? rowA + chH + 6 : rowA;
-  let x = LW - PAD;
+  const wrap = need > app.LW, rowS = wrap ? rowA + chH + 6 : rowA;
+  let x = app.LW - PAD;
   for (const o of [4, 3, 2, 1]) {
     x -= 26;
     chip(x, rowS, 24, chH, String(o), { active: seq.arp.octaves === o, action: () => seq.setArp({ octaves: o }) });
@@ -1048,27 +1026,27 @@ function drawArp() {
     x -= w + 4;
     chip(x, rowS, w, chH, st, { active: seq.arp.style === st, action: () => seq.setArp({ style: st }) });
   }
-  chip(wrap ? LW - PAD - 52 : x - 56, rowA, 52, chH, 'Save', { action: () => store.saveArpPreset() });
+  chip(wrap ? app.LW - PAD - 52 : x - 56, rowA, 52, chH, 'Save', { action: () => store.saveArpPreset() });
   g.fillStyle = '#d8def0'; g.textAlign = 'left';
   g.fillText(title, PAD, rowA + chH / 2 + 1);
 
   const rowB = rowS + chH + 8, ids = [0, 1, 2, 3, 4, 5].map(i => cid(KEYS[key][i], [1, 2, 5].includes(i)));
-  const cur = harmony.sel.kind === 'tri' ? harmony.sel.id : null, next = harmony.hints.length ? harmony.hints[0].id : null;
+  const cur = app.harmony.sel.kind === 'tri' ? app.harmony.sel.id : null, next = app.harmony.hints.length ? app.harmony.hints[0].id : null;
   if (cur !== null && !ids.includes(cur)) ids.push(cur);
-  const cw = clamp((LW - 2 * PAD - 6 * (ids.length - 1)) / ids.length, 36, 72);
+  const cw = clamp((app.LW - 2 * PAD - 6 * (ids.length - 1)) / ids.length, 36, 72);
   ids.forEach((id, i) => chip(PAD + i * (cw + 6), rowB, cw, 28, cname(id), {
     active: id === cur, hue: pcHue(id >> 1), mark: id === next,
-    action: () => player.pickChord(harmony.locate(id, harmony.sel)),
+    action: () => app.player.pickChord(app.harmony.locate(id, app.harmony.sel)),
   }));
 
   const y0 = rowB + 28 + 10, h = p.top + p.h - 6 - y0;
   if (h < 28) return;
-  const n = 3 * seq.arp.octaves, colW = (LW - 2 * PAD) / STEPS, pill = clamp(h / (n + 1), 3, 8);
+  const n = 3 * seq.arp.octaves, colW = (app.LW - 2 * PAD) / STEPS, pill = clamp(h / (n + 1), 3, 8);
   const yOf = d => y0 + h - pill - (n > 1 ? d / (n - 1) : 0) * (h - pill);
-  g.fillStyle = 'rgba(255,255,255,0.04)'; g.fillRect(PAD, y0, LW - 2 * PAD, h);
+  g.fillStyle = 'rgba(255,255,255,0.04)'; g.fillRect(PAD, y0, app.LW - 2 * PAD, h);
   seq.pattern.forEach((s, k) => {
     const cx = PAD + k * colW, y = yOf(Math.min(s.deg, n - 1));
-    if (seq.running && k === curStep) { g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(cx, y0, colW, h); }
+    if (seq.running && k === app.curStep) { g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(cx, y0, colW, h); }
     if (s.rest) { g.strokeStyle = 'rgba(255,255,255,0.3)'; g.lineWidth = 1; g.strokeRect(cx + 2.5, y + 0.5, colW - 5, pill - 1); return; }
     g.fillStyle = s.accent ? '#ff4fd8' : '#39d5ff';
     g.fillRect(cx + 1, y, colW - 2, pill);
@@ -1086,62 +1064,62 @@ function tracePath(c, pts) {
 }
 
 function paintNode(c, i, j, on) {
-  const [x, y] = geo.np(i, j), pc = mod12(7 * i + 4 * j);
+  const [x, y] = app.geo.np(i, j), pc = mod12(7 * i + 4 * j);
   c.fillStyle = on ? `hsl(${pcHue(pc)},90%,62%)` : `hsla(${pcHue(pc)},45%,35%,0.9)`;
-  c.beginPath(); c.arc(x, y, geo.s * (on ? 0.29 : 0.24), 0, 7); c.fill();
+  c.beginPath(); c.arc(x, y, app.geo.s * (on ? 0.29 : 0.24), 0, 7); c.fill();
   if (on) { c.strokeStyle = '#fff'; c.lineWidth = 2; c.stroke(); }
   c.fillStyle = on ? '#07080d' : 'rgba(255,255,255,0.8)';
   c.fillText(NOTES[pc], x, y + 1);
 }
 
 /* Everything that never changes between frames is painted once; phones can't repaint the lattice at 60 fps. */
-let cache;
-function buildCache() {
-  cache = document.createElement('canvas');
-  cache.width = Math.round(W * DPR); cache.height = Math.round(H * DPR);
-  const c = cache.getContext('2d');
-  c.setTransform(DPR, 0, 0, DPR, 0, 0);
-  c.fillStyle = '#07080d'; c.fillRect(0, 0, W, H);
 
-  c.fillStyle = '#090b13'; c.fillRect(0, tableH, LW, stripH);
+function buildCache() {
+  app.cache = document.createElement('canvas');
+  app.cache.width = Math.round(app.W * app.DPR); app.cache.height = Math.round(app.H * app.DPR);
+  const c = app.cache.getContext('2d');
+  c.setTransform(app.DPR, 0, 0, app.DPR, 0, 0);
+  c.fillStyle = '#07080d'; c.fillRect(0, 0, app.W, app.H);
+
+  c.fillStyle = '#090b13'; c.fillRect(0, app.tableH, app.LW, stripH);
   c.strokeStyle = '#2a2f4a'; c.lineWidth = 1;
   c.beginPath();
-  c.moveTo(0, tableH + 0.5); c.lineTo(LW, tableH + 0.5);
+  c.moveTo(0, app.tableH + 0.5); c.lineTo(app.LW, app.tableH + 0.5);
   c.stroke();
-  for (const p of paneList) {
+  for (const p of app.paneList) {
     if (!p.show) continue;
-    c.fillStyle = '#10131f'; c.fillRect(0, p.split, LW, SPL);
-    c.fillStyle = p === panes.ton ? '#0b0d16' : '#090b13'; c.fillRect(0, p.top, LW, p.h);
+    c.fillStyle = '#10131f'; c.fillRect(0, p.split, app.LW, SPL);
+    c.fillStyle = p === app.panes.ton ? '#0b0d16' : '#090b13'; c.fillRect(0, p.top, app.LW, p.h);
     c.fillStyle = '#4a5178';
-    for (let k = -2; k <= 2; k++) c.fillRect(Math.round(LW / 2 + k * 10) - 2, p.split + SPL / 2 - 1, 4, 2);
+    for (let k = -2; k <= 2; k++) c.fillRect(Math.round(app.LW / 2 + k * 10) - 2, p.split + SPL / 2 - 1, 4, 2);
     c.beginPath();
-    c.moveTo(0, p.split + 0.5); c.lineTo(LW, p.split + 0.5);
-    c.moveTo(0, p.top - 0.5); c.lineTo(LW, p.top - 0.5);
+    c.moveTo(0, p.split + 0.5); c.lineTo(app.LW, p.split + 0.5);
+    c.moveTo(0, p.top - 0.5); c.lineTo(app.LW, p.top - 0.5);
     c.stroke();
   }
   if (sideOn()) {
-    c.fillStyle = '#10131f'; c.fillRect(LW, 0, SPL, H);
-    c.fillStyle = '#0b0d16'; c.fillRect(LW + SPL, 0, panes.ton.w, H);
+    c.fillStyle = '#10131f'; c.fillRect(app.LW, 0, SPL, app.H);
+    c.fillStyle = '#0b0d16'; c.fillRect(app.LW + SPL, 0, app.panes.ton.w, app.H);
     c.fillStyle = '#4a5178';
-    for (let k = -2; k <= 2; k++) c.fillRect(LW + SPL / 2 - 1, Math.round(H / 2 + k * 10) - 2, 2, 4);
+    for (let k = -2; k <= 2; k++) c.fillRect(app.LW + SPL / 2 - 1, Math.round(app.H / 2 + k * 10) - 2, 2, 4);
     c.beginPath();
-    c.moveTo(LW + 0.5, 0); c.lineTo(LW + 0.5, H);
-    c.moveTo(LW + SPL - 0.5, 0); c.lineTo(LW + SPL - 0.5, H);
+    c.moveTo(app.LW + 0.5, 0); c.lineTo(app.LW + 0.5, app.H);
+    c.moveTo(app.LW + SPL - 0.5, 0); c.lineTo(app.LW + SPL - 0.5, app.H);
     c.stroke();
   }
-  if (!panes.ton.show) return;
+  if (!app.panes.ton.show) return;
 
-  const { imin, imax } = geo.latticeRange();
+  const { imin, imax } = app.geo.latticeRange();
   c.lineJoin = 'round';
   c.fillStyle = 'rgba(255,255,255,0.025)'; c.strokeStyle = 'rgba(255,255,255,0.09)';
   for (let j = 0; j < 3; j++) for (let i = imin; i <= imax; i++) for (const up of [true, false]) {
-    tracePath(c, geo.triPts(i, j, up)); c.fill(); c.stroke();
+    tracePath(c, app.geo.triPts(i, j, up)); c.fill(); c.stroke();
   }
   c.textAlign = 'center'; c.textBaseline = 'middle';
-  c.font = `600 ${Math.round(geo.s * 0.2)}px system-ui, sans-serif`;
+  c.font = `600 ${Math.round(app.geo.s * 0.2)}px system-ui, sans-serif`;
   for (let j = 0; j <= 3; j++) for (let i = imin; i <= imax + 1; i++) {
-    const [x, y] = geo.np(i, j);
-    if (x > -geo.s && x < W + geo.s && y > -geo.s && y < H + geo.s) paintNode(c, i, j, false);
+    const [x, y] = app.geo.np(i, j);
+    if (x > -app.geo.s && x < app.W + app.geo.s && y > -app.geo.s && y < app.H + app.geo.s) paintNode(c, i, j, false);
   }
 }
 
@@ -1150,36 +1128,36 @@ const FLASH_MS = 450;
 /* Every sounding or just-released note lights all copies of its pitch class on the lattice, fading out after release. */
 function drawFlashes(now) {
   const lit = new Array(12).fill(0);
-  for (const n of trail) {
+  for (const n of app.trail) {
     if (n.t0 > now) continue;
     const a = n.t1 === null || now <= n.t1 ? 1 : 1 - (now - n.t1) / FLASH_MS;
     if (a > 0) lit[mod12(n.midi)] = Math.max(lit[mod12(n.midi)], a);
   }
   if (!lit.some(a => a > 0)) return;
-  const { imin, imax } = geo.latticeRange();
+  const { imin, imax } = app.geo.latticeRange();
   for (let j = 0; j <= 3; j++) for (let i = imin; i <= imax + 1; i++) {
     const pc = mod12(7 * i + 4 * j), a = lit[pc];
     if (a <= 0) continue;
-    const [x, y] = geo.np(i, j);
-    if (x < -geo.s || x > W + geo.s || y < -geo.s || y > H + geo.s) continue;
+    const [x, y] = app.geo.np(i, j);
+    if (x < -app.geo.s || x > app.W + app.geo.s || y < -app.geo.s || y > app.H + app.geo.s) continue;
     const hue = pcHue(pc);
     g.fillStyle = `hsla(${hue},95%,70%,${0.45 * a})`;
-    g.beginPath(); g.arc(x, y, geo.s * (0.2 + 0.04 * a), 0, 7); g.fill();
+    g.beginPath(); g.arc(x, y, app.geo.s * (0.2 + 0.04 * a), 0, 7); g.fill();
     g.fillStyle = `hsla(${hue},95%,75%,${a})`;
-    g.beginPath(); g.arc(x, y, geo.s * 0.18, 0, 7); g.fill();
+    g.beginPath(); g.arc(x, y, app.geo.s * 0.18, 0, 7); g.fill();
     g.strokeStyle = `rgba(255,255,255,${a})`; g.lineWidth = 2; g.stroke();
     g.fillStyle = '#07080d';
     g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.font = `600 ${Math.round(geo.s * 0.2)}px system-ui, sans-serif`;
+    g.font = `600 ${Math.round(app.geo.s * 0.2)}px system-ui, sans-serif`;
     g.fillText(NOTES[pc], x, y + 1);
   }
 }
 
 function drawTonnetz(now) {
-  const sel = harmony.sel;
+  const sel = app.harmony.sel;
 
-  for (const h of hintTris) {
-    const pts = geo.triPts(h.i, h.j, h.up);
+  for (const h of app.hintTris) {
+    const pts = app.geo.triPts(h.i, h.j, h.up);
     const a = h.rank === 0 ? 0.55 + 0.35 * Math.sin(now / 220) : 0.3;
     g.fillStyle = `rgba(255,255,255,${a * 0.12})`;
     g.strokeStyle = `rgba(255,255,255,${a})`; g.lineWidth = h.rank === 0 ? 2.5 : 1.5;
@@ -1187,23 +1165,23 @@ function drawTonnetz(now) {
     tracePath(g, pts); g.fill(); g.stroke();
     g.setLineDash([]);
     g.fillStyle = `rgba(255,255,255,${h.rank === 0 ? 0.9 : 0.6})`;
-    g.font = `600 ${Math.round(geo.s * 0.22)}px system-ui, sans-serif`;
+    g.font = `600 ${Math.round(app.geo.s * 0.22)}px system-ui, sans-serif`;
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillText(h.name, (pts[0][0] + pts[1][0] + pts[2][0]) / 3, (pts[0][1] + pts[1][1] + pts[2][1]) / 3);
   }
 
   if (sel.kind === 'tri') {
     const { i, j, up } = sel.tri, hue = pcHue(sel.root);
-    g.fillStyle = `hsla(${hue},80%,55%,${0.3 + 0.35 * pulse})`;
+    g.fillStyle = `hsla(${hue},80%,55%,${0.3 + 0.35 * app.pulse})`;
     g.strokeStyle = `hsla(${hue},90%,70%,0.9)`; g.lineWidth = 1.5;
-    tracePath(g, geo.triPts(i, j, up)); g.fill(); g.stroke();
+    tracePath(g, app.geo.triPts(i, j, up)); g.fill(); g.stroke();
   } else if (sel.kind === 'edge') {
-    const [a, b] = sel.edge.map(n => geo.np(...n));
-    g.strokeStyle = `hsla(${pcHue(sel.root)},90%,65%,${0.6 + 0.4 * pulse})`; g.lineWidth = 5; g.lineCap = 'round';
+    const [a, b] = sel.edge.map(n => app.geo.np(...n));
+    g.strokeStyle = `hsla(${pcHue(sel.root)},90%,65%,${0.6 + 0.4 * app.pulse})`; g.lineWidth = 5; g.lineCap = 'round';
     g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
   }
   g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.font = `600 ${Math.round(geo.s * 0.2)}px system-ui, sans-serif`;
+  g.font = `600 ${Math.round(app.geo.s * 0.2)}px system-ui, sans-serif`;
   for (const k of sel.nodes) {
     const n = /^n(-?\d+),(-?\d+)$/.exec(k);
     paintNode(g, +n[1], +n[2], true);
@@ -1212,94 +1190,93 @@ function drawTonnetz(now) {
 }
 
 function statusText() {
-  if (selected && !selected.target) return `${TYPES[selected.type].name} selected: tap a module or OUT to send its output there`;
-  if (selected) return `${TYPES[selected.type].name} is patched: tap the x on its cable to disconnect, or tap another module`;
+  if (app.selected && !app.selected.target) return `${TYPES[app.selected.type].name} selected: tap a module or OUT to send its output there`;
+  if (app.selected) return `${TYPES[app.selected.type].name} is patched: tap the x on its cable to disconnect, or tap another module`;
   return '';
 }
 
 /* Too dense to read once zoomed out, and it is redrawn every frame. */
 function drawGrid() {
   const step = U * 0.8;
-  if (step * view.z < 16) return;
-  const x1 = (LW - view.x) / view.z, y1 = (tableH - view.y) / view.z;
+  if (step * app.view.z < 16) return;
+  const x1 = (app.LW - app.view.x) / app.view.z, y1 = (app.tableH - app.view.y) / app.view.z;
   g.fillStyle = 'rgba(255,255,255,0.05)';
-  for (let y = Math.floor(-view.y / view.z / step) * step; y < y1; y += step) {
-    for (let x = Math.floor(-view.x / view.z / step) * step; x < x1; x += step) g.fillRect(x, y, 1.5, 1.5);
+  for (let y = Math.floor(-app.view.y / app.view.z / step) * step; y < y1; y += step) {
+    for (let x = Math.floor(-app.view.x / app.view.z / step) * step; x < x1; x += step) g.fillRect(x, y, 1.5, 1.5);
   }
 }
 
-let lastFrame = 0;
 function frame() {
   requestAnimationFrame(frame);
   const now = performance.now();
-  if (now - lastFrame < 30) return;
-  lastFrame = now;
-  if (layoutDirty) { layoutDirty = false; relayout(); }
-  g.setTransform(DPR, 0, 0, DPR, 0, 0);
-  g.drawImage(cache, 0, 0, W, H);
-  if (!ctx) return;
+  if (now - app.lastFrame < 30) return;
+  app.lastFrame = now;
+  if (app.layoutDirty) { app.layoutDirty = false; relayout(); }
+  g.setTransform(app.DPR, 0, 0, app.DPR, 0, 0);
+  g.drawImage(app.cache, 0, 0, app.W, app.H);
+  if (!app.ctx) return;
 
-  const q = player.seq.stepQueue;
-  while (q.length && q[0].t <= ctx.currentTime) {
+  const q = app.player.seq.stepQueue;
+  while (q.length && q[0].t <= app.ctx.currentTime) {
     const e = q.shift();
-    curStep = e.k;
+    app.curStep = e.k;
     if (e.note) {
-      pulse = 1;
-      const t0 = now - (ctx.currentTime - e.t) * 1000;
-      trail.push({ midi: e.midi, t0, t1: t0 + e.dur * 1000 });
+      app.pulse = 1;
+      const t0 = now - (app.ctx.currentTime - e.t) * 1000;
+      app.trail.push({ midi: e.midi, t0, t1: t0 + e.dur * 1000 });
     }
   }
-  while (trail.length && trail[0].t1 !== null && now - trail[0].t1 > 1000) trail.shift();
-  pulse *= 0.92;
+  while (app.trail.length && app.trail[0].t1 !== null && now - app.trail[0].t1 > 1000) app.trail.shift();
+  app.pulse *= 0.92;
 
-  for (const m of mods) analyse(m);
+  for (const m of app.mods) analyse(m);
   g.save();
-  g.beginPath(); g.rect(0, 0, LW, tableH); g.clip();
-  g.translate(view.x, view.y); g.scale(view.z, view.z);
+  g.beginPath(); g.rect(0, 0, app.LW, app.tableH); g.clip();
+  g.translate(app.view.x, app.view.y); g.scale(app.view.z, app.view.z);
   drawGrid();
-  for (const m of mods) if (m.target) drawCable(m);
+  for (const m of app.mods) if (m.target) drawCable(m);
   drawMaster(now);
-  for (const m of mods) {
+  for (const m of app.mods) {
     const touched = new Set();
-    for (const s of ptr.values()) if (s.kind === 'ring' && s.m === m) touched.add(s.key);
+    for (const s of app.ptr.values()) if (s.kind === 'ring' && s.m === m) touched.add(s.key);
     drawModule(m, touched, now);
   }
   g.restore();
   g.fillStyle = 'rgba(216,222,240,0.5)';
   g.font = `${Math.round(U * 0.3)}px system-ui, sans-serif`;
   g.textAlign = 'center'; g.textBaseline = 'bottom';
-  g.fillText(statusText(), LW / 2, 34);
+  g.fillText(statusText(), app.LW / 2, 34);
   drawStrip();
-  if (panes.seq.show) drawSeq();
-  if (panes.arp.show) drawArp();
-  if (panes.keys.show) drawKeys(now);
-  if (panes.ton.show) drawTonnetz(now);
-  for (const s of ptr.values()) {
+  if (app.panes.seq.show) drawSeq();
+  if (app.panes.arp.show) drawArp();
+  if (app.panes.keys.show) drawKeys(now);
+  if (app.panes.ton.show) drawTonnetz(now);
+  for (const s of app.ptr.values()) {
     if (s.kind !== 'split') continue;
     g.fillStyle = 'rgba(255,255,255,0.14)';
-    g.fillRect(0, s.pane.split, LW, SPL);
+    g.fillRect(0, s.pane.split, app.LW, SPL);
   }
 }
 
 /* ---------- persistence ---------- */
 
 const store = createStore({
-  storage: localStorage, capture: captureState, apply: applyState, ready: () => !!player, onChange: renderPresets,
-  stock: () => stockPresets({ x0: 0, x1: master.x - U * 3.2, y: master.y }),
+  storage: localStorage, capture: captureState, apply: applyState, ready: () => !!app.player, onChange: renderPresets,
+  stock: () => stockPresets({ x0: 0, x1: app.master.x - U * 3.2, y: app.master.y }),
 });
 
 /* One snapshot serves the autosaved session and every preset: rack (parameters, wiring, positions), table view, sequencer, scale lock. */
 function captureState() {
   return {
     v: 2,
-    mods: rack.serialize(), master: { x: master.x, y: master.y }, view: { ...view },
-    seq: player.seq.getState(), scale: { idx: scaleIdx, root: scaleRoot }, octave: harmony.octave,
-    song: harmony.song ? harmony.song.chords : null,
+    mods: app.rack.serialize(), master: { x: app.master.x, y: app.master.y }, view: { ...app.view },
+    seq: app.player.seq.getState(), scale: { idx: app.scaleIdx, root: app.scaleRoot }, octave: app.harmony.octave,
+    song: app.harmony.song ? app.harmony.song.chords : null,
   };
 }
 
 function syncSeqUi() {
-  const seq = player.seq;
+  const seq = app.player.seq;
   syncStyle();
   $('engine').textContent = 'Engine: ' + (seq.mode === 'arp' ? 'arp' : 'steps');
   $('len').textContent = `Chord: ${seq.chordBars} bar${seq.chordBars > 1 ? 's' : ''}`;
@@ -1309,24 +1286,24 @@ function syncSeqUi() {
 /* Stored data may come from another version or be corrupt, so each part is validated on its own and bad parts are skipped. */
 function applyState(st) {
   if (!st || st.v !== 2 || !Array.isArray(st.mods)) return false;
-  selected = null;
-  rack.clear();
-  if (st.mods.length && !rack.restore(st.mods)) return false;
+  app.selected = null;
+  app.rack.clear();
+  if (st.mods.length && !app.rack.restore(st.mods)) return false;
   const M = st.master, V = st.view, S = st.scale;
-  if (M && Number.isFinite(M.x) && Number.isFinite(M.y)) { master.x = M.x; master.y = M.y; }
-  if (V && [V.z, V.x, V.y].every(Number.isFinite)) { view.z = clamp(V.z, Z_MIN, Z_MAX); view.x = V.x; view.y = V.y; }
+  if (M && Number.isFinite(M.x) && Number.isFinite(M.y)) { app.master.x = M.x; app.master.y = M.y; }
+  if (V && [V.z, V.x, V.y].every(Number.isFinite)) { app.view.z = clamp(V.z, Z_MIN, Z_MAX); app.view.x = V.x; app.view.y = V.y; }
   else if (st.fit) fitView();
-  player.seq.setState(st.seq);
+  app.player.seq.setState(st.seq);
   const song = Array.isArray(st.song) && st.song.length <= 128 && st.song.every(id => Number.isInteger(id) && id >= 0 && id < 24);
-  harmony.setSong(song ? st.song : null);
+  app.harmony.setSong(song ? st.song : null);
   if (S && Number.isInteger(S.idx) && S.idx >= 0 && S.idx < SCALE_OPTS.length && Number.isInteger(S.root)) {
-    scaleIdx = S.idx; scaleRoot = mod12(S.root);
+    app.scaleIdx = S.idx; app.scaleRoot = mod12(S.root);
     applyScale();
   }
   if (Number.isFinite(st.octave)) setOctave(st.octave);
   syncSeqUi();
   syncButtons();
-  if (player.seq.running) rack.padsSet(harmony.padVoicing());
+  if (app.player.seq.running) app.rack.padsSet(app.harmony.padVoicing());
   return true;
 }
 
@@ -1353,35 +1330,35 @@ function renderPresets() {
 }
 
 $('prebtn').onclick = () => { $('prepanel').hidden = !$('prepanel').hidden; };
-$('presave').onclick = () => { if (player) store.savePreset($('prename').value); };
+$('presave').onclick = () => { if (app.player) store.savePreset($('prename').value); };
 $('predel').onclick = () => store.deletePreset();
 document.addEventListener('pointerdown', e => { if (!$('pre').contains(e.target)) $('prepanel').hidden = true; });
 
 /* ---------- start ---------- */
 
 function start() {
-  ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'playback' });
-  rack = new Rack(ctx);
-  mods = rack.mods;
-  master = rack.master;
-  player = new Player(harmony, rack);
-  master.x = LW / view.z - U * 2.6;
-  master.y = tableH / view.z / 2;
+  app.ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'playback' });
+  app.rack = new Rack(app.ctx);
+  app.mods = app.rack.mods;
+  app.master = app.rack.master;
+  app.player = new Player(app.harmony, app.rack);
+  app.master.x = app.LW / app.view.z - U * 2.6;
+  app.master.y = app.tableH / app.view.z / 2;
   store.loadPresets();
   renderPresets();
 
   if (!store.restoreSession()) {
-    const types = ['vco', 'vcf', 'fmp', 'dist', 'delay'], usable = master.x - U * 3.2;
-    const [vco, vcf, piano, dist, delay] = types.map((type, k) => addModule(type, usable * (k + 0.5) / types.length, master.y));
-    rack.connect(vco, vcf); rack.connect(vcf, dist); rack.connect(piano, dist); rack.connect(dist, delay); rack.connect(delay, master);
+    const types = ['vco', 'vcf', 'fmp', 'dist', 'delay'], usable = app.master.x - U * 3.2;
+    const [vco, vcf, piano, dist, delay] = types.map((type, k) => addModule(type, usable * (k + 0.5) / types.length, app.master.y));
+    app.rack.connect(vco, vcf); app.rack.connect(vcf, dist); app.rack.connect(piano, dist); app.rack.connect(dist, delay); app.rack.connect(delay, app.master);
   }
   store.markSaved();
   setInterval(store.saveSession, 1000);
   setInterval(store.autosavePreset, 30000);
   addEventListener('pagehide', store.saveSession);
 
-  player.start();
-  ctx.resume();
+  app.player.start();
+  app.ctx.resume();
   $('start').remove();
 }
 
