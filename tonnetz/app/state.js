@@ -8,8 +8,11 @@ const geo = new TonnetzGeometry();
 export const app = {
   /* drawing context (Canvas2D-shaped) and a factory for offscreen canvases; both set by the page */
   g: undefined, makeCanvas: undefined,
-  /* page callbacks the input code calls when it changes what the DOM shows; set by the page */
-  ui: { syncStyle() {}, togglePause() {} },
+  /* page callbacks the DOM-free modules call when something they changed has to show on screen; set by the page */
+  ui: {
+    syncStyle() {}, togglePause() {}, applyScale() {}, setOctave() {}, syncSeqUi() {}, syncButtons() {}, renderPresets() {},
+    layoutChanged(side) {}, panesChanged(engine) {},
+  },
   /* session and preset storage; set by the page */
   store: undefined,
 
