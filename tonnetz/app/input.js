@@ -3,6 +3,7 @@
 import { app } from './state.js';
 import { A0, BLACK_KEYS, SPAN, SPL, U, WHITE_OFFS, Z_MAX, Z_MIN } from './consts.js';
 import { handleAt, keysGeo, minTable, seqGeo, sideOn } from './geom.js';
+import { paintStep, seqDrag, seqPress } from './seq-edit.js';
 import { TYPES } from '../lib/synth.js';
 import { STEPS, clamp } from '../lib/theory.js';
 import { removeModule } from './modules.js';
@@ -128,20 +129,6 @@ export function moveGesture(s, p) {
   }
 }
 
-export function seqArea(p, S) {
-  if (p.y >= S.sy) return 'slide';
-  if (p.y >= S.ay) return 'accent';
-  if (p.y >= S.gy0 && p.y < S.gy0 + 8 * S.rh) return 'grid';
-  return null;
-}
-
-export function paintStep(s, col, p) {
-  const S = seqGeo(), seq = app.player.seq;
-  if (s.area !== 'grid') seq.edit(col, { [s.area]: s.val });
-  else if (s.mode === 'erase') seq.edit(col, { rest: true });
-  else seq.edit(col, { deg: clamp(7 - Math.floor((p.y - S.gy0) / S.rh), 0, 7), rest: false });
-}
-
 export const tonTouches = () => [...app.ptr.values()].filter(s => s.kind === 'ton').length;
 
 /* a pointer came up or was cancelled. */
@@ -204,17 +191,10 @@ export function pointerDown(e) {
     return;
   }
   if (app.panes.seq.show && p.y >= app.panes.seq.top) {
-    const S = seqGeo(), col = Math.floor((p.x - S.x0) / S.cw), area = seqArea(p, S);
-    if (col < 0 || col >= STEPS || !area) return;
-    const st = app.player.seq.pattern[col], s = { kind: 'seq', area, col };
-    if (area === 'grid') {
-      const deg = clamp(7 - Math.floor((p.y - S.gy0) / S.rh), 0, 7);
-      s.mode = !st.rest && st.deg === deg ? 'erase' : 'note';
-    } else {
-      s.val = !st[area];
-    }
+    const S = seqGeo(), seq = app.player.seq, s = seqPress(S, seq, p);
+    if (!s) return;
     app.ptr.set(e.id, s);
-    paintStep(s, col, p);
+    paintStep(s, s.col, p, S, seq);
     app.ui.syncStyle();
     return;
   }
@@ -257,10 +237,7 @@ export function pointerMove(e) {
     const m = app.harmony.snapMidi(keysMidiAt(p));
     if (m !== s.entry.midi) { endNote(s.entry); s.entry = startNote(m, true); }
   } else if (s.kind === 'seq') {
-    const S = seqGeo(), col = clamp(Math.floor((p.x - S.x0) / S.cw), 0, STEPS - 1), dir = col >= s.col ? 1 : -1;
-    for (let c = s.col + dir; dir > 0 ? c <= col : c >= col; c += dir) paintStep(s, c, p);
-    if (col === s.col) paintStep(s, col, p);
-    s.col = col;
+    seqDrag(seqGeo(), app.player.seq, s, p);
   } else if (s.kind === 'ton') {
     const before = app.harmony.sel.key;
     app.player.slide(app.geo.hit(p));

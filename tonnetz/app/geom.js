@@ -7,12 +7,16 @@ export const sideOn = () => app.panes.ton.show && app.panes.ton.side;
 
 export const direct = () => !!app.player && app.player.mode === 'direct';
 
-export const seqGeo = () => {
-  const p = app.panes.seq, lw = 26, x0 = lw + 8, cw = (app.LW - x0 - 8) / STEPS;
-  const th = clamp(Math.round(p.h * 0.1), 12, 18);
-  const hh = p.h >= 130 ? 20 : 0;
-  const sy = p.top + p.h - th - 4, ay = sy - th - 2, gy0 = p.top + 4 + hh;
-  return { lw, x0, cw, th, sy, ay, gy0, hh, rh: (ay - 4 - gy0) / 8 };
+/* the pane's rectangle, in screen pixels */
+export const seqRect = () => { const p = app.panes.seq; return { x: 0, y: p.top, w: app.LW, h: p.h }; };
+
+/* grid geometry inside a rectangle { x, y, w, h }; the Chordloom pane by default */
+export const seqGeo = (r = seqRect()) => {
+  const lw = 26, x0 = r.x + lw + 8, cw = (r.w - lw - 16) / STEPS;
+  const th = clamp(Math.round(r.h * 0.1), 12, 18);
+  const hh = r.h >= 130 ? 20 : 0;
+  const sy = r.y + r.h - th - 4, ay = sy - th - 2, gy0 = r.y + 4 + hh;
+  return { x: r.x, y: r.y, w: r.w, lw, x0, cw, th, sy, ay, gy0, hh, rh: (ay - 4 - gy0) / 8 };
 };
 
 /* Whole octaves from C, as many as fit at a comfortable key width. */
