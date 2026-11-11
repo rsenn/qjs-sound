@@ -128,3 +128,9 @@
   renders. Not root-caused; the offline scheduler also starts sources one quantum late.
 
     // C++: FunctionNode writing 1.f at its first sample, start(0), offlineRender() 8 quanta: peak is 0
+
+- labsound-compressor-channel-assert (third_party/LabSound/src/core/DynamicsCompressorNode.cpp:89): running
+  qjsm tonnetz/cli.js with the installed labsound module prints the assertion outputBus->numberOfChannels() ==
+  numberOfDestChannels, and the master meter stays at -inf dB. Seen once, not root-caused.
+
+    // qjsm tonnetz/cli.js 8 auto   (graph ends in rack.master with a compressor)
