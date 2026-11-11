@@ -113,6 +113,7 @@ import { stockPresets } from './lib/presets.js';
 import { fillBluesImprov } from './lib/improv.js';
 import { generateSong, songToChords } from './lib/song.js';
 import { ARP_STYLES } from './lib/arp.js';
+import { createStore } from './app/store.js';
 
 const cv = document.getElementById('cv');
 const g = cv.getContext('2d');
@@ -1047,7 +1048,7 @@ function drawArp() {
     x -= w + 4;
     chip(x, rowS, w, chH, st, { active: seq.arp.style === st, action: () => seq.setArp({ style: st }) });
   }
-  chip(wrap ? LW - PAD - 52 : x - 56, rowA, 52, chH, 'Save', { action: saveArpPreset });
+  chip(wrap ? LW - PAD - 52 : x - 56, rowA, 52, chH, 'Save', { action: () => store.saveArpPreset() });
   g.fillStyle = '#d8def0'; g.textAlign = 'left';
   g.fillText(title, PAD, rowA + chH / 2 + 1);
 
@@ -1282,10 +1283,10 @@ function frame() {
 
 /* ---------- persistence ---------- */
 
-const SESSION_KEY = 'tonnetz.rack', PRESET_KEY = 'tonnetz.presets', MAX_PRESETS = 128;
-const AUTOSAVE_MS = 10 * 60 * 1000, AUTOSAVE_PREFIX = 'autosave ', AUTOSAVE_KEEP = 5;
-let savedSession = null, presets = [], curPreset = -1;
-let lastPresetSave = Date.now(), lastPresetJson = null;
+const store = createStore({
+  storage: localStorage, capture: captureState, apply: applyState, ready: () => !!player, onChange: renderPresets,
+  stock: () => stockPresets({ x0: 0, x1: master.x - U * 3.2, y: master.y }),
+});
 
 /* One snapshot serves the autosaved session and every preset: rack (parameters, wiring, positions), table view, sequencer, scale lock. */
 function captureState() {
@@ -1329,99 +1330,8 @@ function applyState(st) {
   return true;
 }
 
-function saveSession() {
-  const json = JSON.stringify(captureState());
-  if (json === savedSession) return;
-  try { localStorage.setItem(SESSION_KEY, json); savedSession = json; } catch (e) { /* storage may be blocked or full */ }
-}
-
-function restoreSession() {
-  try { return applyState(JSON.parse(localStorage.getItem(SESSION_KEY))); } catch (e) { return false; }
-}
-
-/* A preset's slot is its MIDI program number, so deleting leaves a hole instead of renumbering the ones after it. */
-function loadPresets() {
-  try {
-    const raw = localStorage.getItem(PRESET_KEY);
-    const a = JSON.parse(raw);
-    presets = (Array.isArray(a) ? a : []).slice(0, MAX_PRESETS).map(p => (p && typeof p.name === 'string' && p.state ? p : null));
-    /* Bump STOCK_VERSION when a stock preset changes: slots still holding a stock name or nothing are refreshed, other slots are the user's. */
-    const STOCK_VERSION = '2';
-    if (raw === null || localStorage.getItem('tonnetz.stockv') !== STOCK_VERSION) {
-      const stock = stockPresets({ x0: 0, x1: master.x - U * 3.2, y: master.y });
-      stock.forEach((s, i) => { if (!presets[i] || stock.some(t => t.name === presets[i].name)) presets[i] = s; });
-      localStorage.setItem('tonnetz.stockv', STOCK_VERSION);
-      storePresets();
-    }
-  } catch (e) {
-    presets = [];
-  }
-}
-
-function storePresets() {
-  try { localStorage.setItem(PRESET_KEY, JSON.stringify(presets)); } catch (e) { /* storage may be blocked or full */ }
-}
-
-function loadProgram(n) {
-  const p = presets[n];
-  if (!p || !player || !applyState(p.state)) return false;
-  curPreset = n;
-  renderPresets();
-  return true;
-}
-
-function savePreset(name) {
-  name = name.trim() || 'Preset ' + (presets.filter(Boolean).length + 1);
-  let i = presets.findIndex(p => p && p.name === name);
-  if (i < 0) i = presets.indexOf(null);
-  if (i < 0) i = presets.length;
-  if (i >= MAX_PRESETS) return;
-  presets[i] = { name, state: captureState() };
-  curPreset = i;
-  lastPresetSave = Date.now(); lastPresetJson = presetJson();
-  storePresets();
-  renderPresets();
-}
-
-/* Panning and zooming alone don't count as work worth saving. */
-const presetJson = () => JSON.stringify({ ...captureState(), view: null });
-
-/* Only the newest AUTOSAVE_KEEP autosaves survive, so they can't eat all the preset slots. */
-function autosavePreset() {
-  if (!player || Date.now() - lastPresetSave < AUTOSAVE_MS) return;
-  const json = presetJson();
-  if (json === lastPresetJson) return;
-  const d = new Date(), pad = n => String(n).padStart(2, '0');
-  const name = `${AUTOSAVE_PREFIX}${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  const autos = () => presets.map((p, i) => [p, i]).filter(([p]) => p && p.name.startsWith(AUTOSAVE_PREFIX)).sort((a, b) => (a[0].at || 0) - (b[0].at || 0));
-  while (autos().length >= AUTOSAVE_KEEP) presets[autos()[0][1]] = null;
-  let i = presets.indexOf(null);
-  if (i < 0) i = presets.length;
-  if (i >= MAX_PRESETS) return;
-  presets[i] = { name, at: Date.now(), state: captureState() };
-  while (presets.length && !presets[presets.length - 1]) presets.pop();
-  lastPresetSave = Date.now(); lastPresetJson = json;
-  storePresets();
-  renderPresets();
-}
-
-function saveArpPreset() {
-  let n = 1;
-  while (presets.some(p => p && p.name === 'Arp ' + n)) n++;
-  savePreset('Arp ' + n);
-}
-
-function deletePreset() {
-  if (!presets[curPreset]) return;
-  presets[curPreset] = null;
-  while (presets.length && !presets[presets.length - 1]) presets.pop();
-  curPreset = -1;
-  storePresets();
-  renderPresets();
-}
-
 function renderPresets() {
-  const list = $('prelist'), cur = presets[curPreset];
+  const list = $('prelist'), { presets, current: curPreset } = store, cur = presets[curPreset];
   list.replaceChildren();
   presets.forEach((p, i) => {
     if (!p) return;
@@ -1430,7 +1340,7 @@ function renderPresets() {
     const num = document.createElement('b'), name = document.createElement('span');
     num.textContent = String(i + 1).padStart(3, '0'); name.textContent = p.name;
     row.append(num, name);
-    row.onclick = () => loadProgram(i);
+    row.onclick = () => store.loadProgram(i);
     list.append(row);
   });
   if (!list.children.length) {
@@ -1443,8 +1353,8 @@ function renderPresets() {
 }
 
 $('prebtn').onclick = () => { $('prepanel').hidden = !$('prepanel').hidden; };
-$('presave').onclick = () => { if (player) savePreset($('prename').value); };
-$('predel').onclick = deletePreset;
+$('presave').onclick = () => { if (player) store.savePreset($('prename').value); };
+$('predel').onclick = () => store.deletePreset();
 document.addEventListener('pointerdown', e => { if (!$('pre').contains(e.target)) $('prepanel').hidden = true; });
 
 /* ---------- start ---------- */
@@ -1457,18 +1367,18 @@ function start() {
   player = new Player(harmony, rack);
   master.x = LW / view.z - U * 2.6;
   master.y = tableH / view.z / 2;
-  loadPresets();
+  store.loadPresets();
   renderPresets();
 
-  if (!restoreSession()) {
+  if (!store.restoreSession()) {
     const types = ['vco', 'vcf', 'fmp', 'dist', 'delay'], usable = master.x - U * 3.2;
     const [vco, vcf, piano, dist, delay] = types.map((type, k) => addModule(type, usable * (k + 0.5) / types.length, master.y));
     rack.connect(vco, vcf); rack.connect(vcf, dist); rack.connect(piano, dist); rack.connect(dist, delay); rack.connect(delay, master);
   }
-  lastPresetJson = presetJson();
-  setInterval(saveSession, 1000);
-  setInterval(autosavePreset, 30000);
-  addEventListener('pagehide', saveSession);
+  store.markSaved();
+  setInterval(store.saveSession, 1000);
+  setInterval(store.autosavePreset, 30000);
+  addEventListener('pagehide', store.saveSession);
 
   player.start();
   ctx.resume();
