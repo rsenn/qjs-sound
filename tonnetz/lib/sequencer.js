@@ -15,6 +15,7 @@ export class Sequencer {
     this.seed = 303;
     this.styleSel = 'auto';
     this.chordBars = 2;
+    this.swing = 0;      // how far every second 16th is delayed, in steps: 0 straight, 1/3 a triplet shuffle, up to 0.5
     this.barsInChord = 0;
     this.stepQueue = [];
     this.pattern = makePattern('acid', this.seed);
@@ -132,7 +133,7 @@ export class Sequencer {
   schedule() {
     if (!this.running) return;
     while (this.nextT < this.rack.ctx.currentTime + 0.1) {
-      this.playStep(this.step, this.nextT);
+      this.playStep(this.step, this.nextT + (this.step % 2 ? this.swing * 60 / this.bpm / 4 : 0));
       this.nextT += 60 / this.bpm / 4;
       this.step = (this.step + 1) % STEPS;
     }

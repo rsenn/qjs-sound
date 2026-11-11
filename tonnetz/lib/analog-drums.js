@@ -249,6 +249,28 @@ export const PRESETS = {
   tomHigh: [sr => { const v = new TwinTDrum(sr, 240); v.setDecay(0.55); v.setDrive(0.2); v.setPitchDrop(10, 0.06); v.setClick(0.12); return v; }, 0.8],
   cowbell: [sr => { const v = new TwinTDrum(sr, 560); v.setDecay(0.4); v.setDrive(0.6); v.setSecondary(1.48, 0.8); v.setClick(0.4); return v; }, 0.9],
   woodblock: [sr => { const v = new TwinTDrum(sr, 900); v.setDecay(0.08); v.setSecondary(2.0, 0.5); v.setClick(0.5); return v; }, 0.3],
+
+  /* more kicks, snares, claps and hats */
+  kickSub: [sr => { const v = new Tr909BassDrum(sr); v.setPitchEnvelope(200, 40, 0.09); v.setAmpEnvelope(1.2); v.setDrive(0.15); v.setTone(900); v.setSub(0.35, 1); v.setClick(0.1, 0.02); return v; }, 1.4],
+  snareFat: [sr => { const v = new Tr909Percussion(sr); v.setTone(150, 260, 0.3, 0.2); v.setNoise(0.7, 0.3); v.setNoiseFilter(1400, 1.0, 'bandpass'); v.setCrunch(0.3); return v; }, 0.5],
+  snareTight: [sr => { const v = new Tr909Percussion(sr); v.setTone(200, 350, 0.5, 0.06); v.setNoise(0.7, 0.1); v.setNoiseFilter(2600, 1.4, 'bandpass'); v.setCrunch(0.35); return v; }, 0.25],
+  clapTight: [sr => { const v = new Tr909Percussion(sr); v.setNoise(1.0, 0.12); v.setNoiseFilter(1800, 1.4, 'bandpass'); v.setClap(3, 0.009); v.setCrunch(0.35); return v; }, 0.3],
+  shaker: [sr => { const v = new Tr909Percussion(sr); v.setNoise(1.0, 0.07); v.setNoiseFilter(7000, 0.8, 'highpass'); v.setCrunch(0.1); return v; }, 0.14],
+  hihatPedal: [sr => { const v = new Tr909Percussion(sr); v.setMetallic(480, 0.8, 0.09, 5000); v.setNoise(0.1, 0.07); v.setCrunch(0.05); return v; }, 0.2],
+  hihatHalf: [sr => { const v = new Tr909Percussion(sr); v.setMetallic(540, 1.0, 0.25, 8000); v.setNoise(0.2, 0.2); v.setCrunch(0.15); return v; }, 0.5],
+  crash: [sr => { const v = new Tr909Percussion(sr); v.setMetallic(460, 0.85, 1.8, 6000); v.setNoise(0.35, 1.6); v.setCrunch(0.2); return v; }, 2.2],
+  ride: [sr => { const v = new Tr909Percussion(sr); v.setMetallic(380, 0.7, 1.3, 4000); v.setNoise(0.2, 1.1); v.setCrunch(0.15); return v; }, 1.6],
+
+  /* the lesser-known 909 side: Twin-T drums, tuned and shaped. subTom and tomDeep sit in the bass range and can carry a line
+     together with the kick; congas and bongos are the same circuit, tuned higher with a shorter ring and more click */
+  subTom: [sr => { const v = new TwinTDrum(sr, 52); v.setDecay(0.6); v.setDrive(0.25); v.setPitchDrop(14, 0.05); v.setClick(0.15); return v; }, 1.0],
+  tomDeep: [sr => { const v = new TwinTDrum(sr, 78); v.setDecay(0.5); v.setDrive(0.2); v.setPitchDrop(10, 0.06); v.setClick(0.12); return v; }, 0.9],
+  congaLo: [sr => { const v = new TwinTDrum(sr, 230); v.setDecay(0.3); v.setDrive(0.12); v.setPitchDrop(3, 0.02); v.setSecondary(1.6, 0.12); v.setClick(0.28); return v; }, 0.5],
+  congaHi: [sr => { const v = new TwinTDrum(sr, 340); v.setDecay(0.22); v.setDrive(0.12); v.setPitchDrop(3, 0.02); v.setSecondary(1.6, 0.12); v.setClick(0.3); return v; }, 0.4],
+  bongoLo: [sr => { const v = new TwinTDrum(sr, 370); v.setDecay(0.16); v.setDrive(0.1); v.setPitchDrop(2, 0.015); v.setClick(0.3); return v; }, 0.3],
+  bongoHi: [sr => { const v = new TwinTDrum(sr, 500); v.setDecay(0.12); v.setDrive(0.1); v.setPitchDrop(2, 0.015); v.setClick(0.32); return v; }, 0.25],
+  claves: [sr => { const v = new TwinTDrum(sr, 1800); v.setDecay(0.05); v.setSecondary(1.0, 0); v.setClick(0.6); return v; }, 0.15],
+  agogo: [sr => { const v = new TwinTDrum(sr, 880); v.setDecay(0.25); v.setDrive(0.3); v.setSecondary(1.5, 0.7); v.setClick(0.3); return v; }, 0.6],
 };
 
 /* a named patch rendered at sample rate sr, scaled so its peak is 0.9 */
@@ -258,4 +280,23 @@ export function renderPreset(name, sr = 44100) {
   for (const x of out) peak = Math.max(peak, Math.abs(x));
   if (peak > 0) for (let i = 0; i < out.length; i++) out[i] *= 0.9 / peak;
   return out;
+}
+
+/* the sounds each row of a drum sequencer can take, the default first: kick, snare, clap, hat, open hat, tom, perc, bell */
+export const BANKS = [
+  ['kickDeep', 'kick', 'kickPunch', 'kickSub'],
+  ['snare', 'snareFat', 'snareTight', 'rim'],
+  ['clap', 'clapTight', 'shaker'],
+  ['hihatClosed', 'hihatPedal', 'shaker'],
+  ['hihatOpen', 'hihatHalf', 'ride', 'crash'],
+  ['tom', 'tomLow', 'tomHigh', 'tomDeep', 'subTom', 'congaLo', 'congaHi', 'bongoLo', 'bongoHi'],
+  ['rim', 'woodblock', 'claves'],
+  ['cowbell', 'agogo'],
+];
+
+/* one hit of a Twin-T voice at a given pitch (MIDI note number), for a tuned line: subTom as the model, ring and drop kept */
+export function twinTNote(midi, sr = 44100, decay = 0.45) {
+  const v = new TwinTDrum(sr, 440 * Math.pow(2, (midi - 69) / 12));
+  v.setDecay(decay); v.setDrive(0.25); v.setPitchDrop(6, 0.04); v.setClick(0.12);
+  return render(v, Math.min(1.2, decay * 2));
 }

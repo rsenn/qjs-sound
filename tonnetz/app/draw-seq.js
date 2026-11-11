@@ -6,7 +6,8 @@
  * ```
  *
  *   object  r  rectangle in screen pixels; default the sequencer pane
- *   object  v  g (context), seq, harmony, step (playing step or -1); default the app's
+ *   object  v  g (context), seq, harmony, step (playing step or -1); default the app's.
+ *              seq.swing shifts every second step right by that fraction of a step, so a shuffle shows in the grid
  */
 
 import { app } from './state.js';
@@ -43,7 +44,7 @@ export function drawSeq(r = seqRect(), v = {}) {
   }
 
   for (let k = 0; k < STEPS; k++) {
-    const st = pattern[k], x = S.x0 + k * S.cw, y = S.gy0 + (7 - st.deg) * S.rh;
+    const st = pattern[k], x = S.x0 + k * S.cw + (k % 2 ? (seq.swing || 0) * S.cw : 0), y = S.gy0 + (7 - st.deg) * S.rh;
     if (st.rest) {
       g.strokeStyle = 'rgba(255,255,255,0.3)'; g.lineWidth = 1;
       g.strokeRect(x + 2.5, y + 2.5, S.cw - 5, S.rh - 5);
