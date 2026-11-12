@@ -111,6 +111,8 @@ export class Rack {
     this.ctx = ctx;
     this.timers = timers;
     this.mods = [];
+    this.tempoScale = 1;     // multiplies the filter envelope decay: 120 / bpm keeps the sweep the same length in steps
+    this.gate = 0.6;         // how much of a step the VCA stays open (0.6 = 60 %)
 
     const comp = ctx.createDynamicsCompressor();
     const master = this.master = { type: 'master', in: ctx.createGain(), x: 0, y: 0 };
@@ -358,7 +360,7 @@ export class Rack {
 
   vcfTrigger(m, t, accent) {
     const e = m.env.offset;
-    const tau = decayOf(m.p[3]) / 3 * (accent ? 0.6 : 1);
+    const tau = decayOf(m.p[3]) * this.tempoScale / 3 * (accent ? 0.6 : 1);
     e.cancelScheduledValues(t);
     e.setTargetAtTime(accent ? 1 : 0.65, t, 0.002);
     e.setTargetAtTime(0, t + 0.01, tau);
@@ -378,7 +380,7 @@ export class Rack {
       gn.setTargetAtTime(peak, t, 0.002);
       for (let c = m.target; c; c = c.target) if (c.type === 'vcf') this.vcfTrigger(c, t, s.accent);
     }
-    if (!tie) gn.setTargetAtTime(0, t + dur * 0.6, 0.015);
+    if (!tie) gn.setTargetAtTime(0, t + dur * this.gate, 0.015);
   }
 
   vcoRest(t) {

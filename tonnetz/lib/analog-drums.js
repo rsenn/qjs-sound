@@ -247,7 +247,8 @@ export const PRESETS = {
   tomLow: [sr => { const v = new TwinTDrum(sr, 100); v.setDecay(0.9); v.setDrive(0.12); v.setPitchDrop(8, 0.09); v.setClick(0.08); return v; }, 1.2],
   tom: [sr => { const v = new TwinTDrum(sr, 165); v.setDecay(0.7); v.setDrive(0.16); v.setPitchDrop(9, 0.075); v.setClick(0.1); return v; }, 1.0],
   tomHigh: [sr => { const v = new TwinTDrum(sr, 240); v.setDecay(0.55); v.setDrive(0.2); v.setPitchDrop(10, 0.06); v.setClick(0.12); return v; }, 0.8],
-  cowbell: [sr => { const v = new TwinTDrum(sr, 560); v.setDecay(0.4); v.setDrive(0.6); v.setSecondary(1.48, 0.8); v.setClick(0.4); return v; }, 0.9],
+  /* a muffled, rattling cowbell: two low partials, a quiet metallic layer, and a few quick bursts of band-passed noise */
+  cowbell: [sr => { const v = new Tr909Percussion(sr); v.setTone(470, 700, 0.8, 0.2); v.setMetallic(330, 0.25, 0.14, 500); v.setNoise(0.5, 0.14); v.setNoiseFilter(1100, 2.5, 'bandpass'); v.setClap(5, 0.014); v.setCrunch(0.2); return v; }, 0.5],
   woodblock: [sr => { const v = new TwinTDrum(sr, 900); v.setDecay(0.08); v.setSecondary(2.0, 0.5); v.setClick(0.5); return v; }, 0.3],
 
   /* more kicks, snares, claps and hats */
