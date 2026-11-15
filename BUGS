@@ -162,3 +162,56 @@
 - externalproject-cmp0225-labsound-stk (CMakeLists.txt:43 and :66): ExternalProject_Add(LabSound) and
   (stk) use the default configure command without CMAKE_INSTALL_PREFIX; CMake 4.5 warns (policy
   CMP0225) on every configure. Pass CMAKE_INSTALL_PREFIX or set the policy. Found 2026-11-15 on Termux.
+
+- sndobj-oscili-null-table-segfault (quickjs-sndobj.cpp:548): new Oscili() without arguments passes
+  a NULL Table to the Oscili constructor, which dereferences it and crashes the process. Confirmed
+  with gdb (SIGSEGV in Oscil::Oscil called from js_sndobjgenerator_constructor). The constructor
+  must throw a TypeError when argv[0] is missing, as it does for a non-table argument.
+
+    import * as so from 'sndobj';
+    new so.Oscili(); // expected: TypeError - actual: segfault
+
+- unchecked-js-to-number-leaves-exception-pending (quickjs-sndobj.cpp:394, same pattern in
+  quickjs-stk.cpp:612 and in the setters and methods of all three bindings): the result of
+  JS_ToFloat64, JS_ToInt32 and JS_ToUint32 is ignored, so a value that does not convert (a Symbol)
+  leaves the TypeError pending while the function returns normally. The call does not throw, a
+  surrounding try/catch sees nothing, and the error surfaces later as an uncaught exception at the
+  end of the script. Confirmed for sndobj Oscili.setFreq and stk NRev; stk Echo and Chorus crash
+  instead (core dump), likely from the pending exception meeting a following throw.
+
+    import * as so from 'sndobj';
+    const o = new so.Oscili(new so.HarmTable());
+    try { o.setFreq(Symbol('x')); } catch(e) { console.log('caught'); } // expected: caught - actual: nothing
+    // after the script: uncaught TypeError: cannot convert symbol to number
+
+- sndobj-constructors-leak-on-prototype-failure (quickjs-sndobj.cpp:664 and :294): when reading
+  new_target.prototype or creating the object fails, the fail path frees only the JS object and
+  leaves the already built native object (the SndObjPtr block from js_mallocz and the SndObj or
+  Table inside it) unfreed. Found by reading the code, not reproduced: needs new_target with a
+  throwing prototype getter or an out-of-memory condition.
+
+- stk-singwave-exported-as-stksingwave (quickjs-stk.cpp:3626 and :3926): the SingWave generator is
+  declared and bound under the name StkSingWave, while doc/api-interoperability.md and every other
+  generator use the plain class name. Confirmed: typeof stk.SingWave is undefined and
+  typeof stk.StkSingWave is function.
+
+    import * as stk from 'stk';
+    console.log(typeof stk.SingWave); // expected: function - actual: undefined
+
+- labsound-so-undefined-iirfilternode-symbols (quickjs-labsound.cpp:2326): build/x86_64-linux-gnu/labsound.so
+  does not load, qjsm reports could not load module as shared library. ldd -r shows undefined
+  lab::IIRFilterNode symbols (typeinfo, constructor, getFrequencyResponse), so the LabSound static library
+  that was linked lacks IIRFilterNode although third_party/LabSound is on webaudio-spec-extensions. Cause
+  not established (stale LabSound build in the build dir is the first suspect). Every labsound test fails
+  to start until it loads.
+
+    import * as l from '/path/to/build/x86_64-linux-gnu/labsound.so'; // expected: module - actual: could not load module
+
+- stk-tostringtag-array-out-of-enum-order (quickjs-stk.cpp:698 and :1133): the name arrays indexed by
+  magic in the generator and effect constructors list Blit before BlitSaw and BlitSquare, and PRCRev
+  before PitShift, while the INSTANCE enums put BlitSaw, BlitSquare, Blit and PitShift, PRCRev in the other
+  order. Confirmed: the toStringTag of a BlitSaw is Blit, of a BlitSquare is BlitSaw, of a Blit is
+  BlitSquare, of a PitShift is PRCRev and of a PRCRev is PitShift.
+
+    import * as stk from 'stk';
+    console.log(Object.prototype.toString.call(new stk.BlitSaw())); // expected: [object BlitSaw] - actual: [object Blit]
