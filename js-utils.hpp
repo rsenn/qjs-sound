@@ -2,9 +2,11 @@
 #define QUICKJS_CPP_HPP
 
 #include <quickjs.h>
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <new>
+#include <type_traits>
 #include <utility>
 #include <vector>
 #include "js-typedarray.h"
@@ -70,6 +72,23 @@ template <> struct element<uint32_t> {
   static JSValue
   to_js(JSContext* ctx, uint32_t in) {
     return JS_NewUint32(ctx, in);
+  }
+};
+
+/**
+ * @brief JS to C++ conversion for 64-bit signed integers.
+ *
+ * Has no `kind` member on purpose: TypedArrayKind has no 64-bit integer, so
+ * `get_array<int64_t>` does not compile.
+ */
+template <> struct element<int64_t> {
+  static int
+  from_js(JSContext* ctx, int64_t* out, JSValueConst val) {
+    return JS_ToInt64(ctx, out, val);
+  }
+  static JSValue
+  to_js(JSContext* ctx, int64_t in) {
+    return JS_NewInt64(ctx, in);
   }
 };
 
@@ -568,6 +587,441 @@ template <class T, class Derived = T, class... Args>
 JSValue
 wrap_shared(JSContext* ctx, JSValueConst new_target, JSClassID class_id, Args&&... args) {
   return wrap(ctx, new_target, class_id, std::shared_ptr<T>(std::make_shared<Derived>(std::forward<Args>(args)...)));
+}
+
+namespace detail {
+
+/**
+ * @brief Converts argv[i] into out; a missing or undefined argument keeps out.
+ *
+ * @tparam T  number or bool type with an `element<T>` specialisation;
+ *            `const char*` is rejected (it needs `release`, use `with()`)
+ * @return 0 on success or when nothing was converted, -1 with a JS
+ *         exception thrown when the conversion failed
+ */
+template <class T>
+int
+arg_at(JSContext* ctx, int argc, JSValueConst* argv, int i, T& out) {
+  static_assert(!std::is_same<T, const char*>::value, "strings need release(): use qjsx::with()");
+
+  if(i >= argc || JS_IsUndefined(argv[i]))
+    return 0;
+
+  return element<T>::from_js(ctx, &out, argv[i]) ? -1 : 0;
+}
+
+/**
+ * @brief Calls f with obj cast to T when obj is an instance of T.
+ *
+ * @return true when the cast succeeded and f ran
+ */
+template <class T, class Base, class F>
+bool
+try_cast(Base* obj, F& f) {
+  if(T* p = dynamic_cast<T*>(obj)) {
+    f(p);
+    return true;
+  }
+
+  return false;
+}
+
+} // namespace detail
+
+/**
+ * @brief Converts argv[first], argv[first + 1], ... into the given variables.
+ *
+ * The variables are preset by the caller with the defaults. An argument that
+ * is absent (`i >= argc`) or `undefined` leaves its variable unchanged; `null`
+ * converts like any value (to 0). Conversion stops at the first failure.
+ *
+ * @code
+ * double fr = 440, amp = 1;
+ * int32_t harms = 1;
+ *
+ * if(qjsx::args(ctx, argc, argv, fr, amp, harms))
+ *   return JS_EXCEPTION;
+ * @endcode
+ *
+ * Objects between the numbers are read with another call that starts later:
+ * `qjsx::args_from(ctx, 5, argc, argv, vecsize, sr)`.
+ *
+ * @param ctx    JS context
+ * @param first  index of the argument that fills the first variable
+ * @param argc   number of arguments passed
+ * @param argv   the arguments
+ * @param out    one variable per argument, each a type with `element<T>`
+ * @return 0, or -1 with the exception of the failed conversion thrown; after
+ *         -1 the variables are unspecified (QuickJS stores NaN on failure)
+ * @note Never reads `argv[i]` for `i >= argc`.
+ */
+template <class... T>
+int
+args_from(JSContext* ctx, int first, int argc, JSValueConst* argv, T&... out) {
+  int i = first;
+
+  return (... || (detail::arg_at(ctx, argc, argv, i++, out) != 0)) ? -1 : 0;
+}
+
+/**
+ * @brief Converts argv[0], argv[1], ... into the given variables.
+ *
+ * Shorthand for `args_from(ctx, 0, argc, argv, out...)`; see there.
+ */
+template <class... T>
+int
+args(JSContext* ctx, int argc, JSValueConst* argv, T&... out) {
+  return args_from(ctx, 0, argc, argv, out...);
+}
+
+/**
+ * @brief Tells whether an optional object argument was given.
+ *
+ * @param argc  number of arguments passed
+ * @param argv  the arguments
+ * @param i     index to test
+ * @return true when `i < argc` and the argument is neither undefined nor null
+ */
+inline bool
+present(int argc, JSValueConst* argv, int i) {
+  return i < argc && !JS_IsUndefined(argv[i]) && !JS_IsNull(argv[i]);
+}
+
+/**
+ * @brief Calls f with obj cast to the first type of Ts it is an instance of.
+ *
+ * Replaces an `if(auto* p = dynamic_cast<A*>(obj)) ... else if ...` ladder.
+ * The generic lambda is compiled for every type in Ts, so a member that only
+ * some of them have needs `if constexpr` or a second call.
+ *
+ * @code
+ * qjsx::dispatch<Oscil, Buzz, Randh>(obj, [&](auto* p) { p->SetFreq(fr, mod); });
+ * @endcode
+ *
+ * @tparam Ts   candidate types, tested in order; the first match wins
+ * @param obj   pointer to an object of a polymorphic class
+ * @param f     callable taking a pointer to the matched type
+ * @return true when a type matched and f ran
+ */
+template <class... Ts, class Base, class F>
+bool
+dispatch(Base* obj, F&& f) {
+  return (... || detail::try_cast<Ts>(obj, f));
+}
+
+/**
+ * @brief dispatch for a `std::shared_ptr`; see the pointer overload.
+ */
+template <class... Ts, class Base, class F>
+bool
+dispatch(const std::shared_ptr<Base>& obj, F&& f) {
+  return (... || detail::try_cast<Ts>(obj.get(), f));
+}
+
+/**
+ * @brief Casts obj to T, or throws a TypeError.
+ *
+ * @code
+ * ADSR* p = qjsx::require<ADSR>(ctx, obj, "sustain needs an ADSR");
+ *
+ * if(!p)
+ *   return JS_EXCEPTION;
+ * @endcode
+ *
+ * @param ctx      JS context
+ * @param obj      pointer to an object of a polymorphic class
+ * @param message  text of the TypeError
+ * @return the pointer, or nullptr with the TypeError thrown
+ */
+template <class T, class Base>
+T*
+require(JSContext* ctx, Base* obj, const char* message) {
+  T* p = dynamic_cast<T*>(obj);
+
+  if(!p)
+    JS_ThrowTypeError(ctx, "%s", message);
+
+  return p;
+}
+
+/**
+ * @brief Finalizer of a class whose opaque is a placement-constructed T.
+ *
+ * Runs the destructor, then frees the block made with `js_mallocz`. Used
+ * directly as the class's finalizer:
+ *
+ * @code
+ * static JSClassDef js_stkfilter_class = {
+ *   .class_name = "Filter",
+ *   .finalizer = qjsx::finalize<StkFilterPtr, js_stkfilter_class_id>,
+ * };
+ * @endcode
+ *
+ * @tparam T   type stored in the opaque
+ * @tparam Id  the class id variable; it is read when the finalizer runs
+ */
+template <class T, JSClassID& Id>
+void
+finalize(JSRuntime* rt, JSValue val) {
+  if(T* p = static_cast<T*>(JS_GetOpaque(val, Id))) {
+    p->~T();
+    js_free_rt(rt, p);
+  }
+}
+
+/**
+ * @brief Finalizer of a class whose opaque was made with `new`.
+ *
+ * @tparam T   type stored in the opaque
+ * @tparam Id  the class id variable; it is read when the finalizer runs
+ */
+template <class T, JSClassID& Id>
+void
+finalize_delete(JSRuntime*, JSValue val) {
+  delete static_cast<T*>(JS_GetOpaque(val, Id));
+}
+
+/**
+ * @brief One JS constructor of a family that shares one C function.
+ *
+ * A `static const ctor_def table[]` is the single source of the class names:
+ * `declare_ctors` declares the exports, `bind_ctors` creates the
+ * constructors, `ctor_name` gives the `Symbol.toStringTag`.
+ */
+struct ctor_def {
+  const char* name;                   /**< JS class name, also the toStringTag */
+  int length;                         /**< the constructor's `.length` */
+  int magic;                          /**< value passed to the C function as its `magic` */
+  const char* export_name = nullptr;  /**< module export name when it differs from name */
+};
+
+/**
+ * @brief Declares the module exports of a constructor table.
+ *
+ * Call it where the exports are declared (before the init callback runs).
+ *
+ * @param ctx   JS context
+ * @param m     module being created
+ * @param defs  the constructor table
+ */
+template <size_t N>
+void
+declare_ctors(JSContext* ctx, JSModuleDef* m, const ctor_def (&defs)[N]) {
+  for(const ctor_def& d : defs)
+    JS_AddModuleExport(ctx, m, d.export_name ? d.export_name : d.name);
+}
+
+/**
+ * @brief Creates the constructors of a table and binds them to their exports.
+ *
+ * Every constructor gets `prototype` set to proto, so subclassing with
+ * `class X extends Ctor {}` works.
+ *
+ * @param ctx    JS context
+ * @param m      module in its init callback
+ * @param fn     the C function shared by the family, taking `magic`
+ * @param proto  the family's prototype object
+ * @param defs   the constructor table, declared with declare_ctors
+ */
+template <size_t N>
+void
+bind_ctors(JSContext* ctx, JSModuleDef* m, JSCFunctionMagic* fn, JSValueConst proto, const ctor_def (&defs)[N]) {
+  for(const ctor_def& d : defs) {
+    JSValue ctor = JS_NewCFunctionMagic(ctx, fn, d.name, d.length, JS_CFUNC_constructor_magic, d.magic);
+
+    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, proto), 0);
+    JS_SetModuleExport(ctx, m, d.export_name ? d.export_name : d.name, ctor);
+  }
+}
+
+/**
+ * @brief Looks up the class name of the constructor with this magic value.
+ *
+ * @param defs   the constructor table
+ * @param magic  value the C function received
+ * @return the name (use it for `js_set_tostringtag`), or "" when not found
+ */
+template <size_t N>
+const char*
+ctor_name(const ctor_def (&defs)[N], int magic) {
+  for(const ctor_def& d : defs)
+    if(d.magic == magic)
+      return d.name;
+
+  return "";
+}
+
+/**
+ * @brief Several classes whose opaque has the same type.
+ *
+ * Replaces a chain of `JS_GetOpaque(v, id)` calls, one per class. Each class
+ * registers its id in its init function:
+ *
+ * @code
+ * static qjsx::class_group<JsAudioNode> audio_nodes;
+ * // in the init of each node class:
+ * audio_nodes.add(js_gainnode_class_id);
+ * // at a use:
+ * JsAudioNode* w = audio_nodes.get(argv[0]);
+ * @endcode
+ *
+ * @tparam T  the opaque type shared by all member classes
+ */
+template <class T> class class_group {
+  std::vector<JSClassID> ids_;
+
+public:
+  /**
+   * @brief Adds a class to the group.
+   *
+   * @param id  class id, valid after `JS_NewClassID`
+   */
+  void
+  add(JSClassID id) {
+    ids_.push_back(id);
+  }
+
+  /**
+   * @brief Gets the opaque of v when v is an instance of a member class.
+   *
+   * @param v  any value; a non-object never matches
+   * @return the opaque, or nullptr (no exception thrown)
+   */
+  T*
+  get(JSValueConst v) const {
+    JSClassID id = JS_GetClassID(v);
+
+    if(id && std::find(ids_.begin(), ids_.end(), id) != ids_.end())
+      return static_cast<T*>(JS_GetOpaque(v, id));
+
+    return nullptr;
+  }
+
+  /**
+   * @brief Like get(), throwing a TypeError when v is not a member.
+   *
+   * @param ctx       JS context
+   * @param v         any value; a non-object never matches
+   * @param expected  completes the message "expected <expected>"
+   * @return the opaque, or nullptr with the TypeError thrown
+   */
+  T*
+  get2(JSContext* ctx, JSValueConst v, const char* expected) const {
+    T* p = get(v);
+
+    if(!p)
+      JS_ThrowTypeError(ctx, "expected %s", expected);
+
+    return p;
+  }
+};
+
+/**
+ * @brief The opaque of an object that must be of the given class.
+ *
+ * @param ctx  JS context
+ * @param v    the object, normally `this_val`
+ * @param id   class id the object must have
+ * @return the opaque, or nullptr with a TypeError thrown when v is of
+ *         another class
+ */
+template <class T>
+T*
+self(JSContext* ctx, JSValueConst v, JSClassID id) {
+  return static_cast<T*>(JS_GetOpaque2(ctx, v, id));
+}
+
+/**
+ * @brief The opaque of v when v is of the given class, without an exception.
+ *
+ * Use it to ask "is this argument a X?"; use self() when it must be.
+ *
+ * @return the opaque, or nullptr
+ */
+template <class T>
+T*
+opaque(JSValueConst v, JSClassID id) {
+  return static_cast<T*>(JS_GetOpaque(v, id));
+}
+
+/**
+ * @brief Casts a `std::shared_ptr` to a derived type, or throws.
+ *
+ * @code
+ * auto osc = qjsx::cast_shared<lab::OscillatorNode>(ctx, w->node, "OscillatorNode");
+ *
+ * if(!osc)
+ *   return JS_EXCEPTION;
+ * @endcode
+ *
+ * @param ctx   JS context
+ * @param p     pointer to the base class
+ * @param name  class name for the message; "an" is used before a vowel
+ *              (A, E, I, O, U), else "a"
+ * @return the cast pointer, or an empty one with an InternalError
+ *         "not a(n) <name>" thrown
+ */
+template <class Leaf, class Base>
+std::shared_ptr<Leaf>
+cast_shared(JSContext* ctx, const std::shared_ptr<Base>& p, const char* name) {
+  std::shared_ptr<Leaf> r = std::dynamic_pointer_cast<Leaf>(p);
+
+  if(!r) {
+    char c = name[0];
+
+    if(c == 'A' || c == 'E' || c == 'I' || c == 'O' || c == 'U')
+      JS_ThrowInternalError(ctx, "not an %s", name);
+    else
+      JS_ThrowInternalError(ctx, "not a %s", name);
+  }
+
+  return r;
+}
+
+/**
+ * @brief Reads one member of an options object.
+ *
+ * Unlike `property()`, it tells an absent member from a failed conversion.
+ *
+ * @code
+ * float frequency = 0;
+ * int r;
+ *
+ * if((r = qjsx::option(ctx, argv[1], "frequency", frequency)) < 0)
+ *   return JS_EXCEPTION;
+ * if(r)
+ *   osc->frequency()->setValue(frequency);
+ * @endcode
+ *
+ * A `const char*` result must be given back with `release()` when 1 is
+ * returned.
+ *
+ * @param ctx   JS context
+ * @param opts  the options object; a non-object counts as "no options"
+ * @param name  member name
+ * @param out   receives the converted value
+ * @return 0 when opts is not an object or the member is undefined (out is
+ *         untouched), 1 when out was set, -1 with the exception thrown
+ */
+template <class T>
+int
+option(JSContext* ctx, JSValueConst opts, const char* name, T& out) {
+  JSValue v;
+  int ret = 0;
+
+  if(!JS_IsObject(opts))
+    return 0;
+
+  v = JS_GetPropertyStr(ctx, opts, name);
+
+  if(JS_IsException(v))
+    return -1;
+
+  if(!JS_IsUndefined(v))
+    ret = element<T>::from_js(ctx, &out, v) ? -1 : 1;
+
+  JS_FreeValue(ctx, v);
+  return ret;
 }
 
 } // namespace qjsx
