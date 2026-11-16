@@ -37,6 +37,8 @@ static JSValue sndobjtable_proto, sndobjgenerator_proto, sndobjeffect_proto;
 typedef std::unique_ptr<Table> SndObjTablePtr;
 typedef std::unique_ptr<SndObj> SndObjPtr;
 
+static qjsx::class_group<SndObjPtr> sndobj_inputs;
+
 /* SndObj stores raw, non-owning pointers to its inputs/modulators(see
  * SndObj.h). Retaining a strong(hidden, non-enumerable) JS reference on the
  * owner object for every connected dependency keeps QuickJS's GC from
@@ -55,27 +57,21 @@ js_sndobj_retain(JSContext* ctx, JSValueConst self, const char* slot, JSValueCon
 
 static SndObj*
 js_sndobj_arg(JSContext* ctx, JSValueConst v) {
-  void* p;
+  SndObjPtr* p = sndobj_inputs.get2(ctx, v, "an sndobj generator or effect instance");
 
-  if((p = JS_GetOpaque(v, js_sndobjgenerator_class_id)))
-    return static_cast<SndObjPtr*>(p)->get();
-
-  if((p = JS_GetOpaque(v, js_sndobjeffect_class_id)))
-    return static_cast<SndObjPtr*>(p)->get();
-
-  JS_ThrowTypeError(ctx, "expected an sndobj generator or effect instance");
-  return nullptr;
+  return p ? p->get() : nullptr;
 }
 
 static Table*
 js_sndobjtable_arg(JSContext* ctx, JSValueConst v) {
-  void* p;
+  SndObjTablePtr* p = qjsx::opaque<SndObjTablePtr>(v, js_sndobjtable_class_id);
 
-  if((p = JS_GetOpaque(v, js_sndobjtable_class_id)))
-    return static_cast<SndObjTablePtr*>(p)->get();
+  if(!p) {
+    JS_ThrowTypeError(ctx, "expected a Table instance");
+    return nullptr;
+  }
 
-  JS_ThrowTypeError(ctx, "expected a Table instance");
-  return nullptr;
+  return p->get();
 }
 
 enum {
@@ -109,8 +105,8 @@ js_sndobj_common_method(JSContext* ctx, SndObj* obj, int argc, JSValueConst argv
     case METHOD_OUTPUT: {
       int32_t pos = 0;
 
-      if(argc > 0)
-        JS_ToInt32(ctx, &pos, argv[0]);
+      if(qjsx::args(ctx, argc, argv, pos))
+        return JS_EXCEPTION;
 
       return JS_NewFloat64(ctx, obj->Output(pos));
     }
@@ -154,15 +150,21 @@ static void
 js_sndobj_common_set(JSContext* ctx, SndObj* obj, JSValueConst value, int magic) {
   switch(magic) {
     case PROP_SR: {
-      double sr = 0;
-      JS_ToFloat64(ctx, &sr, value);
-      obj->SetSr((float)sr);
+      float sr = 0;
+
+      if(qjsx::element<float>::from_js(ctx, &sr, value))
+        return;
+
+      obj->SetSr(sr);
       break;
     }
 
     case PROP_VECSIZE: {
       int32_t vs = 0;
-      JS_ToInt32(ctx, &vs, value);
+
+      if(qjsx::element<int32_t>::from_js(ctx, &vs, value))
+        return;
+
       obj->SetVectorSize(vs);
       break;
     }
@@ -210,8 +212,8 @@ js_sndobjtable_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
     case TMETHOD_LOOKUP: {
       int32_t pos = 0;
 
-      if(argc > 0)
-        JS_ToInt32(ctx, &pos, argv[0]);
+      if(qjsx::args(ctx, argc, argv, pos))
+        return JS_EXCEPTION;
 
       return JS_NewFloat64(ctx, table->Lookup(pos));
     }
@@ -223,26 +225,29 @@ js_sndobjtable_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
     case TMETHOD_SET_HARM: {
       int32_t harm = 0, type = SINE;
 
-      if(argc > 0)
-        JS_ToInt32(ctx, &harm, argv[0]);
+      if(qjsx::args(ctx, argc, argv, harm, type))
+        return JS_EXCEPTION;
 
-      if(argc > 1)
-        JS_ToInt32(ctx, &type, argv[1]);
+      HarmTable* p = qjsx::require<HarmTable>(ctx, table, "setHarm needs a HarmTable");
+      if(!p)
+        return JS_EXCEPTION;
 
-      if(auto* p = dynamic_cast<HarmTable*>(table))
-        p->SetHarm(harm, type);
+      p->SetHarm(harm, type);
 
       return JS_UNDEFINED;
     }
 
     case TMETHOD_SET_PHASE: {
-      double phase = 0;
+      float phase = 0;
 
-      if(argc > 0)
-        JS_ToFloat64(ctx, &phase, argv[0]);
+      if(qjsx::args(ctx, argc, argv, phase))
+        return JS_EXCEPTION;
 
-      if(auto* p = dynamic_cast<HarmTable*>(table))
-        p->SetPhase((float)phase);
+      HarmTable* p = qjsx::require<HarmTable>(ctx, table, "setPhase needs a HarmTable");
+      if(!p)
+        return JS_EXCEPTION;
+
+      p->SetPhase(phase);
 
       return JS_UNDEFINED;
     }
@@ -255,19 +260,9 @@ js_sndobjtable_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
   return JS_UNDEFINED;
 }
 
-static void
-js_sndobjtable_finalizer(JSRuntime* rt, JSValue val) {
-  SndObjTablePtr* t;
-
-  if((t = static_cast<SndObjTablePtr*>(JS_GetOpaque(val, js_sndobjtable_class_id)))) {
-    t->~SndObjTablePtr();
-    js_free_rt(rt, t);
-  }
-}
-
 static JSClassDef js_sndobjtable_class = {
   .class_name = "Table",
-  .finalizer = js_sndobjtable_finalizer,
+  .finalizer = qjsx::finalize<SndObjTablePtr, js_sndobjtable_class_id>,
 };
 
 static const JSCFunctionListEntry js_sndobjtable_funcs[] = {
@@ -287,62 +282,40 @@ enum {
   INSTANCE_HARM_TABLE = 0,
 };
 
+static const qjsx::ctor_def sndobjtable_ctors[] = {
+  { "HarmTable", 4, INSTANCE_HARM_TABLE },
+};
+
 static JSValue
 js_sndobjtable_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {
-  SndObjTablePtr* t = static_cast<SndObjTablePtr*>(js_mallocz(ctx, sizeof(SndObjTablePtr)));
-  if(!t)
-    return JS_EXCEPTION;
-
-  new(t) SndObjTablePtr();
+  SndObjTablePtr t;
 
   switch(magic) {
     case INSTANCE_HARM_TABLE: {
       if(argc == 0) {
-        t->reset(new HarmTable());
+        t.reset(new HarmTable());
       } else {
         int64_t len = 4096;
         int32_t harm = 1, type = SINE;
-        double phase = 0;
+        float phase = 0;
 
-        JS_ToInt64(ctx, &len, argv[0]);
+        if(qjsx::args(ctx, argc, argv, len, harm, type, phase))
+          return JS_EXCEPTION;
 
-        if(argc > 1)
-          JS_ToInt32(ctx, &harm, argv[1]);
-
-        if(argc > 2)
-          JS_ToInt32(ctx, &type, argv[2]);
-
-        if(argc > 3)
-          JS_ToFloat64(ctx, &phase, argv[3]);
-
-        t->reset(new HarmTable((long)len, harm, type, (float)phase));
+        t.reset(new HarmTable((long)len, harm, type, phase));
       }
 
       break;
     }
   }
 
-  JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
-    goto fail;
+  JSValue obj = qjsx::wrap(ctx, new_target, js_sndobjtable_class_id, std::move(t));
 
-  if(!JS_IsObject(proto)) {
-    JS_FreeValue(ctx, proto);
-    proto = JS_DupValue(ctx, sndobjtable_proto);
-  }
-
-  obj = JS_NewObjectProtoClass(ctx, proto, js_sndobjtable_class_id);
-  JS_FreeValue(ctx, proto);
   if(JS_IsException(obj))
-    goto fail;
+    return obj;
 
-  JS_SetOpaque(obj, t);
-  js_set_tostringtag(ctx, obj, ((const char*[]){ "HarmTable" })[magic]);
+  js_set_tostringtag(ctx, obj, qjsx::ctor_name(sndobjtable_ctors, magic));
   return obj;
-
-fail:
-  JS_FreeValue(ctx, obj);
-  return JS_EXCEPTION;
 }
 
 /* ================ Family B: generators(Oscili/Buzz/Randi) ================ */
@@ -390,40 +363,36 @@ js_sndobjgenerator_method(JSContext* ctx, JSValueConst this_val, int argc, JSVal
 
   switch(magic) {
     case GMETHOD_SET_FREQ: {
-      double fr = 0;
-      JS_ToFloat64(ctx, &fr, argv[0]);
-      bool hasMod = argc > 1 && !JS_IsUndefined(argv[1]) && !JS_IsNull(argv[1]);
+      float fr = 0;
       SndObj* mod = nullptr;
+
+      if(qjsx::args(ctx, argc, argv, fr))
+        return JS_EXCEPTION;
+
+      bool hasMod = qjsx::present(argc, argv, 1);
 
       if(hasMod && !(mod = js_sndobj_arg(ctx, argv[1])))
         return JS_EXCEPTION;
 
-      if(auto* p = dynamic_cast<Oscil*>(obj))
-        p->SetFreq((float)fr, mod);
-      else if(auto* p = dynamic_cast<Buzz*>(obj))
-        p->SetFreq((float)fr, mod);
-      else if(auto* p = dynamic_cast<Randh*>(obj))
-        p->SetFreq((float)fr, mod);
+      qjsx::dispatch<Oscil, Buzz, Randh>(obj, [&](auto* p) { p->SetFreq(fr, mod); });
 
       js_sndobj_retain(ctx, this_val, "__freqMod", hasMod ? argv[1] : JS_UNDEFINED);
       return JS_UNDEFINED;
     }
 
     case GMETHOD_SET_AMP: {
-      double amp = 0;
-      JS_ToFloat64(ctx, &amp, argv[0]);
-      bool hasMod = argc > 1 && !JS_IsUndefined(argv[1]) && !JS_IsNull(argv[1]);
+      float amp = 0;
       SndObj* mod = nullptr;
+
+      if(qjsx::args(ctx, argc, argv, amp))
+        return JS_EXCEPTION;
+
+      bool hasMod = qjsx::present(argc, argv, 1);
 
       if(hasMod && !(mod = js_sndobj_arg(ctx, argv[1])))
         return JS_EXCEPTION;
 
-      if(auto* p = dynamic_cast<Oscil*>(obj))
-        p->SetAmp((float)amp, mod);
-      else if(auto* p = dynamic_cast<Buzz*>(obj))
-        p->SetAmp((float)amp, mod);
-      else if(auto* p = dynamic_cast<Rand*>(obj))
-        p->SetAmp((float)amp, mod);
+      qjsx::dispatch<Oscil, Buzz, Rand>(obj, [&](auto* p) { p->SetAmp(amp, mod); });
 
       js_sndobj_retain(ctx, this_val, "__ampMod", hasMod ? argv[1] : JS_UNDEFINED);
       return JS_UNDEFINED;
@@ -435,20 +404,27 @@ js_sndobjgenerator_method(JSContext* ctx, JSValueConst this_val, int argc, JSVal
       if(!table)
         return JS_EXCEPTION;
 
-      if(auto* p = dynamic_cast<Oscil*>(obj))
-        p->SetTable(table);
+      Oscil* p = qjsx::require<Oscil>(ctx, obj, "setTable needs an Oscil");
+      if(!p)
+        return JS_EXCEPTION;
+
+      p->SetTable(table);
 
       js_sndobj_retain(ctx, this_val, "__table", argv[0]);
       return JS_UNDEFINED;
     }
 
     case GMETHOD_SET_PHASE: {
-      double phase = 0;
+      float phase = 0;
 
-      JS_ToFloat64(ctx, &phase, argv[0]);
+      if(qjsx::args(ctx, argc, argv, phase))
+        return JS_EXCEPTION;
 
-      if(auto* p = dynamic_cast<Oscil*>(obj))
-        p->SetPhase((float)phase);
+      Oscil* p = qjsx::require<Oscil>(ctx, obj, "setPhase needs an Oscil");
+      if(!p)
+        return JS_EXCEPTION;
+
+      p->SetPhase(phase);
 
       return JS_UNDEFINED;
     }
@@ -456,10 +432,14 @@ js_sndobjgenerator_method(JSContext* ctx, JSValueConst this_val, int argc, JSVal
     case GMETHOD_SET_HARM: {
       int32_t harm = 1;
 
-      JS_ToInt32(ctx, &harm, argv[0]);
+      if(qjsx::args(ctx, argc, argv, harm))
+        return JS_EXCEPTION;
 
-      if(auto* p = dynamic_cast<Buzz*>(obj))
-        p->SetHarm(harm);
+      Buzz* p = qjsx::require<Buzz>(ctx, obj, "setHarm needs a Buzz");
+      if(!p)
+        return JS_EXCEPTION;
+
+      p->SetHarm(harm);
 
       return JS_UNDEFINED;
     }
@@ -468,19 +448,9 @@ js_sndobjgenerator_method(JSContext* ctx, JSValueConst this_val, int argc, JSVal
   return JS_UNDEFINED;
 }
 
-static void
-js_sndobjgenerator_finalizer(JSRuntime* rt, JSValue val) {
-  SndObjPtr* g;
-
-  if((g = static_cast<SndObjPtr*>(JS_GetOpaque(val, js_sndobjgenerator_class_id)))) {
-    g->~SndObjPtr();
-    js_free_rt(rt, g);
-  }
-}
-
 static JSClassDef js_sndobjgenerator_class = {
   .class_name = "SndObjGenerator",
-  .finalizer = js_sndobjgenerator_finalizer,
+  .finalizer = qjsx::finalize<SndObjPtr, js_sndobjgenerator_class_id>,
 };
 
 static const JSCFunctionListEntry js_sndobjgenerator_funcs[] = {
@@ -505,168 +475,116 @@ enum {
   INSTANCE_RANDI,
 };
 
+static const qjsx::ctor_def sndobjgenerator_ctors[] = {
+  { "Oscili", 7, INSTANCE_OSCILI },
+  { "Buzz", 7, INSTANCE_BUZZ },
+  { "Randi", 6, INSTANCE_RANDI },
+};
+
 static JSValue
 js_sndobjgenerator_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {
-  SndObjPtr* g = static_cast<SndObjPtr*>(js_mallocz(ctx, sizeof(SndObjPtr)));
-  if(!g)
-    return JS_EXCEPTION;
-
-  new(g) SndObjPtr();
+  SndObjPtr g;
 
   switch(magic) {
     case INSTANCE_OSCILI: {
       Table* table = nullptr;
-
-      if(argc > 0 && !(table = js_sndobjtable_arg(ctx, argv[0])))
-        goto argfail;
-
-      double fr = 440, amp = 1;
-
-      if(argc > 1)
-        JS_ToFloat64(ctx, &fr, argv[1]);
-
-      if(argc > 2)
-        JS_ToFloat64(ctx, &amp, argv[2]);
-
+      float fr = 440, amp = 1, sr = DEF_SR;
+      int32_t vecsize = DEF_VECSIZE;
       SndObj *freqMod = nullptr, *ampMod = nullptr;
 
-      if(argc > 3 && !JS_IsUndefined(argv[3]) && !JS_IsNull(argv[3]) && !(freqMod = js_sndobj_arg(ctx, argv[3])))
-        goto argfail;
+      if(!(table = js_sndobjtable_arg(ctx, argc > 0 ? argv[0] : JS_UNDEFINED)))
+        return JS_EXCEPTION;
 
-      if(argc > 4 && !JS_IsUndefined(argv[4]) && !JS_IsNull(argv[4]) && !(ampMod = js_sndobj_arg(ctx, argv[4])))
-        goto argfail;
+      if(qjsx::args_from(ctx, 1, argc, argv, fr, amp))
+        return JS_EXCEPTION;
 
-      int32_t vecsize = DEF_VECSIZE;
-      double sr = DEF_SR;
+      if(qjsx::present(argc, argv, 3) && !(freqMod = js_sndobj_arg(ctx, argv[3])))
+        return JS_EXCEPTION;
 
-      if(argc > 5)
-        JS_ToInt32(ctx, &vecsize, argv[5]);
+      if(qjsx::present(argc, argv, 4) && !(ampMod = js_sndobj_arg(ctx, argv[4])))
+        return JS_EXCEPTION;
 
-      if(argc > 6)
-        JS_ToFloat64(ctx, &sr, argv[6]);
+      if(qjsx::args_from(ctx, 5, argc, argv, vecsize, sr))
+        return JS_EXCEPTION;
 
-      g->reset(new Oscili(table, (float)fr, (float)amp, freqMod, ampMod, vecsize, (float)sr));
+      g.reset(new Oscili(table, fr, amp, freqMod, ampMod, vecsize, sr));
       break;
     }
 
     case INSTANCE_BUZZ: {
-      double fr = 440, amp = 1;
-      int32_t harms = 1;
-
-      if(argc > 0)
-        JS_ToFloat64(ctx, &fr, argv[0]);
-
-      if(argc > 1)
-        JS_ToFloat64(ctx, &amp, argv[1]);
-
-      if(argc > 2)
-        JS_ToInt32(ctx, &harms, argv[2]);
-
+      float fr = 440, amp = 1, sr = DEF_SR;
+      int32_t harms = 1, vecsize = DEF_VECSIZE;
       SndObj *freqMod = nullptr, *ampMod = nullptr;
 
-      if(argc > 3 && !JS_IsUndefined(argv[3]) && !JS_IsNull(argv[3]) && !(freqMod = js_sndobj_arg(ctx, argv[3])))
-        goto argfail;
+      if(qjsx::args(ctx, argc, argv, fr, amp, harms))
+        return JS_EXCEPTION;
 
-      if(argc > 4 && !JS_IsUndefined(argv[4]) && !JS_IsNull(argv[4]) && !(ampMod = js_sndobj_arg(ctx, argv[4])))
-        goto argfail;
+      if(qjsx::present(argc, argv, 3) && !(freqMod = js_sndobj_arg(ctx, argv[3])))
+        return JS_EXCEPTION;
 
-      int32_t vecsize = DEF_VECSIZE;
-      double sr = DEF_SR;
+      if(qjsx::present(argc, argv, 4) && !(ampMod = js_sndobj_arg(ctx, argv[4])))
+        return JS_EXCEPTION;
 
-      if(argc > 5)
-        JS_ToInt32(ctx, &vecsize, argv[5]);
+      if(qjsx::args_from(ctx, 5, argc, argv, vecsize, sr))
+        return JS_EXCEPTION;
 
-      if(argc > 6)
-        JS_ToFloat64(ctx, &sr, argv[6]);
-
-      g->reset(new Buzz((float)fr, (float)amp, (short)harms, freqMod, ampMod, vecsize, (float)sr));
+      g.reset(new Buzz(fr, amp, (short)harms, freqMod, ampMod, vecsize, sr));
       break;
     }
 
     case INSTANCE_RANDI: {
-      double fr = 1, amp = 1;
-
-      if(argc > 0)
-        JS_ToFloat64(ctx, &fr, argv[0]);
-
-      if(argc > 1)
-        JS_ToFloat64(ctx, &amp, argv[1]);
-
+      float fr = 1, amp = 1, sr = DEF_SR;
+      int32_t vecsize = DEF_VECSIZE;
       SndObj *freqMod = nullptr, *ampMod = nullptr;
 
-      if(argc > 2 && !JS_IsUndefined(argv[2]) && !JS_IsNull(argv[2]) && !(freqMod = js_sndobj_arg(ctx, argv[2])))
-        goto argfail;
+      if(qjsx::args(ctx, argc, argv, fr, amp))
+        return JS_EXCEPTION;
 
-      if(argc > 3 && !JS_IsUndefined(argv[3]) && !JS_IsNull(argv[3]) && !(ampMod = js_sndobj_arg(ctx, argv[3])))
-        goto argfail;
+      if(qjsx::present(argc, argv, 2) && !(freqMod = js_sndobj_arg(ctx, argv[2])))
+        return JS_EXCEPTION;
 
-      int32_t vecsize = DEF_VECSIZE;
-      double sr = DEF_SR;
+      if(qjsx::present(argc, argv, 3) && !(ampMod = js_sndobj_arg(ctx, argv[3])))
+        return JS_EXCEPTION;
 
-      if(argc > 4)
-        JS_ToInt32(ctx, &vecsize, argv[4]);
+      if(qjsx::args_from(ctx, 4, argc, argv, vecsize, sr))
+        return JS_EXCEPTION;
 
-      if(argc > 5)
-        JS_ToFloat64(ctx, &sr, argv[5]);
-
-      g->reset(new Randi((float)fr, (float)amp, freqMod, ampMod, vecsize, (float)sr));
+      g.reset(new Randi(fr, amp, freqMod, ampMod, vecsize, sr));
       break;
     }
   }
 
-  {
-    JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
+  JSValue obj = qjsx::wrap(ctx, new_target, js_sndobjgenerator_class_id, std::move(g));
 
-    if(JS_IsException(proto))
-      goto fail;
-
-    if(!JS_IsObject(proto)) {
-      JS_FreeValue(ctx, proto);
-      proto = JS_DupValue(ctx, sndobjgenerator_proto);
-    }
-
-    obj = JS_NewObjectProtoClass(ctx, proto, js_sndobjgenerator_class_id);
-    JS_FreeValue(ctx, proto);
-    if(JS_IsException(obj))
-      goto fail;
-
-    JS_SetOpaque(obj, g);
-    js_set_tostringtag(ctx, obj, ((const char*[]){ "Oscili", "Buzz", "Randi" })[magic]);
-
-    switch(magic) {
-      case INSTANCE_OSCILI:
-        if(argc > 0)
-          js_sndobj_retain(ctx, obj, "__table", argv[0]);
-        if(argc > 3 && !JS_IsUndefined(argv[3]) && !JS_IsNull(argv[3]))
-          js_sndobj_retain(ctx, obj, "__freqMod", argv[3]);
-        if(argc > 4 && !JS_IsUndefined(argv[4]) && !JS_IsNull(argv[4]))
-          js_sndobj_retain(ctx, obj, "__ampMod", argv[4]);
-        break;
-      case INSTANCE_BUZZ:
-        if(argc > 3 && !JS_IsUndefined(argv[3]) && !JS_IsNull(argv[3]))
-          js_sndobj_retain(ctx, obj, "__freqMod", argv[3]);
-        if(argc > 4 && !JS_IsUndefined(argv[4]) && !JS_IsNull(argv[4]))
-          js_sndobj_retain(ctx, obj, "__ampMod", argv[4]);
-        break;
-      case INSTANCE_RANDI:
-        if(argc > 2 && !JS_IsUndefined(argv[2]) && !JS_IsNull(argv[2]))
-          js_sndobj_retain(ctx, obj, "__freqMod", argv[2]);
-        if(argc > 3 && !JS_IsUndefined(argv[3]) && !JS_IsNull(argv[3]))
-          js_sndobj_retain(ctx, obj, "__ampMod", argv[3]);
-        break;
-    }
-
+  if(JS_IsException(obj))
     return obj;
 
-  fail:
-    JS_FreeValue(ctx, obj);
-    return JS_EXCEPTION;
+  js_set_tostringtag(ctx, obj, qjsx::ctor_name(sndobjgenerator_ctors, magic));
+
+  switch(magic) {
+    case INSTANCE_OSCILI:
+      if(argc > 0)
+        js_sndobj_retain(ctx, obj, "__table", argv[0]);
+      if(qjsx::present(argc, argv, 3))
+        js_sndobj_retain(ctx, obj, "__freqMod", argv[3]);
+      if(qjsx::present(argc, argv, 4))
+        js_sndobj_retain(ctx, obj, "__ampMod", argv[4]);
+      break;
+    case INSTANCE_BUZZ:
+      if(qjsx::present(argc, argv, 3))
+        js_sndobj_retain(ctx, obj, "__freqMod", argv[3]);
+      if(qjsx::present(argc, argv, 4))
+        js_sndobj_retain(ctx, obj, "__ampMod", argv[4]);
+      break;
+    case INSTANCE_RANDI:
+      if(qjsx::present(argc, argv, 2))
+        js_sndobj_retain(ctx, obj, "__freqMod", argv[2]);
+      if(qjsx::present(argc, argv, 3))
+        js_sndobj_retain(ctx, obj, "__ampMod", argv[3]);
+      break;
   }
 
-argfail:
-  g->~SndObjPtr();
-  js_free(ctx, g);
-  return JS_EXCEPTION;
+  return obj;
 }
 
 /* ========== Family C: effects(ADSR/Reson/Comb/Allpass/VDelay/Gain/Mixer) ========== */
@@ -788,190 +706,254 @@ js_sndobjeffect_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
 
   switch(magic) {
     case EMETHOD_SET_MAX_AMP: {
-      double v = 0;
+      float v = 0;
 
-      JS_ToFloat64(ctx, &v, argv[0]);
+      if(qjsx::args(ctx, argc, argv, v))
+        return JS_EXCEPTION;
 
-      if(auto* p = dynamic_cast<ADSR*>(obj))
-        p->SetMaxAmp((float)v);
+      ADSR* p = qjsx::require<ADSR>(ctx, obj, "setMaxAmp needs an ADSR");
+      if(!p)
+        return JS_EXCEPTION;
+
+      p->SetMaxAmp(v);
 
       return JS_UNDEFINED;
     }
 
     case EMETHOD_SUSTAIN: {
-      if(auto* p = dynamic_cast<ADSR*>(obj))
-        p->Sustain();
+      ADSR* p = qjsx::require<ADSR>(ctx, obj, "sustain needs an ADSR");
+      if(!p)
+        return JS_EXCEPTION;
+
+      p->Sustain();
 
       return JS_UNDEFINED;
     }
 
     case EMETHOD_RELEASE: {
-      if(auto* p = dynamic_cast<ADSR*>(obj))
-        p->Release();
+      ADSR* p = qjsx::require<ADSR>(ctx, obj, "release needs an ADSR");
+      if(!p)
+        return JS_EXCEPTION;
+
+      p->Release();
 
       return JS_UNDEFINED;
     }
 
     case EMETHOD_RESTART: {
-      if(auto* p = dynamic_cast<ADSR*>(obj))
-        p->Restart();
+      ADSR* p = qjsx::require<ADSR>(ctx, obj, "restart needs an ADSR");
+      if(!p)
+        return JS_EXCEPTION;
+
+      p->Restart();
 
       return JS_UNDEFINED;
     }
 
     case EMETHOD_SET_ADSR: {
-      double a = 0, d = 0, s = 0, r = 0;
+      float a = 0, d = 0, s = 0, r = 0;
 
-      JS_ToFloat64(ctx, &a, argv[0]);
-      JS_ToFloat64(ctx, &d, argv[1]);
-      JS_ToFloat64(ctx, &s, argv[2]);
-      JS_ToFloat64(ctx, &r, argv[3]);
+      if(qjsx::args(ctx, argc, argv, a, d, s, r))
+        return JS_EXCEPTION;
 
-      if(auto* p = dynamic_cast<ADSR*>(obj))
-        p->SetADSR((float)a, (float)d, (float)s, (float)r);
+      ADSR* p = qjsx::require<ADSR>(ctx, obj, "setADSR needs an ADSR");
+      if(!p)
+        return JS_EXCEPTION;
+
+      p->SetADSR(a, d, s, r);
 
       return JS_UNDEFINED;
     }
 
     case EMETHOD_SET_DUR: {
-      double v = 0;
+      float v = 0;
 
-      JS_ToFloat64(ctx, &v, argv[0]);
+      if(qjsx::args(ctx, argc, argv, v))
+        return JS_EXCEPTION;
 
-      if(auto* p = dynamic_cast<ADSR*>(obj))
-        p->SetDur((float)v);
+      ADSR* p = qjsx::require<ADSR>(ctx, obj, "setDur needs an ADSR");
+      if(!p)
+        return JS_EXCEPTION;
+
+      p->SetDur(v);
 
       return JS_UNDEFINED;
     }
 
     case EMETHOD_SET_FREQ: {
-      double v = 0;
-      JS_ToFloat64(ctx, &v, argv[0]);
-      bool hasMod = argc > 1 && !JS_IsUndefined(argv[1]) && !JS_IsNull(argv[1]);
+      float v = 0;
       SndObj* mod = nullptr;
+
+      if(qjsx::args(ctx, argc, argv, v))
+        return JS_EXCEPTION;
+
+      bool hasMod = qjsx::present(argc, argv, 1);
 
       if(hasMod && !(mod = js_sndobj_arg(ctx, argv[1])))
         return JS_EXCEPTION;
 
-      if(auto* p = dynamic_cast<Reson*>(obj))
-        p->SetFreq((float)v, mod);
+      Reson* p = qjsx::require<Reson>(ctx, obj, "setFreq needs a Reson");
+      if(!p)
+        return JS_EXCEPTION;
+
+      p->SetFreq(v, mod);
 
       js_sndobj_retain(ctx, this_val, "__freqMod", hasMod ? argv[1] : JS_UNDEFINED);
       return JS_UNDEFINED;
     }
 
     case EMETHOD_SET_BW: {
-      double v = 0;
-      JS_ToFloat64(ctx, &v, argv[0]);
-      bool hasMod = argc > 1 && !JS_IsUndefined(argv[1]) && !JS_IsNull(argv[1]);
+      float v = 0;
       SndObj* mod = nullptr;
+
+      if(qjsx::args(ctx, argc, argv, v))
+        return JS_EXCEPTION;
+
+      bool hasMod = qjsx::present(argc, argv, 1);
 
       if(hasMod && !(mod = js_sndobj_arg(ctx, argv[1])))
         return JS_EXCEPTION;
 
-      if(auto* p = dynamic_cast<Reson*>(obj))
-        p->SetBW((float)v, mod);
+      Reson* p = qjsx::require<Reson>(ctx, obj, "setBW needs a Reson");
+      if(!p)
+        return JS_EXCEPTION;
+
+      p->SetBW(v, mod);
 
       js_sndobj_retain(ctx, this_val, "__bwMod", hasMod ? argv[1] : JS_UNDEFINED);
       return JS_UNDEFINED;
     }
 
     case EMETHOD_SET_GAIN: {
-      double v = 0;
-      JS_ToFloat64(ctx, &v, argv[0]);
+      float v = 0;
 
-      if(auto* p = dynamic_cast<Comb*>(obj))
-        p->SetGain((float)v);
-      else if(auto* p = dynamic_cast<Gain*>(obj))
-        p->SetGain((float)v);
+      if(qjsx::args(ctx, argc, argv, v))
+        return JS_EXCEPTION;
+
+      qjsx::dispatch<Comb, Gain>(obj, [&](auto* p) { p->SetGain(v); });
 
       return JS_UNDEFINED;
     }
 
     case EMETHOD_SET_GAIN_M: {
-      double v = 0;
-      JS_ToFloat64(ctx, &v, argv[0]);
+      float v = 0;
 
-      if(auto* p = dynamic_cast<Gain*>(obj))
-        p->SetGainM((float)v);
+      if(qjsx::args(ctx, argc, argv, v))
+        return JS_EXCEPTION;
+
+      Gain* p = qjsx::require<Gain>(ctx, obj, "setGainM needs a Gain");
+      if(!p)
+        return JS_EXCEPTION;
+
+      p->SetGainM(v);
 
       return JS_UNDEFINED;
     }
 
     case EMETHOD_DB_TO_AMP: {
-      double v = 0;
-      JS_ToFloat64(ctx, &v, argv[0]);
-      double r = 0;
+      float v = 0;
 
-      if(auto* p = dynamic_cast<Gain*>(obj))
-        r = p->dBToAmp((float)v);
+      if(qjsx::args(ctx, argc, argv, v))
+        return JS_EXCEPTION;
 
-      return JS_NewFloat64(ctx, r);
+      Gain* p = qjsx::require<Gain>(ctx, obj, "dBToAmp needs a Gain");
+      if(!p)
+        return JS_EXCEPTION;
+
+      return JS_NewFloat64(ctx, p->dBToAmp(v));
     }
 
     case EMETHOD_SET_MAX_DELAY_TIME: {
-      double v = 0;
-      JS_ToFloat64(ctx, &v, argv[0]);
+      float v = 0;
 
-      if(auto* p = dynamic_cast<VDelay*>(obj))
-        p->SetMaxDelayTime((float)v);
+      if(qjsx::args(ctx, argc, argv, v))
+        return JS_EXCEPTION;
+
+      VDelay* p = qjsx::require<VDelay>(ctx, obj, "setMaxDelayTime needs a VDelay");
+      if(!p)
+        return JS_EXCEPTION;
+
+      p->SetMaxDelayTime(v);
 
       return JS_UNDEFINED;
     }
 
     case EMETHOD_SET_DELAY_TIME: {
-      double v = 0;
-      JS_ToFloat64(ctx, &v, argv[0]);
+      float v = 0;
 
-      if(auto* p = dynamic_cast<VDelay*>(obj))
-        p->SetDelayTime((float)v);
+      if(qjsx::args(ctx, argc, argv, v))
+        return JS_EXCEPTION;
+
+      VDelay* p = qjsx::require<VDelay>(ctx, obj, "setDelayTime needs a VDelay");
+      if(!p)
+        return JS_EXCEPTION;
+
+      p->SetDelayTime(v);
 
       return JS_UNDEFINED;
     }
 
     case EMETHOD_SET_FDBGAIN: {
-      double v = 0;
-      JS_ToFloat64(ctx, &v, argv[0]);
-      bool hasMod = argc > 1 && !JS_IsUndefined(argv[1]) && !JS_IsNull(argv[1]);
+      float v = 0;
       SndObj* mod = nullptr;
+
+      if(qjsx::args(ctx, argc, argv, v))
+        return JS_EXCEPTION;
+
+      bool hasMod = qjsx::present(argc, argv, 1);
 
       if(hasMod && !(mod = js_sndobj_arg(ctx, argv[1])))
         return JS_EXCEPTION;
 
-      if(auto* p = dynamic_cast<VDelay*>(obj))
-        p->SetFdbgain((float)v, mod);
+      VDelay* p = qjsx::require<VDelay>(ctx, obj, "setFdbgain needs a VDelay");
+      if(!p)
+        return JS_EXCEPTION;
+
+      p->SetFdbgain(v, mod);
 
       js_sndobj_retain(ctx, this_val, "__fdbMod", hasMod ? argv[1] : JS_UNDEFINED);
       return JS_UNDEFINED;
     }
 
     case EMETHOD_SET_FWDGAIN: {
-      double v = 0;
-      JS_ToFloat64(ctx, &v, argv[0]);
-      bool hasMod = argc > 1 && !JS_IsUndefined(argv[1]) && !JS_IsNull(argv[1]);
+      float v = 0;
       SndObj* mod = nullptr;
+
+      if(qjsx::args(ctx, argc, argv, v))
+        return JS_EXCEPTION;
+
+      bool hasMod = qjsx::present(argc, argv, 1);
 
       if(hasMod && !(mod = js_sndobj_arg(ctx, argv[1])))
         return JS_EXCEPTION;
 
-      if(auto* p = dynamic_cast<VDelay*>(obj))
-        p->SetFwdgain((float)v, mod);
+      VDelay* p = qjsx::require<VDelay>(ctx, obj, "setFwdgain needs a VDelay");
+      if(!p)
+        return JS_EXCEPTION;
+
+      p->SetFwdgain(v, mod);
 
       js_sndobj_retain(ctx, this_val, "__fwdMod", hasMod ? argv[1] : JS_UNDEFINED);
       return JS_UNDEFINED;
     }
 
     case EMETHOD_SET_DIRGAIN: {
-      double v = 0;
-      JS_ToFloat64(ctx, &v, argv[0]);
-      bool hasMod = argc > 1 && !JS_IsUndefined(argv[1]) && !JS_IsNull(argv[1]);
+      float v = 0;
       SndObj* mod = nullptr;
+
+      if(qjsx::args(ctx, argc, argv, v))
+        return JS_EXCEPTION;
+
+      bool hasMod = qjsx::present(argc, argv, 1);
 
       if(hasMod && !(mod = js_sndobj_arg(ctx, argv[1])))
         return JS_EXCEPTION;
 
-      if(auto* p = dynamic_cast<VDelay*>(obj))
-        p->SetDirgain((float)v, mod);
+      VDelay* p = qjsx::require<VDelay>(ctx, obj, "setDirgain needs a VDelay");
+      if(!p)
+        return JS_EXCEPTION;
+
+      p->SetDirgain(v, mod);
 
       js_sndobj_retain(ctx, this_val, "__dirMod", hasMod ? argv[1] : JS_UNDEFINED);
       return JS_UNDEFINED;
@@ -1009,19 +991,9 @@ js_sndobjeffect_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
   return JS_UNDEFINED;
 }
 
-static void
-js_sndobjeffect_finalizer(JSRuntime* rt, JSValue val) {
-  SndObjPtr* e;
-
-  if((e = static_cast<SndObjPtr*>(JS_GetOpaque(val, js_sndobjeffect_class_id)))) {
-    e->~SndObjPtr();
-    js_free_rt(rt, e);
-  }
-}
-
 static JSClassDef js_sndobjeffect_class = {
   .class_name = "SndObjEffect",
-  .finalizer = js_sndobjeffect_finalizer,
+  .finalizer = qjsx::finalize<SndObjPtr, js_sndobjeffect_class_id>,
 };
 
 static const JSCFunctionListEntry js_sndobjeffect_funcs[] = {
@@ -1064,282 +1036,194 @@ enum {
   INSTANCE_MIXER,
 };
 
+static const qjsx::ctor_def sndobjeffect_ctors[] = {
+  { "ADSR", 9, INSTANCE_ADSR },
+  { "Reson", 7, INSTANCE_RESON },
+  { "Comb", 5, INSTANCE_COMB },
+  { "Allpass", 5, INSTANCE_ALLPASS },
+  { "VDelay", 12, INSTANCE_VDELAY },
+  { "Gain", 4, INSTANCE_GAIN },
+  { "Mixer", 2, INSTANCE_MIXER },
+};
+
 static JSValue
 js_sndobjeffect_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {
-  SndObjPtr* e = static_cast<SndObjPtr*>(js_mallocz(ctx, sizeof(SndObjPtr)));
-  if(!e)
-    return JS_EXCEPTION;
-  new(e) SndObjPtr();
+  SndObjPtr e;
 
   switch(magic) {
     case INSTANCE_ADSR: {
-      double att = 0, maxamp = 1, dec = 0, sus = 1, rel = 0, dur = 1;
-
-      if(argc > 0)
-        JS_ToFloat64(ctx, &att, argv[0]);
-
-      if(argc > 1)
-        JS_ToFloat64(ctx, &maxamp, argv[1]);
-
-      if(argc > 2)
-        JS_ToFloat64(ctx, &dec, argv[2]);
-
-      if(argc > 3)
-        JS_ToFloat64(ctx, &sus, argv[3]);
-
-      if(argc > 4)
-        JS_ToFloat64(ctx, &rel, argv[4]);
-
-      if(argc > 5)
-        JS_ToFloat64(ctx, &dur, argv[5]);
-
+      float att = 0, maxamp = 1, dec = 0, sus = 1, rel = 0, dur = 1, sr = DEF_SR;
+      int32_t vecsize = DEF_VECSIZE;
       SndObj* input = nullptr;
 
-      if(argc > 6 && !JS_IsUndefined(argv[6]) && !JS_IsNull(argv[6]) && !(input = js_sndobj_arg(ctx, argv[6])))
-        goto argfail;
+      if(qjsx::args(ctx, argc, argv, att, maxamp, dec, sus, rel, dur))
+        return JS_EXCEPTION;
 
-      int32_t vecsize = DEF_VECSIZE;
-      double sr = DEF_SR;
+      if(qjsx::present(argc, argv, 6) && !(input = js_sndobj_arg(ctx, argv[6])))
+        return JS_EXCEPTION;
 
-      if(argc > 7)
-        JS_ToInt32(ctx, &vecsize, argv[7]);
+      if(qjsx::args_from(ctx, 7, argc, argv, vecsize, sr))
+        return JS_EXCEPTION;
 
-      if(argc > 8)
-        JS_ToFloat64(ctx, &sr, argv[8]);
-
-      e->reset(new ADSR((float)att, (float)maxamp, (float)dec, (float)sus, (float)rel, (float)dur, input, vecsize, (float)sr));
+      e.reset(new ADSR(att, maxamp, dec, sus, rel, dur, input, vecsize, sr));
       break;
     }
 
     case INSTANCE_RESON: {
-      double fr = 440, bw = 100;
-
-      if(argc > 0)
-        JS_ToFloat64(ctx, &fr, argv[0]);
-
-      if(argc > 1)
-        JS_ToFloat64(ctx, &bw, argv[1]);
-
-      if(argc < 3) {
-        JS_ThrowTypeError(ctx, "Reson requires an input SndObj");
-        goto argfail;
-      }
-
-      SndObj* input = js_sndobj_arg(ctx, argv[2]);
-
-      if(!input)
-        goto argfail;
-
-      SndObj *freqMod = nullptr, *bwMod = nullptr;
-
-      if(argc > 3 && !JS_IsUndefined(argv[3]) && !JS_IsNull(argv[3]) && !(freqMod = js_sndobj_arg(ctx, argv[3])))
-        goto argfail;
-
-      if(argc > 4 && !JS_IsUndefined(argv[4]) && !JS_IsNull(argv[4]) && !(bwMod = js_sndobj_arg(ctx, argv[4])))
-        goto argfail;
-
+      float fr = 440, bw = 100, sr = DEF_SR;
       int32_t vecsize = DEF_VECSIZE;
-      double sr = DEF_SR;
+      SndObj *input = nullptr, *freqMod = nullptr, *bwMod = nullptr;
 
-      if(argc > 5)
-        JS_ToInt32(ctx, &vecsize, argv[5]);
+      if(qjsx::args(ctx, argc, argv, fr, bw))
+        return JS_EXCEPTION;
 
-      if(argc > 6)
-        JS_ToFloat64(ctx, &sr, argv[6]);
+      if(argc < 3)
+        return JS_ThrowTypeError(ctx, "Reson requires an input SndObj");
 
-      e->reset(new Reson((float)fr, (float)bw, input, freqMod, bwMod, vecsize, (float)sr));
+      if(!(input = js_sndobj_arg(ctx, argv[2])))
+        return JS_EXCEPTION;
+
+      if(qjsx::present(argc, argv, 3) && !(freqMod = js_sndobj_arg(ctx, argv[3])))
+        return JS_EXCEPTION;
+
+      if(qjsx::present(argc, argv, 4) && !(bwMod = js_sndobj_arg(ctx, argv[4])))
+        return JS_EXCEPTION;
+
+      if(qjsx::args_from(ctx, 5, argc, argv, vecsize, sr))
+        return JS_EXCEPTION;
+
+      e.reset(new Reson(fr, bw, input, freqMod, bwMod, vecsize, sr));
       break;
     }
 
     case INSTANCE_COMB:
     case INSTANCE_ALLPASS: {
-      double gain = 0, dtime = 0.01;
-
-      if(argc > 0)
-        JS_ToFloat64(ctx, &gain, argv[0]);
-
-      if(argc > 1)
-        JS_ToFloat64(ctx, &dtime, argv[1]);
-
-      if(argc < 3) {
-        JS_ThrowTypeError(ctx, "%s requires an input SndObj", magic == INSTANCE_COMB ? "Comb" : "Allpass");
-        goto argfail;
-      }
-
-      SndObj* input = js_sndobj_arg(ctx, argv[2]);
-      if(!input)
-        goto argfail;
-
+      float gain = 0, dtime = 0.01f, sr = DEF_SR;
       int32_t vecsize = DEF_VECSIZE;
-      double sr = DEF_SR;
+      SndObj* input = nullptr;
 
-      if(argc > 3)
-        JS_ToInt32(ctx, &vecsize, argv[3]);
+      if(qjsx::args(ctx, argc, argv, gain, dtime))
+        return JS_EXCEPTION;
 
-      if(argc > 4)
-        JS_ToFloat64(ctx, &sr, argv[4]);
+      if(argc < 3)
+        return JS_ThrowTypeError(ctx, "%s requires an input SndObj", magic == INSTANCE_COMB ? "Comb" : "Allpass");
+
+      if(!(input = js_sndobj_arg(ctx, argv[2])))
+        return JS_EXCEPTION;
+
+      if(qjsx::args_from(ctx, 3, argc, argv, vecsize, sr))
+        return JS_EXCEPTION;
 
       if(magic == INSTANCE_COMB)
-        e->reset(new Comb((float)gain, (float)dtime, input, vecsize, (float)sr));
+        e.reset(new Comb(gain, dtime, input, vecsize, sr));
       else
-        e->reset(new Allpass((float)gain, (float)dtime, input, vecsize, (float)sr));
+        e.reset(new Allpass(gain, dtime, input, vecsize, sr));
       break;
     }
 
     case INSTANCE_VDELAY: {
-      double maxdt = 1, dt = 0.1, fdb = 0, fwd = 1, dir = 0;
-
-      if(argc > 0)
-        JS_ToFloat64(ctx, &maxdt, argv[0]);
-
-      if(argc > 1)
-        JS_ToFloat64(ctx, &dt, argv[1]);
-
-      if(argc > 2)
-        JS_ToFloat64(ctx, &fdb, argv[2]);
-
-      if(argc > 3)
-        JS_ToFloat64(ctx, &fwd, argv[3]);
-
-      if(argc > 4)
-        JS_ToFloat64(ctx, &dir, argv[4]);
-
-      if(argc < 6) {
-        JS_ThrowTypeError(ctx, "VDelay requires an input SndObj");
-        goto argfail;
-      }
-      SndObj* input = js_sndobj_arg(ctx, argv[5]);
-      if(!input)
-        goto argfail;
-
-      SndObj *timeMod = nullptr, *fdbMod = nullptr, *fwdMod = nullptr, *dirMod = nullptr;
-
-      if(argc > 6 && !JS_IsUndefined(argv[6]) && !JS_IsNull(argv[6]) && !(timeMod = js_sndobj_arg(ctx, argv[6])))
-        goto argfail;
-
-      if(argc > 7 && !JS_IsUndefined(argv[7]) && !JS_IsNull(argv[7]) && !(fdbMod = js_sndobj_arg(ctx, argv[7])))
-        goto argfail;
-
-      if(argc > 8 && !JS_IsUndefined(argv[8]) && !JS_IsNull(argv[8]) && !(fwdMod = js_sndobj_arg(ctx, argv[8])))
-        goto argfail;
-
-      if(argc > 9 && !JS_IsUndefined(argv[9]) && !JS_IsNull(argv[9]) && !(dirMod = js_sndobj_arg(ctx, argv[9])))
-        goto argfail;
-
+      float maxdt = 1, dt = 0.1f, fdb = 0, fwd = 1, dir = 0, sr = DEF_SR;
       int32_t vecsize = DEF_VECSIZE;
-      double sr = DEF_SR;
+      SndObj *input = nullptr, *timeMod = nullptr, *fdbMod = nullptr, *fwdMod = nullptr, *dirMod = nullptr;
 
-      if(argc > 10)
-        JS_ToInt32(ctx, &vecsize, argv[10]);
+      if(qjsx::args(ctx, argc, argv, maxdt, dt, fdb, fwd, dir))
+        return JS_EXCEPTION;
 
-      if(argc > 11)
-        JS_ToFloat64(ctx, &sr, argv[11]);
+      if(argc < 6)
+        return JS_ThrowTypeError(ctx, "VDelay requires an input SndObj");
 
-      e->reset(
-          new VDelay((float)maxdt, (float)dt, (float)fdb, (float)fwd, (float)dir, input, timeMod, fdbMod, fwdMod, dirMod, vecsize, (float)sr)
-      );
+      if(!(input = js_sndobj_arg(ctx, argv[5])))
+        return JS_EXCEPTION;
+
+      if(qjsx::present(argc, argv, 6) && !(timeMod = js_sndobj_arg(ctx, argv[6])))
+        return JS_EXCEPTION;
+      if(qjsx::present(argc, argv, 7) && !(fdbMod = js_sndobj_arg(ctx, argv[7])))
+        return JS_EXCEPTION;
+      if(qjsx::present(argc, argv, 8) && !(fwdMod = js_sndobj_arg(ctx, argv[8])))
+        return JS_EXCEPTION;
+      if(qjsx::present(argc, argv, 9) && !(dirMod = js_sndobj_arg(ctx, argv[9])))
+        return JS_EXCEPTION;
+
+      if(qjsx::args_from(ctx, 10, argc, argv, vecsize, sr))
+        return JS_EXCEPTION;
+
+      e.reset(new VDelay(maxdt, dt, fdb, fwd, dir, input, timeMod, fdbMod, fwdMod, dirMod, vecsize, sr));
       break;
     }
 
     case INSTANCE_GAIN: {
-      double gain = 0;
-      if(argc > 0)
-        JS_ToFloat64(ctx, &gain, argv[0]);
-
-      if(argc < 2) {
-        JS_ThrowTypeError(ctx, "Gain requires an input SndObj");
-        goto argfail;
-      }
-
-      SndObj* input = js_sndobj_arg(ctx, argv[1]);
-      if(!input)
-        goto argfail;
-
+      float gain = 0, sr = DEF_SR;
       int32_t vecsize = DEF_VECSIZE;
-      double sr = DEF_SR;
+      SndObj* input = nullptr;
 
-      if(argc > 2)
-        JS_ToInt32(ctx, &vecsize, argv[2]);
+      if(qjsx::args(ctx, argc, argv, gain))
+        return JS_EXCEPTION;
 
-      if(argc > 3)
-        JS_ToFloat64(ctx, &sr, argv[3]);
+      if(argc < 2)
+        return JS_ThrowTypeError(ctx, "Gain requires an input SndObj");
 
-      e->reset(new Gain((float)gain, input, vecsize, (float)sr));
+      if(!(input = js_sndobj_arg(ctx, argv[1])))
+        return JS_EXCEPTION;
+
+      if(qjsx::args_from(ctx, 2, argc, argv, vecsize, sr))
+        return JS_EXCEPTION;
+
+      e.reset(new Gain(gain, input, vecsize, sr));
       break;
     }
 
     case INSTANCE_MIXER: {
+      float sr = DEF_SR;
       int32_t vecsize = DEF_VECSIZE;
-      double sr = DEF_SR;
 
-      if(argc > 0)
-        JS_ToInt32(ctx, &vecsize, argv[0]);
+      if(qjsx::args(ctx, argc, argv, vecsize, sr))
+        return JS_EXCEPTION;
 
-      if(argc > 1)
-        JS_ToFloat64(ctx, &sr, argv[1]);
-
-      e->reset(new Mixer(0, nullptr, vecsize, (float)sr));
+      e.reset(new Mixer(0, nullptr, vecsize, sr));
       break;
     }
   }
 
-  {
-    JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-    if(JS_IsException(proto))
-      goto fail;
+  JSValue obj = qjsx::wrap(ctx, new_target, js_sndobjeffect_class_id, std::move(e));
 
-    if(!JS_IsObject(proto)) {
-      JS_FreeValue(ctx, proto);
-      proto = JS_DupValue(ctx, sndobjeffect_proto);
-    }
-
-    obj = JS_NewObjectProtoClass(ctx, proto, js_sndobjeffect_class_id);
-    JS_FreeValue(ctx, proto);
-    if(JS_IsException(obj))
-      goto fail;
-
-    JS_SetOpaque(obj, e);
-    js_set_tostringtag(ctx, obj, ((const char*[]){ "ADSR", "Reson", "Comb", "Allpass", "VDelay", "Gain", "Mixer" })[magic]);
-
-    switch(magic) {
-      case INSTANCE_ADSR:
-        if(argc > 6 && !JS_IsUndefined(argv[6]) && !JS_IsNull(argv[6]))
-          js_sndobj_retain(ctx, obj, "__input", argv[6]);
-        break;
-      case INSTANCE_RESON:
-        js_sndobj_retain(ctx, obj, "__input", argv[2]);
-        if(argc > 3 && !JS_IsUndefined(argv[3]) && !JS_IsNull(argv[3]))
-          js_sndobj_retain(ctx, obj, "__freqMod", argv[3]);
-        if(argc > 4 && !JS_IsUndefined(argv[4]) && !JS_IsNull(argv[4]))
-          js_sndobj_retain(ctx, obj, "__bwMod", argv[4]);
-        break;
-      case INSTANCE_COMB:
-      case INSTANCE_ALLPASS: js_sndobj_retain(ctx, obj, "__input", argv[2]); break;
-      case INSTANCE_VDELAY:
-        js_sndobj_retain(ctx, obj, "__input", argv[5]);
-        if(argc > 6 && !JS_IsUndefined(argv[6]) && !JS_IsNull(argv[6]))
-          js_sndobj_retain(ctx, obj, "__timeMod", argv[6]);
-        if(argc > 7 && !JS_IsUndefined(argv[7]) && !JS_IsNull(argv[7]))
-          js_sndobj_retain(ctx, obj, "__fdbMod", argv[7]);
-        if(argc > 8 && !JS_IsUndefined(argv[8]) && !JS_IsNull(argv[8]))
-          js_sndobj_retain(ctx, obj, "__fwdMod", argv[8]);
-        if(argc > 9 && !JS_IsUndefined(argv[9]) && !JS_IsNull(argv[9]))
-          js_sndobj_retain(ctx, obj, "__dirMod", argv[9]);
-        break;
-      case INSTANCE_GAIN: js_sndobj_retain(ctx, obj, "__input", argv[1]); break;
-    }
-
+  if(JS_IsException(obj))
     return obj;
 
-  fail:
-    JS_FreeValue(ctx, obj);
-    return JS_EXCEPTION;
+  js_set_tostringtag(ctx, obj, qjsx::ctor_name(sndobjeffect_ctors, magic));
+
+  switch(magic) {
+    case INSTANCE_ADSR:
+      if(qjsx::present(argc, argv, 6))
+        js_sndobj_retain(ctx, obj, "__input", argv[6]);
+      break;
+    case INSTANCE_RESON:
+      js_sndobj_retain(ctx, obj, "__input", argv[2]);
+      if(qjsx::present(argc, argv, 3))
+        js_sndobj_retain(ctx, obj, "__freqMod", argv[3]);
+      if(qjsx::present(argc, argv, 4))
+        js_sndobj_retain(ctx, obj, "__bwMod", argv[4]);
+      break;
+    case INSTANCE_COMB:
+    case INSTANCE_ALLPASS:
+      js_sndobj_retain(ctx, obj, "__input", argv[2]);
+      break;
+    case INSTANCE_VDELAY:
+      js_sndobj_retain(ctx, obj, "__input", argv[5]);
+      if(qjsx::present(argc, argv, 6))
+        js_sndobj_retain(ctx, obj, "__timeMod", argv[6]);
+      if(qjsx::present(argc, argv, 7))
+        js_sndobj_retain(ctx, obj, "__fdbMod", argv[7]);
+      if(qjsx::present(argc, argv, 8))
+        js_sndobj_retain(ctx, obj, "__fwdMod", argv[8]);
+      if(qjsx::present(argc, argv, 9))
+        js_sndobj_retain(ctx, obj, "__dirMod", argv[9]);
+      break;
+    case INSTANCE_GAIN:
+      js_sndobj_retain(ctx, obj, "__input", argv[1]);
+      break;
   }
 
-argfail:
-  e->~SndObjPtr();
-  js_free(ctx, e);
-  return JS_EXCEPTION;
+  return obj;
 }
 
 /* ==================== module init ==================== */
@@ -1357,40 +1241,19 @@ js_sndobj_init(JSContext* ctx, JSModuleDef* m) {
   sndobjgenerator_proto = JS_NewObject(ctx);
   JS_SetPropertyFunctionList(ctx, sndobjgenerator_proto, js_sndobjgenerator_funcs, countof(js_sndobjgenerator_funcs));
   JS_SetClassProto(ctx, js_sndobjgenerator_class_id, sndobjgenerator_proto);
+  sndobj_inputs.add(js_sndobjgenerator_class_id);
 
   JS_NewClassID(&js_sndobjeffect_class_id);
   JS_NewClass(JS_GetRuntime(ctx), js_sndobjeffect_class_id, &js_sndobjeffect_class);
   sndobjeffect_proto = JS_NewObject(ctx);
   JS_SetPropertyFunctionList(ctx, sndobjeffect_proto, js_sndobjeffect_funcs, countof(js_sndobjeffect_funcs));
   JS_SetClassProto(ctx, js_sndobjeffect_class_id, sndobjeffect_proto);
+  sndobj_inputs.add(js_sndobjeffect_class_id);
 
   if(m) {
-    JSValue ctor;
-
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_sndobjtable_constructor, "HarmTable", 4, JS_CFUNC_constructor_magic, INSTANCE_HARM_TABLE);
-    JS_SetModuleExport(ctx, m, "HarmTable", ctor);
-
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_sndobjgenerator_constructor, "Oscili", 7, JS_CFUNC_constructor_magic, INSTANCE_OSCILI);
-    JS_SetModuleExport(ctx, m, "Oscili", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_sndobjgenerator_constructor, "Buzz", 7, JS_CFUNC_constructor_magic, INSTANCE_BUZZ);
-    JS_SetModuleExport(ctx, m, "Buzz", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_sndobjgenerator_constructor, "Randi", 6, JS_CFUNC_constructor_magic, INSTANCE_RANDI);
-    JS_SetModuleExport(ctx, m, "Randi", ctor);
-
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_sndobjeffect_constructor, "ADSR", 9, JS_CFUNC_constructor_magic, INSTANCE_ADSR);
-    JS_SetModuleExport(ctx, m, "ADSR", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_sndobjeffect_constructor, "Reson", 7, JS_CFUNC_constructor_magic, INSTANCE_RESON);
-    JS_SetModuleExport(ctx, m, "Reson", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_sndobjeffect_constructor, "Comb", 5, JS_CFUNC_constructor_magic, INSTANCE_COMB);
-    JS_SetModuleExport(ctx, m, "Comb", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_sndobjeffect_constructor, "Allpass", 5, JS_CFUNC_constructor_magic, INSTANCE_ALLPASS);
-    JS_SetModuleExport(ctx, m, "Allpass", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_sndobjeffect_constructor, "VDelay", 12, JS_CFUNC_constructor_magic, INSTANCE_VDELAY);
-    JS_SetModuleExport(ctx, m, "VDelay", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_sndobjeffect_constructor, "Gain", 4, JS_CFUNC_constructor_magic, INSTANCE_GAIN);
-    JS_SetModuleExport(ctx, m, "Gain", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_sndobjeffect_constructor, "Mixer", 2, JS_CFUNC_constructor_magic, INSTANCE_MIXER);
-    JS_SetModuleExport(ctx, m, "Mixer", ctor);
+    qjsx::bind_ctors(ctx, m, (JSCFunctionMagic*)js_sndobjtable_constructor, sndobjtable_proto, sndobjtable_ctors);
+    qjsx::bind_ctors(ctx, m, (JSCFunctionMagic*)js_sndobjgenerator_constructor, sndobjgenerator_proto, sndobjgenerator_ctors);
+    qjsx::bind_ctors(ctx, m, (JSCFunctionMagic*)js_sndobjeffect_constructor, sndobjeffect_proto, sndobjeffect_ctors);
   }
 
   return 0;
@@ -1398,17 +1261,9 @@ js_sndobj_init(JSContext* ctx, JSModuleDef* m) {
 
 extern "C" VISIBLE void
 js_sndobj_add_exports(JSContext* ctx, JSModuleDef* m) {
-  JS_AddModuleExport(ctx, m, "HarmTable");
-  JS_AddModuleExport(ctx, m, "Oscili");
-  JS_AddModuleExport(ctx, m, "Buzz");
-  JS_AddModuleExport(ctx, m, "Randi");
-  JS_AddModuleExport(ctx, m, "ADSR");
-  JS_AddModuleExport(ctx, m, "Reson");
-  JS_AddModuleExport(ctx, m, "Comb");
-  JS_AddModuleExport(ctx, m, "Allpass");
-  JS_AddModuleExport(ctx, m, "VDelay");
-  JS_AddModuleExport(ctx, m, "Gain");
-  JS_AddModuleExport(ctx, m, "Mixer");
+  qjsx::declare_ctors(ctx, m, sndobjtable_ctors);
+  qjsx::declare_ctors(ctx, m, sndobjgenerator_ctors);
+  qjsx::declare_ctors(ctx, m, sndobjeffect_ctors);
 }
 
 #ifdef JS_SHARED_LIBRARY

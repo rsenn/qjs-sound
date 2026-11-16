@@ -163,14 +163,6 @@
   (stk) use the default configure command without CMAKE_INSTALL_PREFIX; CMake 4.5 warns (policy
   CMP0225) on every configure. Pass CMAKE_INSTALL_PREFIX or set the policy. Found 2026-11-15 on Termux.
 
-- sndobj-oscili-null-table-segfault (quickjs-sndobj.cpp:548): new Oscili() without arguments passes
-  a NULL Table to the Oscili constructor, which dereferences it and crashes the process. Confirmed
-  with gdb (SIGSEGV in Oscil::Oscil called from js_sndobjgenerator_constructor). The constructor
-  must throw a TypeError when argv[0] is missing, as it does for a non-table argument.
-
-    import * as so from 'sndobj';
-    new so.Oscili(); // expected: TypeError - actual: segfault
-
 - unchecked-js-to-number-leaves-exception-pending (quickjs-sndobj.cpp:394, same pattern in
   quickjs-stk.cpp:612 and in the setters and methods of all three bindings): the result of
   JS_ToFloat64, JS_ToInt32 and JS_ToUint32 is ignored, so a value that does not convert (a Symbol)
@@ -183,12 +175,6 @@
     const o = new so.Oscili(new so.HarmTable());
     try { o.setFreq(Symbol('x')); } catch(e) { console.log('caught'); } // expected: caught - actual: nothing
     // after the script: uncaught TypeError: cannot convert symbol to number
-
-- sndobj-constructors-leak-on-prototype-failure (quickjs-sndobj.cpp:664 and :294): when reading
-  new_target.prototype or creating the object fails, the fail path frees only the JS object and
-  leaves the already built native object (the SndObjPtr block from js_mallocz and the SndObj or
-  Table inside it) unfreed. Found by reading the code, not reproduced: needs new_target with a
-  throwing prototype getter or an out-of-memory condition.
 
 - stk-singwave-exported-as-stksingwave (quickjs-stk.cpp:3626 and :3926): the SingWave generator is
   declared and bound under the name StkSingWave, while doc/api-interoperability.md and every other
