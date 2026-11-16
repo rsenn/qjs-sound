@@ -902,23 +902,9 @@ js_audiocontext_start_rendering(JSContext* ctx, JSValueConst this_val, int argc,
   return promise;
 }
 
-static void
-js_audiocontext_finalizer(JSRuntime* rt, JSValue val) {
-  AudioContextPtr* sac = static_cast<AudioContextPtr*>(JS_GetOpaque(val, js_audiocontext_class_id));
-  if(sac) {
-    auto it = offline_state.find(sac->get());
-    if(it != offline_state.end()) {
-      offline_free(rt, it->second);
-      offline_state.erase(it);
-    }
-    sac->~AudioContextPtr();
-    js_free_rt(rt, sac);
-  }
-}
-
 static JSClassDef js_audiocontext_class = {
   .class_name = "AudioContext",
-  .finalizer = js_audiocontext_finalizer,
+  .finalizer = qjsx::finalize<AudioContextPtr, js_audiocontext_class_id>,
 };
 
 // Shared BaseAudioContext-equivalent members, applied to both
@@ -1130,14 +1116,9 @@ js_audiodestinationnode_constructor(JSContext* ctx, JSValueConst new_target, int
   return JS_ThrowTypeError(ctx, "use AudioContext.destination instead");
 }
 
-static void
-js_audiodestinationnode_finalizer(JSRuntime* rt, JSValue val) {
-  js_audionode_finalize_with(rt, val, js_audiodestinationnode_class_id);
-}
-
 static JSClassDef js_audiodestinationnode_class = {
   .class_name = "AudioDestinationNode",
-  .finalizer = js_audiodestinationnode_finalizer,
+  .finalizer = qjsx::finalize<JsAudioNode, js_audiodestinationnode_class_id>,
 };
 
 static const JSCFunctionListEntry js_audiodestinationnode_funcs[] = {
@@ -1276,14 +1257,9 @@ js_oscillator_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int
   return JS_UNDEFINED;
 }
 
-static void
-js_oscillatornode_finalizer(JSRuntime* rt, JSValue val) {
-  js_audionode_finalize_with(rt, val, js_oscillatornode_class_id);
-}
-
 static JSClassDef js_oscillatornode_class = {
   .class_name = "OscillatorNode",
-  .finalizer = js_oscillatornode_finalizer,
+  .finalizer = qjsx::finalize<JsAudioNode, js_oscillatornode_class_id>,
 };
 
 static const JSCFunctionListEntry js_oscillatornode_funcs[] = {
@@ -1329,14 +1305,9 @@ js_gain_get_gain(JSContext* ctx, JSValueConst this_val) {
   return make_audio_param_js(ctx, g->gain());
 }
 
-static void
-js_gainnode_finalizer(JSRuntime* rt, JSValue val) {
-  js_audionode_finalize_with(rt, val, js_gainnode_class_id);
-}
-
 static JSClassDef js_gainnode_class = {
   .class_name = "GainNode",
-  .finalizer = js_gainnode_finalizer,
+  .finalizer = qjsx::finalize<JsAudioNode, js_gainnode_class_id>,
 };
 
 static const JSCFunctionListEntry js_gainnode_funcs[] = {
@@ -1459,14 +1430,9 @@ js_biquadfilter_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, i
   return JS_UNDEFINED;
 }
 
-static void
-js_biquadfilternode_finalizer(JSRuntime* rt, JSValue val) {
-  js_audionode_finalize_with(rt, val, js_biquadfilternode_class_id);
-}
-
 static JSClassDef js_biquadfilternode_class = {
   .class_name = "BiquadFilterNode",
-  .finalizer = js_biquadfilternode_finalizer,
+  .finalizer = qjsx::finalize<JsAudioNode, js_biquadfilternode_class_id>,
 };
 
 static JSValue
@@ -1588,18 +1554,9 @@ js_audioparam_get_meta(JSContext* ctx, JSValueConst this_val, int magic) {
   return JS_UNDEFINED;
 }
 
-static void
-js_audioparam_finalizer(JSRuntime* rt, JSValue val) {
-  JsAudioParam* w = static_cast<JsAudioParam*>(JS_GetOpaque(val, js_audioparam_class_id));
-  if(w) {
-    w->~JsAudioParam();
-    js_free_rt(rt, w);
-  }
-}
-
 static JSClassDef js_audioparam_class = {
   .class_name = "AudioParam",
-  .finalizer = js_audioparam_finalizer,
+  .finalizer = qjsx::finalize<JsAudioParam, js_audioparam_class_id>,
 };
 
 static const JSCFunctionListEntry js_audioparam_funcs[] = {
@@ -1643,18 +1600,9 @@ fail:
   return JS_EXCEPTION;
 }
 
-static void
-js_audiolistener_finalizer(JSRuntime* rt, JSValue val) {
-  AudioListenerPtr* sal = static_cast<AudioListenerPtr*>(JS_GetOpaque(val, js_audiolistener_class_id));
-  if(sal) {
-    sal->~AudioListenerPtr();
-    js_free_rt(rt, sal);
-  }
-}
-
 static JSClassDef js_audiolistener_class = {
   .class_name = "AudioListener",
-  .finalizer = js_audiolistener_finalizer,
+  .finalizer = qjsx::finalize<AudioListenerPtr, js_audiolistener_class_id>,
 };
 
 static const JSCFunctionListEntry js_audiolistener_funcs[] = {
@@ -1708,18 +1656,9 @@ js_audiodevice_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, in
   return JS_UNDEFINED;
 }
 
-static void
-js_audiodevice_finalizer(JSRuntime* rt, JSValue val) {
-  AudioDevicePtr* sad = static_cast<AudioDevicePtr*>(JS_GetOpaque(val, js_audiodevice_class_id));
-  if(sad) {
-    sad->~AudioDevicePtr();
-    js_free_rt(rt, sad);
-  }
-}
-
 static JSClassDef js_audiodevice_class = {
   .class_name = "AudioDevice",
-  .finalizer = js_audiodevice_finalizer,
+  .finalizer = qjsx::finalize<AudioDevicePtr, js_audiodevice_class_id>,
 };
 
 static const JSCFunctionListEntry js_audiodevice_funcs[] = {
@@ -1873,18 +1812,9 @@ js_audiobuffer_write_wav(JSContext* ctx, JSValueConst this_val, int argc, JSValu
   return JS_UNDEFINED;
 }
 
-static void
-js_audiobuffer_finalizer(JSRuntime* rt, JSValue val) {
-  JsAudioBuffer* w = static_cast<JsAudioBuffer*>(JS_GetOpaque(val, js_audiobuffer_class_id));
-  if(w) {
-    w->~JsAudioBuffer();
-    js_free_rt(rt, w);
-  }
-}
-
 static JSClassDef js_audiobuffer_class = {
   .class_name = "AudioBuffer",
-  .finalizer = js_audiobuffer_finalizer,
+  .finalizer = qjsx::finalize<JsAudioBuffer, js_audiobuffer_class_id>,
 };
 
 static const JSCFunctionListEntry js_audiobuffer_funcs[] = {
@@ -2046,14 +1976,9 @@ js_absource_set_buffer(JSContext* ctx, JSValueConst this_val, JSValueConst value
   return JS_UNDEFINED;
 }
 
-static void
-js_audiobuffersourcenode_finalizer(JSRuntime* rt, JSValue val) {
-  js_audionode_finalize_with(rt, val, js_audiobuffersourcenode_class_id);
-}
-
 static JSClassDef js_audiobuffersourcenode_class = {
   .class_name = "AudioBufferSourceNode",
-  .finalizer = js_audiobuffersourcenode_finalizer,
+  .finalizer = qjsx::finalize<JsAudioNode, js_audiobuffersourcenode_class_id>,
 };
 
 static const JSCFunctionListEntry js_audiobuffersourcenode_funcs[] = {
@@ -2151,14 +2076,9 @@ js_noise_set_type(JSContext* ctx, JSValueConst this_val, JSValueConst value) {
   return JS_UNDEFINED;
 }
 
-static void
-js_noisenode_finalizer(JSRuntime* rt, JSValue val) {
-  js_audionode_finalize_with(rt, val, js_noisenode_class_id);
-}
-
 static JSClassDef js_noisenode_class = {
   .class_name = "NoiseNode",
-  .finalizer = js_noisenode_finalizer,
+  .finalizer = qjsx::finalize<JsAudioNode, js_noisenode_class_id>,
 };
 
 static const JSCFunctionListEntry js_noisenode_funcs[] = {
@@ -2206,18 +2126,9 @@ js_audiosetting_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
   return JS_DupValue(ctx, this_val);
 }
 
-static void
-js_audiosetting_finalizer(JSRuntime* rt, JSValue val) {
-  JsAudioSetting* w = static_cast<JsAudioSetting*>(JS_GetOpaque(val, js_audiosetting_class_id));
-  if(w) {
-    w->~JsAudioSetting();
-    js_free_rt(rt, w);
-  }
-}
-
 static JSClassDef js_audiosetting_class = {
   .class_name = "AudioParam",
-  .finalizer = js_audiosetting_finalizer,
+  .finalizer = qjsx::finalize<JsAudioSetting, js_audiosetting_class_id>,
 };
 
 static const JSCFunctionListEntry js_audiosetting_funcs[] = {
@@ -2287,14 +2198,9 @@ js_delay_get_delaytime(JSContext* ctx, JSValueConst this_val) {
   return make_audio_setting_js(ctx, d->delayTime());
 }
 
-static void
-js_delaynode_finalizer(JSRuntime* rt, JSValue val) {
-  js_audionode_finalize_with(rt, val, js_delaynode_class_id);
-}
-
 static JSClassDef js_delaynode_class = {
   .class_name = "DelayNode",
-  .finalizer = js_delaynode_finalizer,
+  .finalizer = qjsx::finalize<JsAudioNode, js_delaynode_class_id>,
 };
 
 static const JSCFunctionListEntry js_delaynode_funcs[] = {
@@ -2369,14 +2275,9 @@ js_iirfilter_get_frequency_response(JSContext* ctx, JSValueConst this_val, int a
   return JS_UNDEFINED;
 }
 
-static void
-js_iirfilternode_finalizer(JSRuntime* rt, JSValue val) {
-  js_audionode_finalize_with(rt, val, js_iirfilternode_class_id);
-}
-
 static JSClassDef js_iirfilternode_class = {
   .class_name = "IIRFilterNode",
-  .finalizer = js_iirfilternode_finalizer,
+  .finalizer = qjsx::finalize<JsAudioNode, js_iirfilternode_class_id>,
 };
 
 static const JSCFunctionListEntry js_iirfilternode_funcs[] = {
@@ -2495,14 +2396,9 @@ js_waveshaper_set_curve(JSContext* ctx, JSValueConst this_val, JSValueConst valu
   return JS_UNDEFINED;
 }
 
-static void
-js_waveshapernode_finalizer(JSRuntime* rt, JSValue val) {
-  js_audionode_finalize_with(rt, val, js_waveshapernode_class_id);
-}
-
 static JSClassDef js_waveshapernode_class = {
   .class_name = "WaveShaperNode",
-  .finalizer = js_waveshapernode_finalizer,
+  .finalizer = qjsx::finalize<JsAudioNode, js_waveshapernode_class_id>,
 };
 
 static const JSCFunctionListEntry js_waveshapernode_funcs[] = {
@@ -2557,14 +2453,9 @@ js_stereopanner_get_pan(JSContext* ctx, JSValueConst this_val) {
   return make_audio_param_js(ctx, sp->pan());
 }
 
-static void
-js_stereopannernode_finalizer(JSRuntime* rt, JSValue val) {
-  js_audionode_finalize_with(rt, val, js_stereopannernode_class_id);
-}
-
 static JSClassDef js_stereopannernode_class = {
   .class_name = "StereoPannerNode",
-  .finalizer = js_stereopannernode_finalizer,
+  .finalizer = qjsx::finalize<JsAudioNode, js_stereopannernode_class_id>,
 };
 
 static const JSCFunctionListEntry js_stereopannernode_funcs[] = {
@@ -2664,14 +2555,9 @@ js_convolver_set_normalize(JSContext* ctx, JSValueConst this_val, JSValueConst v
   return JS_UNDEFINED;
 }
 
-static void
-js_convolvernode_finalizer(JSRuntime* rt, JSValue val) {
-  js_audionode_finalize_with(rt, val, js_convolvernode_class_id);
-}
-
 static JSClassDef js_convolvernode_class = {
   .class_name = "ConvolverNode",
-  .finalizer = js_convolvernode_finalizer,
+  .finalizer = qjsx::finalize<JsAudioNode, js_convolvernode_class_id>,
 };
 
 static const JSCFunctionListEntry js_convolvernode_funcs[] = {
@@ -2832,20 +2718,9 @@ js_analyser_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
   return JS_UNDEFINED;
 }
 
-static void
-js_analysernode_finalizer(JSRuntime* rt, JSValue val) {
-  JsAudioNode* w = static_cast<JsAudioNode*>(JS_GetOpaque(val, js_analysernode_class_id));
-  if(w) {
-    if(w->ctx)
-      w->ctx->removeAutomaticPullNode(w->node);
-    w->~JsAudioNode();
-    js_free_rt(rt, w);
-  }
-}
-
 static JSClassDef js_analysernode_class = {
   .class_name = "AnalyserNode",
-  .finalizer = js_analysernode_finalizer,
+  .finalizer = qjsx::finalize<JsAudioNode, js_analysernode_class_id>,
 };
 
 static const JSCFunctionListEntry js_analysernode_funcs[] = {
@@ -2934,14 +2809,9 @@ js_compressor_get(JSContext* ctx, JSValueConst this_val, int magic) {
   return JS_UNDEFINED;
 }
 
-static void
-js_dynamicscompressornode_finalizer(JSRuntime* rt, JSValue val) {
-  js_audionode_finalize_with(rt, val, js_dynamicscompressornode_class_id);
-}
-
 static JSClassDef js_dynamicscompressornode_class = {
   .class_name = "DynamicsCompressorNode",
-  .finalizer = js_dynamicscompressornode_finalizer,
+  .finalizer = qjsx::finalize<JsAudioNode, js_dynamicscompressornode_class_id>,
 };
 
 static const JSCFunctionListEntry js_dynamicscompressornode_funcs[] = {
@@ -3000,14 +2870,9 @@ js_constantsource_get_offset(JSContext* ctx, JSValueConst this_val) {
   return make_audio_param_js(ctx, cs->offset());
 }
 
-static void
-js_constantsourcenode_finalizer(JSRuntime* rt, JSValue val) {
-  js_audionode_finalize_with(rt, val, js_constantsourcenode_class_id);
-}
-
 static JSClassDef js_constantsourcenode_class = {
   .class_name = "ConstantSourceNode",
-  .finalizer = js_constantsourcenode_finalizer,
+  .finalizer = qjsx::finalize<JsAudioNode, js_constantsourcenode_class_id>,
 };
 
 static const JSCFunctionListEntry js_constantsourcenode_funcs[] = {
