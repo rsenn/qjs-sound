@@ -49,9 +49,9 @@ The first draft of this plan overstated two of them; these are the verified numb
 
 | Entry | Fixed by |
 |---|---|
-| `sndobj-oscili-null-table-segfault` | step 2.5 |
+| `sndobj-oscili-null-table-segfault` | step 2.5 (done) |
 | `unchecked-js-to-number-leaves-exception-pending` | steps 2.5 to 2.7, 3.5, 4.5 (delete when all three files are done) |
-| `sndobj-constructors-leak-on-prototype-failure` | steps 2.4 to 2.6 (R7) |
+| `sndobj-constructors-leak-on-prototype-failure` | steps 2.4 to 2.6 (R7) (done) |
 | `stk-singwave-exported-as-stksingwave` | step 3.3 (D5) |
 | `stk-tostringtag-array-out-of-enum-order` | steps 3.3 (generators) and 3.3 (effects) |
 | `labsound-so-undefined-iirfilternode-symbols` | step 0.3 |
@@ -316,23 +316,25 @@ Done when `opaque` is 0 and `dpcast` is 1.
 
 ## 8. Tracking
 
-Decisions (fill in): D1 ___ D2 ___ D3 ___ D4 ___ D5 ___
+Decisions: D1 throw (require) · D2 define prototype on every constructor · D3 keep the preset
+for a missing/undefined argument · D4 follow the WebAudio dictionary conversion (convert, throw on
+Symbol) · D5 rename `StkSingWave` to `SingWave` (alias kept)
 
 | Step | State | Date |
 |---|---|---|
 | 0.1 baseline files | | |
-| 0.2 decisions | | |
+| 0.2 decisions | D1 throw, D2 define prototype, D3 keep preset, D4 convert/throw, D5 rename | 2026-11-16 |
 | 0.3 labsound.so loads | | |
-| 0.4 errors-test.js | | |
-| 1.1 to 1.6 helpers + G0 | done (not committed) | 2026-11-16 |
-| 2.1 sndobj finalizers | | |
-| 2.2 sndobj input probe | | |
-| 2.3 sndobj ctor tables (table, generator, effect) | | |
-| 2.4 sndobj table ctor | | |
-| 2.5 sndobj generator ctor | | |
-| 2.6 sndobj effect ctor | | |
-| 2.7 sndobj methods (common, table, generator, effect) | | |
-| 2.8 sndobj gate | | |
+| 0.4 errors-test.js | done | 2026-11-16 |
+| 1.1 to 1.6 helpers + G0 | done | 2026-11-16 |
+| 2.1 sndobj finalizers | done | 2026-11-16 |
+| 2.2 sndobj input probe | done | 2026-11-16 |
+| 2.3 sndobj ctor tables (table, generator, effect) | done | 2026-11-16 |
+| 2.4 sndobj table ctor | done | 2026-11-16 |
+| 2.5 sndobj generator ctor | done | 2026-11-16 |
+| 2.6 sndobj effect ctor | done | 2026-11-16 |
+| 2.7 sndobj methods (common, table, generator, effect) | done | 2026-11-16 |
+| 2.8 sndobj gate | done | 2026-11-16 |
 | 3.1 stk finalizers | | |
 | 3.2 stk opaque lookups | | |
 | 3.3 stk ctor tables (8 families) | | |
@@ -349,7 +351,7 @@ Decisions (fill in): D1 ___ D2 ___ D3 ___ D4 ___ D5 ___
 
 | File | Lines at `d530d27` | After phase 2 | After phase 3 | After phase 4 |
 |---|---|---|---|---|
-| `quickjs-sndobj.cpp` | 1428 | | | |
+| `quickjs-sndobj.cpp` | 1428 | 1283 | | |
 | `quickjs-stk.cpp` | 4000 | | | |
 | `quickjs-labsound.cpp` | 3297 | | | |
 | `js-utils.hpp` | 575 | 1029 (phase 1) | | |
