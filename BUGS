@@ -176,14 +176,6 @@
     try { o.setFreq(Symbol('x')); } catch(e) { console.log('caught'); } // expected: caught - actual: nothing
     // after the script: uncaught TypeError: cannot convert symbol to number
 
-- labsound-so-undefined-iirfilternode-symbols (quickjs-labsound.cpp:2326): build/x86_64-linux-gnu/labsound.so
-  does not load, qjsm reports could not load module as shared library. ldd -r shows undefined
-  lab::IIRFilterNode symbols (typeinfo, constructor, getFrequencyResponse), so the LabSound static library
-  that was linked lacks IIRFilterNode although third_party/LabSound is on webaudio-spec-extensions. Cause
-  not established (stale LabSound build in the build dir is the first suspect). Every labsound test fails
-  to start until it loads.
-
-    import * as l from '/path/to/build/x86_64-linux-gnu/labsound.so'; // expected: module - actual: could not load module
 
 - stk-tostringtag-array-out-of-enum-order (quickjs-stk.cpp:698 and :1133): the name arrays indexed by
   magic in the generator and effect constructors list Blit before BlitSaw and BlitSquare, and PRCRev

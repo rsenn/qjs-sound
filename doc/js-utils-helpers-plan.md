@@ -327,7 +327,7 @@ Symbol) · D5 rename `StkSingWave` to `SingWave` (alias kept)
 |---|---|---|
 | 0.1 baseline files | | |
 | 0.2 decisions | D1 throw, D2 define prototype, D3 keep preset, D4 convert/throw, D5 rename | 2026-11-16 |
-| 0.3 labsound.so loads | | |
+| 0.3 labsound.so loads | done | 2026-11-16 |
 | 0.4 errors-test.js | done | 2026-11-16 |
 | 1.1 to 1.6 helpers + G0 | done | 2026-11-16 |
 | 2.1 sndobj finalizers | done | 2026-11-16 |
@@ -343,7 +343,7 @@ Symbol) · D5 rename `StkSingWave` to `SingWave` (alias kept)
 | 3.3 stk ctor tables (8 families) | | |
 | 3.4 stk ctor tails | | |
 | 3.5 stk args and ladders (9 commits) | done | 2026-11-16 |
-| 3.6 stk gate | | |
+| 3.6 stk gate | done | 2026-11-16 |
 | 4.1 labsound finalizers | | |
 | 4.2 node group + smoke test | | |
 | 4.3 lookups and casts | | |
