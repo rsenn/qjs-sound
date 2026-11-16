@@ -176,14 +176,6 @@
     try { o.setFreq(Symbol('x')); } catch(e) { console.log('caught'); } // expected: caught - actual: nothing
     // after the script: uncaught TypeError: cannot convert symbol to number
 
-- stk-singwave-exported-as-stksingwave (quickjs-stk.cpp:3626 and :3926): the SingWave generator is
-  declared and bound under the name StkSingWave, while doc/api-interoperability.md and every other
-  generator use the plain class name. Confirmed: typeof stk.SingWave is undefined and
-  typeof stk.StkSingWave is function.
-
-    import * as stk from 'stk';
-    console.log(typeof stk.SingWave); // expected: function - actual: undefined
-
 - labsound-so-undefined-iirfilternode-symbols (quickjs-labsound.cpp:2326): build/x86_64-linux-gnu/labsound.so
   does not load, qjsm reports could not load module as shared library. ldd -r shows undefined
   lab::IIRFilterNode symbols (typeinfo, constructor, getFrequencyResponse), so the LabSound static library

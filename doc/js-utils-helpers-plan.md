@@ -342,7 +342,7 @@ Symbol) · D5 rename `StkSingWave` to `SingWave` (alias kept)
 | 3.2 stk opaque lookups | | |
 | 3.3 stk ctor tables (8 families) | | |
 | 3.4 stk ctor tails | | |
-| 3.5 stk args and ladders (9 commits) | | |
+| 3.5 stk args and ladders (9 commits) | done | 2026-11-16 |
 | 3.6 stk gate | | |
 | 4.1 labsound finalizers | | |
 | 4.2 node group + smoke test | | |

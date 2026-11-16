@@ -261,21 +261,21 @@ js_stk_get(JSContext* ctx, JSValueConst this_val, int magic) {
 static JSValue
 js_stk_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
   StkPtr* s;
-  JSValue ret = JS_UNDEFINED;
 
   if(!(s = qjsx::self<StkPtr>(ctx, this_val, js_stk_class_id)))
     return JS_EXCEPTION;
 
   switch(magic) {
     case PROP_SAMPLERATE: {
-      double rate;
-      JS_ToFloat64(ctx, &rate, value);
+      double rate = 0;
+      if(qjsx::args(ctx, 1, &value, rate))
+        return JS_EXCEPTION;
       (*s)->setSampleRate(rate);
       break;
     }
   }
 
-  return ret;
+  return JS_UNDEFINED;
 }
 
 static JSClassDef js_stk_class = {
@@ -317,29 +317,32 @@ static const JSCFunctionListEntry js_stk_static_funcs[] = {
 
 static JSValue
 js_stkframes_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
-  JSValue proto, obj = JS_UNDEFINED;
-  double value;
+  double value = 0;
   uint32_t nframes = 0, nchannels = 0;
   int i = 0;
 
-  if(argc > 2)
-    JS_ToFloat64(ctx, &value, argv[i++]);
+  if(argc > 2) {
+    if(qjsx::args_from(ctx, 0, argc, argv, value))
+      return JS_EXCEPTION;
+    i = 1;
+  }
 
-  if(argc > i)
-    JS_ToUint32(ctx, &nframes, argv[i]);
+  if(argc > i) {
+    if(qjsx::args_from(ctx, i, argc, argv, nframes))
+      return JS_EXCEPTION;
+    i++;
+  }
 
-  ++i;
-  if(argc > i)
-    JS_ToUint32(ctx, &nchannels, argv[i]);
+  if(argc > i) {
+    if(qjsx::args_from(ctx, i, argc, argv, nchannels))
+      return JS_EXCEPTION;
+  }
 
-  StkFramesPtr f = argc > 2 ? std::make_shared<stk::StkFrames>(value, nframes, nchannels)
-                            : std::make_shared<stk::StkFrames>(nframes, nchannels);
+  StkFramesPtr f = (argc > 2)
+    ? std::make_shared<stk::StkFrames>(value, nframes, nchannels)
+    : std::make_shared<stk::StkFrames>(nframes, nchannels);
 
   return qjsx::wrap<StkFramesPtr>(ctx, new_target, js_stkframes_class_id, std::move(f));
-
-fail:
-  JS_FreeValue(ctx, obj);
-  return JS_EXCEPTION;
 }
 
 enum {
@@ -362,25 +365,28 @@ js_stkframes_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
   switch(magic) {
     case METHOD_RESIZE: {
       uint32_t nframes, nchannels = 1;
+      double value = 0;
 
-      JS_ToUint32(ctx, &nframes, argv[0]);
-      if(argc > 1)
-        JS_ToUint32(ctx, &nchannels, argv[1]);
+      if(qjsx::args_from(ctx, 0, argc, argv, nframes))
+        return JS_EXCEPTION;
+      if(argc > 1 && qjsx::args_from(ctx, 1, argc, argv, nchannels))
+        return JS_EXCEPTION;
+      if(argc > 2 && qjsx::args_from(ctx, 2, argc, argv, value))
+        return JS_EXCEPTION;
 
-      if(argc > 2) {
-        double value;
-        JS_ToFloat64(ctx, &value, argv[2]);
+      if(argc > 2)
         (*f)->resize(nframes, nchannels, value);
-      } else {
+      else
         (*f)->resize(nframes, nchannels);
-      }
 
       break;
     }
     case METHOD_INTERPOLATE: {
       double frame;
       uint32_t channel = 0;
-      JS_ToFloat64(ctx, &frame, argv[0]);
+
+      if(qjsx::args_from(ctx, 0, argc, argv, frame))
+        return JS_EXCEPTION;
       if(js_stk_channel(ctx, argc > 1 ? argv[1] : JS_UNDEFINED, (*f)->channels(), &channel))
         return JS_EXCEPTION;
 
@@ -391,12 +397,14 @@ js_stkframes_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
       uint32_t channel, dstChannel;
       StkFramesPtr* a;
 
-      JS_ToUint32(ctx, &channel, argv[0]);
+      if(qjsx::args_from(ctx, 0, argc, argv, channel))
+        return JS_EXCEPTION;
 
       if(!(a = qjsx::opaque<StkFramesPtr>(argv[1], js_stkframes_class_id)))
         return JS_ThrowTypeError(ctx, "argument 2 must be StkFrames");
 
-      JS_ToUint32(ctx, &dstChannel, argv[2]);
+      if(qjsx::args_from(ctx, 2, argc, argv, dstChannel))
+        return JS_EXCEPTION;
 
       (*f)->getChannel(channel, *a->get(), dstChannel);
       ret = JS_DupValue(ctx, argv[1]);
@@ -406,12 +414,14 @@ js_stkframes_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
       uint32_t channel, srcChannel;
       StkFramesPtr* a;
 
-      JS_ToUint32(ctx, &channel, argv[0]);
+      if(qjsx::args_from(ctx, 0, argc, argv, channel))
+        return JS_EXCEPTION;
 
       if(!(a = qjsx::opaque<StkFramesPtr>(argv[1], js_stkframes_class_id)))
         return JS_ThrowTypeError(ctx, "argument 2 must be StkFrames");
 
-      JS_ToUint32(ctx, &srcChannel, argv[2]);
+      if(qjsx::args_from(ctx, 2, argc, argv, srcChannel))
+        return JS_EXCEPTION;
 
       (*f)->setChannel(channel, *a->get(), srcChannel);
       break;
@@ -534,21 +544,21 @@ js_stkframes_get(JSContext* ctx, JSValueConst this_val, int magic) {
 static JSValue
 js_stkframes_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic) {
   StkFramesPtr* f;
-  JSValue ret = JS_UNDEFINED;
 
   if(!(f = qjsx::self<StkFramesPtr>(ctx, this_val, js_stkframes_class_id)))
     return JS_EXCEPTION;
 
   switch(magic) {
     case PROP_DATA_RATE: {
-      double rate;
-      JS_ToFloat64(ctx, &rate, value);
+      double rate = 0;
+      if(qjsx::args(ctx, 1, &value, rate))
+        return JS_EXCEPTION;
       (*f)->setDataRate(rate);
       break;
     }
   }
 
-  return ret;
+  return JS_UNDEFINED;
 }
 
 static JSClassDef js_stkframes_class = {
@@ -606,8 +616,8 @@ js_stkgenerator_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
   StkGeneratorPtr g;
   double arg = 0;
 
-  if(argc > 0)
-    JS_ToFloat64(ctx, &arg, argv[0]);
+  if(argc > 0 && qjsx::args_from(ctx, 0, argc, argv, arg))
+    return JS_EXCEPTION;
 
   try {
     switch(magic) {
@@ -637,14 +647,15 @@ js_stkgenerator_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
       }
       case INSTANCE_GRANULATE: {
         if(argc > 1) {
-          uint32_t nvoices;
+          uint32_t nvoices = 0;
           const char* cstr = JS_ToCString(ctx, argv[1]);
           if(!cstr)
             return JS_EXCEPTION;
           std::string filename(cstr);
           JS_FreeCString(ctx, cstr);
           BOOL raw = FALSE;
-          JS_ToUint32(ctx, &nvoices, argv[0]);
+          if(qjsx::args_from(ctx, 0, argc, argv, nvoices))
+            return JS_EXCEPTION;
           if(argc > 2)
             raw = JS_ToBool(ctx, argv[2]);
           g = std::make_shared<stk::Granulate>(nvoices, filename, raw);
@@ -728,28 +739,18 @@ js_stkgenerator_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
 
       stk::Generator* g = f->get();
       double sample = 0;
-      if(auto* p = dynamic_cast<stk::Granulate*>(g))
-        sample = p->tick(channel);
-      else if(auto* p = dynamic_cast<stk::ADSR*>(g))
-        sample = p->tick();
-      else if(auto* p = dynamic_cast<stk::Asymp*>(g))
-        sample = p->tick();
-      else if(auto* p = dynamic_cast<stk::BlitSaw*>(g))
-        sample = p->tick();
-      else if(auto* p = dynamic_cast<stk::BlitSquare*>(g))
-        sample = p->tick();
-      else if(auto* p = dynamic_cast<stk::Blit*>(g))
-        sample = p->tick();
-      else if(auto* p = dynamic_cast<stk::Envelope*>(g))
-        sample = p->tick();
-      else if(auto* p = dynamic_cast<stk::Modulate*>(g))
-        sample = p->tick();
-      else if(auto* p = dynamic_cast<stk::Noise*>(g))
-        sample = p->tick();
-      else if(auto* p = dynamic_cast<stk::SineWave*>(g))
-        sample = p->tick();
-      else if(auto* p = dynamic_cast<stk::SingWave*>(g))
-        sample = p->tick();
+      bool matched = qjsx::dispatch<stk::Granulate, stk::ADSR, stk::Asymp, stk::BlitSaw, stk::BlitSquare, stk::Blit, stk::Envelope, stk::Modulate, stk::Noise, stk::SineWave, stk::SingWave>(g,
+        [&](auto* p) {
+          if constexpr(std::is_same_v<decltype(p), stk::Granulate*>)
+            sample = p->tick(channel);
+          else
+            sample = p->tick();
+        });
+
+      if(!matched) {
+        JS_ThrowTypeError(ctx, "tick requires a generator with a scalar tick()");
+        return JS_EXCEPTION;
+      }
 
       ret = JS_NewFloat64(ctx, sample);
       break;
@@ -847,10 +848,10 @@ js_stkfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
       case INSTANCE_DELAY_A:
       case INSTANCE_DELAY_L: {
         double delay = 0, maxDelay = 4095;
-        if(argc > 0)
-          JS_ToFloat64(ctx, &delay, argv[0]);
-        if(argc > 1)
-          JS_ToFloat64(ctx, &maxDelay, argv[1]);
+        if(qjsx::args_from(ctx, 0, argc, argv, delay))
+          return JS_EXCEPTION;
+        if(argc > 1 && qjsx::args_from(ctx, 1, argc, argv, maxDelay))
+          return JS_EXCEPTION;
 
         switch(magic) {
           case INSTANCE_DELAY: {
@@ -906,8 +907,8 @@ js_stkfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
           if(qjsx::read_array(ctx, argv[0], tapValues))
             return JS_EXCEPTION;
           taps.assign(tapValues.begin(), tapValues.end());
-          if(argc > 1)
-            JS_ToUint32(ctx, &maxDelay, argv[1]);
+          if(argc > 1 && qjsx::args_from(ctx, 1, argc, argv, maxDelay))
+            return JS_EXCEPTION;
 
           f = std::make_shared<stk::TapDelay>(taps, maxDelay);
         } else {
@@ -919,8 +920,8 @@ js_stkfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
 
       default: {
         double arg = 0;
-        if(argc > 0)
-          JS_ToFloat64(ctx, &arg, argv[0]);
+        if(argc > 0 && qjsx::args_from(ctx, 0, argc, argv, arg))
+          return JS_EXCEPTION;
 
         switch(magic) {
           case INSTANCE_BIQUAD: {
@@ -998,7 +999,8 @@ js_stkfilter_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
       }
 
       double input = 0;
-      JS_ToFloat64(ctx, &input, argv[0]);
+      if(qjsx::args_from(ctx, 0, argc, argv, input))
+        return JS_EXCEPTION;
 
       /* Filter subclasses only expose a polymorphic StkFrames& tick(); route a
        * single sample through a one-frame buffer so any filter type works here. */
@@ -1050,16 +1052,24 @@ static JSValue
 js_stkeffect_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {
   StkEffectPtr e;
   double arg = 0;
-  if(argc > 0)
-    JS_ToFloat64(ctx, &arg, argv[0]);
+  int32_t tmax = stk::RT_BUFFER_SIZE;
+
+  if(argc > 0 && qjsx::args_from(ctx, 0, argc, argv, arg))
+    return JS_EXCEPTION;
+  if(argc > 1 && qjsx::args_from(ctx, 1, argc, argv, tmax))
+    return JS_EXCEPTION;
 
   try {
     switch(magic) {
       case INSTANCE_CHORUS: {
+        if(argc > 0 && arg <= 0)
+          return JS_ThrowRangeError(ctx, "Chorus delay cannot be zero");
         e = std::make_shared<stk::Chorus>(argc > 0 ? arg : 6000);
         break;
       }
       case INSTANCE_ECHO: {
+        if(argc > 0 && arg <= 0)
+          return JS_ThrowRangeError(ctx, "Echo delay cannot be zero");
         e = std::make_shared<stk::Echo>(argc > 0 ? arg : stk::Stk::sampleRate());
         break;
       }
@@ -1072,9 +1082,6 @@ js_stkeffect_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
         break;
       }
       case INSTANCE_LENTPITSHIFT: {
-        int32_t tmax = stk::RT_BUFFER_SIZE;
-        if(argc > 1)
-          JS_ToInt32(ctx, &tmax, argv[1]);
         e = std::make_shared<stk::LentPitShift>(argc > 0 ? arg : 1.0, tmax);
         break;
       }
@@ -1132,51 +1139,29 @@ js_stkeffect_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
 
         /* Effect subclasses don't share a common virtual tick() either, so
          * dispatch by type same as the scalar path below. */
-        if(auto* p = dynamic_cast<stk::FreeVerb*>(eff))
-          p->tick(*a->get(), channel);
-        else if(auto* p = dynamic_cast<stk::JCRev*>(eff))
-          p->tick(*a->get(), channel);
-        else if(auto* p = dynamic_cast<stk::PRCRev*>(eff))
-          p->tick(*a->get(), channel);
-        else if(auto* p = dynamic_cast<stk::NRev*>(eff))
-          p->tick(*a->get(), channel);
-        else if(auto* p = dynamic_cast<stk::Chorus*>(eff))
-          p->tick(*a->get(), channel);
-        else if(auto* p = dynamic_cast<stk::Echo*>(eff))
-          p->tick(*a->get(), channel);
-        else if(auto* p = dynamic_cast<stk::PitShift*>(eff))
-          p->tick(*a->get(), channel);
-        else if(auto* p = dynamic_cast<stk::LentPitShift*>(eff))
-          p->tick(*a->get(), channel);
+        qjsx::dispatch<stk::FreeVerb, stk::JCRev, stk::PRCRev, stk::NRev, stk::Chorus, stk::Echo, stk::PitShift, stk::LentPitShift>(eff,
+          [&](auto* p) { p->tick(*a->get(), channel); });
 
         ret = JS_DupValue(ctx, argv[0]);
         break;
       }
 
       double in1 = 0, in2 = 0;
-      JS_ToFloat64(ctx, &in1, argv[0]);
-      if(argc > 1)
-        JS_ToFloat64(ctx, &in2, argv[1]);
+      if(qjsx::args_from(ctx, 0, argc, argv, in1))
+        return JS_EXCEPTION;
+      if(argc > 1 && qjsx::args_from(ctx, 1, argc, argv, in2))
+        return JS_EXCEPTION;
 
       /* Effect subclasses don't share a common tick() signature(some are
        * mono, some stereo, FreeVerb takes two inputs), so dispatch by type
        * and then read back through the(shared) lastFrame() accessor. */
-      if(auto* p = dynamic_cast<stk::FreeVerb*>(eff))
-        p->tick(in1, in2);
-      else if(auto* p = dynamic_cast<stk::JCRev*>(eff))
-        p->tick(in1);
-      else if(auto* p = dynamic_cast<stk::PRCRev*>(eff))
-        p->tick(in1);
-      else if(auto* p = dynamic_cast<stk::NRev*>(eff))
-        p->tick(in1);
-      else if(auto* p = dynamic_cast<stk::Chorus*>(eff))
-        p->tick(in1);
-      else if(auto* p = dynamic_cast<stk::Echo*>(eff))
-        p->tick(in1);
-      else if(auto* p = dynamic_cast<stk::PitShift*>(eff))
-        p->tick(in1);
-      else if(auto* p = dynamic_cast<stk::LentPitShift*>(eff))
-        p->tick(in1);
+      qjsx::dispatch<stk::FreeVerb, stk::JCRev, stk::PRCRev, stk::NRev, stk::Chorus, stk::Echo, stk::PitShift, stk::LentPitShift>(eff,
+        [&](auto* p) {
+          if constexpr(std::is_same_v<decltype(p), stk::FreeVerb*>)
+            p->tick(in1, in2);
+          else
+            p->tick(in1);
+        });
 
       const stk::StkFrames& last = eff->lastFrame();
       unsigned int nch = eff->channelsOut();
@@ -1194,7 +1179,8 @@ js_stkeffect_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
     }
     case METHOD_EFFECT_SET_MIX: {
       double mix = 0;
-      JS_ToFloat64(ctx, &mix, argv[0]);
+      if(qjsx::args_from(ctx, 0, argc, argv, mix))
+        return JS_EXCEPTION;
       eff->setEffectMix(mix);
       break;
     }
@@ -1242,9 +1228,6 @@ static const qjsx::ctor_def stkfm_ctors[] = {
 static JSValue
 js_stkfm_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {
   StkFMPtr fm;
-  double arg = 0;
-  if(argc > 0)
-    JS_ToFloat64(ctx, &arg, argv[0]);
 
   try {
     switch(magic) {
@@ -1332,17 +1315,18 @@ js_stkfm_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst ar
     }
     case METHOD_FM_NOTE_ON: {
       double frequency = 0, amplitude = 0;
-      JS_ToFloat64(ctx, &frequency, argv[0]);
-      if(argc > 1)
-        JS_ToFloat64(ctx, &amplitude, argv[1]);
+      if(qjsx::args_from(ctx, 0, argc, argv, frequency))
+        return JS_EXCEPTION;
+      if(argc > 1 && qjsx::args_from(ctx, 1, argc, argv, amplitude))
+        return JS_EXCEPTION;
 
       (*fm)->noteOn(frequency, amplitude);
       break;
     }
     case METHOD_FM_NOTE_OFF: {
       double amplitude = 0;
-      if(argc > 0)
-        JS_ToFloat64(ctx, &amplitude, argv[0]);
+      if(argc > 0 && qjsx::args_from(ctx, 0, argc, argv, amplitude))
+        return JS_EXCEPTION;
 
       (*fm)->noteOff(amplitude);
       break;
@@ -1350,9 +1334,10 @@ js_stkfm_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst ar
     case METHOD_FM_CONTROL_CHANGE: {
       int32_t number = 0;
       double value = 0;
-      JS_ToInt32(ctx, &number, argv[0]);
-      if(argc > 1)
-        JS_ToFloat64(ctx, &value, argv[1]);
+      if(qjsx::args_from(ctx, 0, argc, argv, number))
+        return JS_EXCEPTION;
+      if(argc > 1 && qjsx::args_from(ctx, 1, argc, argv, value))
+        return JS_EXCEPTION;
 
       (*fm)->controlChange(number, value);
       break;
@@ -1437,25 +1422,26 @@ js_stkguitar_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
   switch(magic) {
     case METHOD_GUITAR_TICK: {
       double input = 0;
-      if(argc > 0)
-        JS_ToFloat64(ctx, &input, argv[0]);
+      if(argc > 0 && qjsx::args_from(ctx, 0, argc, argv, input))
+        return JS_EXCEPTION;
 
       ret = JS_NewFloat64(ctx, (*g)->tick(input));
       break;
     }
     case METHOD_GUITAR_NOTE_ON: {
       double frequency = 0, amplitude = 0;
-      JS_ToFloat64(ctx, &frequency, argv[0]);
-      if(argc > 1)
-        JS_ToFloat64(ctx, &amplitude, argv[1]);
+      if(qjsx::args_from(ctx, 0, argc, argv, frequency))
+        return JS_EXCEPTION;
+      if(argc > 1 && qjsx::args_from(ctx, 1, argc, argv, amplitude))
+        return JS_EXCEPTION;
 
       (*g)->noteOn(frequency, amplitude);
       break;
     }
     case METHOD_GUITAR_NOTE_OFF: {
       double amplitude = 0;
-      if(argc > 0)
-        JS_ToFloat64(ctx, &amplitude, argv[0]);
+      if(argc > 0 && qjsx::args_from(ctx, 0, argc, argv, amplitude))
+        return JS_EXCEPTION;
 
       (*g)->noteOff(amplitude);
       break;
@@ -1463,9 +1449,10 @@ js_stkguitar_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
     case METHOD_GUITAR_CONTROL_CHANGE: {
       int32_t number = 0;
       double value = 0;
-      JS_ToInt32(ctx, &number, argv[0]);
-      if(argc > 1)
-        JS_ToFloat64(ctx, &value, argv[1]);
+      if(qjsx::args_from(ctx, 0, argc, argv, number))
+        return JS_EXCEPTION;
+      if(argc > 1 && qjsx::args_from(ctx, 1, argc, argv, value))
+        return JS_EXCEPTION;
 
       (*g)->controlChange(number, value);
       break;
@@ -1475,19 +1462,9 @@ js_stkguitar_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
   return ret;
 }
 
-static void
-js_stkguitar_finalizer(JSRuntime* rt, JSValue val) {
-  StkGuitarPtr* g;
-
-  if((g = static_cast<StkGuitarPtr*>(JS_GetOpaque(val, js_stkguitar_class_id)))) {
-    g->~StkGuitarPtr();
-    js_free_rt(rt, g);
-  }
-}
-
 static JSClassDef js_stkguitar_class = {
   .class_name = "Guitar",
-  .finalizer = js_stkguitar_finalizer,
+  .finalizer = qjsx::finalize<StkGuitarPtr, js_stkguitar_class_id>,
 };
 
 static const JSCFunctionListEntry js_stkguitar_funcs[] = {
@@ -1552,8 +1529,8 @@ static JSValue
 js_stkinstrmnt_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {
   StkInstrmntPtr i;
   double arg = 0;
-  if(argc > 0)
-    JS_ToFloat64(ctx, &arg, argv[0]);
+  if(argc > 0 && qjsx::args_from(ctx, 0, argc, argv, arg))
+    return JS_EXCEPTION;
 
   try {
     switch(magic) {
@@ -1594,9 +1571,9 @@ js_stkinstrmnt_constructor(JSContext* ctx, JSValueConst new_target, int argc, JS
         break;
       }
       case INSTANCE_MESH2D: {
-        uint32_t nx, ny;
-        JS_ToUint32(ctx, &nx, argv[0]);
-        JS_ToUint32(ctx, &ny, argv[1]);
+        uint32_t nx = 0, ny = 0;
+        if(qjsx::args_from(ctx, 0, argc, argv, nx) || qjsx::args_from(ctx, 1, argc, argv, ny))
+          return JS_EXCEPTION;
         i = std::make_shared<stk::Mesh2D>(nx, ny);
         break;
       }
@@ -1693,17 +1670,18 @@ js_stkinstrmnt_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
     }
     case METHOD_INSTRMNT_NOTE_ON: {
       double frequency = 0, amplitude = 0;
-      JS_ToFloat64(ctx, &frequency, argv[0]);
-      if(argc > 1)
-        JS_ToFloat64(ctx, &amplitude, argv[1]);
+      if(qjsx::args_from(ctx, 0, argc, argv, frequency))
+        return JS_EXCEPTION;
+      if(argc > 1 && qjsx::args_from(ctx, 1, argc, argv, amplitude))
+        return JS_EXCEPTION;
 
       (*i)->noteOn(frequency, amplitude);
       break;
     }
     case METHOD_INSTRMNT_NOTE_OFF: {
       double amplitude = 0;
-      if(argc > 0)
-        JS_ToFloat64(ctx, &amplitude, argv[0]);
+      if(argc > 0 && qjsx::args_from(ctx, 0, argc, argv, amplitude))
+        return JS_EXCEPTION;
 
       (*i)->noteOff(amplitude);
       break;
@@ -1711,9 +1689,10 @@ js_stkinstrmnt_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
     case METHOD_INSTRMNT_CONTROL_CHANGE: {
       int32_t number = 0;
       double value = 0;
-      JS_ToInt32(ctx, &number, argv[0]);
-      if(argc > 1)
-        JS_ToFloat64(ctx, &value, argv[1]);
+      if(qjsx::args_from(ctx, 0, argc, argv, number))
+        return JS_EXCEPTION;
+      if(argc > 1 && qjsx::args_from(ctx, 1, argc, argv, value))
+        return JS_EXCEPTION;
 
       (*i)->controlChange(number, value);
       break;
@@ -1798,15 +1777,18 @@ js_stkfunction_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
         /* stk::Function doesn't declare a virtual StkFrames& tick(); Cubic is
          * presently the only bound subclass, so dispatch to its overload
          * directly, same as the Cubic-specific controls below. */
-        if(auto* cubic = dynamic_cast<stk::Cubic*>(g->get()))
-          cubic->tick(*a->get(), channel);
+        stk::Cubic* cubic = qjsx::require<stk::Cubic>(ctx, g->get(), "tick needs a Cubic");
+        if(!cubic)
+          return JS_EXCEPTION;
+        cubic->tick(*a->get(), channel);
 
         ret = JS_DupValue(ctx, argv[0]);
         break;
       }
 
       double input = 0;
-      JS_ToFloat64(ctx, &input, argv[0]);
+      if(qjsx::args_from(ctx, 0, argc, argv, input))
+        return JS_EXCEPTION;
 
       ret = JS_NewFloat64(ctx, (*g)->tick(input));
       break;
@@ -1819,16 +1801,19 @@ js_stkfunction_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
     case METHOD_FUNCTION_SET_GAIN:
     case METHOD_FUNCTION_SET_THRESHOLD: {
       double value = 0;
-      JS_ToFloat64(ctx, &value, argv[0]);
+      if(qjsx::args_from(ctx, 0, argc, argv, value))
+        return JS_EXCEPTION;
 
-      if(auto* cubic = dynamic_cast<stk::Cubic*>(g->get())) {
-        switch(magic) {
-          case METHOD_FUNCTION_SET_A1: cubic->setA1(value); break;
-          case METHOD_FUNCTION_SET_A2: cubic->setA2(value); break;
-          case METHOD_FUNCTION_SET_A3: cubic->setA3(value); break;
-          case METHOD_FUNCTION_SET_GAIN: cubic->setGain(value); break;
-          case METHOD_FUNCTION_SET_THRESHOLD: cubic->setThreshold(value); break;
-        }
+      stk::Cubic* cubic = qjsx::require<stk::Cubic>(ctx, g->get(), "setA1/setA2/setA3/setGain/setThreshold needs a Cubic");
+      if(!cubic)
+        return JS_EXCEPTION;
+
+      switch(magic) {
+        case METHOD_FUNCTION_SET_A1: cubic->setA1(value); break;
+        case METHOD_FUNCTION_SET_A2: cubic->setA2(value); break;
+        case METHOD_FUNCTION_SET_A3: cubic->setA3(value); break;
+        case METHOD_FUNCTION_SET_GAIN: cubic->setGain(value); break;
+        case METHOD_FUNCTION_SET_THRESHOLD: cubic->setThreshold(value); break;
       }
 
       break;
@@ -1860,8 +1845,8 @@ static const JSCFunctionListEntry js_stkfunction_funcs[] = {
 static JSValue
 js_twintdrum_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
   double frequency = 200.0;
-  if(argc > 0)
-    JS_ToFloat64(ctx, &frequency, argv[0]);
+  if(argc > 0 && qjsx::args_from(ctx, 0, argc, argv, frequency))
+    return JS_EXCEPTION;
 
   StkInstrmntPtr i;
 
@@ -1899,15 +1884,13 @@ js_twintdrum_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
   if(!(p = qjsx::self<StkInstrmntPtr>(ctx, this_val, js_stkinstrmnt_class_id)))
     return JS_EXCEPTION;
 
-  TwinTDrum* d = dynamic_cast<TwinTDrum*>(p->get());
+  TwinTDrum* d = qjsx::require<TwinTDrum>(ctx, p->get(), "not a TwinTDrum");
   if(!d)
-    return JS_ThrowTypeError(ctx, "not a TwinTDrum");
+    return JS_EXCEPTION;
 
   double a = 0, b = 0;
-  if(argc > 0)
-    JS_ToFloat64(ctx, &a, argv[0]);
-  if(argc > 1)
-    JS_ToFloat64(ctx, &b, argv[1]);
+  if(qjsx::args_from(ctx, 0, argc, argv, a, b))
+    return JS_EXCEPTION;
 
   switch(magic) {
     case METHOD_TWINT_SET_FREQUENCY: d->setFrequency(a); break;
@@ -2055,44 +2038,47 @@ js_tr909bassdrum_method(JSContext* ctx, JSValueConst this_val, int argc, JSValue
   if(!(p = qjsx::self<StkInstrmntPtr>(ctx, this_val, js_stkinstrmnt_class_id)))
     return JS_EXCEPTION;
 
-  Tr909BassDrum* d = dynamic_cast<Tr909BassDrum*>(p->get());
+  Tr909BassDrum* d = qjsx::require<Tr909BassDrum>(ctx, p->get(), "not a Tr909BassDrum");
   if(!d)
-    return JS_ThrowTypeError(ctx, "not a Tr909BassDrum");
+    return JS_EXCEPTION;
 
   switch(magic) {
     case METHOD_TR909_SET_PITCH_ENV: {
       double start = 0, end = 0, decay = 0;
-      JS_ToFloat64(ctx, &start, argv[0]);
-      JS_ToFloat64(ctx, &end, argv[1]);
-      JS_ToFloat64(ctx, &decay, argv[2]);
+      if(qjsx::args_from(ctx, 0, argc, argv, start, end, decay))
+        return JS_EXCEPTION;
       d->setPitchEnvelope(start, end, decay, argc > 3 ? parse_curve_linear(ctx, argv[3]) : false);
       break;
     }
     case METHOD_TR909_SET_PITCH_SPIKE: {
       double semitones = 0, time = 0.005;
-      JS_ToFloat64(ctx, &semitones, argv[0]);
-      if(argc > 1)
-        JS_ToFloat64(ctx, &time, argv[1]);
+      if(qjsx::args_from(ctx, 0, argc, argv, semitones))
+        return JS_EXCEPTION;
+      if(argc > 1 && qjsx::args_from(ctx, 1, argc, argv, time))
+        return JS_EXCEPTION;
       d->setPitchSpike(semitones, time);
       break;
     }
     case METHOD_TR909_SET_AMP_ENV: {
       double decay = 0;
-      JS_ToFloat64(ctx, &decay, argv[0]);
+      if(qjsx::args_from(ctx, 0, argc, argv, decay))
+        return JS_EXCEPTION;
       d->setAmpEnvelope(decay, argc > 1 ? parse_curve_linear(ctx, argv[1]) : false);
       break;
     }
     case METHOD_TR909_SET_PUNCH: {
       double amount = 0, time = 0.01;
-      JS_ToFloat64(ctx, &amount, argv[0]);
-      if(argc > 1)
-        JS_ToFloat64(ctx, &time, argv[1]);
+      if(qjsx::args_from(ctx, 0, argc, argv, amount))
+        return JS_EXCEPTION;
+      if(argc > 1 && qjsx::args_from(ctx, 1, argc, argv, time))
+        return JS_EXCEPTION;
       d->setPunch(amount, time);
       break;
     }
     case METHOD_TR909_SET_DRIVE: {
       double amount = 0;
-      JS_ToFloat64(ctx, &amount, argv[0]);
+      if(qjsx::args_from(ctx, 0, argc, argv, amount))
+        return JS_EXCEPTION;
       d->setDrive(amount, argc > 1 ? parse_drive_type(ctx, argv[1]) : DRIVE_TANH);
       break;
     }
@@ -2102,42 +2088,47 @@ js_tr909bassdrum_method(JSContext* ctx, JSValueConst this_val, int argc, JSValue
     }
     case METHOD_TR909_SET_TONE: {
       double cutoff = 0;
-      JS_ToFloat64(ctx, &cutoff, argv[0]);
+      if(qjsx::args_from(ctx, 0, argc, argv, cutoff))
+        return JS_EXCEPTION;
       d->setTone(cutoff);
       break;
     }
     case METHOD_TR909_SET_TONE_RESONANCE: {
       double amount = 0;
-      JS_ToFloat64(ctx, &amount, argv[0]);
+      if(qjsx::args_from(ctx, 0, argc, argv, amount))
+        return JS_EXCEPTION;
       d->setToneResonance(amount);
       break;
     }
     case METHOD_TR909_SET_CLICK: {
       double level = 0, decay = 0.04;
-      JS_ToFloat64(ctx, &level, argv[0]);
-      if(argc > 1)
-        JS_ToFloat64(ctx, &decay, argv[1]);
+      if(qjsx::args_from(ctx, 0, argc, argv, level))
+        return JS_EXCEPTION;
+      if(argc > 1 && qjsx::args_from(ctx, 1, argc, argv, decay))
+        return JS_EXCEPTION;
       d->setClick(level, decay);
       break;
     }
     case METHOD_TR909_SET_SUB: {
       double mix = 0, octave = 1.0;
-      JS_ToFloat64(ctx, &mix, argv[0]);
-      if(argc > 1)
-        JS_ToFloat64(ctx, &octave, argv[1]);
+      if(qjsx::args_from(ctx, 0, argc, argv, mix))
+        return JS_EXCEPTION;
+      if(argc > 1 && qjsx::args_from(ctx, 1, argc, argv, octave))
+        return JS_EXCEPTION;
       d->setSub(mix, octave);
       break;
     }
     case METHOD_TR909_SET_TUNE: {
       double t = 1.0;
-      JS_ToFloat64(ctx, &t, argv[0]);
+      if(qjsx::args_from(ctx, 0, argc, argv, t))
+        return JS_EXCEPTION;
       d->setTune(t);
       break;
     }
     case METHOD_TR909_TRIGGER: {
       double v = 1.0;
-      if(argc > 0)
-        JS_ToFloat64(ctx, &v, argv[0]);
+      if(argc > 0 && qjsx::args_from(ctx, 0, argc, argv, v))
+        return JS_EXCEPTION;
       d->trigger(v);
       break;
     }
@@ -2146,8 +2137,8 @@ js_tr909bassdrum_method(JSContext* ctx, JSValueConst this_val, int argc, JSValue
       double v = 1.0;
       if(argc < 1 || js_stk_count(ctx, argv[0], &n))
         return JS_EXCEPTION;
-      if(argc > 1)
-        JS_ToFloat64(ctx, &v, argv[1]);
+      if(argc > 1 && qjsx::args_from(ctx, 1, argc, argv, v))
+        return JS_EXCEPTION;
 
       StkFramesPtr f = std::make_shared<stk::StkFrames>(n, 1);
       stk::StkFrames& fr = *f;
@@ -2217,70 +2208,71 @@ js_tr909percussion_method(JSContext* ctx, JSValueConst this_val, int argc, JSVal
   if(!(p = qjsx::self<StkInstrmntPtr>(ctx, this_val, js_stkinstrmnt_class_id)))
     return JS_EXCEPTION;
 
-  Tr909Percussion* d = dynamic_cast<Tr909Percussion*>(p->get());
+  Tr909Percussion* d = qjsx::require<Tr909Percussion>(ctx, p->get(), "not a Tr909Percussion");
   if(!d)
-    return JS_ThrowTypeError(ctx, "not a Tr909Percussion");
+    return JS_EXCEPTION;
 
   switch(magic) {
     case METHOD_PERC_SET_TONE: {
       double freq1 = 0, freq2 = 0, mix = 0, decay = 0;
-      JS_ToFloat64(ctx, &freq1, argv[0]);
-      JS_ToFloat64(ctx, &freq2, argv[1]);
-      JS_ToFloat64(ctx, &mix, argv[2]);
-      JS_ToFloat64(ctx, &decay, argv[3]);
+      if(qjsx::args_from(ctx, 0, argc, argv, freq1, freq2, mix, decay))
+        return JS_EXCEPTION;
       d->setTone(freq1, freq2, mix, decay);
       break;
     }
     case METHOD_PERC_SET_METALLIC: {
       double base = 0, mix = 0, decay = 0, brightness = 7000;
-      JS_ToFloat64(ctx, &base, argv[0]);
-      JS_ToFloat64(ctx, &mix, argv[1]);
-      JS_ToFloat64(ctx, &decay, argv[2]);
-      if(argc > 3)
-        JS_ToFloat64(ctx, &brightness, argv[3]);
+      if(qjsx::args_from(ctx, 0, argc, argv, base, mix, decay))
+        return JS_EXCEPTION;
+      if(argc > 3 && qjsx::args_from(ctx, 3, argc, argv, brightness))
+        return JS_EXCEPTION;
       d->setMetallic(base, mix, decay, brightness);
       break;
     }
     case METHOD_PERC_SET_NOISE: {
       double mix = 0, decay = 0;
-      JS_ToFloat64(ctx, &mix, argv[0]);
-      JS_ToFloat64(ctx, &decay, argv[1]);
+      if(qjsx::args_from(ctx, 0, argc, argv, mix, decay))
+        return JS_EXCEPTION;
       d->setNoise(mix, decay);
       break;
     }
     case METHOD_PERC_SET_NOISE_FILTER: {
       double cutoff = 0, q = 1.0;
-      JS_ToFloat64(ctx, &cutoff, argv[0]);
-      if(argc > 1)
-        JS_ToFloat64(ctx, &q, argv[1]);
+      if(qjsx::args_from(ctx, 0, argc, argv, cutoff))
+        return JS_EXCEPTION;
+      if(argc > 1 && qjsx::args_from(ctx, 1, argc, argv, q))
+        return JS_EXCEPTION;
       d->setNoiseFilter(cutoff, q, argc > 2 ? parse_perc_filter_type(ctx, argv[2]) : PERC_FILTER_BANDPASS);
       break;
     }
     case METHOD_PERC_SET_CRUNCH: {
       double amount = 0;
-      JS_ToFloat64(ctx, &amount, argv[0]);
+      if(qjsx::args_from(ctx, 0, argc, argv, amount))
+        return JS_EXCEPTION;
       d->setCrunch(amount, argc > 1 ? parse_drive_type(ctx, argv[1]) : DRIVE_TANH);
       break;
     }
     case METHOD_PERC_SET_CLAP: {
       uint32_t hits = 1;
       double spacing = 0.01;
-      JS_ToUint32(ctx, &hits, argv[0]);
-      if(argc > 1)
-        JS_ToFloat64(ctx, &spacing, argv[1]);
+      if(qjsx::args_from(ctx, 0, argc, argv, hits))
+        return JS_EXCEPTION;
+      if(argc > 1 && qjsx::args_from(ctx, 1, argc, argv, spacing))
+        return JS_EXCEPTION;
       d->setClap((int)hits, spacing);
       break;
     }
     case METHOD_PERC_SET_TUNE: {
       double t = 1.0;
-      JS_ToFloat64(ctx, &t, argv[0]);
+      if(qjsx::args_from(ctx, 0, argc, argv, t))
+        return JS_EXCEPTION;
       d->setTune(t);
       break;
     }
     case METHOD_PERC_TRIGGER: {
       double v = 1.0;
-      if(argc > 0)
-        JS_ToFloat64(ctx, &v, argv[0]);
+      if(argc > 0 && qjsx::args_from(ctx, 0, argc, argv, v))
+        return JS_EXCEPTION;
       d->trigger(v);
       break;
     }
@@ -2289,8 +2281,8 @@ js_tr909percussion_method(JSContext* ctx, JSValueConst this_val, int argc, JSVal
       double v = 1.0;
       if(argc < 1 || js_stk_count(ctx, argv[0], &n))
         return JS_EXCEPTION;
-      if(argc > 1)
-        JS_ToFloat64(ctx, &v, argv[1]);
+      if(argc > 1 && qjsx::args_from(ctx, 1, argc, argv, v))
+        return JS_EXCEPTION;
 
       StkFramesPtr f = std::make_shared<stk::StkFrames>(n, 1);
       stk::StkFrames& fr = *f;
@@ -2326,9 +2318,14 @@ enum {
   INSTANCE_WVIN_INETWVIN,
 };
 
+static const qjsx::ctor_def stkwvin_ctors[] = {
+  { "RtWvIn", 0, INSTANCE_WVIN_RTWVIN },
+  { "InetWvIn", 0, INSTANCE_WVIN_INETWVIN },
+};
+
 static JSValue
 js_stkwvin_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {
-  StkWvInPtr* w = static_cast<StkWvInPtr*>(js_mallocz(ctx, sizeof(StkWvInPtr)));
+  StkWvInPtr w;
 
   try {
     switch(magic) {
@@ -2337,59 +2334,33 @@ js_stkwvin_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValu
         double sampleRate = stk::Stk::sampleRate();
         int32_t deviceIndex = 0, bufferFrames = stk::RT_BUFFER_SIZE, nBuffers = 20;
 
-        if(argc > 0)
-          JS_ToUint32(ctx, &nChannels, argv[0]);
-        if(argc > 1)
-          JS_ToFloat64(ctx, &sampleRate, argv[1]);
-        if(argc > 2)
-          JS_ToInt32(ctx, &deviceIndex, argv[2]);
-        if(argc > 3)
-          JS_ToInt32(ctx, &bufferFrames, argv[3]);
-        if(argc > 4)
-          JS_ToInt32(ctx, &nBuffers, argv[4]);
+        if(qjsx::args_from(ctx, 0, argc, argv, nChannels, sampleRate, deviceIndex, bufferFrames, nBuffers))
+          return JS_EXCEPTION;
 
-        new(w) StkWvInPtr(std::make_shared<stk::RtWvIn>(nChannels, sampleRate, deviceIndex, bufferFrames, nBuffers));
+        w = std::make_shared<stk::RtWvIn>(nChannels, sampleRate, deviceIndex, bufferFrames, nBuffers);
         break;
       }
       case INSTANCE_WVIN_INETWVIN: {
         int32_t bufferFrames = 1024, nBuffers = 8;
 
-        if(argc > 0)
-          JS_ToInt32(ctx, &bufferFrames, argv[0]);
-        if(argc > 1)
-          JS_ToInt32(ctx, &nBuffers, argv[1]);
+        if(qjsx::args_from(ctx, 0, argc, argv, bufferFrames, nBuffers))
+          return JS_EXCEPTION;
 
-        new(w) StkWvInPtr(std::make_shared<stk::InetWvIn>(bufferFrames, nBuffers));
+        w = std::make_shared<stk::InetWvIn>(bufferFrames, nBuffers);
         break;
       }
     }
   } catch(const std::exception& e) {
-    js_free(ctx, w);
     return js_stk_throw(ctx, e);
   }
 
-  JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
-    goto fail;
-
-  if(!JS_IsObject(proto)) {
-    JS_FreeValue(ctx, proto);
-    proto = JS_DupValue(ctx, magic == INSTANCE_WVIN_RTWVIN ? rtwvin_proto : inetwvin_proto);
-  }
-
-  obj = JS_NewObjectProtoClass(ctx, proto, js_stkwvin_class_id);
-  JS_FreeValue(ctx, proto);
+  JSValue obj = qjsx::wrap<StkWvInPtr>(ctx, new_target, js_stkwvin_class_id, std::move(w));
 
   if(JS_IsException(obj))
-    goto fail;
+    return obj;
 
-  JS_SetOpaque(obj, w);
-  js_set_tostringtag(ctx, obj, magic == INSTANCE_WVIN_RTWVIN ? "RtWvIn" : "InetWvIn");
+  js_set_tostringtag(ctx, obj, qjsx::ctor_name(stkwvin_ctors, magic));
   return obj;
-
-fail:
-  JS_FreeValue(ctx, obj);
-  return JS_EXCEPTION;
 }
 
 enum {
@@ -2489,9 +2460,9 @@ js_rtwvin_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst a
   if(!(w = qjsx::self<StkWvInPtr>(ctx, this_val, js_stkwvin_class_id)))
     return JS_EXCEPTION;
 
-  stk::RtWvIn* r = dynamic_cast<stk::RtWvIn*>(w->get());
+  stk::RtWvIn* r = qjsx::require<stk::RtWvIn>(ctx, w->get(), "not a RtWvIn");
   if(!r)
-    return JS_ThrowTypeError(ctx, "not a RtWvIn");
+    return JS_EXCEPTION;
 
   switch(magic) {
     case METHOD_RTWVIN_START: r->start(); break;
@@ -2520,23 +2491,17 @@ js_inetwvin_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
   if(!(w = qjsx::self<StkWvInPtr>(ctx, this_val, js_stkwvin_class_id)))
     return JS_EXCEPTION;
 
-  stk::InetWvIn* n = dynamic_cast<stk::InetWvIn*>(w->get());
+  stk::InetWvIn* n = qjsx::require<stk::InetWvIn>(ctx, w->get(), "not a InetWvIn");
   if(!n)
-    return JS_ThrowTypeError(ctx, "not a InetWvIn");
+    return JS_EXCEPTION;
 
   switch(magic) {
     case METHOD_INETWVIN_LISTEN: {
       int32_t port = 2006, protocol = stk::Socket::PROTO_TCP;
       uint32_t nChannels = 1, format = stk::Stk::STK_SINT16;
 
-      if(argc > 0)
-        JS_ToInt32(ctx, &port, argv[0]);
-      if(argc > 1)
-        JS_ToUint32(ctx, &nChannels, argv[1]);
-      if(argc > 2)
-        JS_ToUint32(ctx, &format, argv[2]);
-      if(argc > 3)
-        JS_ToInt32(ctx, &protocol, argv[3]);
+      if(qjsx::args_from(ctx, 0, argc, argv, port, nChannels, format, protocol))
+        return JS_EXCEPTION;
 
       try {
         n->listen(port, nChannels, format, (stk::Socket::ProtocolType)protocol);
@@ -2568,9 +2533,14 @@ enum {
   INSTANCE_WVOUT_INETWVOUT,
 };
 
+static const qjsx::ctor_def stkwvout_ctors[] = {
+  { "RtWvOut", 0, INSTANCE_WVOUT_RTWVOUT },
+  { "InetWvOut", 0, INSTANCE_WVOUT_INETWVOUT },
+};
+
 static JSValue
 js_stkwvout_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {
-  StkWvOutPtr* w = static_cast<StkWvOutPtr*>(js_mallocz(ctx, sizeof(StkWvOutPtr)));
+  StkWvOutPtr w;
 
   try {
     switch(magic) {
@@ -2579,61 +2549,37 @@ js_stkwvout_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVal
         double sampleRate = stk::Stk::sampleRate();
         int32_t deviceIndex = 0, bufferFrames = stk::RT_BUFFER_SIZE, nBuffers = 20;
 
-        if(argc > 0)
-          JS_ToUint32(ctx, &nChannels, argv[0]);
-        if(argc > 1)
-          JS_ToFloat64(ctx, &sampleRate, argv[1]);
-        if(argc > 2)
-          JS_ToInt32(ctx, &deviceIndex, argv[2]);
-        if(argc > 3)
-          JS_ToInt32(ctx, &bufferFrames, argv[3]);
-        if(argc > 4)
-          JS_ToInt32(ctx, &nBuffers, argv[4]);
+        if(qjsx::args_from(ctx, 0, argc, argv, nChannels, sampleRate, deviceIndex, bufferFrames, nBuffers))
+          return JS_EXCEPTION;
 
-        new(w) StkWvOutPtr(std::make_shared<stk::RtWvOut>(nChannels, sampleRate, deviceIndex, bufferFrames, nBuffers));
+        w = std::make_shared<stk::RtWvOut>(nChannels, sampleRate, deviceIndex, bufferFrames, nBuffers);
         break;
       }
       case INSTANCE_WVOUT_INETWVOUT: {
         int32_t packetFrames = 1024;
 
-        if(argc > 0)
-          JS_ToInt32(ctx, &packetFrames, argv[0]);
+        if(qjsx::args_from(ctx, 0, argc, argv, packetFrames))
+          return JS_EXCEPTION;
 
         /* InetWvOut also has an(int port, ...) overload that opens a
          * connection immediately; without this cast to unsigned long an
          * int argument here binds to that overload instead, silently
          * attempting to connect to port `packetFrames`. */
-        new(w) StkWvOutPtr(std::make_shared<stk::InetWvOut>(static_cast<unsigned long>(packetFrames)));
+        w = std::make_shared<stk::InetWvOut>(static_cast<unsigned long>(packetFrames));
         break;
       }
     }
   } catch(const std::exception& e) {
-    js_free(ctx, w);
     return js_stk_throw(ctx, e);
   }
 
-  JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
-    goto fail;
-
-  if(!JS_IsObject(proto)) {
-    JS_FreeValue(ctx, proto);
-    proto = JS_DupValue(ctx, magic == INSTANCE_WVOUT_RTWVOUT ? rtwvout_proto : inetwvout_proto);
-  }
-
-  obj = JS_NewObjectProtoClass(ctx, proto, js_stkwvout_class_id);
-  JS_FreeValue(ctx, proto);
+  JSValue obj = qjsx::wrap<StkWvOutPtr>(ctx, new_target, js_stkwvout_class_id, std::move(w));
 
   if(JS_IsException(obj))
-    goto fail;
+    return obj;
 
-  JS_SetOpaque(obj, w);
-  js_set_tostringtag(ctx, obj, magic == INSTANCE_WVOUT_RTWVOUT ? "RtWvOut" : "InetWvOut");
+  js_set_tostringtag(ctx, obj, qjsx::ctor_name(stkwvout_ctors, magic));
   return obj;
-
-fail:
-  JS_FreeValue(ctx, obj);
-  return JS_EXCEPTION;
 }
 
 enum {
@@ -2660,7 +2606,8 @@ js_stkwvout_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
       }
 
       double sample = 0;
-      JS_ToFloat64(ctx, &sample, argv[0]);
+      if(qjsx::args_from(ctx, 0, argc, argv, sample))
+        return JS_EXCEPTION;
       (*w)->tick(sample);
       break;
     }
@@ -2731,9 +2678,9 @@ js_rtwvout_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst 
   if(!(w = qjsx::self<StkWvOutPtr>(ctx, this_val, js_stkwvout_class_id)))
     return JS_EXCEPTION;
 
-  stk::RtWvOut* r = dynamic_cast<stk::RtWvOut*>(w->get());
+  stk::RtWvOut* r = qjsx::require<stk::RtWvOut>(ctx, w->get(), "not a RtWvOut");
   if(!r)
-    return JS_ThrowTypeError(ctx, "not a RtWvOut");
+    return JS_EXCEPTION;
 
   switch(magic) {
     case METHOD_RTWVOUT_START: r->start(); break;
@@ -2761,38 +2708,33 @@ js_inetwvout_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
   if(!(w = qjsx::self<StkWvOutPtr>(ctx, this_val, js_stkwvout_class_id)))
     return JS_EXCEPTION;
 
-  stk::InetWvOut* n = dynamic_cast<stk::InetWvOut*>(w->get());
+  stk::InetWvOut* n = qjsx::require<stk::InetWvOut>(ctx, w->get(), "not a InetWvOut");
   if(!n)
-    return JS_ThrowTypeError(ctx, "not a InetWvOut");
+    return JS_EXCEPTION;
 
   switch(magic) {
     case METHOD_INETWVOUT_CONNECT: {
       int32_t port = 0, protocol = stk::Socket::PROTO_TCP;
       uint32_t nChannels = 1, format = stk::Stk::STK_SINT16;
-      const char* hostname = "localhost";
-      BOOL freeHostname = FALSE;
+      std::string hostname = "localhost";
 
-      JS_ToInt32(ctx, &port, argv[0]);
-      if(argc > 1)
-        JS_ToInt32(ctx, &protocol, argv[1]);
-      if(argc > 2) {
-        hostname = JS_ToCString(ctx, argv[2]);
-        freeHostname = TRUE;
-      }
-      if(argc > 3)
-        JS_ToUint32(ctx, &nChannels, argv[3]);
-      if(argc > 4)
-        JS_ToUint32(ctx, &format, argv[4]);
+      if(qjsx::args_from(ctx, 0, argc, argv, port, protocol))
+        return JS_EXCEPTION;
+      if(argc > 2 && qjsx::with(ctx, argv[2], [&](const char* s) {
+        hostname = s;
+      }))
+        return JS_EXCEPTION;
+      if(argc > 3 && qjsx::args_from(ctx, 3, argc, argv, nChannels))
+        return JS_EXCEPTION;
+      if(argc > 4 && qjsx::args_from(ctx, 4, argc, argv, format))
+        return JS_EXCEPTION;
 
       JSValue exc = JS_UNDEFINED;
       try {
-        n->connect(port, (stk::Socket::ProtocolType)protocol, hostname, nChannels, format);
+        n->connect(port, (stk::Socket::ProtocolType)protocol, hostname.c_str(), nChannels, format);
       } catch(const std::exception& e) {
         exc = js_stk_throw(ctx, e);
       }
-
-      if(freeHostname)
-        JS_FreeCString(ctx, hostname);
 
       if(JS_IsException(exc))
         return exc;
@@ -2831,29 +2773,18 @@ js_midifilein_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSV
   }
   JS_FreeCString(ctx, fileName);
 
-  JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
-    goto fail;
-
-  if(!JS_IsObject(proto)) {
-    JS_FreeValue(ctx, proto);
-    proto = JS_DupValue(ctx, midifilein_proto);
-  }
-
-  obj = JS_NewObjectProtoClass(ctx, proto, js_midifilein_class_id);
+  JSValue proto = JS_DupValue(ctx, midifilein_proto);
+  JSValue obj = JS_NewObjectProtoClass(ctx, proto, js_midifilein_class_id);
   JS_FreeValue(ctx, proto);
 
-  if(JS_IsException(obj))
-    goto fail;
+  if(JS_IsException(obj)) {
+    delete mf;
+    return obj;
+  }
 
   JS_SetOpaque(obj, mf);
   js_set_tostringtag(ctx, obj, "MidiFileIn");
   return obj;
-
-fail:
-  delete mf;
-  JS_FreeValue(ctx, obj);
-  return JS_EXCEPTION;
 }
 
 enum {
@@ -2874,8 +2805,8 @@ js_midifilein_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
   switch(magic) {
     case METHOD_MIDIFILE_REWIND_TRACK: {
       uint32_t track = 0;
-      if(argc > 0)
-        JS_ToUint32(ctx, &track, argv[0]);
+      if(argc > 0 && qjsx::args_from(ctx, 0, argc, argv, track))
+        return JS_EXCEPTION;
       try {
         mf->rewindTrack(track);
       } catch(const std::exception& e) {
@@ -2885,8 +2816,8 @@ js_midifilein_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
     }
     case METHOD_MIDIFILE_GET_TICK_SECONDS: {
       uint32_t track = 0;
-      if(argc > 0)
-        JS_ToUint32(ctx, &track, argv[0]);
+      if(argc > 0 && qjsx::args_from(ctx, 0, argc, argv, track))
+        return JS_EXCEPTION;
       try {
         ret = JS_NewFloat64(ctx, mf->getTickSeconds(track));
       } catch(const std::exception& e) {
@@ -2897,8 +2828,8 @@ js_midifilein_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
     case METHOD_MIDIFILE_GET_NEXT_EVENT:
     case METHOD_MIDIFILE_GET_NEXT_MIDI_EVENT: {
       uint32_t track = 0;
-      if(argc > 0)
-        JS_ToUint32(ctx, &track, argv[0]);
+      if(argc > 0 && qjsx::args_from(ctx, 0, argc, argv, track))
+        return JS_EXCEPTION;
 
       std::vector<unsigned char> event;
       unsigned long deltaTime;
@@ -2975,17 +2906,17 @@ js_rtmidiin_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVal
   std::string clientName = "RtMidi Input Client";
   uint32_t queueSizeLimit = 100;
 
-  if(argc > 0)
-    JS_ToInt32(ctx, &api, argv[0]);
+  if(qjsx::args_from(ctx, 0, argc, argv, api))
+    return JS_EXCEPTION;
   if(argc > 1) {
     const char* s = JS_ToCString(ctx, argv[1]);
-    if(s) {
-      clientName = s;
-      JS_FreeCString(ctx, s);
-    }
+    if(!s)
+      return JS_EXCEPTION;
+    clientName = s;
+    JS_FreeCString(ctx, s);
   }
-  if(argc > 2)
-    JS_ToUint32(ctx, &queueSizeLimit, argv[2]);
+  if(argc > 2 && qjsx::args_from(ctx, 2, argc, argv, queueSizeLimit))
+    return JS_EXCEPTION;
 
   RtMidiIn* r = nullptr;
   try {
@@ -2994,29 +2925,18 @@ js_rtmidiin_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVal
     return js_stk_throw(ctx, e);
   }
 
-  JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
-    goto fail;
-
-  if(!JS_IsObject(proto)) {
-    JS_FreeValue(ctx, proto);
-    proto = JS_DupValue(ctx, rtmidiin_proto);
-  }
-
-  obj = JS_NewObjectProtoClass(ctx, proto, js_rtmidiin_class_id);
+  JSValue proto = JS_DupValue(ctx, rtmidiin_proto);
+  JSValue obj = JS_NewObjectProtoClass(ctx, proto, js_rtmidiin_class_id);
   JS_FreeValue(ctx, proto);
 
-  if(JS_IsException(obj))
-    goto fail;
+  if(JS_IsException(obj)) {
+    delete r;
+    return obj;
+  }
 
   JS_SetOpaque(obj, r);
   js_set_tostringtag(ctx, obj, "RtMidiIn");
   return obj;
-
-fail:
-  delete r;
-  JS_FreeValue(ctx, obj);
-  return JS_EXCEPTION;
 }
 
 enum {
@@ -3043,8 +2963,8 @@ js_rtmidiin_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
     case METHOD_RTMIDIIN_OPEN_PORT: {
       uint32_t portNumber = 0;
       std::string portName = "RtMidi Input";
-      if(argc > 0)
-        JS_ToUint32(ctx, &portNumber, argv[0]);
+      if(qjsx::args_from(ctx, 0, argc, argv, portNumber))
+        return JS_EXCEPTION;
       if(argc > 1) {
         const char* s = JS_ToCString(ctx, argv[1]);
         if(s) {
@@ -3089,8 +3009,8 @@ js_rtmidiin_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
     }
     case METHOD_RTMIDIIN_GET_PORT_NAME: {
       uint32_t portNumber = 0;
-      if(argc > 0)
-        JS_ToUint32(ctx, &portNumber, argv[0]);
+      if(qjsx::args_from(ctx, 0, argc, argv, portNumber))
+        return JS_EXCEPTION;
       std::string name;
       try {
         name = r->getPortName(portNumber);
@@ -3162,8 +3082,8 @@ js_rtmidiout_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
   int32_t api = RtMidi::UNSPECIFIED;
   std::string clientName = "RtMidi Output Client";
 
-  if(argc > 0)
-    JS_ToInt32(ctx, &api, argv[0]);
+  if(qjsx::args_from(ctx, 0, argc, argv, api))
+    return JS_EXCEPTION;
   if(argc > 1) {
     const char* s = JS_ToCString(ctx, argv[1]);
     if(s) {
@@ -3179,29 +3099,18 @@ js_rtmidiout_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
     return js_stk_throw(ctx, e);
   }
 
-  JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
-    goto fail;
-
-  if(!JS_IsObject(proto)) {
-    JS_FreeValue(ctx, proto);
-    proto = JS_DupValue(ctx, rtmidiout_proto);
-  }
-
-  obj = JS_NewObjectProtoClass(ctx, proto, js_rtmidiout_class_id);
+  JSValue proto = JS_DupValue(ctx, rtmidiout_proto);
+  JSValue obj = JS_NewObjectProtoClass(ctx, proto, js_rtmidiout_class_id);
   JS_FreeValue(ctx, proto);
 
-  if(JS_IsException(obj))
-    goto fail;
+  if(JS_IsException(obj)) {
+    delete r;
+    return obj;
+  }
 
   JS_SetOpaque(obj, r);
   js_set_tostringtag(ctx, obj, "RtMidiOut");
   return obj;
-
-fail:
-  delete r;
-  JS_FreeValue(ctx, obj);
-  return JS_EXCEPTION;
 }
 
 enum {
@@ -3227,8 +3136,8 @@ js_rtmidiout_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
     case METHOD_RTMIDIOUT_OPEN_PORT: {
       uint32_t portNumber = 0;
       std::string portName = "RtMidi Output";
-      if(argc > 0)
-        JS_ToUint32(ctx, &portNumber, argv[0]);
+      if(qjsx::args_from(ctx, 0, argc, argv, portNumber))
+        return JS_EXCEPTION;
       if(argc > 1) {
         const char* s = JS_ToCString(ctx, argv[1]);
         if(s) {
@@ -3273,8 +3182,8 @@ js_rtmidiout_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
     }
     case METHOD_RTMIDIOUT_GET_PORT_NAME: {
       uint32_t portNumber = 0;
-      if(argc > 0)
-        JS_ToUint32(ctx, &portNumber, argv[0]);
+      if(qjsx::args_from(ctx, 0, argc, argv, portNumber))
+        return JS_EXCEPTION;
       std::string name;
       try {
         name = r->getPortName(portNumber);
@@ -3333,34 +3242,23 @@ static const JSCFunctionListEntry js_rtmidiout_funcs[] = {
 static JSValue
 js_rtaudio_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[]) {
   int32_t api = RtAudio::UNSPECIFIED;
-  if(argc > 0)
-    JS_ToInt32(ctx, &api, argv[0]);
+  if(qjsx::args_from(ctx, 0, argc, argv, api))
+    return JS_EXCEPTION;
 
   RtAudio* a = new RtAudio((RtAudio::Api)api);
 
-  JSValue obj = JS_UNDEFINED, proto = JS_GetPropertyStr(ctx, new_target, "prototype");
-  if(JS_IsException(proto))
-    goto fail;
-
-  if(!JS_IsObject(proto)) {
-    JS_FreeValue(ctx, proto);
-    proto = JS_DupValue(ctx, rtaudio_proto);
-  }
-
-  obj = JS_NewObjectProtoClass(ctx, proto, js_rtaudio_class_id);
+  JSValue proto = JS_DupValue(ctx, rtaudio_proto);
+  JSValue obj = JS_NewObjectProtoClass(ctx, proto, js_rtaudio_class_id);
   JS_FreeValue(ctx, proto);
 
-  if(JS_IsException(obj))
-    goto fail;
+  if(JS_IsException(obj)) {
+    delete a;
+    return obj;
+  }
 
   JS_SetOpaque(obj, a);
   js_set_tostringtag(ctx, obj, "RtAudio");
   return obj;
-
-fail:
-  delete a;
-  JS_FreeValue(ctx, obj);
-  return JS_EXCEPTION;
 }
 
 enum {
@@ -3420,7 +3318,8 @@ js_rtaudio_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst 
     }
     case METHOD_RTAUDIO_GET_DEVICE_INFO: {
       uint32_t deviceId = 0;
-      JS_ToUint32(ctx, &deviceId, argv[0]);
+      if(qjsx::args_from(ctx, 0, argc, argv, deviceId))
+        return JS_EXCEPTION;
       RtAudio::DeviceInfo info = a->getDeviceInfo(deviceId);
 
       JSValue obj = JS_NewObject(ctx);
@@ -3486,7 +3385,8 @@ js_rtaudio_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst 
     }
     case METHOD_RTAUDIO_SET_STREAM_TIME: {
       double t = 0;
-      JS_ToFloat64(ctx, &t, argv[0]);
+      if(qjsx::args_from(ctx, 0, argc, argv, t))
+        return JS_EXCEPTION;
       a->setStreamTime(t);
       break;
     }
@@ -3722,13 +3622,9 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
   JS_SetPropertyFunctionList(ctx, inetwvin_proto, js_inetwvin_funcs, countof(js_inetwvin_funcs));
 
   if(m) {
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkwvin_constructor, "RtWvIn", 0, JS_CFUNC_constructor_magic, INSTANCE_WVIN_RTWVIN);
-    JS_SetConstructor(ctx, ctor, rtwvin_proto);
-    JS_SetModuleExport(ctx, m, "RtWvIn", ctor);
-
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkwvin_constructor, "InetWvIn", 0, JS_CFUNC_constructor_magic, INSTANCE_WVIN_INETWVIN);
-    JS_SetConstructor(ctx, ctor, inetwvin_proto);
-    JS_SetModuleExport(ctx, m, "InetWvIn", ctor);
+    qjsx::bind_ctors(ctx, m, js_stkwvin_constructor, rtwvin_proto, stkwvin_ctors);
+    JS_SetModuleExport(ctx, m, "RtWvIn", JS_NewString(ctx, qjsx::ctor_name(stkwvin_ctors, INSTANCE_WVIN_RTWVIN)));
+    JS_SetModuleExport(ctx, m, "InetWvIn", JS_NewString(ctx, qjsx::ctor_name(stkwvin_ctors, INSTANCE_WVIN_INETWVIN)));
   }
 
   /* stk::WvOut(RtWvOut, InetWvOut) */
@@ -3748,13 +3644,9 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
   JS_SetPropertyFunctionList(ctx, inetwvout_proto, js_inetwvout_funcs, countof(js_inetwvout_funcs));
 
   if(m) {
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkwvout_constructor, "RtWvOut", 0, JS_CFUNC_constructor_magic, INSTANCE_WVOUT_RTWVOUT);
-    JS_SetConstructor(ctx, ctor, rtwvout_proto);
-    JS_SetModuleExport(ctx, m, "RtWvOut", ctor);
-
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkwvout_constructor, "InetWvOut", 0, JS_CFUNC_constructor_magic, INSTANCE_WVOUT_INETWVOUT);
-    JS_SetConstructor(ctx, ctor, inetwvout_proto);
-    JS_SetModuleExport(ctx, m, "InetWvOut", ctor);
+    qjsx::bind_ctors(ctx, m, js_stkwvout_constructor, rtwvout_proto, stkwvout_ctors);
+    JS_SetModuleExport(ctx, m, "RtWvOut", JS_NewString(ctx, qjsx::ctor_name(stkwvout_ctors, INSTANCE_WVOUT_RTWVOUT)));
+    JS_SetModuleExport(ctx, m, "InetWvOut", JS_NewString(ctx, qjsx::ctor_name(stkwvout_ctors, INSTANCE_WVOUT_INETWVOUT)));
   }
 
   /* stk::MidiFileIn */
@@ -3834,10 +3726,6 @@ js_stk_add_exports(JSContext* ctx, JSModuleDef* m) {
   JS_AddModuleExport(ctx, m, "StkFrames");
   JS_AddModuleExport(ctx, m, "Generator");
   JS_AddModuleExport(ctx, m, "Filter");
-  JS_AddModuleExport(ctx, m, "RtWvIn");
-  JS_AddModuleExport(ctx, m, "InetWvIn");
-  JS_AddModuleExport(ctx, m, "RtWvOut");
-  JS_AddModuleExport(ctx, m, "InetWvOut");
   JS_AddModuleExport(ctx, m, "MidiFileIn");
   JS_AddModuleExport(ctx, m, "RtMidiIn");
   JS_AddModuleExport(ctx, m, "RtMidiOut");

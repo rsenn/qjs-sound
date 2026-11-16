@@ -94,7 +94,8 @@ if(stk) {
     cases['stk/toStringTag of ' + name] = () => {
       const C = stk[name];
       assert(C, 'stk.' + name + ' exists');
-      const tag = Object.prototype.toString.call(new C(...(name == 'Delay' || name == 'DelayL' ? [1, 8] : []))).slice(8, -1);
+      const args = name == 'Delay' || name == 'DelayL' ? [1, 8] : (name == 'SingWave' ? ['shakers-test.wav'] : []);
+      const tag = Object.prototype.toString.call(new C(...args)).slice(8, -1);
       assert(tag == name, 'toStringTag of ' + name + ' is ' + tag);
     };
 }

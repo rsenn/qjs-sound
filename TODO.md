@@ -852,3 +852,28 @@ void wk_message(int ptr, int len);     // main thread -> processor
   interpreter speed for portability?
 - Should `wk_process` see planar or interleaved audio? Planar chosen
   (matches `AudioBus`, WAM, Faust); revisit if a target lib wants otherwise.
+
+## Bass Doctor
+
+A "sound-informed" editor for kick+bass loops: a fullscreen waveform view where
+you sculpt the rendered result (draw notes, shape transients, edit envelopes)
+instead of tweaking synth parameters. Pure-JS forkable DSP so the engine can
+render ahead, discard, and re-render with other parameters.
+
+- [x] design doc: `doc/bass-doctor-spec.md` (3-layer architecture, components, tools, phases)
+- [x] render-engine design: `doc/audio-render-engine-design.md` (voice protocol, circular buffer, sidechain)
+- [x] phase-coherence analysis: `doc/phase-coherence-analysis.md` (kick envelope → predictable phase)
+- [x] implement forkable `BassVoice` in `tonnetz/lib/bass-synth.js` (subtractive, named state)
+- [x] implement `drum-engine.js` (forkable engine, circular buffer, delay taps, fork/restore)
+- [x] implement `bass-doctor.js` (kick + bass + Ducker sidechain, multiband, low-end mono)
+- [ ] implement `midi-map.js` (CC ↔ physical units, differential change tracking)
+- [x] headless qjsm tests: deterministic re-render, fork/restore round-trip, parameter sweep
+- [x] phase-coherence test: verify kick envelope lands at predictable phase (0.00° error)
+- [ ] glassloom block `app/blocks/bassdoctor.js` + waveform editor UI (Phase 1)
+- [ ] editing tools: draw / envelope / separation / glue (Phase 2)
+- [ ] pre-cog prediction layer + spectral feedback (Phase 3)
+
+Decisions made: Path A (pure-JS bass synth for forkability), start at Phase 0,
+design the kick's pitch envelope to land at a predictable phase angle, standalone
+app + glassloom integration (glassloom's `vendor/qjs-sound` is a submodule of
+this repo, so changes here flow to it on a submodule bump).
