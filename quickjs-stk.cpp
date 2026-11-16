@@ -78,6 +78,7 @@
 #include "Drummer.h"
 #include "FM.h"
 #include "Flute.h"
+#include "Guitar.h"
 #include "Mandolin.h"
 #include "Mesh2D.h"
 #include "Modal.h"
@@ -113,12 +114,14 @@ using stk::Stk;
 
 static JSClassID js_stkframes_class_id, js_stk_class_id, js_stkfilter_class_id, js_stkgenerator_class_id, js_stkeffect_class_id,
     js_stkfm_class_id, js_stkinstrmnt_class_id, js_stkfunction_class_id, js_stkwvin_class_id, js_stkwvout_class_id,
-    js_midifilein_class_id, js_rtmidiin_class_id, js_rtmidiout_class_id, js_rtaudio_class_id;
+    js_midifilein_class_id, js_rtmidiin_class_id, js_rtmidiout_class_id, js_rtaudio_class_id,
+    js_stkguitar_class_id;
 static JSValue stkframes_proto, stkframes_ctor, stk_proto, stk_ctor, stkfilter_proto, stkfilter_ctor, stkgenerator_proto,
     stkgenerator_ctor, stkeffect_proto, stkeffect_ctor, stkfm_proto, stkfm_ctor, stkinstrmnt_proto, stkinstrmnt_ctor,
     stkfunction_proto, stkfunction_ctor, twintdrum_proto, tr909bassdrum_proto, tr909percussion_proto, stkwvin_proto,
     rtwvin_proto, inetwvin_proto, stkwvout_proto, rtwvout_proto, inetwvout_proto, midifilein_proto, rtmidiin_proto,
-    rtmidiout_proto, rtaudio_proto;
+    rtmidiout_proto, rtaudio_proto, rtaudio_ctor,
+    stkguitar_proto, stkguitar_ctor;
 
 typedef std::shared_ptr<stk::Stk> StkPtr;
 typedef std::shared_ptr<stk::StkFrames> StkFramesPtr;
@@ -130,6 +133,7 @@ typedef std::shared_ptr<stk::Instrmnt> StkInstrmntPtr;
 typedef std::shared_ptr<stk::Function> StkFunctionPtr;
 typedef std::shared_ptr<stk::WvIn> StkWvInPtr;
 typedef std::shared_ptr<stk::WvOut> StkWvOutPtr;
+typedef std::shared_ptr<stk::Guitar> StkGuitarPtr;
 
 /* stk::StkError and RtMidiError both derive from std::exception; the
  * realtime/streaming I/O constructors below are far more likely to fail in
@@ -241,7 +245,7 @@ js_stk_get(JSContext* ctx, JSValueConst this_val, int magic) {
   StkPtr* s;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(s = static_cast<StkPtr*>(JS_GetOpaque2(ctx, this_val, js_stk_class_id))))
+  if(!(s = qjsx::self<StkPtr>(ctx, this_val, js_stk_class_id)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -259,7 +263,7 @@ js_stk_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic)
   StkPtr* s;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(s = static_cast<StkPtr*>(JS_GetOpaque2(ctx, this_val, js_stk_class_id))))
+  if(!(s = qjsx::self<StkPtr>(ctx, this_val, js_stk_class_id)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -274,19 +278,9 @@ js_stk_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int magic)
   return ret;
 }
 
-static void
-js_stk_finalizer(JSRuntime* rt, JSValue val) {
-  StkPtr* s;
-
-  if((s = static_cast<StkPtr*>(JS_GetOpaque(val, js_stk_class_id)))) {
-    s->~StkPtr();
-    js_free_rt(rt, s);
-  }
-}
-
 static JSClassDef js_stk_class = {
   .class_name = "Stk",
-  .finalizer = js_stk_finalizer,
+  .finalizer = qjsx::finalize<StkPtr, js_stk_class_id>,
 };
 
 static const JSCFunctionListEntry js_stk_funcs[] = {
@@ -362,7 +356,7 @@ js_stkframes_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
   StkFramesPtr* f;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(f = static_cast<StkFramesPtr*>(JS_GetOpaque2(ctx, this_val, js_stkframes_class_id))))
+  if(!(f = qjsx::self<StkFramesPtr>(ctx, this_val, js_stkframes_class_id)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -399,7 +393,7 @@ js_stkframes_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
 
       JS_ToUint32(ctx, &channel, argv[0]);
 
-      if(!(a = static_cast<StkFramesPtr*>(JS_GetOpaque(argv[1], js_stkframes_class_id))))
+      if(!(a = qjsx::opaque<StkFramesPtr>(argv[1], js_stkframes_class_id)))
         return JS_ThrowTypeError(ctx, "argument 2 must be StkFrames");
 
       JS_ToUint32(ctx, &dstChannel, argv[2]);
@@ -414,7 +408,7 @@ js_stkframes_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
 
       JS_ToUint32(ctx, &channel, argv[0]);
 
-      if(!(a = static_cast<StkFramesPtr*>(JS_GetOpaque(argv[1], js_stkframes_class_id))))
+      if(!(a = qjsx::opaque<StkFramesPtr>(argv[1], js_stkframes_class_id)))
         return JS_ThrowTypeError(ctx, "argument 2 must be StkFrames");
 
       JS_ToUint32(ctx, &srcChannel, argv[2]);
@@ -492,7 +486,7 @@ js_stkframes_get(JSContext* ctx, JSValueConst this_val, int magic) {
   StkFramesPtr* f;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(f = static_cast<StkFramesPtr*>(JS_GetOpaque2(ctx, this_val, js_stkframes_class_id))))
+  if(!(f = qjsx::self<StkFramesPtr>(ctx, this_val, js_stkframes_class_id)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -542,7 +536,7 @@ js_stkframes_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int 
   StkFramesPtr* f;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(f = static_cast<StkFramesPtr*>(JS_GetOpaque2(ctx, this_val, js_stkframes_class_id))))
+  if(!(f = qjsx::self<StkFramesPtr>(ctx, this_val, js_stkframes_class_id)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -557,19 +551,9 @@ js_stkframes_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int 
   return ret;
 }
 
-static void
-js_stkframes_finalizer(JSRuntime* rt, JSValue val) {
-  StkFramesPtr* f;
-
-  if((f = static_cast<StkFramesPtr*>(JS_GetOpaque(val, js_stkframes_class_id)))) {
-    f->~StkFramesPtr();
-    js_free_rt(rt, f);
-  }
-}
-
 static JSClassDef js_stkframes_class = {
   .class_name = "StkFrames",
-  .finalizer = js_stkframes_finalizer,
+  .finalizer = qjsx::finalize<StkFramesPtr, js_stkframes_class_id>,
 };
 
 static const JSCFunctionListEntry js_stkframes_funcs[] = {
@@ -601,6 +585,20 @@ enum {
   INSTANCE_NOISE,
   INSTANCE_SINE_WAVE,
   INSTANCE_SING_WAVE,
+};
+
+static const qjsx::ctor_def stkgenerator_ctors[] = {
+  { "ADSR", 0, INSTANCE_ADSR },
+  { "Asymp", 0, INSTANCE_ASYMP },
+  { "BlitSaw", 0, INSTANCE_BLIT_SAW },
+  { "BlitSquare", 0, INSTANCE_BLIT_SQUARE },
+  { "Blit", 0, INSTANCE_BLIT },
+  { "Envelope", 0, INSTANCE_ENVELOPE },
+  { "Granulate", 0, INSTANCE_GRANULATE },
+  { "Modulate", 0, INSTANCE_MODULATE },
+  { "Noise", 0, INSTANCE_NOISE },
+  { "SineWave", 0, INSTANCE_SINE_WAVE },
+  { "SingWave", 0, INSTANCE_SING_WAVE },
 };
 
 static JSValue
@@ -690,22 +688,7 @@ js_stkgenerator_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
   if(JS_IsException(obj))
     return obj;
 
-  js_set_tostringtag(
-      ctx, obj,
-      ((const char*[]){
-          "ADSR",
-          "Asymp",
-          "Blit",
-          "BlitSaw",
-          "BlitSquare",
-          "Envelope",
-          "Granulate",
-          "Modulate",
-          "Noise",
-          "SineWave",
-          "StkSingWave",
-      })[magic]
-  );
+  js_set_tostringtag(ctx, obj, qjsx::ctor_name(stkgenerator_ctors, magic));
 
   return obj;
 }
@@ -719,7 +702,7 @@ js_stkgenerator_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
   StkGeneratorPtr* f;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(f = static_cast<StkGeneratorPtr*>(JS_GetOpaque2(ctx, this_val, js_stkgenerator_class_id))))
+  if(!(f = qjsx::self<StkGeneratorPtr>(ctx, this_val, js_stkgenerator_class_id)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -727,7 +710,7 @@ js_stkgenerator_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       StkFramesPtr* a;
       uint32_t channel = 0;
 
-      if(argc > 0 && (a = static_cast<StkFramesPtr*>(JS_GetOpaque(argv[0], js_stkframes_class_id)))) {
+      if(argc > 0 && (a = qjsx::opaque<StkFramesPtr>(argv[0], js_stkframes_class_id))) {
         if(js_stk_channel(ctx, argc > 1 ? argv[1] : JS_UNDEFINED, (*a->get()).channels(), &channel))
           return JS_EXCEPTION;
 
@@ -785,7 +768,7 @@ js_stkgenerator_get(JSContext* ctx, JSValueConst this_val, int magic) {
   StkGeneratorPtr* g;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(g = static_cast<StkGeneratorPtr*>(JS_GetOpaque2(ctx, this_val, js_stkgenerator_class_id))))
+  if(!(g = qjsx::self<StkGeneratorPtr>(ctx, this_val, js_stkgenerator_class_id)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -803,7 +786,7 @@ js_stkgenerator_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, i
   StkGeneratorPtr* g;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(g = static_cast<StkGeneratorPtr*>(JS_GetOpaque2(ctx, this_val, js_stkgenerator_class_id))))
+  if(!(g = qjsx::self<StkGeneratorPtr>(ctx, this_val, js_stkgenerator_class_id)))
     return JS_EXCEPTION;
 
   switch(magic) {}
@@ -811,19 +794,9 @@ js_stkgenerator_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, i
   return ret;
 }
 
-static void
-js_stkgenerator_finalizer(JSRuntime* rt, JSValue val) {
-  StkGeneratorPtr* s;
-
-  if((s = static_cast<StkGeneratorPtr*>(JS_GetOpaque(val, js_stkgenerator_class_id)))) {
-    s->~StkGeneratorPtr();
-    js_free_rt(rt, s);
-  }
-}
-
 static JSClassDef js_stkgenerator_class = {
   .class_name = "Generator",
-  .finalizer = js_stkgenerator_finalizer,
+  .finalizer = qjsx::finalize<StkGeneratorPtr, js_stkgenerator_class_id>,
 };
 
 static const JSCFunctionListEntry js_stkgenerator_funcs[] = {
@@ -846,6 +819,22 @@ enum {
   INSTANCE_TAP_DELAY,
   INSTANCE_TWO_POLE,
   INSTANCE_TWO_ZERO,
+};
+
+static const qjsx::ctor_def stkfilter_ctors[] = {
+  { "BiQuad", 0, INSTANCE_BIQUAD },
+  { "DelayA", 0, INSTANCE_DELAY_A },
+  { "DelayL", 0, INSTANCE_DELAY_L },
+  { "Delay", 0, INSTANCE_DELAY },
+  { "Fir", 1, INSTANCE_FIR },
+  { "FormSwep", 0, INSTANCE_FORM_SWEP },
+  { "Iir", 0, INSTANCE_IIR },
+  { "OnePole", 0, INSTANCE_ONE_POLE },
+  { "OneZero", 0, INSTANCE_ONE_ZERO },
+  { "PoleZero", 0, INSTANCE_POLE_ZERO },
+  { "TapDelay", 0, INSTANCE_TAP_DELAY },
+  { "TwoPole", 0, INSTANCE_TWO_POLE },
+  { "TwoZero", 0, INSTANCE_TWO_ZERO },
 };
 
 static JSValue
@@ -976,24 +965,7 @@ js_stkfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
   if(JS_IsException(obj))
     return obj;
 
-  js_set_tostringtag(
-      ctx, obj,
-      ((const char*[]){
-          "BiQuad",
-          "Delay",
-          "DelayA",
-          "DelayL",
-          "Fir",
-          "FormSwep",
-          "Iir",
-          "OnePole",
-          "OneZero",
-          "PoleZero",
-          "TapDelay",
-          "TwoPole",
-          "TwoZero",
-      })[magic]
-  );
+  js_set_tostringtag(ctx, obj, qjsx::ctor_name(stkfilter_ctors, magic));
 
   return obj;
 }
@@ -1007,14 +979,14 @@ js_stkfilter_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
   StkFilterPtr* f;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(f = static_cast<StkFilterPtr*>(JS_GetOpaque2(ctx, this_val, js_stkfilter_class_id))))
+  if(!(f = qjsx::self<StkFilterPtr>(ctx, this_val, js_stkfilter_class_id)))
     return JS_EXCEPTION;
 
   switch(magic) {
     case METHOD_FILTER_TICK: {
       StkFramesPtr* a;
 
-      if((a = static_cast<StkFramesPtr*>(JS_GetOpaque(argv[0], js_stkframes_class_id)))) {
+      if((a = qjsx::opaque<StkFramesPtr>(argv[0], js_stkframes_class_id))) {
         uint32_t channel = 0;
         if(js_stk_channel(ctx, argc > 1 ? argv[1] : JS_UNDEFINED, (*a->get()).channels(), &channel))
           return JS_EXCEPTION;
@@ -1042,19 +1014,9 @@ js_stkfilter_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
   return ret;
 }
 
-static void
-js_stkfilter_finalizer(JSRuntime* rt, JSValue val) {
-  StkFilterPtr* f;
-
-  if((f = static_cast<StkFilterPtr*>(JS_GetOpaque(val, js_stkfilter_class_id)))) {
-    f->~StkFilterPtr();
-    js_free_rt(rt, f);
-  }
-}
-
 static JSClassDef js_stkfilter_class = {
   .class_name = "Filter",
-  .finalizer = js_stkfilter_finalizer,
+  .finalizer = qjsx::finalize<StkFilterPtr, js_stkfilter_class_id>,
 };
 
 static const JSCFunctionListEntry js_stkfilter_funcs[] = {
@@ -1071,6 +1033,17 @@ enum {
   INSTANCE_NREV,
   INSTANCE_PITSHIFT,
   INSTANCE_PRCREV,
+};
+
+static const qjsx::ctor_def stkeffect_ctors[] = {
+  { "Chorus", 0, INSTANCE_CHORUS },
+  { "Echo", 0, INSTANCE_ECHO },
+  { "FreeVerb", 0, INSTANCE_FREEVERB },
+  { "JCRev", 0, INSTANCE_JCREV },
+  { "LentPitShift", 0, INSTANCE_LENTPITSHIFT },
+  { "NRev", 0, INSTANCE_NREV },
+  { "PitShift", 0, INSTANCE_PITSHIFT },
+  { "PRCRev", 0, INSTANCE_PRCREV },
 };
 
 static JSValue
@@ -1127,19 +1100,7 @@ js_stkeffect_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
   if(JS_IsException(obj))
     return obj;
 
-  js_set_tostringtag(
-      ctx, obj,
-      ((const char*[]){
-          "Chorus",
-          "Echo",
-          "FreeVerb",
-          "JCRev",
-          "LentPitShift",
-          "NRev",
-          "PRCRev",
-          "PitShift",
-      })[magic]
-  );
+  js_set_tostringtag(ctx, obj, qjsx::ctor_name(stkeffect_ctors, magic));
 
   return obj;
 }
@@ -1155,7 +1116,7 @@ js_stkeffect_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
   StkEffectPtr* e;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(e = static_cast<StkEffectPtr*>(JS_GetOpaque2(ctx, this_val, js_stkeffect_class_id))))
+  if(!(e = qjsx::self<StkEffectPtr>(ctx, this_val, js_stkeffect_class_id)))
     return JS_EXCEPTION;
 
   stk::Effect* eff = e->get();
@@ -1164,7 +1125,7 @@ js_stkeffect_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
     case METHOD_EFFECT_TICK: {
       StkFramesPtr* a;
 
-      if((a = static_cast<StkFramesPtr*>(JS_GetOpaque(argv[0], js_stkframes_class_id)))) {
+      if((a = qjsx::opaque<StkFramesPtr>(argv[0], js_stkframes_class_id))) {
         uint32_t channel = 0;
         if(js_stk_channel(ctx, argc > 1 ? argv[1] : JS_UNDEFINED, (*a->get()).channels(), &channel))
           return JS_EXCEPTION;
@@ -1246,19 +1207,9 @@ js_stkeffect_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
   return ret;
 }
 
-static void
-js_stkeffect_finalizer(JSRuntime* rt, JSValue val) {
-  StkEffectPtr* e;
-
-  if((e = static_cast<StkEffectPtr*>(JS_GetOpaque(val, js_stkeffect_class_id)))) {
-    e->~StkEffectPtr();
-    js_free_rt(rt, e);
-  }
-}
-
 static JSClassDef js_stkeffect_class = {
   .class_name = "Effect",
-  .finalizer = js_stkeffect_finalizer,
+  .finalizer = qjsx::finalize<StkEffectPtr, js_stkeffect_class_id>,
 };
 
 static const JSCFunctionListEntry js_stkeffect_funcs[] = {
@@ -1276,6 +1227,16 @@ enum {
   INSTANCE_RHODEY,
   INSTANCE_TUBEBELL,
   INSTANCE_WURLEY,
+};
+
+static const qjsx::ctor_def stkfm_ctors[] = {
+  { "BeeThree", 0, INSTANCE_BEETHREE },
+  { "FMVoices", 0, INSTANCE_FMVOICES },
+  { "HevyMetl", 0, INSTANCE_HEVYMETL },
+  { "PercFlut", 0, INSTANCE_PERCFLUT },
+  { "Rhodey", 0, INSTANCE_RHODEY },
+  { "TubeBell", 0, INSTANCE_TUBEBELL },
+  { "Wurley", 0, INSTANCE_WURLEY },
 };
 
 static JSValue
@@ -1324,18 +1285,8 @@ js_stkfm_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueC
 
   if(JS_IsException(obj))
     return obj;
-  js_set_tostringtag(
-      ctx, obj,
-      ((const char*[]){
-          "BeeThree",
-          "FMVoices",
-          "HevyMetl",
-          "PercFlut",
-          "Rhodey",
-          "TubeBell",
-          "Wurley",
-      })[magic]
-  );
+  js_set_tostringtag(ctx, obj, qjsx::ctor_name(stkfm_ctors, magic));
+
   return obj;
 }
 
@@ -1355,7 +1306,7 @@ js_stkfm_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst ar
   StkFMPtr* fm;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(fm = static_cast<StkFMPtr*>(JS_GetOpaque2(ctx, this_val, js_stkfm_class_id))))
+  if(!(fm = qjsx::self<StkFMPtr>(ctx, this_val, js_stkfm_class_id)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -1363,7 +1314,7 @@ js_stkfm_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst ar
       StkFramesPtr* a;
       uint32_t channel = 0;
 
-      if(argc > 0 && (a = static_cast<StkFramesPtr*>(JS_GetOpaque(argv[0], js_stkframes_class_id)))) {
+      if(argc > 0 && (a = qjsx::opaque<StkFramesPtr>(argv[0], js_stkframes_class_id))) {
         if(js_stk_channel(ctx, argc > 1 ? argv[1] : JS_UNDEFINED, (*a->get()).channels(), &channel))
           return JS_EXCEPTION;
 
@@ -1411,19 +1362,9 @@ js_stkfm_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst ar
   return ret;
 }
 
-static void
-js_stkfm_finalizer(JSRuntime* rt, JSValue val) {
-  StkFMPtr* fm;
-
-  if((fm = static_cast<StkFMPtr*>(JS_GetOpaque(val, js_stkfm_class_id)))) {
-    fm->~StkFMPtr();
-    js_free_rt(rt, fm);
-  }
-}
-
 static JSClassDef js_stkfm_class = {
   .class_name = "StkFM",
-  .finalizer = js_stkfm_finalizer,
+  .finalizer = qjsx::finalize<StkFMPtr, js_stkfm_class_id>,
 };
 
 static const JSCFunctionListEntry js_stkfm_funcs[] = {
@@ -1432,6 +1373,133 @@ static const JSCFunctionListEntry js_stkfm_funcs[] = {
   JS_CFUNC_MAGIC_DEF("noteOff", 1, guarded<js_stkfm_method>, METHOD_FM_NOTE_OFF),
   JS_CFUNC_MAGIC_DEF("controlChange", 2, guarded<js_stkfm_method>, METHOD_FM_CONTROL_CHANGE),
   JS_PROP_STRING_DEF("[Symbol.toStringTag]", "StkFM", JS_PROP_CONFIGURABLE),
+};
+
+/* stk::Guitar is a digital waveguide string model that does NOT inherit from
+ * stk::Instrmnt (its noteOn/noteOff/controlChange take a per-string argument
+ * and it has no breath/pressure controls), so it gets its own class here
+ * rather than joining the stkinstrmnt family. */
+typedef std::shared_ptr<stk::Guitar> StkGuitarPtr;
+
+enum {
+  INSTANCE_GUITAR = 0,
+};
+
+static JSValue
+js_stkguitar_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {
+  StkGuitarPtr g;
+  uint32_t nStrings = 6;
+  const char* bodyfile = "";
+
+  if(argc > 0) {
+    if(JS_ToUint32(ctx, &nStrings, argv[0]))
+      return JS_EXCEPTION;
+  }
+  if(argc > 1) {
+    bodyfile = JS_ToCString(ctx, argv[1]);
+    if(!bodyfile)
+      return JS_EXCEPTION;
+  }
+
+  try {
+    g = std::make_shared<stk::Guitar>(nStrings, bodyfile);
+  } catch(stk::StkError& err) {
+    if(argc > 1)
+      JS_FreeCString(ctx, bodyfile);
+    return js_throw_stkerror(ctx, err);
+  }
+  if(argc > 1)
+    JS_FreeCString(ctx, bodyfile);
+
+  JSValue obj = qjsx::wrap<StkGuitarPtr>(ctx, new_target, js_stkguitar_class_id, std::move(g));
+
+  if(JS_IsException(obj))
+    return obj;
+  js_set_tostringtag(ctx, obj, "Guitar");
+  return obj;
+}
+
+enum {
+  METHOD_GUITAR_TICK = 0,
+  METHOD_GUITAR_NOTE_ON,
+  METHOD_GUITAR_NOTE_OFF,
+  METHOD_GUITAR_CONTROL_CHANGE,
+};
+
+static JSValue
+js_stkguitar_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+  StkGuitarPtr* g;
+  JSValue ret = JS_UNDEFINED;
+
+  if(!(g = qjsx::self<StkGuitarPtr>(ctx, this_val, js_stkguitar_class_id)))
+    return JS_EXCEPTION;
+
+  switch(magic) {
+    case METHOD_GUITAR_TICK: {
+      double input = 0;
+      if(argc > 0)
+        JS_ToFloat64(ctx, &input, argv[0]);
+
+      ret = JS_NewFloat64(ctx, (*g)->tick(input));
+      break;
+    }
+    case METHOD_GUITAR_NOTE_ON: {
+      double frequency = 0, amplitude = 0;
+      JS_ToFloat64(ctx, &frequency, argv[0]);
+      if(argc > 1)
+        JS_ToFloat64(ctx, &amplitude, argv[1]);
+
+      (*g)->noteOn(frequency, amplitude);
+      break;
+    }
+    case METHOD_GUITAR_NOTE_OFF: {
+      double amplitude = 0;
+      if(argc > 0)
+        JS_ToFloat64(ctx, &amplitude, argv[0]);
+
+      (*g)->noteOff(amplitude);
+      break;
+    }
+    case METHOD_GUITAR_CONTROL_CHANGE: {
+      int32_t number = 0;
+      double value = 0;
+      JS_ToInt32(ctx, &number, argv[0]);
+      if(argc > 1)
+        JS_ToFloat64(ctx, &value, argv[1]);
+
+      (*g)->controlChange(number, value);
+      break;
+    }
+  }
+
+  return ret;
+}
+
+static void
+js_stkguitar_finalizer(JSRuntime* rt, JSValue val) {
+  StkGuitarPtr* g;
+
+  if((g = static_cast<StkGuitarPtr*>(JS_GetOpaque(val, js_stkguitar_class_id)))) {
+    g->~StkGuitarPtr();
+    js_free_rt(rt, g);
+  }
+}
+
+static JSClassDef js_stkguitar_class = {
+  .class_name = "Guitar",
+  .finalizer = js_stkguitar_finalizer,
+};
+
+static const JSCFunctionListEntry js_stkguitar_funcs[] = {
+  JS_CFUNC_MAGIC_DEF("tick", 0, guarded<js_stkguitar_method>, METHOD_GUITAR_TICK),
+  JS_CFUNC_MAGIC_DEF("noteOn", 2, guarded<js_stkguitar_method>, METHOD_GUITAR_NOTE_ON),
+  JS_CFUNC_MAGIC_DEF("noteOff", 1, guarded<js_stkguitar_method>, METHOD_GUITAR_NOTE_OFF),
+  JS_CFUNC_MAGIC_DEF("controlChange", 2, guarded<js_stkguitar_method>, METHOD_GUITAR_CONTROL_CHANGE),
+  JS_PROP_STRING_DEF("[Symbol.toStringTag]", "Guitar", JS_PROP_CONFIGURABLE),
+};
+
+static const qjsx::ctor_def stk_guitar_ctors[] = {
+  { "Guitar", 0, INSTANCE_GUITAR },
 };
 
 enum {
@@ -1455,6 +1523,29 @@ enum {
   INSTANCE_STIFKARP,
   INSTANCE_VOICFORM,
   INSTANCE_WHISTLE,
+};
+
+static const qjsx::ctor_def stkinstrmnt_ctors[] = {
+  { "BandedWG", 0, INSTANCE_BANDEDWG },
+  { "BlowBotl", 0, INSTANCE_BLOWBOTL },
+  { "BlowHole", 0, INSTANCE_BLOWHOLE },
+  { "Bowed", 0, INSTANCE_BOWED },
+  { "Brass", 0, INSTANCE_BRASS },
+  { "Clarinet", 0, INSTANCE_CLARINET },
+  { "Drummer", 0, INSTANCE_DRUMMER },
+  { "Flute", 0, INSTANCE_FLUTE },
+  { "Mandolin", 0, INSTANCE_MANDOLIN },
+  { "Mesh2D", 0, INSTANCE_MESH2D },
+  { "Plucked", 0, INSTANCE_PLUCKED },
+  { "Recorder", 0, INSTANCE_RECORDER },
+  { "Resonate", 0, INSTANCE_RESONATE },
+  { "Saxofony", 0, INSTANCE_SAXOFONY },
+  { "Shakers", 0, INSTANCE_SHAKERS },
+  { "Simple", 0, INSTANCE_SIMPLE },
+  { "Sitar", 0, INSTANCE_SITAR },
+  { "StifKarp", 0, INSTANCE_STIFKARP },
+  { "VoicForm", 0, INSTANCE_VOICFORM },
+  { "Whistle", 0, INSTANCE_WHISTLE },
 };
 
 static JSValue
@@ -1576,7 +1667,7 @@ js_stkinstrmnt_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
   StkInstrmntPtr* i;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(i = static_cast<StkInstrmntPtr*>(JS_GetOpaque2(ctx, this_val, js_stkinstrmnt_class_id))))
+  if(!(i = qjsx::self<StkInstrmntPtr>(ctx, this_val, js_stkinstrmnt_class_id)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -1584,7 +1675,7 @@ js_stkinstrmnt_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
       StkFramesPtr* a;
       uint32_t channel = 0;
 
-      if(argc > 0 && (a = static_cast<StkFramesPtr*>(JS_GetOpaque(argv[0], js_stkframes_class_id)))) {
+      if(argc > 0 && (a = qjsx::opaque<StkFramesPtr>(argv[0], js_stkframes_class_id))) {
         if(js_stk_channel(ctx, argc > 1 ? argv[1] : JS_UNDEFINED, (*a->get()).channels(), &channel))
           return JS_EXCEPTION;
 
@@ -1632,19 +1723,9 @@ js_stkinstrmnt_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
   return ret;
 }
 
-static void
-js_stkinstrmnt_finalizer(JSRuntime* rt, JSValue val) {
-  StkInstrmntPtr* i;
-
-  if((i = static_cast<StkInstrmntPtr*>(JS_GetOpaque(val, js_stkinstrmnt_class_id)))) {
-    i->~StkInstrmntPtr();
-    js_free_rt(rt, i);
-  }
-}
-
 static JSClassDef js_stkinstrmnt_class = {
   .class_name = "StkInstrmnt",
-  .finalizer = js_stkinstrmnt_finalizer,
+  .finalizer = qjsx::finalize<StkInstrmntPtr, js_stkinstrmnt_class_id>,
 };
 
 static const JSCFunctionListEntry js_stkinstrmnt_funcs[] = {
@@ -1657,6 +1738,10 @@ static const JSCFunctionListEntry js_stkinstrmnt_funcs[] = {
 
 enum {
   INSTANCE_CUBIC = 0,
+};
+
+static const qjsx::ctor_def stkfunction_ctors[] = {
+  { "Cubic", 0, INSTANCE_CUBIC },
 };
 
 static JSValue
@@ -1679,12 +1764,7 @@ js_stkfunction_constructor(JSContext* ctx, JSValueConst new_target, int argc, JS
   if(JS_IsException(obj))
     return obj;
 
-  js_set_tostringtag(
-      ctx, obj,
-      ((const char*[]){
-          "Cubic",
-      })[magic]
-  );
+  js_set_tostringtag(ctx, obj, qjsx::ctor_name(stkfunction_ctors, magic));
 
   return obj;
 }
@@ -1703,14 +1783,14 @@ js_stkfunction_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
   StkFunctionPtr* g;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(g = static_cast<StkFunctionPtr*>(JS_GetOpaque2(ctx, this_val, js_stkfunction_class_id))))
+  if(!(g = qjsx::self<StkFunctionPtr>(ctx, this_val, js_stkfunction_class_id)))
     return JS_EXCEPTION;
 
   switch(magic) {
     case METHOD_FUNCTION_TICK: {
       StkFramesPtr* a;
 
-      if((a = static_cast<StkFramesPtr*>(JS_GetOpaque(argv[0], js_stkframes_class_id)))) {
+      if((a = qjsx::opaque<StkFramesPtr>(argv[0], js_stkframes_class_id))) {
         uint32_t channel = 0;
         if(js_stk_channel(ctx, argc > 1 ? argv[1] : JS_UNDEFINED, (*a->get()).channels(), &channel))
           return JS_EXCEPTION;
@@ -1758,19 +1838,9 @@ js_stkfunction_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
   return ret;
 }
 
-static void
-js_stkfunction_finalizer(JSRuntime* rt, JSValue val) {
-  StkFunctionPtr* g;
-
-  if((g = static_cast<StkFunctionPtr*>(JS_GetOpaque(val, js_stkfunction_class_id)))) {
-    g->~StkFunctionPtr();
-    js_free_rt(rt, g);
-  }
-}
-
 static JSClassDef js_stkfunction_class = {
   .class_name = "Function",
-  .finalizer = js_stkfunction_finalizer,
+  .finalizer = qjsx::finalize<StkFunctionPtr, js_stkfunction_class_id>,
 };
 
 static const JSCFunctionListEntry js_stkfunction_funcs[] = {
@@ -1826,7 +1896,7 @@ js_twintdrum_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
   StkInstrmntPtr* p;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(p = static_cast<StkInstrmntPtr*>(JS_GetOpaque2(ctx, this_val, js_stkinstrmnt_class_id))))
+  if(!(p = qjsx::self<StkInstrmntPtr>(ctx, this_val, js_stkinstrmnt_class_id)))
     return JS_EXCEPTION;
 
   TwinTDrum* d = dynamic_cast<TwinTDrum*>(p->get());
@@ -1982,7 +2052,7 @@ js_tr909bassdrum_method(JSContext* ctx, JSValueConst this_val, int argc, JSValue
   StkInstrmntPtr* p;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(p = static_cast<StkInstrmntPtr*>(JS_GetOpaque2(ctx, this_val, js_stkinstrmnt_class_id))))
+  if(!(p = qjsx::self<StkInstrmntPtr>(ctx, this_val, js_stkinstrmnt_class_id)))
     return JS_EXCEPTION;
 
   Tr909BassDrum* d = dynamic_cast<Tr909BassDrum*>(p->get());
@@ -2144,7 +2214,7 @@ js_tr909percussion_method(JSContext* ctx, JSValueConst this_val, int argc, JSVal
   StkInstrmntPtr* p;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(p = static_cast<StkInstrmntPtr*>(JS_GetOpaque2(ctx, this_val, js_stkinstrmnt_class_id))))
+  if(!(p = qjsx::self<StkInstrmntPtr>(ctx, this_val, js_stkinstrmnt_class_id)))
     return JS_EXCEPTION;
 
   Tr909Percussion* d = dynamic_cast<Tr909Percussion*>(p->get());
@@ -2331,7 +2401,7 @@ js_stkwvin_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst 
   StkWvInPtr* w;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(w = static_cast<StkWvInPtr*>(JS_GetOpaque2(ctx, this_val, js_stkwvin_class_id))))
+  if(!(w = qjsx::self<StkWvInPtr>(ctx, this_val, js_stkwvin_class_id)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -2339,7 +2409,7 @@ js_stkwvin_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst 
       StkFramesPtr* a;
       uint32_t channel = 0;
 
-      if(argc > 0 && (a = static_cast<StkFramesPtr*>(JS_GetOpaque(argv[0], js_stkframes_class_id)))) {
+      if(argc > 0 && (a = qjsx::opaque<StkFramesPtr>(argv[0], js_stkframes_class_id))) {
         if(js_stk_channel(ctx, argc > 1 ? argv[1] : JS_UNDEFINED, (*a->get()).channels(), &channel))
           return JS_EXCEPTION;
 
@@ -2370,7 +2440,7 @@ js_stkwvin_get(JSContext* ctx, JSValueConst this_val, int magic) {
   StkWvInPtr* w;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(w = static_cast<StkWvInPtr*>(JS_GetOpaque2(ctx, this_val, js_stkwvin_class_id))))
+  if(!(w = qjsx::self<StkWvInPtr>(ctx, this_val, js_stkwvin_class_id)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -2392,19 +2462,9 @@ js_stkwvin_get(JSContext* ctx, JSValueConst this_val, int magic) {
   return ret;
 }
 
-static void
-js_stkwvin_finalizer(JSRuntime* rt, JSValue val) {
-  StkWvInPtr* w;
-
-  if((w = static_cast<StkWvInPtr*>(JS_GetOpaque(val, js_stkwvin_class_id)))) {
-    w->~StkWvInPtr();
-    js_free_rt(rt, w);
-  }
-}
-
 static JSClassDef js_stkwvin_class = {
   .class_name = "StkWvIn",
-  .finalizer = js_stkwvin_finalizer,
+  .finalizer = qjsx::finalize<StkWvInPtr, js_stkwvin_class_id>,
 };
 
 static const JSCFunctionListEntry js_stkwvin_funcs[] = {
@@ -2426,7 +2486,7 @@ static JSValue
 js_rtwvin_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
   StkWvInPtr* w;
 
-  if(!(w = static_cast<StkWvInPtr*>(JS_GetOpaque2(ctx, this_val, js_stkwvin_class_id))))
+  if(!(w = qjsx::self<StkWvInPtr>(ctx, this_val, js_stkwvin_class_id)))
     return JS_EXCEPTION;
 
   stk::RtWvIn* r = dynamic_cast<stk::RtWvIn*>(w->get());
@@ -2457,7 +2517,7 @@ js_inetwvin_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
   StkWvInPtr* w;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(w = static_cast<StkWvInPtr*>(JS_GetOpaque2(ctx, this_val, js_stkwvin_class_id))))
+  if(!(w = qjsx::self<StkWvInPtr>(ctx, this_val, js_stkwvin_class_id)))
     return JS_EXCEPTION;
 
   stk::InetWvIn* n = dynamic_cast<stk::InetWvIn*>(w->get());
@@ -2587,14 +2647,14 @@ js_stkwvout_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
   StkWvOutPtr* w;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(w = static_cast<StkWvOutPtr*>(JS_GetOpaque2(ctx, this_val, js_stkwvout_class_id))))
+  if(!(w = qjsx::self<StkWvOutPtr>(ctx, this_val, js_stkwvout_class_id)))
     return JS_EXCEPTION;
 
   switch(magic) {
     case METHOD_WVOUT_TICK: {
       StkFramesPtr* a;
 
-      if(argc > 0 && (a = static_cast<StkFramesPtr*>(JS_GetOpaque(argv[0], js_stkframes_class_id)))) {
+      if(argc > 0 && (a = qjsx::opaque<StkFramesPtr>(argv[0], js_stkframes_class_id))) {
         (*w)->tick(*a->get());
         break;
       }
@@ -2627,7 +2687,7 @@ js_stkwvout_get(JSContext* ctx, JSValueConst this_val, int magic) {
   StkWvOutPtr* w;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(w = static_cast<StkWvOutPtr*>(JS_GetOpaque2(ctx, this_val, js_stkwvout_class_id))))
+  if(!(w = qjsx::self<StkWvOutPtr>(ctx, this_val, js_stkwvout_class_id)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -2644,19 +2704,9 @@ js_stkwvout_get(JSContext* ctx, JSValueConst this_val, int magic) {
   return ret;
 }
 
-static void
-js_stkwvout_finalizer(JSRuntime* rt, JSValue val) {
-  StkWvOutPtr* w;
-
-  if((w = static_cast<StkWvOutPtr*>(JS_GetOpaque(val, js_stkwvout_class_id)))) {
-    w->~StkWvOutPtr();
-    js_free_rt(rt, w);
-  }
-}
-
 static JSClassDef js_stkwvout_class = {
   .class_name = "StkWvOut",
-  .finalizer = js_stkwvout_finalizer,
+  .finalizer = qjsx::finalize<StkWvOutPtr, js_stkwvout_class_id>,
 };
 
 static const JSCFunctionListEntry js_stkwvout_funcs[] = {
@@ -2678,7 +2728,7 @@ static JSValue
 js_rtwvout_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
   StkWvOutPtr* w;
 
-  if(!(w = static_cast<StkWvOutPtr*>(JS_GetOpaque2(ctx, this_val, js_stkwvout_class_id))))
+  if(!(w = qjsx::self<StkWvOutPtr>(ctx, this_val, js_stkwvout_class_id)))
     return JS_EXCEPTION;
 
   stk::RtWvOut* r = dynamic_cast<stk::RtWvOut*>(w->get());
@@ -2708,7 +2758,7 @@ static JSValue
 js_inetwvout_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
   StkWvOutPtr* w;
 
-  if(!(w = static_cast<StkWvOutPtr*>(JS_GetOpaque2(ctx, this_val, js_stkwvout_class_id))))
+  if(!(w = qjsx::self<StkWvOutPtr>(ctx, this_val, js_stkwvout_class_id)))
     return JS_EXCEPTION;
 
   stk::InetWvOut* n = dynamic_cast<stk::InetWvOut*>(w->get());
@@ -2818,7 +2868,7 @@ js_midifilein_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
   stk::MidiFileIn* mf;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(mf = static_cast<stk::MidiFileIn*>(JS_GetOpaque2(ctx, this_val, js_midifilein_class_id))))
+  if(!(mf = qjsx::self<stk::MidiFileIn>(ctx, this_val, js_midifilein_class_id)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -2885,7 +2935,7 @@ js_midifilein_get(JSContext* ctx, JSValueConst this_val, int magic) {
   stk::MidiFileIn* mf;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(mf = static_cast<stk::MidiFileIn*>(JS_GetOpaque2(ctx, this_val, js_midifilein_class_id))))
+  if(!(mf = qjsx::self<stk::MidiFileIn>(ctx, this_val, js_midifilein_class_id)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -2897,15 +2947,9 @@ js_midifilein_get(JSContext* ctx, JSValueConst this_val, int magic) {
   return ret;
 }
 
-static void
-js_midifilein_finalizer(JSRuntime* rt, JSValue val) {
-  stk::MidiFileIn* mf = static_cast<stk::MidiFileIn*>(JS_GetOpaque(val, js_midifilein_class_id));
-  delete mf;
-}
-
 static JSClassDef js_midifilein_class = {
   .class_name = "MidiFileIn",
-  .finalizer = js_midifilein_finalizer,
+  .finalizer = qjsx::finalize_delete<stk::MidiFileIn, js_midifilein_class_id>,
 };
 
 static const JSCFunctionListEntry js_midifilein_funcs[] = {
@@ -2992,7 +3036,7 @@ js_rtmidiin_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
   RtMidiIn* r;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(r = static_cast<RtMidiIn*>(JS_GetOpaque2(ctx, this_val, js_rtmidiin_class_id))))
+  if(!(r = qjsx::self<RtMidiIn>(ctx, this_val, js_rtmidiin_class_id)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -3095,15 +3139,9 @@ js_rtmidiin_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
   return ret;
 }
 
-static void
-js_rtmidiin_finalizer(JSRuntime* rt, JSValue val) {
-  RtMidiIn* r = static_cast<RtMidiIn*>(JS_GetOpaque(val, js_rtmidiin_class_id));
-  delete r;
-}
-
 static JSClassDef js_rtmidiin_class = {
   .class_name = "RtMidiIn",
-  .finalizer = js_rtmidiin_finalizer,
+  .finalizer = qjsx::finalize_delete<RtMidiIn, js_rtmidiin_class_id>,
 };
 
 static const JSCFunctionListEntry js_rtmidiin_funcs[] = {
@@ -3182,7 +3220,7 @@ js_rtmidiout_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
   RtMidiOut* r;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(r = static_cast<RtMidiOut*>(JS_GetOpaque2(ctx, this_val, js_rtmidiout_class_id))))
+  if(!(r = qjsx::self<RtMidiOut>(ctx, this_val, js_rtmidiout_class_id)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -3266,15 +3304,9 @@ js_rtmidiout_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
   return ret;
 }
 
-static void
-js_rtmidiout_finalizer(JSRuntime* rt, JSValue val) {
-  RtMidiOut* r = static_cast<RtMidiOut*>(JS_GetOpaque(val, js_rtmidiout_class_id));
-  delete r;
-}
-
 static JSClassDef js_rtmidiout_class = {
   .class_name = "RtMidiOut",
-  .finalizer = js_rtmidiout_finalizer,
+  .finalizer = qjsx::finalize_delete<RtMidiOut, js_rtmidiout_class_id>,
 };
 
 static const JSCFunctionListEntry js_rtmidiout_funcs[] = {
@@ -3358,7 +3390,7 @@ js_rtaudio_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst 
   RtAudio* a;
   JSValue ret = JS_UNDEFINED;
 
-  if(!(a = static_cast<RtAudio*>(JS_GetOpaque2(ctx, this_val, js_rtaudio_class_id))))
+  if(!(a = qjsx::self<RtAudio>(ctx, this_val, js_rtaudio_class_id)))
     return JS_EXCEPTION;
 
   switch(magic) {
@@ -3478,15 +3510,9 @@ js_rtaudio_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst 
   return ret;
 }
 
-static void
-js_rtaudio_finalizer(JSRuntime* rt, JSValue val) {
-  RtAudio* a = static_cast<RtAudio*>(JS_GetOpaque(val, js_rtaudio_class_id));
-  delete a;
-}
-
 static JSClassDef js_rtaudio_class = {
   .class_name = "RtAudio",
-  .finalizer = js_rtaudio_finalizer,
+  .finalizer = qjsx::finalize_delete<RtAudio, js_rtaudio_class_id>,
 };
 
 static const JSCFunctionListEntry js_rtaudio_funcs[] = {
@@ -3549,47 +3575,9 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
 
   JSValue ctor;
 
-  if(m) {
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "BiQuad", 0, JS_CFUNC_constructor_magic, INSTANCE_BIQUAD);
-    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
-    JS_SetModuleExport(ctx, m, "BiQuad", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "DelayA", 0, JS_CFUNC_constructor_magic, INSTANCE_DELAY_A);
-    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
-    JS_SetModuleExport(ctx, m, "DelayA", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "DelayL", 0, JS_CFUNC_constructor_magic, INSTANCE_DELAY_L);
-    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
-    JS_SetModuleExport(ctx, m, "DelayL", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "Delay", 0, JS_CFUNC_constructor_magic, INSTANCE_DELAY);
-    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
-    JS_SetModuleExport(ctx, m, "Delay", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "Fir", 1, JS_CFUNC_constructor_magic, INSTANCE_FIR);
-    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
-    JS_SetModuleExport(ctx, m, "Fir", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "FormSwep", 0, JS_CFUNC_constructor_magic, INSTANCE_FORM_SWEP);
-    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
-    JS_SetModuleExport(ctx, m, "FormSwep", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "Iir", 0, JS_CFUNC_constructor_magic, INSTANCE_IIR);
-    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
-    JS_SetModuleExport(ctx, m, "Iir", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "OnePole", 0, JS_CFUNC_constructor_magic, INSTANCE_ONE_POLE);
-    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
-    JS_SetModuleExport(ctx, m, "OnePole", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "OneZero", 0, JS_CFUNC_constructor_magic, INSTANCE_ONE_ZERO);
-    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
-    JS_SetModuleExport(ctx, m, "OneZero", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "PoleZero", 0, JS_CFUNC_constructor_magic, INSTANCE_POLE_ZERO);
-    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
-    JS_SetModuleExport(ctx, m, "PoleZero", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "TapDelay", 0, JS_CFUNC_constructor_magic, INSTANCE_TAP_DELAY);
-    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
-    JS_SetModuleExport(ctx, m, "TapDelay", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "TwoPole", 0, JS_CFUNC_constructor_magic, INSTANCE_TWO_POLE);
-    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
-    JS_SetModuleExport(ctx, m, "TwoPole", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfilter_constructor, "TwoZero", 0, JS_CFUNC_constructor_magic, INSTANCE_TWO_ZERO);
-    JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, stkfilter_proto), 0);
-    JS_SetModuleExport(ctx, m, "TwoZero", ctor);
-  }
+  if(m)
+    qjsx::bind_ctors(ctx, m, js_stkfilter_constructor, stkfilter_proto, stkfilter_ctors);
+
   JS_NewClassID(&js_stkgenerator_class_id);
   JS_NewClass(JS_GetRuntime(ctx), js_stkgenerator_class_id, &js_stkgenerator_class);
 
@@ -3601,30 +3589,8 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
 
   JS_SetClassProto(ctx, js_stkgenerator_class_id, stkgenerator_proto);
 
-  if(m) {
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "ADSR", 0, JS_CFUNC_constructor_magic, INSTANCE_ADSR);
-    JS_SetModuleExport(ctx, m, "ADSR", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "Asymp", 0, JS_CFUNC_constructor_magic, INSTANCE_ASYMP);
-    JS_SetModuleExport(ctx, m, "Asymp", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "BlitSaw", 0, JS_CFUNC_constructor_magic, INSTANCE_BLIT_SAW);
-    JS_SetModuleExport(ctx, m, "BlitSaw", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "BlitSquare", 0, JS_CFUNC_constructor_magic, INSTANCE_BLIT_SQUARE);
-    JS_SetModuleExport(ctx, m, "BlitSquare", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "Blit", 0, JS_CFUNC_constructor_magic, INSTANCE_BLIT);
-    JS_SetModuleExport(ctx, m, "Blit", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "Envelope", 0, JS_CFUNC_constructor_magic, INSTANCE_ENVELOPE);
-    JS_SetModuleExport(ctx, m, "Envelope", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "Granulate", 0, JS_CFUNC_constructor_magic, INSTANCE_GRANULATE);
-    JS_SetModuleExport(ctx, m, "Granulate", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "Modulate", 0, JS_CFUNC_constructor_magic, INSTANCE_MODULATE);
-    JS_SetModuleExport(ctx, m, "Modulate", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "Noise", 0, JS_CFUNC_constructor_magic, INSTANCE_NOISE);
-    JS_SetModuleExport(ctx, m, "Noise", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "SineWave", 0, JS_CFUNC_constructor_magic, INSTANCE_SINE_WAVE);
-    JS_SetModuleExport(ctx, m, "SineWave", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkgenerator_constructor, "SingWave", 0, JS_CFUNC_constructor_magic, INSTANCE_SING_WAVE);
-    JS_SetModuleExport(ctx, m, "StkSingWave", ctor);
-  }
+  if(m)
+    qjsx::bind_ctors(ctx, m, js_stkgenerator_constructor, stkgenerator_proto, stkgenerator_ctors);
 
   JS_NewClassID(&js_stkeffect_class_id);
   JS_NewClass(JS_GetRuntime(ctx), js_stkeffect_class_id, &js_stkeffect_class);
@@ -3638,22 +3604,7 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
   JS_SetClassProto(ctx, js_stkeffect_class_id, stkeffect_proto);
 
   if(m) {
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkeffect_constructor, "Chorus", 0, JS_CFUNC_constructor_magic, INSTANCE_CHORUS);
-    JS_SetModuleExport(ctx, m, "Chorus", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkeffect_constructor, "Echo", 0, JS_CFUNC_constructor_magic, INSTANCE_ECHO);
-    JS_SetModuleExport(ctx, m, "Echo", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkeffect_constructor, "FreeVerb", 0, JS_CFUNC_constructor_magic, INSTANCE_FREEVERB);
-    JS_SetModuleExport(ctx, m, "FreeVerb", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkeffect_constructor, "JCRev", 0, JS_CFUNC_constructor_magic, INSTANCE_JCREV);
-    JS_SetModuleExport(ctx, m, "JCRev", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkeffect_constructor, "LentPitShift", 0, JS_CFUNC_constructor_magic, INSTANCE_LENTPITSHIFT);
-    JS_SetModuleExport(ctx, m, "LentPitShift", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkeffect_constructor, "NRev", 0, JS_CFUNC_constructor_magic, INSTANCE_NREV);
-    JS_SetModuleExport(ctx, m, "NRev", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkeffect_constructor, "PitShift", 0, JS_CFUNC_constructor_magic, INSTANCE_PITSHIFT);
-    JS_SetModuleExport(ctx, m, "PitShift", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkeffect_constructor, "PRCRev", 0, JS_CFUNC_constructor_magic, INSTANCE_PRCREV);
-    JS_SetModuleExport(ctx, m, "PRCRev", ctor);
+    qjsx::bind_ctors(ctx, m, js_stkeffect_constructor, stkeffect_proto, stkeffect_ctors);
 
     JS_SetModuleExport(ctx, m, "Effect", stkeffect_ctor);
   }
@@ -3669,22 +3620,25 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
   JS_SetClassProto(ctx, js_stkfm_class_id, stkfm_proto);
 
   if(m) {
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfm_constructor, "BeeThree", 0, JS_CFUNC_constructor_magic, INSTANCE_BEETHREE);
-    JS_SetModuleExport(ctx, m, "BeeThree", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfm_constructor, "FMVoices", 0, JS_CFUNC_constructor_magic, INSTANCE_FMVOICES);
-    JS_SetModuleExport(ctx, m, "FMVoices", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfm_constructor, "HevyMetl", 0, JS_CFUNC_constructor_magic, INSTANCE_HEVYMETL);
-    JS_SetModuleExport(ctx, m, "HevyMetl", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfm_constructor, "PercFlut", 0, JS_CFUNC_constructor_magic, INSTANCE_PERCFLUT);
-    JS_SetModuleExport(ctx, m, "PercFlut", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfm_constructor, "Rhodey", 0, JS_CFUNC_constructor_magic, INSTANCE_RHODEY);
-    JS_SetModuleExport(ctx, m, "Rhodey", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfm_constructor, "TubeBell", 0, JS_CFUNC_constructor_magic, INSTANCE_TUBEBELL);
-    JS_SetModuleExport(ctx, m, "TubeBell", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfm_constructor, "Wurley", 0, JS_CFUNC_constructor_magic, INSTANCE_WURLEY);
-    JS_SetModuleExport(ctx, m, "Wurley", ctor);
+    qjsx::bind_ctors(ctx, m, js_stkfm_constructor, stkfm_proto, stkfm_ctors);
 
     JS_SetModuleExport(ctx, m, "FM", stkfm_ctor);
+  }
+
+  JS_NewClassID(&js_stkguitar_class_id);
+  JS_NewClass(JS_GetRuntime(ctx), js_stkguitar_class_id, &js_stkguitar_class);
+
+  stkguitar_ctor = JS_NewObject(ctx);
+  stkguitar_proto = JS_NewObject(ctx);
+
+  JS_SetPropertyFunctionList(ctx, stkguitar_proto, js_stkguitar_funcs, countof(js_stkguitar_funcs));
+
+  JS_SetClassProto(ctx, js_stkguitar_class_id, stkguitar_proto);
+
+  if(m) {
+    qjsx::bind_ctors(ctx, m, js_stkguitar_constructor, stkguitar_proto, stk_guitar_ctors);
+
+    JS_SetModuleExport(ctx, m, "Guitar", stkguitar_ctor);
   }
 
   stkinstrmnt_ctor = JS_NewObject(ctx); // JS_NewCFunction2(ctx, js_stkinstrmnt_constructor,
@@ -3696,46 +3650,7 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
   JS_SetClassProto(ctx, js_stkinstrmnt_class_id, stkinstrmnt_proto);
 
   if(m) {
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "BandedWG", 0, JS_CFUNC_constructor_magic, INSTANCE_BANDEDWG);
-    JS_SetModuleExport(ctx, m, "BandedWG", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "BlowBotl", 0, JS_CFUNC_constructor_magic, INSTANCE_BLOWBOTL);
-    JS_SetModuleExport(ctx, m, "BlowBotl", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "BlowHole", 0, JS_CFUNC_constructor_magic, INSTANCE_BLOWHOLE);
-    JS_SetModuleExport(ctx, m, "BlowHole", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Bowed", 0, JS_CFUNC_constructor_magic, INSTANCE_BOWED);
-    JS_SetModuleExport(ctx, m, "Bowed", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Brass", 0, JS_CFUNC_constructor_magic, INSTANCE_BRASS);
-    JS_SetModuleExport(ctx, m, "Brass", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Clarinet", 0, JS_CFUNC_constructor_magic, INSTANCE_CLARINET);
-    JS_SetModuleExport(ctx, m, "Clarinet", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Drummer", 0, JS_CFUNC_constructor_magic, INSTANCE_DRUMMER);
-    JS_SetModuleExport(ctx, m, "Drummer", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Flute", 0, JS_CFUNC_constructor_magic, INSTANCE_FLUTE);
-    JS_SetModuleExport(ctx, m, "Flute", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Mandolin", 0, JS_CFUNC_constructor_magic, INSTANCE_MANDOLIN);
-    JS_SetModuleExport(ctx, m, "Mandolin", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Mesh2D", 0, JS_CFUNC_constructor_magic, INSTANCE_MESH2D);
-    JS_SetModuleExport(ctx, m, "Mesh2D", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Plucked", 0, JS_CFUNC_constructor_magic, INSTANCE_PLUCKED);
-    JS_SetModuleExport(ctx, m, "Plucked", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Recorder", 0, JS_CFUNC_constructor_magic, INSTANCE_RECORDER);
-    JS_SetModuleExport(ctx, m, "Recorder", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Resonate", 0, JS_CFUNC_constructor_magic, INSTANCE_RESONATE);
-    JS_SetModuleExport(ctx, m, "Resonate", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Saxofony", 0, JS_CFUNC_constructor_magic, INSTANCE_SAXOFONY);
-    JS_SetModuleExport(ctx, m, "Saxofony", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Shakers", 0, JS_CFUNC_constructor_magic, INSTANCE_SHAKERS);
-    JS_SetModuleExport(ctx, m, "Shakers", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Simple", 0, JS_CFUNC_constructor_magic, INSTANCE_SIMPLE);
-    JS_SetModuleExport(ctx, m, "Simple", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Sitar", 0, JS_CFUNC_constructor_magic, INSTANCE_SITAR);
-    JS_SetModuleExport(ctx, m, "Sitar", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "StifKarp", 0, JS_CFUNC_constructor_magic, INSTANCE_STIFKARP);
-    JS_SetModuleExport(ctx, m, "StifKarp", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "VoicForm", 0, JS_CFUNC_constructor_magic, INSTANCE_VOICFORM);
-    JS_SetModuleExport(ctx, m, "VoicForm", ctor);
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkinstrmnt_constructor, "Whistle", 0, JS_CFUNC_constructor_magic, INSTANCE_WHISTLE);
-    JS_SetModuleExport(ctx, m, "Whistle", ctor);
+    qjsx::bind_ctors(ctx, m, js_stkinstrmnt_constructor, stkinstrmnt_proto, stkinstrmnt_ctors);
 
     JS_SetModuleExport(ctx, m, "Stk", stk_ctor);
     JS_SetModuleExport(ctx, m, "StkFrames", stkframes_ctor);
@@ -3885,6 +3800,7 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
   JS_NewClassID(&js_rtaudio_class_id);
   JS_NewClass(JS_GetRuntime(ctx), js_rtaudio_class_id, &js_rtaudio_class);
 
+  rtaudio_ctor = JS_NewObject(ctx);
   rtaudio_proto = JS_NewObject(ctx);
   JS_SetPropertyFunctionList(ctx, rtaudio_proto, js_rtaudio_funcs, countof(js_rtaudio_funcs));
   JS_SetClassProto(ctx, js_rtaudio_class_id, rtaudio_proto);
@@ -3900,66 +3816,14 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
 
 extern "C" VISIBLE void
 js_stk_add_exports(JSContext* ctx, JSModuleDef* m) {
-  JS_AddModuleExport(ctx, m, "BiQuad");
-  JS_AddModuleExport(ctx, m, "DelayA");
-  JS_AddModuleExport(ctx, m, "DelayL");
-  JS_AddModuleExport(ctx, m, "Delay");
-  JS_AddModuleExport(ctx, m, "Fir");
-  JS_AddModuleExport(ctx, m, "FormSwep");
-  JS_AddModuleExport(ctx, m, "Iir");
-  JS_AddModuleExport(ctx, m, "OnePole");
-  JS_AddModuleExport(ctx, m, "OneZero");
-  JS_AddModuleExport(ctx, m, "PoleZero");
-  JS_AddModuleExport(ctx, m, "TapDelay");
-  JS_AddModuleExport(ctx, m, "TwoPole");
-  JS_AddModuleExport(ctx, m, "TwoZero");
-  JS_AddModuleExport(ctx, m, "ADSR");
-  JS_AddModuleExport(ctx, m, "Asymp");
-  JS_AddModuleExport(ctx, m, "BlitSaw");
-  JS_AddModuleExport(ctx, m, "BlitSquare");
-  JS_AddModuleExport(ctx, m, "Blit");
-  JS_AddModuleExport(ctx, m, "Envelope");
-  JS_AddModuleExport(ctx, m, "Granulate");
-  JS_AddModuleExport(ctx, m, "Modulate");
-  JS_AddModuleExport(ctx, m, "Noise");
-  JS_AddModuleExport(ctx, m, "SineWave");
-  JS_AddModuleExport(ctx, m, "StkSingWave");
-  JS_AddModuleExport(ctx, m, "BandedWG");
-  JS_AddModuleExport(ctx, m, "BlowBotl");
-  JS_AddModuleExport(ctx, m, "BlowHole");
-  JS_AddModuleExport(ctx, m, "Bowed");
-  JS_AddModuleExport(ctx, m, "Brass");
-  JS_AddModuleExport(ctx, m, "Clarinet");
-  JS_AddModuleExport(ctx, m, "Drummer");
-  JS_AddModuleExport(ctx, m, "Flute");
-  JS_AddModuleExport(ctx, m, "Mandolin");
-  JS_AddModuleExport(ctx, m, "Mesh2D");
-  JS_AddModuleExport(ctx, m, "Plucked");
-  JS_AddModuleExport(ctx, m, "Recorder");
-  JS_AddModuleExport(ctx, m, "Resonate");
-  JS_AddModuleExport(ctx, m, "Saxofony");
-  JS_AddModuleExport(ctx, m, "Shakers");
-  JS_AddModuleExport(ctx, m, "Simple");
-  JS_AddModuleExport(ctx, m, "Sitar");
-  JS_AddModuleExport(ctx, m, "StifKarp");
-  JS_AddModuleExport(ctx, m, "VoicForm");
-  JS_AddModuleExport(ctx, m, "Whistle");
-  JS_AddModuleExport(ctx, m, "Chorus");
-  JS_AddModuleExport(ctx, m, "Echo");
-  JS_AddModuleExport(ctx, m, "FreeVerb");
-  JS_AddModuleExport(ctx, m, "JCRev");
-  JS_AddModuleExport(ctx, m, "LentPitShift");
-  JS_AddModuleExport(ctx, m, "NRev");
-  JS_AddModuleExport(ctx, m, "PitShift");
-  JS_AddModuleExport(ctx, m, "PRCRev");
+  qjsx::declare_ctors(ctx, m, stkfilter_ctors);
+  qjsx::declare_ctors(ctx, m, stkgenerator_ctors);
+  qjsx::declare_ctors(ctx, m, stkinstrmnt_ctors);
+  qjsx::declare_ctors(ctx, m, stkeffect_ctors);
+  qjsx::declare_ctors(ctx, m, stkfm_ctors);
+  qjsx::declare_ctors(ctx, m, stk_guitar_ctors);
+
   JS_AddModuleExport(ctx, m, "Effect");
-  JS_AddModuleExport(ctx, m, "BeeThree");
-  JS_AddModuleExport(ctx, m, "FMVoices");
-  JS_AddModuleExport(ctx, m, "HevyMetl");
-  JS_AddModuleExport(ctx, m, "PercFlut");
-  JS_AddModuleExport(ctx, m, "Rhodey");
-  JS_AddModuleExport(ctx, m, "TubeBell");
-  JS_AddModuleExport(ctx, m, "Wurley");
   JS_AddModuleExport(ctx, m, "FM");
   JS_AddModuleExport(ctx, m, "TwinTDrum");
   JS_AddModuleExport(ctx, m, "Tr909BassDrum");

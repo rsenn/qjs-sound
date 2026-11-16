@@ -248,8 +248,11 @@ Done when the status column `opaque` is 0. G1/G2 only; nothing changes behaviour
 | wv-in | 2 | |
 | wv-out | 2 | |
 
-After each family: G6 on stk, the matching G3 cases. **Flips** (D2): `stk/class extends ADSR`, `stk/class extends NRev`; (tags) `stk/toStringTag of BlitSaw`, `BlitSquare`, `Blit`, `PitShift`, `PRCRev`, `SingWave`.
-Done when `ctor` is 0. Delete BUGS `stk-singwave-exported-as-stksingwave` and `stk-tostringtag-array-out-of-enum-order`.
+Done: every family has its `ctor_def` table, `qjsx::ctor_name` in the constructor tail,
+`qjsx::bind_ctors` in `js_stk_init` and `qjsx::declare_ctors` in `js_stk_add_exports`.
+G6 (exports diff) is identical; the G3 cases `stk/class extends ADSR`, `stk/class extends NRev`
+and `stk/toStringTag of BlitSaw`, `BlitSquare`, `Blit`, `PitShift`, `PRCRev`, `SingWave` all pass.
+Deleted BUGS `stk-singwave-exported-as-stksingwave` and `stk-tostringtag-array-out-of-enum-order`.
 
 **3.4 Constructors' tails (R7).** The six prototype ladders (sites 6.2). For each: build the opaque pointer first, then `qjsx::wrap`. Done when `proto` is 0.
 
