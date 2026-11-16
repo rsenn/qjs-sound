@@ -83,6 +83,9 @@
 #include "Mesh2D.h"
 #include "Modal.h"
 #include "Plucked.h"
+#include "Modal.h"
+#include "ModalBar.h"
+#include "Moog.h"
 #include "Recorder.h"
 #include "Resonate.h"
 #include "Sampler.h"
@@ -91,6 +94,7 @@
 #include "Simple.h"
 #include "Sitar.h"
 #include "StifKarp.h"
+#include "Twang.h"
 #include "VoicForm.h"
 #include "Whistle.h"
 
@@ -115,13 +119,13 @@ using stk::Stk;
 static JSClassID js_stkframes_class_id, js_stk_class_id, js_stkfilter_class_id, js_stkgenerator_class_id, js_stkeffect_class_id,
     js_stkfm_class_id, js_stkinstrmnt_class_id, js_stkfunction_class_id, js_stkwvin_class_id, js_stkwvout_class_id,
     js_midifilein_class_id, js_rtmidiin_class_id, js_rtmidiout_class_id, js_rtaudio_class_id,
-    js_stkguitar_class_id;
+    js_stkguitar_class_id, js_stktwang_class_id;
 static JSValue stkframes_proto, stkframes_ctor, stk_proto, stk_ctor, stkfilter_proto, stkfilter_ctor, stkgenerator_proto,
     stkgenerator_ctor, stkeffect_proto, stkeffect_ctor, stkfm_proto, stkfm_ctor, stkinstrmnt_proto, stkinstrmnt_ctor,
     stkfunction_proto, stkfunction_ctor, twintdrum_proto, tr909bassdrum_proto, tr909percussion_proto, stkwvin_proto,
     rtwvin_proto, inetwvin_proto, stkwvout_proto, rtwvout_proto, inetwvout_proto, midifilein_proto, rtmidiin_proto,
     rtmidiout_proto, rtaudio_proto, rtaudio_ctor,
-    stkguitar_proto, stkguitar_ctor;
+    stkguitar_proto, stkguitar_ctor, stktwang_proto, stktwang_ctor;
 
 typedef std::shared_ptr<stk::Stk> StkPtr;
 typedef std::shared_ptr<stk::StkFrames> StkFramesPtr;
@@ -134,6 +138,7 @@ typedef std::shared_ptr<stk::Function> StkFunctionPtr;
 typedef std::shared_ptr<stk::WvIn> StkWvInPtr;
 typedef std::shared_ptr<stk::WvOut> StkWvOutPtr;
 typedef std::shared_ptr<stk::Guitar> StkGuitarPtr;
+typedef std::shared_ptr<stk::Twang> StkTwangPtr;
 
 /* stk::StkError and RtMidiError both derive from std::exception; the
  * realtime/streaming I/O constructors below are far more likely to fail in
@@ -1479,6 +1484,108 @@ static const qjsx::ctor_def stk_guitar_ctors[] = {
   { "Guitar", 0, INSTANCE_GUITAR },
 };
 
+/* stk::Twang inherits from Stk (not Instrmnt), so it gets its own class like Guitar. */
+typedef std::shared_ptr<stk::Twang> StkTwangPtr;
+
+enum {
+  INSTANCE_TWANG = 0,
+};
+
+static JSValue
+js_stktwang_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {
+  StkTwangPtr t;
+  double arg = 50.0;
+  if(argc > 0)
+    JS_ToFloat64(ctx, &arg, argv[0]);
+
+  try {
+    t = std::make_shared<stk::Twang>(arg);
+  } catch(stk::StkError& err) {
+    return js_throw_stkerror(ctx, err);
+  }
+
+  JSValue obj = qjsx::wrap<StkTwangPtr>(ctx, new_target, js_stktwang_class_id, std::move(t));
+
+  if(JS_IsException(obj))
+    return obj;
+  js_set_tostringtag(ctx, obj, "Twang");
+  return obj;
+}
+
+enum {
+  METHOD_TWANG_TICK = 0,
+  METHOD_TWANG_SET_FREQUENCY,
+  METHOD_TWANG_SET_PLUCK_POSITION,
+  METHOD_TWANG_SET_LOOP_GAIN,
+};
+
+static JSValue
+js_stktwang_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[], int magic) {
+  StkTwangPtr* t;
+  JSValue ret = JS_UNDEFINED;
+
+  if(!(t = qjsx::self<StkTwangPtr>(ctx, this_val, js_stktwang_class_id)))
+    return JS_EXCEPTION;
+
+  switch(magic) {
+    case METHOD_TWANG_TICK: {
+      double input = 0;
+      if(argc > 0)
+        JS_ToFloat64(ctx, &input, argv[0]);
+
+      ret = JS_NewFloat64(ctx, (*t)->tick(input));
+      break;
+    }
+    case METHOD_TWANG_SET_FREQUENCY: {
+      double frequency = 0;
+      JS_ToFloat64(ctx, &frequency, argv[0]);
+      (*t)->setFrequency(frequency);
+      break;
+    }
+    case METHOD_TWANG_SET_PLUCK_POSITION: {
+      double position = 0;
+      JS_ToFloat64(ctx, &position, argv[0]);
+      (*t)->setPluckPosition(position);
+      break;
+    }
+    case METHOD_TWANG_SET_LOOP_GAIN: {
+      double loopGain = 0;
+      JS_ToFloat64(ctx, &loopGain, argv[0]);
+      (*t)->setLoopGain(loopGain);
+      break;
+    }
+  }
+
+  return ret;
+}
+
+static void
+js_stktwang_finalizer(JSRuntime* rt, JSValue val) {
+  StkTwangPtr* t;
+
+  if((t = static_cast<StkTwangPtr*>(JS_GetOpaque(val, js_stktwang_class_id)))) {
+    t->~StkTwangPtr();
+    js_free_rt(rt, t);
+  }
+}
+
+static JSClassDef js_stktwang_class = {
+  .class_name = "Twang",
+  .finalizer = js_stktwang_finalizer,
+};
+
+static const JSCFunctionListEntry js_stktwang_funcs[] = {
+  JS_CFUNC_MAGIC_DEF("tick", 0, guarded<js_stktwang_method>, METHOD_TWANG_TICK),
+  JS_CFUNC_MAGIC_DEF("setFrequency", 1, guarded<js_stktwang_method>, METHOD_TWANG_SET_FREQUENCY),
+  JS_CFUNC_MAGIC_DEF("setPluckPosition", 1, guarded<js_stktwang_method>, METHOD_TWANG_SET_PLUCK_POSITION),
+  JS_CFUNC_MAGIC_DEF("setLoopGain", 1, guarded<js_stktwang_method>, METHOD_TWANG_SET_LOOP_GAIN),
+  JS_PROP_STRING_DEF("[Symbol.toStringTag]", "Twang", JS_PROP_CONFIGURABLE),
+};
+
+static const qjsx::ctor_def stk_twang_ctors[] = {
+  { "Twang", 0, INSTANCE_TWANG },
+};
+
 enum {
   INSTANCE_BANDEDWG = 0,
   INSTANCE_BLOWBOTL,
@@ -1490,6 +1597,8 @@ enum {
   INSTANCE_FLUTE,
   INSTANCE_MANDOLIN,
   INSTANCE_MESH2D,
+  INSTANCE_MODALBAR,
+  INSTANCE_MOOG,
   INSTANCE_PLUCKED,
   INSTANCE_RECORDER,
   INSTANCE_RESONATE,
@@ -1513,6 +1622,8 @@ static const qjsx::ctor_def stkinstrmnt_ctors[] = {
   { "Flute", 0, INSTANCE_FLUTE },
   { "Mandolin", 0, INSTANCE_MANDOLIN },
   { "Mesh2D", 0, INSTANCE_MESH2D },
+  { "ModalBar", 0, INSTANCE_MODALBAR },
+  { "Moog", 0, INSTANCE_MOOG },
   { "Plucked", 0, INSTANCE_PLUCKED },
   { "Recorder", 0, INSTANCE_RECORDER },
   { "Resonate", 0, INSTANCE_RESONATE },
@@ -1577,8 +1688,14 @@ js_stkinstrmnt_constructor(JSContext* ctx, JSValueConst new_target, int argc, JS
         i = std::make_shared<stk::Mesh2D>(nx, ny);
         break;
       }
-      // case INSTANCE_MODAL: { i = std::make_shared<stk::Modal>(argc > 0 ? arg :
-      // 4); break; }
+      case INSTANCE_MODALBAR: {
+        i = std::make_shared<stk::ModalBar>();
+        break;
+      }
+      case INSTANCE_MOOG: {
+        i = std::make_shared<stk::Moog>();
+        break;
+      }
       case INSTANCE_PLUCKED: {
         i = std::make_shared<stk::Plucked>(argc > 0 ? arg : 10.0);
         break;
@@ -3528,17 +3645,27 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
   JS_NewClassID(&js_stkguitar_class_id);
   JS_NewClass(JS_GetRuntime(ctx), js_stkguitar_class_id, &js_stkguitar_class);
 
-  stkguitar_ctor = JS_NewObject(ctx);
   stkguitar_proto = JS_NewObject(ctx);
-
   JS_SetPropertyFunctionList(ctx, stkguitar_proto, js_stkguitar_funcs, countof(js_stkguitar_funcs));
-
   JS_SetClassProto(ctx, js_stkguitar_class_id, stkguitar_proto);
 
   if(m) {
-    qjsx::bind_ctors(ctx, m, js_stkguitar_constructor, stkguitar_proto, stk_guitar_ctors);
-
+    stkguitar_ctor = JS_NewCFunctionMagic(ctx, js_stkguitar_constructor, "Guitar", 0, JS_CFUNC_constructor_magic, INSTANCE_GUITAR);
+    JS_DefinePropertyValueStr(ctx, stkguitar_ctor, "prototype", JS_DupValue(ctx, stkguitar_proto), 0);
     JS_SetModuleExport(ctx, m, "Guitar", stkguitar_ctor);
+  }
+
+  JS_NewClassID(&js_stktwang_class_id);
+  JS_NewClass(JS_GetRuntime(ctx), js_stktwang_class_id, &js_stktwang_class);
+
+  stktwang_proto = JS_NewObject(ctx);
+  JS_SetPropertyFunctionList(ctx, stktwang_proto, js_stktwang_funcs, countof(js_stktwang_funcs));
+  JS_SetClassProto(ctx, js_stktwang_class_id, stktwang_proto);
+
+  if(m) {
+    stktwang_ctor = JS_NewCFunctionMagic(ctx, js_stktwang_constructor, "Twang", 0, JS_CFUNC_constructor_magic, INSTANCE_TWANG);
+    JS_DefinePropertyValueStr(ctx, stktwang_ctor, "prototype", JS_DupValue(ctx, stktwang_proto), 0);
+    JS_SetModuleExport(ctx, m, "Twang", stktwang_ctor);
   }
 
   stkinstrmnt_ctor = JS_NewObject(ctx); // JS_NewCFunction2(ctx, js_stkinstrmnt_constructor,
@@ -3599,9 +3726,7 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
   JS_SetClassProto(ctx, js_stkfunction_class_id, stkfunction_proto);
 
   if(m) {
-    ctor = JS_NewCFunction2(ctx, (JSCFunction*)js_stkfunction_constructor, "Cubic", 0, JS_CFUNC_constructor_magic, INSTANCE_CUBIC);
-    JS_SetModuleExport(ctx, m, "Cubic", ctor);
-
+    qjsx::bind_ctors(ctx, m, js_stkfunction_constructor, stkfunction_proto, stkfunction_ctors);
     JS_SetModuleExport(ctx, m, "Function", stkfunction_ctor);
   }
 
@@ -3713,9 +3838,10 @@ js_stk_add_exports(JSContext* ctx, JSModuleDef* m) {
   qjsx::declare_ctors(ctx, m, stkinstrmnt_ctors);
   qjsx::declare_ctors(ctx, m, stkeffect_ctors);
   qjsx::declare_ctors(ctx, m, stkfm_ctors);
-  qjsx::declare_ctors(ctx, m, stk_guitar_ctors);
 
   JS_AddModuleExport(ctx, m, "Effect");
+  JS_AddModuleExport(ctx, m, "Guitar");
+  JS_AddModuleExport(ctx, m, "Twang");
   JS_AddModuleExport(ctx, m, "FM");
   JS_AddModuleExport(ctx, m, "TwinTDrum");
   JS_AddModuleExport(ctx, m, "Tr909BassDrum");
