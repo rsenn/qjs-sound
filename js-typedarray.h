@@ -66,6 +66,12 @@ typedarray_size(BufferView view) {
 
 const char* typedarray_name(TypedArrayKind kind);
 
+/* JS_GetTypedArrayBuffer reports the backing store's bytes-per-element as a
+ * raw byte count (1, 2, 4 or 8); map it back to a TypedArrayKind so callers
+ * can check the caller's TypedArray kind against the stream's own
+ * negotiated sampleFormat. */
+TypedArrayKind js_typedarray_kind_from_bpe(size_t bytes_per_element);
+
 /* resolves argument obj (TypedArray, DataView, or plain ArrayBuffer) to
  * a view with no copy.
  * returns FALSE and throws a TypeError if obj is none of those. */

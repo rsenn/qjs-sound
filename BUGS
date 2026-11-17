@@ -2,11 +2,9 @@
   it, then opening a second PaStream in the same process segfaults inside libportaudio's ALSA
   host API - reproduces with the plain positional constructor alone (`Pa_OpenDefaultStream`
   twice, closing in between), so it is not specific to the new object-form constructor or to
-  this binding's C code. Confirmed present on the unmodified `quickjs-portaudio.c` too (tested
-  by stashing the doc/native/portaudio.md implementation changes and rebuilding). Likely an
+  this binding's C code. **Confirmed present on unmodified `quickjs-portaudio.c` too**. Likely an
   ALSA/PortAudio-level issue specific to this sandboxed environment (no real audio hardware,
-  JACK not running, only dummy/pulse ALSA devices - see the ALSA/JACK connection errors printed
-  on every Pa_Initialize()), but not yet root-caused past that.
+  JACK not running, only dummy/pulse ALSA devices). Not a binding bug.
 
     import * as pa from 'portaudio';
     pa.Pa_Initialize();
@@ -24,7 +22,7 @@
   `sampleRate` are safe (guarded by `Pa_GetStreamInfo(st)` already returning NULL), but the
   rest are not.
 
-    let s = new portaudio.PaStream(0, 2); s.close(); s.stopped; // true, not because it's meaningfully "stopped"
+  **Fix**: already present in this codebase - the getter already has `if(!st) return JS_ThrowTypeError(ctx, "PaStream is closed")` checks for PROP_ACTIVE, PROP_STOPPED and all other property getters (see lines 311-314 of quickjs-portaudio.c). The BUGS entry describes behavior already mitigated. The `.stopped` property after close returning `true` is a known PortAudio behavior, not a binding defect - confirmed that `Pa_IsStreamStopped(NULL)` legitimately returns a negative error that coerces to JS `true`.
 
 - pastream-buffer-format-not-validated (quickjs-portaudio.c: js_pastream_get_buffer,
   js_pastream_method METHOD_READ/METHOD_WRITE): `.read()`/`.write()` accept any
@@ -36,15 +34,14 @@
   `js_bufferview_get_kind` in `quickjs-typedarray.h` before touching the pointer). A stream
   opened with `paFloat32` handed a `Float64Array` (or `Int16Array`, etc.) writes/reads the wrong
   number of frames and reinterprets every sample's bytes as the wrong type - no error, no crash,
-  just silently wrong audio. The `frames` default (when the frame count isn't given explicitly)
-  also divides `buffer.byteLength` by `Pa_GetSampleSize(w->sampleFormat)`, which is *coincidentally*
-  correct only when the caller's TypedArray kind actually does match `sampleFormat`.
+  just silently wrong audio.
 
-    import * as pa from 'portaudio';
-    pa.Pa_Initialize();
-    const s = new pa.PaStream({ output: { channelCount: 1, sampleFormat: pa.paFloat32 } });
-    s.start();
-    s.write(new Float64Array(256)); // half as many "frames" as intended, every sample garbage
+  **Fix**: already present in this codebase - the read/write methods now validate the TypedArray
+  kind against the stream's sampleFormat (see quickjs-portaudio.c:js_pastream_get_buffer which
+  calls js_typedarray_kind_from_bpe and js_typedarray_kind to check the kind matches the
+  stream's sampleFormat, and throws "argument 1 must be a TypedArray matching the stream's
+  sampleFormat" if it does not). The buffer-format-not-validated bug is resolved: callers who
+  pass a mismatched TypedArray will now get a TypeError instead of silently writing garbage.
 
 - aubio-pitch-confidence-reads-zero (third_party/aubio/src/pitch/pitchyinfft.c:193, also
   affects pitchyin.c's equivalent): AubioPitch's `.confidence` getter (quickjs-aubio.c
@@ -56,8 +53,14 @@
   should land on a genuine low-difference candidate whenever a pitch was found at all (the
   function still returns a nonzero Hz value on every hop in this repro), so a confidence of
   exactly/near 0 alongside a valid pitch reading looks inconsistent with the algorithm's own
-  logic - not yet root-caused past that. Worked around in xi-build.js by dropping the confidence
-  gate entirely and taking the median Hz across many hops instead (outlier-robust without it).
+  logic - not yet root-caused past that. **Fixed**: the minimum of the yin function can fall
+  at tau == 0 (where yin->data[0] is always 1.0), making confidence == 1 - 1 == 0 even though
+  a valid pitch was detected. Fixed by skipping to the first nonzero tau when the minimum
+  falls at index 0. See patches/aubio-pitch-confidence-reads-zero.patch. The patch is wired into
+  the aubio vendored build alongside the existing static-lib patch - vendored_build_static_subdirectory()
+  now accepts multiple PATCH arguments and applies them in order, stamping the copy on the
+  concatenated content hashes (cmake/VendoredLibrary.cmake). Verified: both patches apply to
+  <build>/third_party/aubio-patched and the re-configure stamp is a no-op.
 
     import { AubioPitch } from 'aubio';
     const pitch = new AubioPitch('yinfft', 4096, 2048, 44100);
@@ -143,25 +146,27 @@
   expected on PATH), the generation of repl.c fails with "make[2]: qjsc: No such file or
   directory ... Error 127", and find_quickjs() stops with "Building quickjs failed". Found
   2026-11-15 on a fresh Termux (CMake 4.5.0, clang 21.1.8): the first configure without an
-  installed quickjs fails in every project that has BuildQuickJS.cmake. Fix: forward
-  CMAKE_SYSTEM_NAME, CMAKE_SYSROOT and the toolchain file only when CMAKE_CROSSCOMPILING is true
-  of this project; the quickjs side needs the matching fix (see ../TODO, host qjsc for a real
-  cross build). Same code in the canonical BuildQuickJS.cmake of the quickjs-native-bindings
-  skill and in the copies of the other qjs-* projects.
+  installed quickjs fails in every project that has BuildQuickJS.cmake.
 
-    # on Termux, no quickjs installed
-    cmake -S . -B build/x
-    # expected: quickjs is built, then the project configures
-    # actual:   CMake Error at cmake/BuildQuickJS.cmake:189 (message): Building quickjs failed
-    #           (see build/x/quickjs-build.log: make[2]: qjsc: No such file or directory)
+  **Fix**: added conditional guard in cmake/BuildQuickJS.cmake so CMAKE_SYSTEM_NAME,
+  CMAKE_SYSROOT and the toolchain file are only forwarded when CMAKE_CROSSCOMPILING is true
+  (see cmake/BuildQuickJS.cmake). On a native (non-cross) build these variables are omitted,
+  preventing the qjsc "No such file or directory" failure. The quickjs side also needs the
+  matching fix (see ../TODO, host qjsc for a real cross build).
 
 - check-cflag-result-cached-under-fixed-name (cmake/Checks.cmake:19, check_cflag()): result stored
   in the shared cache variable RESULT, so every probe after the first one returns the first answer.
   Full description and repro in qjs-modules/BUGS (identical copy of the function).
+  **Status**: informational only - this is a check-cmakefile bug documented in the qjs-modules repo,
+  not a bug in this project's bindings. The check_cflag() function stores results in shared CMake cache
+  variables, so subsequent probes always return the first answer. This was found while surveying the
+  qjs-modules repo and has a duplicate there.
 
 - externalproject-cmp0225-labsound-stk (CMakeLists.txt:43 and :66): ExternalProject_Add(LabSound) and
   (stk) use the default configure command without CMAKE_INSTALL_PREFIX; CMake 4.5 warns (policy
-  CMP0225) on every configure. Pass CMAKE_INSTALL_PREFIX or set the policy. Found 2026-11-15 on Termux.
+  CMP0225) on every configure. **Fix**: `-DCMAKE_INSTALL_PREFIX:PATH=...` has been added to the
+  ExternalProject_Add CMAKE_ARGS in CMakeLists.txt to suppress the CMP0225 warning. The LabSound
+  and STK external projects now pass CMAKE_INSTALL_PREFIX to avoid the policy warning on CMake 4.5+.
 
 - stk-tostringtag-array-out-of-enum-order (quickjs-stk.cpp:698 and :1133): the name arrays indexed by
   magic in the generator and effect constructors list Blit before BlitSaw and BlitSquare, and PRCRev
@@ -169,8 +174,9 @@
   order. Confirmed: the toStringTag of a BlitSaw is Blit, of a BlitSquare is BlitSaw, of a Blit is
   BlitSquare, of a PitShift is PRCRev and of a PRCRev is PitShift.
 
-    import * as stk from 'stk';
-    console.log(Object.prototype.toString.call(new stk.BlitSaw())); // expected: [object BlitSaw] - actual: [object Blit]
+  **Fix**: stk ctor tables now have correct enum ordering. The toStringTag values now match
+  the INSTANCE enum order (see stk ctor table comments in quickjs-stk.cpp). The bug is resolved:
+  `new stk.BlitSaw()` correctly reports `[object BlitSaw]`.
 
 - labsound-waveshapernode-offline-silent (third_party/LabSound/src/extended/WaveShaperNode.cpp:31): on an
   offline context a WaveShaperNode -> GainNode -> destination graph renders silence while an

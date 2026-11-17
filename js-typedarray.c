@@ -140,3 +140,14 @@ js_typedarray_copy(JSContext* ctx, const void* data, size_t count, TypedArrayKin
 
   return js_typedarray_buffer(ctx, ab, kind);
 }
+
+TypedArrayKind
+js_typedarray_kind_from_bpe(size_t bytes_per_element) {
+  switch(bytes_per_element) {
+    case 1: return TYPEDARRAY_UINT8;
+    case 2: return TYPEDARRAY_INT16;
+    case 4: return TYPEDARRAY_FLOAT32;
+    case 8: return TYPEDARRAY_FLOAT64;
+  }
+  return TYPEDARRAY_NONE;
+}

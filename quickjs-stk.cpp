@@ -615,6 +615,10 @@ static const qjsx::ctor_def stkgenerator_ctors[] = {
   { "SineWave", 0, INSTANCE_SINE_WAVE },
   { "SingWave", 0, INSTANCE_SING_WAVE },
 };
+/* The ctor_def tables are indexed by magic in the constructors (the INSTANCE
+ * enums are the magic), so the table order must match the enum order or the
+ * toStringTag is wrong: before this, BlitSaw reported "Blit", BlitSquare
+ * "BlitSaw" and Blit "BlitSquare". */
 
 static JSValue
 js_stkgenerator_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {

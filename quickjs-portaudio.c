@@ -3,6 +3,7 @@
 #include <string.h>
 #include "defines.h"
 #include "js-utils-c.h"
+#include "js-typedarray.h"
 #include <portaudio.h>
 
 static JSClassID js_pastream_class_id;
@@ -20,7 +21,7 @@ typedef struct {
 } JSPaStream;
 
 static uint8_t*
-js_pastream_get_buffer(JSContext* ctx, JSValueConst val, size_t* plen) {
+js_pastream_get_buffer(JSContext* ctx, JSValueConst val, size_t* plen, TypedArrayKind* pkind) {
   size_t byte_offset = 0, byte_length = 0, bytes_per_element = 0;
   JSValue buf = JS_GetTypedArrayBuffer(ctx, val, &byte_offset, &byte_length, &bytes_per_element);
 
@@ -31,10 +32,34 @@ js_pastream_get_buffer(JSContext* ctx, JSValueConst val, size_t* plen) {
     if(!ab_data)
       return NULL;
     *plen = byte_length;
+    if(pkind)
+      *pkind = js_typedarray_kind_from_bpe(bytes_per_element);
     return ab_data + byte_offset;
   }
 
+  /* a plain ArrayBuffer has no element kind */
+  if(pkind)
+    *pkind = TYPEDARRAY_NONE;
   return JS_GetArrayBuffer(ctx, plen, val);
+}
+
+/* Maps a PortAudio PaSampleFormat to the TypedArrayKind a caller should pass
+ * to .read()/.write() for that stream. paCustomFormat and paNonInterleaved
+ * have no single element kind; a stream opened with them rejects every
+ * TypedArray (only a plain ArrayBuffer is accepted). */
+static TypedArrayKind
+js_pastream_format_kind(PaSampleFormat format) {
+  switch(format) {
+    case paFloat32: return TYPEDARRAY_FLOAT32;
+    case paInt32:   return TYPEDARRAY_INT32;
+    case paInt16:   return TYPEDARRAY_INT16;
+    case paInt8:    return TYPEDARRAY_INT8;
+    case paUInt8:   return TYPEDARRAY_UINT8;
+    case paCustomFormat:
+    case paNonInterleaved:
+      break;
+  }
+  return TYPEDARRAY_NONE;
 }
 
 enum {
@@ -412,10 +437,14 @@ js_pastream_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
     case METHOD_READ: {
       size_t len;
       uint8_t* ptr;
+      TypedArrayKind kind = TYPEDARRAY_NONE;
       uint32_t frames = 0;
 
-      if(argc < 1 || !(ptr = js_pastream_get_buffer(ctx, argv[0], &len)))
+      if(argc < 1 || !(ptr = js_pastream_get_buffer(ctx, argv[0], &len, &kind)))
         return JS_ThrowTypeError(ctx, "argument 1 must be an ArrayBuffer or TypedArray");
+
+      if(kind != TYPEDARRAY_NONE && kind != js_pastream_format_kind(w->sampleFormat))
+        return JS_ThrowTypeError(ctx, "argument 1 must be a TypedArray matching the stream's sampleFormat");
 
       if(argc > 1) {
         if(js_arg_uint32(ctx, argc, argv, 1, &frames))
@@ -434,10 +463,14 @@ js_pastream_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
     case METHOD_WRITE: {
       size_t len;
       uint8_t* ptr;
+      TypedArrayKind kind = TYPEDARRAY_NONE;
       uint32_t frames = 0;
 
-      if(argc < 1 || !(ptr = js_pastream_get_buffer(ctx, argv[0], &len)))
+      if(argc < 1 || !(ptr = js_pastream_get_buffer(ctx, argv[0], &len, &kind)))
         return JS_ThrowTypeError(ctx, "argument 1 must be an ArrayBuffer or TypedArray");
+
+      if(kind != TYPEDARRAY_NONE && kind != js_pastream_format_kind(w->sampleFormat))
+        return JS_ThrowTypeError(ctx, "argument 1 must be a TypedArray matching the stream's sampleFormat");
 
       if(argc > 1) {
         if(js_arg_uint32(ctx, argc, argv, 1, &frames))

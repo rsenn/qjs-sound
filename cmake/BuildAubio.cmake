@@ -19,7 +19,8 @@ include("${CMAKE_CURRENT_LIST_DIR}/FindFFTW3.cmake")
 # (extra dependencies aubio's own build needs but this binding doesn't).
 vendored_build_static_subdirectory(
   AUBIO SUBMODULE_DIR third_party/aubio CMAKE_SUBDIR src TARGETS aubio PATCH
-  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/patches/aubio-static-lib.patch")
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/patches/aubio-static-lib.patch"
+  "${CMAKE_CURRENT_SOURCE_DIR}/patches/aubio-pitch-confidence-reads-zero.patch")
 
 # What aubio's wscript defines for FFTW3 (float): fft.c, dct_fftw.c and
 # aubio_priv.h select the FFTW code path on these.

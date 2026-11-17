@@ -52,6 +52,7 @@ if(USE_LABSOUND)
       #"-DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}"
       "-DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo"
       "-DCMAKE_VERBOSE_MAKEFILE:BOOL=OFF"
+      "-DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/third_party/LabSound/install"
       "-DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON"
       "-DCMAKE_C_COMPILER:STRING=${CMAKE_C_COMPILER}"
       "-DCMAKE_CXX_COMPILER:STRING=${CMAKE_CXX_COMPILER}"
@@ -232,6 +233,17 @@ if(USE_STK)
   include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/include"
                       "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/src/include")
   module_include_directories(stk "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/include" "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/src/include")
+
+  find_program(QJSM qjsm)
+  if(QJSM)
+    add_test(NAME stk-tostringtag-order
+             COMMAND ${QJSM} ${CMAKE_CURRENT_SOURCE_DIR}/tests/bindings/stk-tostringtag-order.js
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    set_tests_properties(stk-tostringtag-order PROPERTIES
+      ENVIRONMENT "QUICKJS_MODULE_PATH=${CMAKE_CURRENT_BINARY_DIR}")
+  else()
+    message(WARNING "qjsm not found; stk binding tests will be skipped")
+  endif()
 endif(USE_STK)
 
 if(USE_AUBIO)
@@ -279,6 +291,11 @@ if(USE_LABSOUND)
              COMMAND ${QJSM} ${CMAKE_CURRENT_SOURCE_DIR}/tests/bindings/portaudio-pastream-getters.js
              WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
     set_tests_properties(portaudio-pastream-getters PROPERTIES
+      ENVIRONMENT "QUICKJS_MODULE_PATH=${CMAKE_CURRENT_BINARY_DIR}")
+    add_test(NAME portaudio-pastream-buffer-format
+             COMMAND ${QJSM} ${CMAKE_CURRENT_SOURCE_DIR}/tests/bindings/portaudio-pastream-buffer-format.js
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    set_tests_properties(portaudio-pastream-buffer-format PROPERTIES
       ENVIRONMENT "QUICKJS_MODULE_PATH=${CMAKE_CURRENT_BINARY_DIR}")
   else()
     message(WARNING "qjsm not found; binding tests will be skipped")

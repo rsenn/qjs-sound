@@ -95,10 +95,12 @@ endfunction()
 #   TARGETS <cmake-target1> [<target2> ...]
 #   [OPTIONS <-DFOO=BAR> ...]
 #   [EXTRA_LIBRARIES <lib1> ...]
-#   [PATCH <path/to/some.patch>])
+#   [PATCH <path/to/patch1> [<path/to/patch2> ...]])
 #
 # PATCH is applied to a copy in the build tree; the submodule itself is
-# never modified.
+# never modified. Several patches are applied in order, each verified
+# reversible, so a library's own patch plus a follow-up fix can both be
+# wired without editing the submodule.
 #
 # Builds a vendored git-submodule copy of a library as a static, -fPIC
 # archive, via add_subdirectory() (in-process, one configure pass - not
@@ -114,8 +116,8 @@ endfunction()
 # target_link_libraries() against them directly rather than a resolved
 # file path), <NAME>_FOUND.
 function(vendored_build_static_subdirectory NAME)
-  cmake_parse_arguments(VBSS "" "SUBMODULE_DIR;CMAKE_SUBDIR;PATCH"
-                        "TARGETS;OPTIONS;EXTRA_LIBRARIES" ${ARGN})
+  cmake_parse_arguments(VBSS "" "SUBMODULE_DIR;CMAKE_SUBDIR"
+                        "TARGETS;OPTIONS;EXTRA_LIBRARIES;PATCH" ${ARGN})
 
   set(SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/${VBSS_SUBMODULE_DIR}")
   if(NOT EXISTS "${SRC_DIR}/CMakeLists.txt" AND NOT VBSS_CMAKE_SUBDIR)
@@ -150,7 +152,14 @@ function(vendored_build_static_subdirectory NAME)
       COMMAND "${GIT_EXECUTABLE}" rev-parse HEAD WORKING_DIRECTORY "${SRC_DIR}"
       OUTPUT_VARIABLE SUBMODULE_HEAD OUTPUT_STRIP_TRAILING_WHITESPACE
       ERROR_QUIET)
-    file(SHA1 "${VBSS_PATCH}" PATCH_HASH)
+    # The stamp covers every wired patch's content: concatenate the SHA1 of
+    # each patch file, so the copy is rebuilt when any patch is edited.
+    set(_PATCH_HASHES "")
+    foreach(_patch IN LISTS VBSS_PATCH)
+      file(SHA1 "${_patch}" _one_hash)
+      string(APPEND _PATCH_HASHES "${_one_hash} ")
+    endforeach()
+    string(SHA1 PATCH_HASH "${_PATCH_HASHES}")
     set(PATCH_STAMP "${PATCHED_ROOT}/.patched")
     set(STAMP_WANTED "${SUBMODULE_HEAD} ${PATCH_HASH}")
     set(STAMP_HAVE "")
@@ -169,16 +178,18 @@ function(vendored_build_static_subdirectory NAME)
       set(GIT_APPLY ${CMAKE_COMMAND} -E env
           "GIT_CEILING_DIRECTORIES=${CMAKE_CURRENT_BINARY_DIR}"
           "${GIT_EXECUTABLE}" apply)
-      execute_process(COMMAND ${GIT_APPLY} "${VBSS_PATCH}"
-                      WORKING_DIRECTORY "${PATCHED_ROOT}" RESULT_VARIABLE PATCH_RESULT)
-      execute_process(COMMAND ${GIT_APPLY} --reverse --check "${VBSS_PATCH}"
-                      WORKING_DIRECTORY "${PATCHED_ROOT}" RESULT_VARIABLE PATCH_VERIFY
-                      OUTPUT_QUIET ERROR_QUIET)
-      if(NOT PATCH_RESULT EQUAL 0 OR NOT PATCH_VERIFY EQUAL 0)
-        file(REMOVE_RECURSE "${PATCHED_ROOT}")
-        message(FATAL_ERROR
-                "Failed to apply ${VBSS_PATCH} to a copy of ${VBSS_SUBMODULE_DIR}")
-      endif()
+      foreach(_patch IN LISTS VBSS_PATCH)
+        execute_process(COMMAND ${GIT_APPLY} "${_patch}"
+                        WORKING_DIRECTORY "${PATCHED_ROOT}" RESULT_VARIABLE PATCH_RESULT)
+        execute_process(COMMAND ${GIT_APPLY} --reverse --check "${_patch}"
+                        WORKING_DIRECTORY "${PATCHED_ROOT}" RESULT_VARIABLE PATCH_VERIFY
+                        OUTPUT_QUIET ERROR_QUIET)
+        if(NOT PATCH_RESULT EQUAL 0 OR NOT PATCH_VERIFY EQUAL 0)
+          file(REMOVE_RECURSE "${PATCHED_ROOT}")
+          message(FATAL_ERROR
+                  "Failed to apply ${_patch} to a copy of ${VBSS_SUBMODULE_DIR}")
+        endif()
+      endforeach()
       file(WRITE "${PATCH_STAMP}" "${STAMP_WANTED}")
     endif()
 

@@ -119,6 +119,9 @@ QUICKJS_MODULE_PATH=build/$(cc -dumpmachine) timeout 60 qjsm tests/aubio-test.js
 - `doc/native/<name>.md`: API of each binding; `doc/api-interoperability.md`: comparison with
   other bindings of the same libraries (survey first, see the skill, section 0).
 - `TODO.md`: open work. `BUGS`: bugs found and left unfixed (format below).
+- `ChangeLog`: GNU-style changelog of completed work, one entry per day at the root. Write the
+  day's entry (fixes, new tests, docs, and the pending "left unfixed" review) when finishing a
+  task, without being asked.
 
 ## BUGS file format
 
@@ -375,3 +378,7 @@ Notes:
   the binding, not fixed in the library) still goes in `tests/` — it pins
   the workaround's observable behavior so a library fix can be checked
   against it.
+
+Do not add the `Co-Authored-By:` or `Claude-Session:` trailers (or any other
+attribution lines) to commit messages in this project, even when Claude Code's
+attribution guidance asks for them. This project's own rule overrides it.

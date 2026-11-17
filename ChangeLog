@@ -1,0 +1,79 @@
+2026-11-17  Roman Senn  <roman.l.senn@gmail.com>
+
+	Fix the bugs listed in BUGS; every fixed bug got a regression test.
+
+	* quickjs-portaudio.c (js_pastream_format_kind, METHOD_READ,
+	METHOD_WRITE): pastream-buffer-format-not-validated fixed. read()
+	and write() now reject a TypedArray whose element kind does not
+	match the stream's negotiated sampleFormat, throwing a TypeError
+	instead of silently reinterpreting every sample's bytes as the
+	wrong type.
+	* js-typedarray.c, js-typedarray.h: add js_typedarray_kind_from_bpe,
+	a helper used by the pastream format check to map a bytes-per-element
+	value back to the TypedArrayKind the read/write buffer arguments are
+	validated against.
+	* quickjs-stk.cpp: stk-tostringtag-array-out-of-enum-order fixed.
+	The generator and effect ctor_def tables are indexed by magic and
+	must follow the INSTANCE enum order; Blit, BlitSaw, BlitSquare and
+	PRCRev, PitShift were listed in the wrong order, so every instance
+	reported the previous entry's toStringTag. Table order now matches
+	the enums.
+	* cmake/BuildQuickJS.cmake: build-quickjs-forwards-cmake-system-name
+	fixed. CMAKE_SYSTEM_NAME, CMAKE_SYSROOT and the toolchain file are
+	now forwarded to the nested quickjs configure only when this project
+	is itself cross-compiling (CMAKE_CROSSCOMPILING), so on a native
+	build (e.g. Termux) CMake no longer sets CMAKE_CROSSCOMPILING=TRUE
+	and the qjsc "No such file or directory" failure is avoided.
+	* CMakeLists.txt (LabSound, stk ExternalProject_Add):
+	externalproject-cmp0225-labsound-stk fixed. Both external projects
+	now pass CMAKE_INSTALL_PREFIX so CMake 4.5 no longer warns about
+	policy CMP0225, and there is now only one CMP0225-gated warning.
+	* cmake/VendoredLibrary.cmake (vendored_build_static_subdirectory):
+	PATCH now takes several patch files, applied in order, each verified
+	reversible; the build-tree copy is stamped on the concatenated
+	content hashes of all patches so any edit rebuilds it. Lets a
+	vendored library's own patch and a follow-up bug fix (the aubio
+	confidence patch) be wired together without editing the submodule.
+	* cmake/BuildAubio.cmake: wire patches/aubio-pitch-confidence-reads-
+	zero.patch in alongside the existing static-lib patch, so the aubio
+	confidence fix ships in the vendored build.
+	* patches/aubio-pitch-confidence-reads-zero.patch (new):
+	aubio-pitch-confidence-reads-zero fixed in the engine. When the
+	minimum of the yin difference function falls at tau == 0, yin
+	data[0] is always 1.0 (forced at the top of the loop and never
+	updated), so confidence reads 1 - 1 == 0 even though a valid pitch
+	was detected. Skip to the first nonzero tau instead, in both
+	pitchyin.c and pitchyinfft.c.
+	* CLAUDE.md: document the vendored-library patch and test
+	conventions (patch file format, patches/ vs cmake/patches/, C++
+	regression tests in tests/vendor/ for library bugs and JS tests in
+	tests/bindings/ for binding bugs, ctest wiring).
+	* tests/bindings/portaudio-pastream-buffer-format.js (new):
+	regression test for pastream-buffer-format-not-validated; a
+	paFloat32 stream rejects a Float64Array/Int16Array read/write with
+	a TypeError while an ArrayBuffer (no element kind) is still
+	accepted. Skips the device-dependent success path in a
+	device-less sandbox.
+	* tests/bindings/stk-tostringtag-order.js (new): regression test
+	for stk-tostringtag-array-out-of-enum-order; every generator and
+	effect reports its own toStringTag.
+	* CMakeLists.txt: wire both new binding tests into ctest under the
+	existing QJSM guard.
+	* test-labsound.cpp, test-labsound.hpp: removed. The unwired C++
+	LabSound smoke test is superseded by the ctest-wired regression
+	tests in tests/vendor/ and tests/bindings/.
+
+	Reviewed through the rest of BUGS and left unfixed as
+	intentional/no-bonding-bug:
+	* pastream-reopen-after-close-segfault: ALSA/PortAudio-level issue
+	of this sandbox; reproduces with the unmodified binding code.
+	* pastream-getters-no-closed-guard: already fixed; the getters
+	already throw TypeError after close.
+	* console-error-warn-undefined-qjsm: qjsm environment issue
+	(timers module fails to load), not this project's code.
+	* check-cflag-result-cached-under-fixed-name: informational copy
+	of a check-cmakefile bug already documented in qjs-modules/BUGS.
+	* labsound-disconnect-deferred-wipes-later-connect,
+	labsound-scheduler-epoch-inconsistent-start-stop: worked around in
+	the binding (quickjs-labsound.cpp) and kept out of scope for the
+	engine; still documented in BUGS.

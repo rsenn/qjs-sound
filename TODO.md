@@ -853,3 +853,46 @@ void wk_message(int ptr, int len);     // main thread -> processor
 - Should `wk_process` see planar or interleaved audio? Planar chosen
   (matches `AudioBus`, WAM, Faust); revisit if a target lib wants otherwise.
 
+---
+
+## BUGS sweep follow-up (2026-11-17)
+
+Residue from fixing every bug in `BUGS`. The fixed bugs are closed there; the
+items below are what the sweep left open.
+
+- [ ] finish verifying the aubio confidence fix end-to-end: build the aubio
+      module against the patched `third_party/aubio-patched` and run the
+      BUGS repro (a 440 Hz synth hop) to confirm `.confidence` now returns a
+      real value. The two patches apply and the configure stamp is a no-op;
+      the build+test was interrupted before it finished.
+- [ ] LabSound engine bugs still open in BUGS, each worked around in
+      `quickjs-labsound.cpp` (disconnect_now, engine_when, the node-release
+      sweep) but not fixed in the engine; out of scope for a binding sweep.
+      Add a C++ regression test in `tests/vendor/` per bug if/when an engine
+      fix is attempted (patches go in `patches/`, never edit the submodule):
+  - labsound-disconnect-deferred-wipes-later-connect (AudioContext.cpp:343,
+    disconnect only enqueues a Disconnect applied a tick later, so a
+    disconnect-then-connect loses the new edge; 2-arg disconnect cuts inputs
+    not outputs).
+  - labsound-scheduler-epoch-inconsistent-start-stop (AudioNode.cpp:236,262,
+    _epoch starts 0 so start/stop mean absolute time on a fresh node and
+    seconds-from-now on a playing one).
+  - labsound-stopped-source-stuck-stopping (AudioNode.cpp:190, some sources
+    reach STOPPING and are never pulled again, freezing their epoch).
+  - labsound-functionnode-offline-silent (FunctionNode.cpp:31, offline
+    context renders zeros).
+  - labsound-compressor-channel-assert (DynamicsCompressorNode.cpp:89,
+    outputBus channel assert, seen once not root-caused).
+  - labsound-waveshapernode-offline-silent (WaveShaperNode.cpp:31, offline
+    context renders silence; same symptom as functionnode-offline-silent).
+- [ ] `pastream-reopen-after-close-segfault`: not a binding bug (reproduces
+      with unmodified quickjs-portaudio.c; ALSA/sandbox issue). Consider
+      re-testing on a machine with real audio hardware; if it reproduces
+      there, file upstream with PortAudio.
+- [ ] `console-error-warn-undefined-qjsm`: qjsm environment issue (timers
+      module fails to load, so console.error/warn are undefined). Fix belongs
+      in qjsm, not here; note it if qjsm is ever touched.
+- [ ] `check-cflag-result-cached-under-fixed-name`: informational copy of a
+      bug already documented in qjs-modules/BUGS; fix in the shared cmake
+      layer (Checks.cmake), not this project.
+

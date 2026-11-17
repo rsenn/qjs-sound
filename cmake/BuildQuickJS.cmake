@@ -131,11 +131,20 @@ function(quickjs_configure_args OUTVAR SRC)
             "-DQUICKJS_PREFIX=${CMAKE_INSTALL_PREFIX}" "-DBUILD_SHARED_LIBS=${_shared}" -DBUILD_STATIC_LIBS=ON
             -DCMAKE_POSITION_INDEPENDENT_CODE=ON)
 
-  foreach(_var CMAKE_TOOLCHAIN_FILE CMAKE_C_COMPILER CMAKE_SYSROOT CMAKE_SYSTEM_NAME)
-    if(${_var})
-      list(APPEND _args "-D${_var}=${${_var}}")
-    endif()
-  endforeach()
+  # Forward the toolchain only when this project is itself cross-compiling.
+  # Passing CMAKE_SYSTEM_NAME on the command line makes CMake set
+  # CMAKE_CROSSCOMPILING=TRUE even when host and target are the same machine
+  # (e.g. Termux, where it is Android), which makes quickjs's
+  # CMakeLists.txt:727 set QJSC to the bare name `qjsc` - a host compiler
+  # expected on PATH - and the generation of repl.c fails with
+  # "make[2]: qjsc: No such file or directory". See BUGS.
+  if(CMAKE_CROSSCOMPILING)
+    foreach(_var CMAKE_TOOLCHAIN_FILE CMAKE_C_COMPILER CMAKE_SYSROOT CMAKE_SYSTEM_NAME)
+      if(${_var})
+        list(APPEND _args "-D${_var}=${${_var}}")
+      endif()
+    endforeach()
+  endif()
 
   file(GLOB _siblings RELATIVE "${SRC}" "${SRC}/qjs-*")
   foreach(_sibling ${_siblings})

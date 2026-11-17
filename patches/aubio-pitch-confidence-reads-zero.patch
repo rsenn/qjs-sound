@@ -1,0 +1,64 @@
+# aubio-pitch-confidence-reads-zero
+#
+# aubio_pitch_get_confidence() reads back ~0 for both the 'yin' and 'yinfft'
+# methods even on a clean, high-amplitude synthetic sine tone with no noise.
+# The confidence callback is a thin passthrough to
+# aubio_pitchyinfft_get_confidence() / aubio_pitchyin_get_confidence(), which
+# compute `1 - yin->data[peak_pos]` (or `1 - yinfft->data[peak_pos]`).
+#
+# peak_pos is set to the index of the minimum of the yin difference function
+# whenever a pitch was found at all (output->data[0] is nonzero), so the
+# value at that index should be a small, meaningful difference, not ~1. The
+# bug is that peak_pos is left at 0 when the minimum of the yin function
+# happens to be at tau == 0, and yin->data[0] is always 1.0 (it is set to 1.
+# at the top of the loop and never updated), so confidence comes back as
+# 1 - 1 == 0 even though a real pitch was detected.
+#
+# Repro:
+#
+#   import { AubioPitch } from 'aubio';
+#   const pitch = new AubioPitch('yinfft', 4096, 2048, 44100);
+#   pitch.setUnit('Hz');
+#   const hop = new Float32Array(2048);
+#   for (let i = 0; i < 2048; i++) hop[i] = 0.8 * Math.sin(2 * Math.PI * 440 * i / 44100);
+#   const [hz] = pitch.process(hop);
+#   console.log(hz, pitch.confidence); # hz ~440 (valid), confidence ~0 (unexpected)
+#
+# Fix: when the minimum of the yin function falls at tau == 0, fall back to
+# the first nonzero tau (the first minimum after the forced 1.0 at index 0),
+# instead of leaving peak_pos at 0.
+
+diff --git a/src/pitch/pitchyin.c b/src/pitch/pitchyin.c
+index 85b4566..3b4178a 100644
+--- a/src/pitch/pitchyin.c
++++ b/src/pitch/pitchyin.c
+@@ -167,6 +167,12 @@ aubio_pitchyin_do (aubio_pitchyin_t * o, const fvec_t * input, fvec_t * out)
+     }
+   }
+   o->peak_pos = (uint_t)fvec_min_elem (yin);
++  /* yin->data[0] is always 1.0 (set at the top of the loop and never
++   * updated), so a minimum at tau == 0 is not a real candidate: it would
++   * make get_confidence() return 1 - 1 == 0 even though a pitch was found.
++   * Skip to the first nonzero tau instead. */
++  if (o->peak_pos == 0)
++    o->peak_pos = 1;
+   out->data[0] = fvec_quadratic_peak_pos (yin, o->peak_pos);
+ }
+ 
+diff --git a/src/pitch/pitchyinfft.c b/src/pitch/pitchyinfft.c
+index b613f60..df4cef1 100644
+--- a/src/pitch/pitchyinfft.c
++++ b/src/pitch/pitchyinfft.c
+@@ -152,6 +152,12 @@ aubio_pitchyinfft_do (aubio_pitchyinfft_t * p, const fvec_t * input, fvec_t * ou
+   // find best candidates
+   tau = fvec_min_elem (yin);
+   if (yin->data[tau] < p->tol) {
++    /* yin->data[0] is always 1.0 (set at the top of the loop and never
++     * updated), so a minimum at tau == 0 is not a real candidate: it would
++     * make get_confidence() return 1 - 1 == 0 even though a pitch was found.
++     * Skip to the first nonzero tau instead. */
++    if (tau == 0)
++      tau = 1;
+     // no interpolation, directly return the period as an integer
+     //output->data[0] = tau;
+     //return;
