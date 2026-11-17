@@ -4,6 +4,10 @@ cmake_minimum_required(VERSION 3.19)
 
 enable_testing()
 
+add_test(NAME check-cflag-result-cached
+  COMMAND ${CMAKE_COMMAND} -S ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check-cflag-result-cached
+          -B ${CMAKE_CURRENT_BINARY_DIR}/tests/check-cflag-result-cached)
+
 option(USE_LABSOUND "Use LabSound library" ON)
 option(USE_STK "Use Stk library" ON)
 option(USE_PORTAUDIO "Use PortAudio library" ON)
@@ -42,11 +46,17 @@ message("MODULE_COMPILE_FLAGS: ${MODULE_COMPILE_FLAGS}")
 include(ExternalProject)
 
 if(USE_LABSOUND)
+  # applied in order, in place; each one is skipped when already in the tree
+  file(GLOB LABSOUND_PATCHES "${CMAKE_CURRENT_SOURCE_DIR}/patches/labsound-*.patch")
+  list(SORT LABSOUND_PATCHES)
+
   ExternalProject_Add(
     LabSound
     SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound"
     BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/third_party/LabSound"
     PREFIX LabSound
+    PATCH_COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound
+      "-DPATCHES=${LABSOUND_PATCHES}" -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ApplyPatches.cmake
     CMAKE_ARGS
       "-DBUILD_SHARED_LIBS:BOOL=OFF"
       #"-DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}"
@@ -255,6 +265,14 @@ if(USE_AUBIO)
 
   include_directories(${AUBIO_INCLUDE_DIRS})
   module_include_directories(aubio ${AUBIO_INCLUDE_DIRS})
+
+  # only the vendored copy carries the patch
+  if(BUILD_AUBIO)
+    add_executable(test-aubio-pitch-confidence tests/vendor/aubio-pitch-confidence-reads-zero.cpp)
+    target_include_directories(test-aubio-pitch-confidence PRIVATE ${AUBIO_INCLUDE_DIRS})
+    target_link_libraries(test-aubio-pitch-confidence PRIVATE ${AUBIO_LIBRARIES})
+    add_test(NAME aubio-pitch-confidence-reads-zero COMMAND test-aubio-pitch-confidence)
+  endif()
 endif(USE_AUBIO)
 
 if(USE_LABSOUND)
@@ -282,11 +300,62 @@ if(USE_LABSOUND)
   target_include_directories(test-labsound-disconnect-deferred PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/third_party/libnyquist/include")
+  add_dependencies(test-labsound-disconnect-deferred LabSound)
   add_test(NAME labsound-disconnect-deferred
            COMMAND test-labsound-disconnect-deferred)
 
+  add_executable(test-labsound-scheduler-epoch
+    tests/vendor/labsound-scheduler-epoch.cpp)
+  target_link_libraries(test-labsound-scheduler-epoch PRIVATE ${labsound_LIBRARIES})
+  target_include_directories(test-labsound-scheduler-epoch PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/third_party/libnyquist/include")
+  add_dependencies(test-labsound-scheduler-epoch LabSound)
+  add_test(NAME labsound-scheduler-epoch
+           COMMAND test-labsound-scheduler-epoch)
+
+  add_executable(test-labsound-compressor-channel-assert
+    tests/vendor/labsound-compressor-channel-assert.cpp)
+  target_link_libraries(test-labsound-compressor-channel-assert PRIVATE ${labsound_LIBRARIES})
+  target_include_directories(test-labsound-compressor-channel-assert PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/third_party/libnyquist/include")
+  add_dependencies(test-labsound-compressor-channel-assert LabSound)
+  add_test(NAME labsound-compressor-channel-assert
+           COMMAND test-labsound-compressor-channel-assert)
+
+  add_executable(test-labsound-stopped-source-stuck-stopping
+    tests/vendor/labsound-stopped-source-stuck-stopping.cpp)
+  target_link_libraries(test-labsound-stopped-source-stuck-stopping PRIVATE ${labsound_LIBRARIES})
+  target_include_directories(test-labsound-stopped-source-stuck-stopping PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/third_party/libnyquist/include")
+  add_dependencies(test-labsound-stopped-source-stuck-stopping LabSound)
+  add_test(NAME labsound-stopped-source-stuck-stopping
+           COMMAND test-labsound-stopped-source-stuck-stopping)
+
+  add_executable(test-labsound-functionnode-offline-silent
+    tests/vendor/labsound-functionnode-offline-silent.cpp)
+  target_link_libraries(test-labsound-functionnode-offline-silent PRIVATE ${labsound_LIBRARIES})
+  target_include_directories(test-labsound-functionnode-offline-silent PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/third_party/libnyquist/include")
+  add_dependencies(test-labsound-functionnode-offline-silent LabSound)
+  add_test(NAME labsound-functionnode-offline-silent
+           COMMAND test-labsound-functionnode-offline-silent)
+
   find_program(QJSM qjsm)
   if(QJSM)
+    add_test(NAME labsound-waveshapernode-offline-silent
+             COMMAND ${QJSM} ${CMAKE_CURRENT_SOURCE_DIR}/tests/bindings/labsound-waveshapernode-offline-silent.js
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    set_tests_properties(labsound-waveshapernode-offline-silent PROPERTIES
+      ENVIRONMENT "QUICKJS_MODULE_PATH=${CMAKE_CURRENT_BINARY_DIR}")
+    add_test(NAME portaudio-pastream-reopen-after-close
+             COMMAND ${QJSM} ${CMAKE_CURRENT_SOURCE_DIR}/tests/bindings/portaudio-pastream-reopen-after-close.js
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    set_tests_properties(portaudio-pastream-reopen-after-close PROPERTIES
+      ENVIRONMENT "QUICKJS_MODULE_PATH=${CMAKE_CURRENT_BINARY_DIR}")
     add_test(NAME portaudio-pastream-getters
              COMMAND ${QJSM} ${CMAKE_CURRENT_SOURCE_DIR}/tests/bindings/portaudio-pastream-getters.js
              WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

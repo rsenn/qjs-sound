@@ -1,0 +1,31 @@
+# labsound-compressor-channel-assert
+#
+# AudioNodeOutput::pull() hands a node an in-place bus (the destination
+# input's bus) picked for the output's current channel count. A node that
+# then changes its output channel count in process() (the compressor with
+# a mono source into a stereo destination) keeps getting the old in-place
+# bus from bus(r), so DynamicsCompressorNode::process() asserts
+# outputBus->numberOfChannels() == numberOfDestChannels.
+#
+# repro (tests/vendor/labsound-compressor-channel-assert.cpp):
+#
+#   mono osc -> DynamicsCompressorNode -> 2 channel destination
+#
+# fix: setNumberOfChannels() drops an in-place bus whose channel count no
+# longer matches, so bus(r) returns the resized internal bus.
+
+diff --git a/src/core/AudioNodeOutput.cpp b/src/core/AudioNodeOutput.cpp
+index 2167cdce..0101e468 100644
+--- a/src/core/AudioNodeOutput.cpp
++++ b/src/core/AudioNodeOutput.cpp
+@@ -56,6 +56,10 @@ void AudioNodeOutput::setNumberOfChannels(ContextRenderLock & r, int numberOfCha
+     if (m_numberOfChannels == numberOfChannels) return;
+     m_desiredNumberOfChannels = numberOfChannels;
+     m_internalBus.reset(new AudioBus(numberOfChannels, AudioNode::ProcessingSizeInFrames));
++
++    // an in-place bus chosen by pull() for the old channel count no longer fits
++    if (m_inPlaceBus && m_inPlaceBus->numberOfChannels() != numberOfChannels)
++        m_inPlaceBus = nullptr;
+ }
+ 
+ void AudioNodeOutput::updateInternalBus()

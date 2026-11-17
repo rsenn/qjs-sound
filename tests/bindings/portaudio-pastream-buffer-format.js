@@ -5,6 +5,7 @@
 // as intended and reinterprets every sample's bytes as the wrong type.
 
 import * as pa from 'portaudio';
+import * as std from 'std';
 
 pa.Pa_Initialize();
 
@@ -62,8 +63,8 @@ pa.Pa_Terminate();
 
 if (!allPass) {
   console.log('OVERALL: FAIL');
-  process.exit(1);
+  std.exit(1);
 } else {
   console.log('OVERALL: PASS');
-  process.exit(0);
+  std.exit(0);
 }

@@ -3,6 +3,7 @@
 // Repro: open stream, close, then read .stopped/.active/.time -> returns wrong values instead of throwing
 
 import * as pa from 'portaudio';
+import * as std from 'std';
 
 pa.Pa_Initialize();
 
@@ -45,13 +46,12 @@ allPass &= throwsOrUndefined('inputLatency', () => s.inputLatency);
 allPass &= throwsOrUndefined('outputLatency', () => s.outputLatency);
 allPass &= throwsOrUndefined('sampleRate', () => s.sampleRate);
 
-s = null;
 pa.Pa_Terminate();
 
 if (!allPass) {
   console.log('OVERALL: FAIL');
-  process.exit(1);
+  std.exit(1);
 } else {
   console.log('OVERALL: PASS');
-  process.exit(0);
+  std.exit(0);
 }

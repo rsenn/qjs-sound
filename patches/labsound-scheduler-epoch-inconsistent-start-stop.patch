@@ -1,0 +1,38 @@
+# labsound-scheduler-epoch-inconsistent-start-stop
+#
+# AudioNodeScheduler::start/stop computed _startWhen/_stopWhen as
+# _epoch + when * sampleRate. _epoch is 0 on a fresh node and tracks the
+# context clock once the node is processed, so the same call meant
+# absolute time on a fresh node and "seconds from now" on a playing one:
+# stop(now + 0.5) on a playing oscillator fired 3.5 s late after 3 s.
+#
+# repro (tests/vendor/labsound-scheduler-epoch.cpp):
+#
+#   osc playing for 1 s on an offline context
+#   osc->stop(ac->currentTime() + 0.1);   // keeps playing for 1.1 s more
+#
+# fix: when is absolute context time, as in Web Audio; no epoch term.
+
+diff --git a/src/core/AudioNode.cpp b/src/core/AudioNode.cpp
+index 2258812b..523a8df9 100644
+--- a/src/core/AudioNode.cpp
++++ b/src/core/AudioNode.cpp
+@@ -233,7 +233,8 @@ void AudioNodeScheduler::start(double when)
+         return;
+     }
+ 
+-    _startWhen = _epoch + static_cast<uint64_t>(when * _sampleRate);
++    // absolute context time, as in Web Audio; _epoch is not a base
++    _startWhen = static_cast<uint64_t>(when * _sampleRate);
+     _playbackState = SchedulingState::SCHEDULED;
+ }
+ 
+@@ -263,7 +264,7 @@ void AudioNodeScheduler::stop(double when)
+         when = 0;
+ 
+     // let the scheduler know when to activate the STOPPING state
+-    _stopWhen = _epoch + static_cast<uint64_t>(when * _sampleRate);
++    _stopWhen = static_cast<uint64_t>(when * _sampleRate);
+ }
+ 
+ void AudioNodeScheduler::reset()

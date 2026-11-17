@@ -130,7 +130,7 @@ make_audio_setting_js(JSContext* ctx, std::shared_ptr<lab::AudioSetting> s) {
 // Read a 1-D float buffer from either a Float32Array or a plain Array.
 static int
 read_float_array(JSContext* ctx, JSValueConst val, std::vector<float>& out) {
-  return qjsx::copy_array(ctx, val, out) ? 0 : -1;
+  return qjsx::copy_array(ctx, val, out) ? -1 : 0;
 }
 
 static JSValue
@@ -184,16 +184,9 @@ write_bus_to_wav(lab::AudioBus* bus, const std::string& path, bool mixToMono) {
 // while audio is still rendering corrupts the graph. The cycle node→context→
 // __nodes→node is fine -QuickJS's cycle collector handles it, and as long
 // as anything from the outside reaches one node, the whole graph stays live.
-/* The engine adds start/stop times to the node's own scheduler epoch, which is 0 until the audio thread first
-   processes the node and then tracks the context clock, so the same call means absolute time on a fresh node and
-   "seconds from now" on a playing one. Subtracting the epoch gives WebAudio's absolute context time either way.
-   _self is protected, so it is reached through a pointer-to-member named via a derived class. */
+/* start/stop times are absolute context time in the engine. _self is protected, so the scheduler is reached through
+   a pointer-to-member named via a derived class. */
 struct SchedulerAccess : lab::AudioScheduledSourceNode {
-  static double
-  epoch_seconds(lab::AudioScheduledSourceNode& n) {
-    auto& sched = (n.*(&SchedulerAccess::_self))->_scheduler;
-    return static_cast<double>(sched._epoch.load()) / sched._sampleRate;
-  }
   static double
   stop_seconds(lab::AudioScheduledSourceNode& n) {
     auto& sched = (n.*(&SchedulerAccess::_self))->_scheduler;
@@ -202,8 +195,8 @@ struct SchedulerAccess : lab::AudioScheduledSourceNode {
 };
 
 static float
-engine_when(lab::AudioScheduledSourceNode& n, double when) {
-  return static_cast<float>(std::max(0.0, when - SchedulerAccess::epoch_seconds(n)));
+engine_when(lab::AudioScheduledSourceNode&, double when) {
+  return static_cast<float>(std::max(0.0, when));
 }
 
 /* The anchor array is the only thing keeping a node alive once JS drops its references, so short-lived voices(a note's
@@ -641,6 +634,9 @@ js_audiocontext_create_node(JSContext* ctx, JSValueConst this_val, int argc, JSV
   if(magic == CN_DELAY && argc > 0 && JS_IsNumber(argv[0])) {
     opts = JS_NewObject(ctx);
     JS_SetPropertyStr(ctx, opts, "maxDelayTime", JS_DupValue(ctx, argv[0]));
+  } else if(argc > 0 && JS_IsObject(argv[0])) {
+    /* createWaveShaper({ curve }): the options object goes to the ctor */
+    opts = JS_DupValue(ctx, argv[0]);
   }
   JSValueConst args[2] = { this_val, opts };
   JSValue ret = JS_CallConstructor(ctx, ctor, JS_IsObject(opts) ? 2 : 1, args);

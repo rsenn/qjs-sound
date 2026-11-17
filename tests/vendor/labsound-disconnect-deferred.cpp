@@ -46,20 +46,25 @@ int main() {
     ac->connect(gain, osc, 0, 0);
     osc->start(0.0f);
 
-    // Engine-level: disconnect gain from the graph, then reconnect it.
-    // The bug: disconnect() enqueues a Disconnect that is applied a tick later,
-    // so a Connect enqueued right after is wiped and the pass-through gain stays
-    // stopped -> the destination receives zeros.
-    ac->disconnect(gain);
+    const int quantum = AudioNode::ProcessingSizeInFrames;
+    auto scratch = std::make_shared<AudioBus>(1, quantum, true);
+
+    // let the graph reach steady state before touching it
+    for(int q = 0; q < 8; ++q)
+        dest->offlineRender(scratch.get(), quantum);
+
+    // Engine-level: cut all outputs of gain, then connect it again (the
+    // WebAudio disconnect()/connect() idiom). The disconnect is applied a
+    // tick later and must not wipe the connect queued right after it.
+    ac->disconnect(nullptr, gain);
     ac->connect(dest, gain, 0, 0);
 
-    const int quantum = AudioNode::ProcessingSizeInFrames;
-    const int numQuanta = 16;
-    auto scratch = std::make_shared<AudioBus>(1, quantum, true);
+    const int numQuanta = 64;
     float peak = 0.0f;
 
     for(int q = 0; q < numQuanta; ++q) {
         dest->offlineRender(scratch.get(), quantum);
+        if(q < numQuanta - 8) continue;
         const float* data = scratch->channel(0)->data();
         for(int i = 0; i < quantum; ++i) {
             float v = std::abs(data[i]);

@@ -1,0 +1,70 @@
+# labsound-stopped-source-stuck-stopping
+#
+# A scheduled source reaches STOPPING at its stop time and becomes
+# UNSCHEDULED (firing onEnded) on its next pull. A source cut from the
+# graph in between is never pulled again, so it stays STOPPING for good
+# and its scheduler epoch freezes.
+#
+# repro (tests/vendor/labsound-stopped-source-stuck-stopping.cpp):
+#
+#   osc -> gain -> destination, osc->stop() until osc is STOPPING,
+#   AudioNodeOutput::disconnectAll(osc's outputs), render on
+#   -> osc->schedulingState() is still STOPPING
+#
+# fix: disconnectAll() completes the stop of a source in STOPPING
+# (UNSCHEDULED, onEnded queued) through AudioNode::settleStopping().
+
+diff --git a/include/LabSound/core/AudioNode.h b/include/LabSound/core/AudioNode.h
+index 57307cb5..b450f775 100644
+--- a/include/LabSound/core/AudioNode.h
++++ b/include/LabSound/core/AudioNode.h
+@@ -121,6 +121,9 @@ public :
+ 
+     SchedulingState schedulingState() const { return _self->_scheduler.playbackState(); }
+ 
++    // completes a stop in progress for a node the graph will not pull again
++    void settleStopping(AudioContext * context);
++
+     //--------------------------------------------------
+     // required interface
+     //
+diff --git a/src/core/AudioNode.cpp b/src/core/AudioNode.cpp
+index 523a8df9..cddc72ea 100644
+--- a/src/core/AudioNode.cpp
++++ b/src/core/AudioNode.cpp
+@@ -267,6 +267,18 @@ void AudioNodeScheduler::stop(double when)
+     _stopWhen = static_cast<uint64_t>(when * _sampleRate);
+ }
+ 
++void AudioNode::settleStopping(AudioContext * context)
++{
++    auto & s = _self->_scheduler;
++    if (s._playbackState != SchedulingState::STOPPING)
++        return;
++
++    s._stopWhen = std::numeric_limits<uint64_t>::max();
++    s._playbackState = SchedulingState::UNSCHEDULED;
++    if (s._onEnded)
++        context->enqueueEvent(s._onEnded);
++}
++
+ void AudioNodeScheduler::reset()
+ {
+     _startWhen = std::numeric_limits<uint64_t>::max();
+diff --git a/src/core/AudioNodeOutput.cpp b/src/core/AudioNodeOutput.cpp
+index 0101e468..7f5acb60 100644
+--- a/src/core/AudioNodeOutput.cpp
++++ b/src/core/AudioNodeOutput.cpp
+@@ -223,6 +223,12 @@ void AudioNodeOutput::disconnectAll(ContextGraphLock & g, std::shared_ptr<AudioN
+ {
+     self->disconnectAllInputs(g, self);
+     self->disconnectAllParams(g, self);
++
++    // a source cut while stopping is never pulled again, so it would stay
++    // STOPPING (and never fire onEnded): finish the stop here
++    if (auto n = self->sourceNode())
++        if (n->isScheduledNode())
++            n->settleStopping(g.context());
+ }
+ 
+ }  // namespace lab

@@ -6,6 +6,7 @@
 // table order did not match the INSTANCE enum order.
 
 import * as stk from 'stk';
+import * as std from 'std';
 
 const cases = [
   { ctor: 'BlitSaw', expected: 'BlitSaw' },
@@ -31,8 +32,8 @@ for (const c of cases) {
 
 if (!allPass) {
   console.log('OVERALL: FAIL');
-  process.exit(1);
+  std.exit(1);
 } else {
   console.log('OVERALL: PASS');
-  process.exit(0);
+  std.exit(0);
 }

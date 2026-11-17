@@ -301,7 +301,9 @@ wired:
   use `PATCH_COMMAND` on the ExternalProject. `ExternalProject_Add` does not
   have the same copy+stamp logic, so the patch applies to the real source
   tree — make sure the patch is idempotent and that a clean checkout still
-  applies.
+  applies. LabSound does this with `cmake/ApplyPatches.cmake`, which applies
+  every `patches/labsound-*.patch` in name order and skips the ones whose
+  reverse already applies cleanly.
 
 Note: the one existing patch, `cmake/patches/aubio-static-lib.patch`, lives in
 `cmake/patches/`, not `patches/`. New vendored-library bug fixes go in

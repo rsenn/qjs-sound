@@ -16,7 +16,10 @@ function(check_cflag FLAG OUTPUT_VAR)
 
   message(CHECK_START "Compiler flag ${FLAG}")
    set(CMAKE_REQUIRED_QUIET TRUE)
-  check_c_compiler_flag("${FLAG}" RESULT)
+  # one cache variable per flag: "-O0" -> CHECK_CFLAG__O0
+  string(MAKE_C_IDENTIFIER "CHECK_CFLAG_${FLAG}" RESULT_VAR)
+  check_c_compiler_flag("${FLAG}" ${RESULT_VAR})
+  set(RESULT "${${RESULT_VAR}}")
   set(CMAKE_REQUIRED_QUIET FALSE)
 
   if(RESULT)

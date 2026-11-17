@@ -1,0 +1,47 @@
+# labsound-disconnect-deferred-wipes-later-connect
+#
+# AudioContext::disconnect only enqueues a Disconnect that is applied a
+# tick later (after a 0.1 s ramp-out), while a Connect queued right after
+# it is applied at once. The deferred cut then wipes the new connection
+# and the node, stopped by scheduleDisconnect(), stays silent.
+#
+# repro (tests/vendor/labsound-disconnect-deferred.cpp):
+#
+#   osc -> gain -> destination, rendering
+#   ac->disconnect(nullptr, gain);   // cut all outputs of gain
+#   ac->connect(dest, gain, 0, 0);   // output is silent from here on
+#
+# fix: a Connect that touches a node with a pending FinishDisconnect is
+# requeued behind it, so the operations apply in the order they were made.
+
+diff --git a/src/core/AudioContext.cpp b/src/core/AudioContext.cpp
+index e428a1ed..cbdc8f9f 100644
+--- a/src/core/AudioContext.cpp
++++ b/src/core/AudioContext.cpp
+@@ -331,6 +331,26 @@ void AudioContext::handlePreRenderTasks(ContextRenderLock & r)
+             {
+                 case ConnectionOperationKind::Connect:
+                 {
++                    // a disconnect of this node is still ramping out: keep the
++                    // connect behind it so it is not wiped when it finishes
++                    bool behind_disconnect = false;
++                    for (auto & pc : requeued_connections)
++                    {
++                        if (pc.type != ConnectionOperationKind::FinishDisconnect)
++                            continue;
++                        if ((pc.source && pc.source == node_connection.source) ||
++                            (pc.destination && pc.destination == node_connection.destination))
++                        {
++                            behind_disconnect = true;
++                            break;
++                        }
++                    }
++                    if (behind_disconnect)
++                    {
++                        requeued_connections.push_back(node_connection);
++                        break;
++                    }
++
+                     AudioNodeInput::connect(gLock,
+                                             node_connection.destination->input(node_connection.destIndex),
+                                             node_connection.source->output(node_connection.srcIndex));

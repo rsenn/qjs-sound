@@ -38,12 +38,15 @@
 	zero.patch in alongside the existing static-lib patch, so the aubio
 	confidence fix ships in the vendored build.
 	* patches/aubio-pitch-confidence-reads-zero.patch (new):
-	aubio-pitch-confidence-reads-zero fixed in the engine. When the
-	minimum of the yin difference function falls at tau == 0, yin
-	data[0] is always 1.0 (forced at the top of the loop and never
-	updated), so confidence reads 1 - 1 == 0 even though a valid pitch
-	was detected. Skip to the first nonzero tau instead, in both
-	pitchyin.c and pitchyinfft.c.
+	aubio-pitch-confidence-reads-zero fixed in the library. The yinfft
+	method set peak_pos only in its short-period branch; for tau >
+	short_period (a 440 Hz sine at 44100 Hz) it stayed 0 and confidence
+	read 1 - yinfft->data[0] == 0. peak_pos is now set to tau there.
+	* tests/vendor/aubio-pitch-confidence-reads-zero.cpp (new), CMakeLists.txt:
+	C++ regression test linked straight against the vendored aubio; wired
+	with add_test only when BUILD_AUBIO is ON (the system copy is unpatched).
+	* tests/bindings/*.js: use std.exit() instead of the undefined
+	process.exit(); drop a reassignment of a const in the getters test.
 	* CLAUDE.md: document the vendored-library patch and test
 	conventions (patch file format, patches/ vs cmake/patches/, C++
 	regression tests in tests/vendor/ for library bugs and JS tests in
@@ -63,17 +66,48 @@
 	LabSound smoke test is superseded by the ctest-wired regression
 	tests in tests/vendor/ and tests/bindings/.
 
-	Reviewed through the rest of BUGS and left unfixed as
-	intentional/no-bonding-bug:
-	* pastream-reopen-after-close-segfault: ALSA/PortAudio-level issue
-	of this sandbox; reproduces with the unmodified binding code.
-	* pastream-getters-no-closed-guard: already fixed; the getters
-	already throw TypeError after close.
-	* console-error-warn-undefined-qjsm: qjsm environment issue
-	(timers module fails to load), not this project's code.
-	* check-cflag-result-cached-under-fixed-name: informational copy
-	of a check-cmakefile bug already documented in qjs-modules/BUGS.
-	* labsound-disconnect-deferred-wipes-later-connect,
-	labsound-scheduler-epoch-inconsistent-start-stop: worked around in
-	the binding (quickjs-labsound.cpp) and kept out of scope for the
-	engine; still documented in BUGS.
+	Later the same day:
+	* cmake/Checks.cmake (check_cflag): check-cflag-result-cached-under-
+	fixed-name fixed. The probe result was cached under the fixed name
+	RESULT, so every flag after the first got the first answer; each
+	flag now has its own cache variable (CHECK_CFLAG_<flag>).
+	* tests/cmake/check-cflag-result-cached/CMakeLists.txt (new),
+	CMakeLists.txt: ctest regression test probing a supported and a
+	bogus flag in one configure.
+	* quickjs-labsound.cpp (read_float_array, js_audiocontext_create_node):
+	labsound-waveshapernode-offline-silent fixed, and it was a binding
+	bug, not an engine bug. read_float_array returned -1 on success
+	(copy_array returns 0 on success), so every curve passed from JS was
+	dropped and the shaper had an empty curve, which the engine renders
+	as silence; the same inversion made AudioBuffer.copyToChannel(array)
+	throw. createWaveShaper({ curve }) also never forwarded its options
+	object to the constructor; it does now.
+	* tests/bindings/labsound-waveshapernode-offline-silent.js (new),
+	CMakeLists.txt: ctest regression test for all three ways to set a
+	curve and for copyToChannel.
+
+	LabSound engine fixes, applied to the submodule tree at build time
+	by cmake/ApplyPatches.cmake (idempotent PATCH_COMMAND of the LabSound
+	ExternalProject); each has a C++ test in tests/vendor/ linked
+	against the patched library:
+	* patches/labsound-disconnect-deferred-wipes-later-connect.patch:
+	a Connect touching a node with a pending FinishDisconnect is requeued
+	behind it, so disconnect() followed by connect() keeps the new edge.
+	* patches/labsound-scheduler-epoch-inconsistent-start-stop.patch:
+	start/stop times are absolute context time (no epoch term).
+	quickjs-labsound.cpp: engine_when no longer subtracts the epoch.
+	* patches/labsound-compressor-channel-assert.patch:
+	AudioNodeOutput::setNumberOfChannels drops a stale in-place bus, so
+	a mono source into a stereo destination no longer trips the
+	compressor's channel assertion.
+	* patches/labsound-stopped-source-stuck-stopping.patch:
+	disconnectAll() completes the stop (UNSCHEDULED, onEnded) of a source
+	cut while STOPPING; confirmed by the test before the fix.
+	* labsound-functionnode-offline-silent: not reproducible, a
+	FunctionNode renders offline; tests/vendor/ keeps a guard test.
+	* pastream-reopen-after-close-segfault: not reproducible any more
+	(open, close, open exits cleanly); tests/bindings/ keeps a test.
+	* console-error-warn-undefined-qjsm: the installed qjsm has
+	console.error and console.warn; nothing to fix in this project.
+	* CMakeLists.txt: the LabSound test targets depend on the LabSound
+	external project so they relink after a library rebuild.
