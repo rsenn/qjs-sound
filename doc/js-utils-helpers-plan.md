@@ -304,6 +304,33 @@ Done when `opaque` is 0 and `dpcast` is 1.
 4. `helpers.md` of the `quickjs-native-bindings` skill: add a findings-log line with what the helpers did not cover and which call sites could not use them; `ChangeLog` entry (the skill rule).
 5. Fill the size table of section 8.
 
+### Phase 6: the remaining bindings (C and the last C++ file)
+
+Phases 2 to 4 converted the three C++ bindings that repeat the same code. `quickjs-soundtouch.cpp` (the fourth C++ file) and the six C bindings
+(`quickjs-aubio.c`, `quickjs-portaudio.c`, `quickjs-portmidi.c`, `quickjs-rubberband.c`, `quickjs-samplerate.c`, `quickjs-sndfile.c`) were left
+because they are C (the helpers are C++ templates) and soundtouch was a small file. Phase 6 lifts them to the helpers where the helpers apply:
+
+**6.1 `quickjs-soundtouch.cpp` (328 lines).** The last C++ file; it already includes `js-utils.hpp` and uses `qjsx::array_view`/`qjsx::get_array`
+for `putSamples`/`receiveSamples`. The remaining 11 raw `JS_ToFloat64`/`JS_ToInt32` calls are the same bug class as phase 2-4:
+
+| Site | Before | After |
+|---|---|---|
+| constructor `argv[0]`/`argv[1]` | `JS_ToFloat64`/`JS_ToInt32` ignored | `qjsx::args_from` with `qjsx::present` guard |
+| `js_soundtouch_set` (5 props) | `if(!JS_ToFloat64(ctx, &d, value)) { ... }` | `qjsx::value(ctx, value, d)` once, then the switch |
+| `setSetting`/`getSetting` `argv[0]`/`argv[1]` | `JS_ToInt32` ignored | `qjsx::args_from` with `qjsx::present` guard |
+
+Done when `conv` is 0 for soundtouch and G1-G5 are unchanged.
+
+**6.2 C bindings: no source change.** The six C files use raw `JS_To*`/`JS_GetOpaque`/`JS_NewObjectProtoClass` and are
+not in scope for the C++ templates of `js-utils.hpp`. Two of them already throw on conversion failure (`quickjs-aubio.c`'s
+`js_aubionotes_set`/`js_aubiopitch_set`/`js_aubioonset_set` check the return of `JS_ToFloat64` and return `JS_EXCEPTION`);
+the rest ignore it. The C layer of `js-utils.[ch]` and `js-typedarray.[ch]` is the next step after this one (helpers.md roadmap
+step 3), not part of lifting - it would mean writing the C equivalents of `qjsx::args`/`value`/`self`/`wrap` for the C files
+to use. Left as a TODO, not a phase.
+
+**6.3 Gates.** G1 to G5 after 6.1; the C files are untouched so their tests cannot regress. Record `wc -l` of every file
+in the size table below.
+
 ## 7. Risks and how the gates cover them
 
 | Risk | Covered by |
@@ -325,7 +352,7 @@ Symbol) · D5 rename `StkSingWave` to `SingWave` (alias kept)
 
 | Step | State | Date |
 |---|---|---|
-| 0.1 baseline files | | |
+| 0.1 baseline files | done | 2026-11-16 |
 | 0.2 decisions | D1 throw, D2 define prototype, D3 keep preset, D4 convert/throw, D5 rename | 2026-11-16 |
 | 0.3 labsound.so loads | done | 2026-11-16 |
 | 0.4 errors-test.js | done | 2026-11-16 |
@@ -338,23 +365,27 @@ Symbol) · D5 rename `StkSingWave` to `SingWave` (alias kept)
 | 2.6 sndobj effect ctor | done | 2026-11-16 |
 | 2.7 sndobj methods (common, table, generator, effect) | done | 2026-11-16 |
 | 2.8 sndobj gate | done | 2026-11-16 |
-| 3.1 stk finalizers | | |
-| 3.2 stk opaque lookups | | |
-| 3.3 stk ctor tables (8 families) | | |
-| 3.4 stk ctor tails | | |
+| 3.1 stk finalizers | done | 2026-11-16 |
+| 3.2 stk opaque lookups | done | 2026-11-16 |
+| 3.3 stk ctor tables (8 families) | done | 2026-11-16 |
+| 3.4 stk ctor tails | done | 2026-11-16 |
 | 3.5 stk args and ladders (9 commits) | done | 2026-11-16 |
 | 3.6 stk gate | done | 2026-11-16 |
-| 4.1 labsound finalizers | | |
-| 4.2 node group + smoke test | | |
-| 4.3 lookups and casts | | |
-| 4.4 ctor tails | | |
-| 4.5 options and numbers | | |
-| 4.6 labsound gate | | |
-| 5 closing | | |
+| 4.1 labsound finalizers | done | 2026-11-16 |
+| 4.2 node group + smoke test | done | 2026-11-16 |
+| 4.3 lookups and casts | done | 2026-11-16 |
+| 4.4 ctor tails | done | 2026-11-16 |
+| 4.5 options and numbers | done | 2026-11-16 |
+| 4.6 labsound gate | done | 2026-11-16 |
+| 5 closing | done | 2026-11-16 |
+| 6.1 soundtouch migration | done | 2026-11-16 |
+| 6.2 C bindings (no source change) | noted | 2026-11-16 |
+| 6.3 gates | done | 2026-11-16 |
 
-| File | Lines at `d530d27` | After phase 2 | After phase 3 | After phase 4 |
-|---|---|---|---|---|
-| `quickjs-sndobj.cpp` | 1428 | 1283 | | |
-| `quickjs-stk.cpp` | 4000 | | | |
-| `quickjs-labsound.cpp` | 3297 | | | |
-| `js-utils.hpp` | 575 | 1029 (phase 1) | | |
+| File | Lines at `d530d27` | After phase 2 | After phase 3 | After phase 4 | After phase 5 |
+|---|---|---|---|---|---|
+| `quickjs-sndobj.cpp` | 1428 | 1283 | 1283 | 1283 | 1283 |
+| `quickjs-stk.cpp` | 4000 | | 3878 | 3878 | 3882 |
+| `quickjs-labsound.cpp` | 3297 | | | 3093 | 3093 |
+| `quickjs-soundtouch.cpp` | 328 | | | | 321 |
+| `js-utils.hpp` | 575 | 1029 (phase 1) | 1039 | 1039 | 1039 |

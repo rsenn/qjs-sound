@@ -2,6 +2,7 @@
 #include <cutils.h>
 #include <string.h>
 #include "defines.h"
+#include "js-utils-c.h"
 #include <portaudio.h>
 
 static JSClassID js_pastream_class_id;
@@ -78,44 +79,23 @@ pa_hostapitype_name(PaHostApiTypeId id) {
  * conversion(skill section 6), not a resource class. Returns FALSE(obj
  * is not an object, e.g. null/undefined) to mean "pass NULL for this
  * side", matching Pa_OpenStream()'s own NULL-parameter convention. */
-static BOOL
+static int
 js_pastreamparameters_fromobj(JSContext* ctx, JSValueConst obj, PaStreamParameters* out) {
-  JSValue v;
-
   if(!JS_IsObject(obj))
-    return FALSE;
+    return 0;
 
   *out = (PaStreamParameters){-1, 2, paFloat32, 0.001, NULL};
 
-  if(!JS_IsUndefined(v = JS_GetPropertyStr(ctx, obj, "device"))) {
-    int32_t n;
-    if(!JS_ToInt32(ctx, &n, v))
-      out->device = n;
-  }
-  JS_FreeValue(ctx, v);
+  if(js_prop_int32(ctx, obj, "device", &out->device))
+    return -1;
+  if(js_prop_int32(ctx, obj, "channelCount", &out->channelCount))
+    return -1;
+  if(js_prop_uint32(ctx, obj, "sampleFormat", (uint32_t*)&out->sampleFormat))
+    return -1;
+  if(js_prop_float64(ctx, obj, "suggestedLatency", &out->suggestedLatency))
+    return -1;
 
-  if(!JS_IsUndefined(v = JS_GetPropertyStr(ctx, obj, "channelCount"))) {
-    int32_t n;
-    if(!JS_ToInt32(ctx, &n, v))
-      out->channelCount = n;
-  }
-  JS_FreeValue(ctx, v);
-
-  if(!JS_IsUndefined(v = JS_GetPropertyStr(ctx, obj, "sampleFormat"))) {
-    uint32_t u;
-    if(!JS_ToUint32(ctx, &u, v))
-      out->sampleFormat = u;
-  }
-  JS_FreeValue(ctx, v);
-
-  if(!JS_IsUndefined(v = JS_GetPropertyStr(ctx, obj, "suggestedLatency"))) {
-    double d;
-    if(!JS_ToFloat64(ctx, &d, v))
-      out->suggestedLatency = d;
-  }
-  JS_FreeValue(ctx, v);
-
-  return TRUE;
+  return 1;
 }
 
 static JSValue
@@ -133,8 +113,8 @@ js_portaudio_function(JSContext* ctx, JSValueConst new_target, int argc, JSValue
     }
     case FUNC_SLEEP: {
       int64_t msec = -1;
-      if(argc > 0)
-        JS_ToInt64(ctx, &msec, argv[0]);
+      if(js_arg_int64(ctx, argc, argv, 0, &msec))
+        return JS_EXCEPTION;
       Pa_Sleep(msec);
       break;
     }
@@ -142,8 +122,8 @@ js_portaudio_function(JSContext* ctx, JSValueConst new_target, int argc, JSValue
     case FUNC_GETSAMPLESIZE: {
       uint32_t u = 0;
 
-      if(argc > 0)
-        JS_ToUint32(ctx, &u, argv[0]);
+      if(js_arg_uint32(ctx, argc, argv, 0, &u))
+        return JS_EXCEPTION;
 
       PaError r = Pa_GetSampleSize(u);
 
@@ -189,8 +169,13 @@ js_pastream_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVal
     PaStreamParameters inParams, outParams;
     JSValue inVal = JS_GetPropertyStr(ctx, argv[0], "input");
     JSValue outVal = JS_GetPropertyStr(ctx, argv[0], "output");
-    BOOL hasIn = js_pastreamparameters_fromobj(ctx, inVal, &inParams);
-    BOOL hasOut = js_pastreamparameters_fromobj(ctx, outVal, &outParams);
+    int hasIn = js_pastreamparameters_fromobj(ctx, inVal, &inParams);
+    int hasOut = js_pastreamparameters_fromobj(ctx, outVal, &outParams);
+    if(hasIn < 0 || hasOut < 0) {
+      JS_FreeValue(ctx, inVal);
+      JS_FreeValue(ctx, outVal);
+      return JS_EXCEPTION;
+    }
     JS_FreeValue(ctx, inVal);
     JS_FreeValue(ctx, outVal);
 
@@ -199,17 +184,12 @@ js_pastream_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVal
     uint32_t flags = paNoFlag;
     JSValue v;
 
-    if(!JS_IsUndefined(v = JS_GetPropertyStr(ctx, argv[0], "sampleRate")))
-      JS_ToFloat64(ctx, &sampleRate, v);
-    JS_FreeValue(ctx, v);
-
-    if(!JS_IsUndefined(v = JS_GetPropertyStr(ctx, argv[0], "framesPerBuffer")))
-      JS_ToUint32(ctx, &framesPerBuffer, v);
-    JS_FreeValue(ctx, v);
-
-    if(!JS_IsUndefined(v = JS_GetPropertyStr(ctx, argv[0], "flags")))
-      JS_ToUint32(ctx, &flags, v);
-    JS_FreeValue(ctx, v);
+    if(js_prop_float64(ctx, argv[0], "sampleRate", &sampleRate))
+      return JS_EXCEPTION;
+    if(js_prop_uint32(ctx, argv[0], "framesPerBuffer", &framesPerBuffer))
+      return JS_EXCEPTION;
+    if(js_prop_uint32(ctx, argv[0], "flags", &flags))
+      return JS_EXCEPTION;
 
     r = Pa_OpenStream(&st, hasIn ? &inParams : NULL, hasOut ? &outParams : NULL, sampleRate, framesPerBuffer, flags, NULL, NULL);
 
@@ -220,16 +200,16 @@ js_pastream_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVal
     double sampleRate = 44100;
     uint32_t framesPerBuffer = paFramesPerBufferUnspecified;
 
-    if(argc > 0)
-      JS_ToInt32(ctx, &numInputChannels, argv[0]);
-    if(argc > 1)
-      JS_ToInt32(ctx, &numOutputChannels, argv[1]);
-    if(argc > 2)
-      JS_ToUint32(ctx, &sampleFormat, argv[2]);
-    if(argc > 3)
-      JS_ToFloat64(ctx, &sampleRate, argv[3]);
-    if(argc > 4)
-      JS_ToUint32(ctx, &framesPerBuffer, argv[4]);
+    if(js_arg_int32(ctx, argc, argv, 0, &numInputChannels))
+      return JS_EXCEPTION;
+    if(js_arg_int32(ctx, argc, argv, 1, &numOutputChannels))
+      return JS_EXCEPTION;
+    if(js_arg_uint32(ctx, argc, argv, 2, &sampleFormat))
+      return JS_EXCEPTION;
+    if(js_arg_float64(ctx, argc, argv, 3, &sampleRate))
+      return JS_EXCEPTION;
+    if(js_arg_uint32(ctx, argc, argv, 4, &framesPerBuffer))
+      return JS_EXCEPTION;
 
     r = Pa_OpenDefaultStream(&st, numInputChannels, numOutputChannels, sampleFormat, sampleRate, framesPerBuffer, NULL, NULL);
   }
@@ -283,12 +263,14 @@ fail:
 static JSValue
 js_pastream_isformatsupported(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
   PaStreamParameters inParams, outParams;
-  BOOL hasIn = argc > 0 ? js_pastreamparameters_fromobj(ctx, argv[0], &inParams) : FALSE;
-  BOOL hasOut = argc > 1 ? js_pastreamparameters_fromobj(ctx, argv[1], &outParams) : FALSE;
+  int hasIn = argc > 0 ? js_pastreamparameters_fromobj(ctx, argv[0], &inParams) : 0;
+  int hasOut = argc > 1 ? js_pastreamparameters_fromobj(ctx, argv[1], &outParams) : 0;
   double sampleRate = 44100;
 
-  if(argc > 2)
-    JS_ToFloat64(ctx, &sampleRate, argv[2]);
+  if(hasIn < 0 || hasOut < 0)
+    return JS_EXCEPTION;
+  if(js_arg_float64(ctx, argc, argv, 2, &sampleRate))
+    return JS_EXCEPTION;
 
   return js_portaudio_error(ctx, Pa_IsFormatSupported(hasIn ? &inParams : NULL, hasOut ? &outParams : NULL, sampleRate));
 }
@@ -316,6 +298,21 @@ js_pastream_get(JSContext* ctx, JSValueConst this_val, int magic) {
     return JS_EXCEPTION;
 
   st = w->stream;
+
+  switch(magic) {
+    case PROP_ACTIVE:
+    case PROP_STOPPED:
+    case PROP_INPUTLATENCY:
+    case PROP_OUTPUTLATENCY:
+    case PROP_SAMPLERATE:
+    case PROP_TIME:
+    case PROP_CPULOAD:
+    case PROP_READAVAILABLE:
+    case PROP_WRITEAVAILABLE:
+      if(!st)
+        return JS_ThrowTypeError(ctx, "PaStream is closed");
+      break;
+  }
 
   switch(magic) {
     case PROP_ACTIVE: {
@@ -421,7 +418,8 @@ js_pastream_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
         return JS_ThrowTypeError(ctx, "argument 1 must be an ArrayBuffer or TypedArray");
 
       if(argc > 1) {
-        JS_ToUint32(ctx, &frames, argv[1]);
+        if(js_arg_uint32(ctx, argc, argv, 1, &frames))
+          return JS_EXCEPTION;
       } else {
         int32_t channels = w->numInputChannels > 0 ? w->numInputChannels : 1;
         PaError sampleSize = Pa_GetSampleSize(w->sampleFormat);
@@ -442,7 +440,8 @@ js_pastream_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
         return JS_ThrowTypeError(ctx, "argument 1 must be an ArrayBuffer or TypedArray");
 
       if(argc > 1) {
-        JS_ToUint32(ctx, &frames, argv[1]);
+        if(js_arg_uint32(ctx, argc, argv, 1, &frames))
+          return JS_EXCEPTION;
       } else {
         int32_t channels = w->numOutputChannels > 0 ? w->numOutputChannels : 1;
         PaError sampleSize = Pa_GetSampleSize(w->sampleFormat);
@@ -526,7 +525,8 @@ js_padeviceinfo_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
 
   if(argc > 0) {
     int32_t index = -1;
-    JS_ToInt32(ctx, &index, argv[0]);
+    if(js_arg_int32(ctx, argc, argv, 0, &index))
+      return JS_EXCEPTION;
     const PaDeviceInfo* info;
 
     if((info = Pa_GetDeviceInfo(index)))
@@ -673,51 +673,59 @@ js_padeviceinfo_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, i
     }
     case PROP_HOSTAPI: {
       int32_t n;
-      if(!JS_ToInt32(ctx, &n, value))
-        di->hostApi = n;
+      if(js_value_int32(ctx, value, &n))
+        return JS_EXCEPTION;
+      di->hostApi = n;
       break;
     }
     case PROP_MAXINPUTCHANNELS: {
       int32_t n;
-      if(!JS_ToInt32(ctx, &n, value))
-        di->maxInputChannels = n;
+      if(js_value_int32(ctx, value, &n))
+        return JS_EXCEPTION;
+      di->maxInputChannels = n;
 
       break;
     }
     case PROP_MAXOUTPUTCHANNELS: {
       int32_t n;
-      if(!JS_ToInt32(ctx, &n, value))
-        di->maxOutputChannels = n;
+      if(js_value_int32(ctx, value, &n))
+        return JS_EXCEPTION;
+      di->maxOutputChannels = n;
       break;
     }
     case PROP_DEFAULTLOWINPUTLATENCY: {
       double d;
-      if(!JS_ToFloat64(ctx, &d, value))
-        di->defaultLowInputLatency = d;
+      if(js_value_float64(ctx, value, &d))
+        return JS_EXCEPTION;
+      di->defaultLowInputLatency = d;
       break;
     }
     case PROP_DEFAULTLOWOUTPUTLATENCY: {
       double d;
-      if(!JS_ToFloat64(ctx, &d, value))
-        di->defaultLowOutputLatency = d;
+      if(js_value_float64(ctx, value, &d))
+        return JS_EXCEPTION;
+      di->defaultLowOutputLatency = d;
       break;
     }
     case PROP_DEFAULTHIGHINPUTLATENCY: {
       double d;
-      if(!JS_ToFloat64(ctx, &d, value))
-        di->defaultHighInputLatency = d;
+      if(js_value_float64(ctx, value, &d))
+        return JS_EXCEPTION;
+      di->defaultHighInputLatency = d;
       break;
     }
     case PROP_DEFAULTHIGHOUTPUTLATENCY: {
       double d;
-      if(!JS_ToFloat64(ctx, &d, value))
-        di->defaultHighOutputLatency = d;
+      if(js_value_float64(ctx, value, &d))
+        return JS_EXCEPTION;
+      di->defaultHighOutputLatency = d;
       break;
     }
     case PROP_DEFAULTSAMPLERATE: {
       double d;
-      if(!JS_ToFloat64(ctx, &d, value))
-        di->defaultSampleRate = d;
+      if(js_value_float64(ctx, value, &d))
+        return JS_EXCEPTION;
+      di->defaultSampleRate = d;
       break;
     }
   }
@@ -765,7 +773,8 @@ js_hostapiinfo_constructor(JSContext* ctx, JSValueConst new_target, int argc, JS
 
   if(argc > 0) {
     int32_t index = -1;
-    JS_ToInt32(ctx, &index, argv[0]);
+    if(js_arg_int32(ctx, argc, argv, 0, &index))
+      return JS_EXCEPTION;
     const PaHostApiInfo* info;
 
     if((info = Pa_GetHostApiInfo(index))) {

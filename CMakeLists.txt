@@ -2,6 +2,8 @@ project(qjs-sound C CXX)
 
 cmake_minimum_required(VERSION 3.19)
 
+enable_testing()
+
 option(USE_LABSOUND "Use LabSound library" ON)
 option(USE_STK "Use Stk library" ON)
 option(USE_PORTAUDIO "Use PortAudio library" ON)
@@ -262,9 +264,25 @@ if(USE_LABSOUND)
   )
   module_include_directories(labsound "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include" "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/third_party/libnyquist/include")
 
-  add_executable(test-labsound test-labsound.cpp)
+  add_executable(test-labsound-disconnect-deferred
+    tests/vendor/labsound-disconnect-deferred.cpp)
+  target_link_libraries(test-labsound-disconnect-deferred PRIVATE ${labsound_LIBRARIES})
+  target_include_directories(test-labsound-disconnect-deferred PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/third_party/libnyquist/include")
+  add_test(NAME labsound-disconnect-deferred
+           COMMAND test-labsound-disconnect-deferred)
 
-  target_link_libraries(test-labsound PRIVATE ${labsound_LIBRARIES})
+  find_program(QJSM qjsm)
+  if(QJSM)
+    add_test(NAME portaudio-pastream-getters
+             COMMAND ${QJSM} ${CMAKE_CURRENT_SOURCE_DIR}/tests/bindings/portaudio-pastream-getters.js
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    set_tests_properties(portaudio-pastream-getters PROPERTIES
+      ENVIRONMENT "QUICKJS_MODULE_PATH=${CMAKE_CURRENT_BINARY_DIR}")
+  else()
+    message(WARNING "qjsm not found; binding tests will be skipped")
+  endif()
 endif(USE_LABSOUND)
 
 if(USE_PORTAUDIO)

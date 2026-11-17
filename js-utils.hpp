@@ -163,8 +163,11 @@ template <> struct element<uint8_t> {
 template <> struct element<bool> {
   static int
   from_js(JSContext* ctx, bool* out, JSValueConst val) {
-    BOOL b = JS_ToBool(ctx, val);
-    *out = !!b;
+    if(!JS_IsBool(val)) {
+      JS_ThrowTypeError(ctx, "expecting a boolean");
+      return -1;
+    }
+    *out = JS_ToBool(ctx, val);
     return 0;
   }
   static JSValue
@@ -177,12 +180,16 @@ template <> struct element<const char*> {
   // static constexpr TypedArrayKind kind = TYPEDARRAY_NONE;
   static int
   from_js(JSContext* ctx, const char** out, JSValueConst val) {
+    if(!JS_IsString(val)) {
+      JS_ThrowTypeError(ctx, "expecting a string");
+      return -1;
+    }
     const char* str;
     if((str = JS_ToCString(ctx, val))) {
       *out = str;
       return 0;
     }
-    return 1;
+    return -1;
   }
   static JSValue
   to_js(JSContext* ctx, const char* in) {
@@ -478,13 +485,16 @@ with(JSContext* ctx, JSValueConst obj, KeyType key, FunctionType&& fn) {
   T tmp;
 
   /* calls the underlying getter & conversion overload */
-  if(!property(ctx, obj, key, tmp)) {
+  int r = property(ctx, obj, key, tmp);
+  if(r == 0) {
     fn(tmp);
     release(ctx, tmp);
     return 0;
   }
+  if(r < 0)
+    return -1; // property not found, no exception pending
 
-  return -1;
+  return -1; // conversion failed, exception pending
 }
 
 /* get_opaque: copies the T stored in an object of a class into out.

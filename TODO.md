@@ -6,7 +6,7 @@ how `quickjs-labsound.cpp` is currently built.
 
 ## Boilerplate checklist (applies to every node added below)
 
-Adding a node currently means touching **six** spots - easy to half-do:
+Adding a node currently means touching **five** spots - easy to half-do:
 
 1. `static JSClassID js_xxxnode_class_id;` near the top.
 2. `static JSValue xxxnode_proto, xxxnode_ctor;` near the top.
@@ -15,11 +15,7 @@ Adding a node currently means touching **six** spots - easy to half-do:
    build the `lab::` node, call `make_audio_node_js(...)`, then
    `anchor_node_in_context(ctx, argv[0], obj)` - skipping the anchor call is
    a use-after-free waiting to happen since lab's graph keeps raw back-pointers.
-4. **Add the new class id to `any_audio_node()` (line ~86-108).** This is the
-   one most likely to be forgotten - without it, `.connect()`/`.disconnect()`
-   and `ctx.connect()` silently reject the new node type as neither a valid
-   source nor destination.
-5. `JSClassDef` + finalizer (`js_audionode_finalize_with`) + funcs table.
+4. `JSClassDef` + finalizer (`js_audionode_finalize_with`) + funcs table.
    `connect`/`disconnect` are now inherited via the prototype chain (see
    below) - don't re-list them in the new node's funcs table, just add
    whatever properties/methods are unique to it plus `[Symbol.toStringTag]`.
@@ -28,10 +24,14 @@ Adding a node currently means touching **six** spots - easy to half-do:
    and likewise skip `start`/`stop` unless its signature needs to differ from
    the plain `(when)` form (`AudioBufferSourceNode` overrides `start` for its
    offset/loop args but still inherits `stop`).
-6. Wire into `js_labsound_init` (class + proto + `JS_SetPrototype(ctx,
+5. Wire into `js_labsound_init` (class + proto + `JS_SetPrototype(ctx,
    xxx_proto, audionode_proto)` or `audioscheduledsourcenode_proto` + ctor +
    `JS_SetModuleExport`) **and** `js_init_module_labsound`
    (`JS_AddModuleExport`) - both are required, both are easy to forget one of.
+
+Note: step 4 "add to `any_audio_node()`" is now automatic - the `class_group`
+probe (`audio_nodes` at line ~86) handles registration of every node class id
+once its prototype is wired.
 
 ---
 
@@ -853,27 +853,3 @@ void wk_message(int ptr, int len);     // main thread -> processor
 - Should `wk_process` see planar or interleaved audio? Planar chosen
   (matches `AudioBus`, WAM, Faust); revisit if a target lib wants otherwise.
 
-## Bass Doctor
-
-A "sound-informed" editor for kick+bass loops: a fullscreen waveform view where
-you sculpt the rendered result (draw notes, shape transients, edit envelopes)
-instead of tweaking synth parameters. Pure-JS forkable DSP so the engine can
-render ahead, discard, and re-render with other parameters.
-
-- [x] design doc: `doc/bass-doctor-spec.md` (3-layer architecture, components, tools, phases)
-- [x] render-engine design: `doc/audio-render-engine-design.md` (voice protocol, circular buffer, sidechain)
-- [x] phase-coherence analysis: `doc/phase-coherence-analysis.md` (kick envelope → predictable phase)
-- [x] implement forkable `BassVoice` in `tonnetz/lib/bass-synth.js` (subtractive, named state)
-- [x] implement `drum-engine.js` (forkable engine, circular buffer, delay taps, fork/restore)
-- [x] implement `bass-doctor.js` (kick + bass + Ducker sidechain, multiband, low-end mono)
-- [ ] implement `midi-map.js` (CC ↔ physical units, differential change tracking)
-- [x] headless qjsm tests: deterministic re-render, fork/restore round-trip, parameter sweep
-- [x] phase-coherence test: verify kick envelope lands at predictable phase (0.00° error)
-- [ ] glassloom block `app/blocks/bassdoctor.js` + waveform editor UI (Phase 1)
-- [ ] editing tools: draw / envelope / separation / glue (Phase 2)
-- [ ] pre-cog prediction layer + spectral feedback (Phase 3)
-
-Decisions made: Path A (pure-JS bass synth for forkability), start at Phase 0,
-design the kick's pitch envelope to land at a predictable phase angle, standalone
-app + glassloom integration (glassloom's `vendor/qjs-sound` is a submodule of
-this repo, so changes here flow to it on a submodule bump).

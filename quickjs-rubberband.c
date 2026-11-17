@@ -4,6 +4,7 @@
 #include "defines.h"
 #include "js-typedarray.h"
 #include "js-utils.h"
+#include "js-utils-c.h"
 #include <rubberband/rubberband-c.h>
 
 /* Cap on channels for the stack-allocated array of channel pointers used
@@ -62,16 +63,16 @@ js_rubberband_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSV
   double initialTimeRatio = 1.0, initialPitchScale = 1.0;
   RubberBandState state;
 
-  if(argc > 0)
-    JS_ToUint32(ctx, &sampleRate, argv[0]);
-  if(argc > 1)
-    JS_ToUint32(ctx, &channels, argv[1]);
-  if(argc > 2)
-    JS_ToInt32(ctx, &options, argv[2]);
-  if(argc > 3)
-    JS_ToFloat64(ctx, &initialTimeRatio, argv[3]);
-  if(argc > 4)
-    JS_ToFloat64(ctx, &initialPitchScale, argv[4]);
+  if(js_arg_uint32(ctx, argc, argv, 0, &sampleRate))
+    return JS_EXCEPTION;
+  if(js_arg_uint32(ctx, argc, argv, 1, &channels))
+    return JS_EXCEPTION;
+  if(js_arg_int32(ctx, argc, argv, 2, &options))
+    return JS_EXCEPTION;
+  if(js_arg_float64(ctx, argc, argv, 3, &initialTimeRatio))
+    return JS_EXCEPTION;
+  if(js_arg_float64(ctx, argc, argv, 4, &initialPitchScale))
+    return JS_EXCEPTION;
 
   if(!(state = rubberband_new(sampleRate, channels, options, initialTimeRatio, initialPitchScale)))
     return JS_ThrowInternalError(ctx, "rubberband: failed to create stretcher");
@@ -172,18 +173,18 @@ js_rubberband_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int
   if(!w->state)
     return JS_ThrowTypeError(ctx, "RubberBandStretcher is closed");
 
+  if(JS_ToFloat64(ctx, &d, value))
+    return JS_EXCEPTION;
+
   switch(magic) {
     case PROP_TIME_RATIO:
-      if(!JS_ToFloat64(ctx, &d, value))
-        rubberband_set_time_ratio(w->state, d);
+      rubberband_set_time_ratio(w->state, d);
       break;
     case PROP_PITCH_SCALE:
-      if(!JS_ToFloat64(ctx, &d, value))
-        rubberband_set_pitch_scale(w->state, d);
+      rubberband_set_pitch_scale(w->state, d);
       break;
     case PROP_FORMANT_SCALE:
-      if(!JS_ToFloat64(ctx, &d, value))
-        rubberband_set_formant_scale(w->state, d);
+      rubberband_set_formant_scale(w->state, d);
       break;
   }
 
@@ -264,16 +265,16 @@ js_rubberband_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
 
     case METHOD_SET_EXPECTED_INPUT_DURATION: {
       uint32_t samples = 0;
-      if(argc > 0)
-        JS_ToUint32(ctx, &samples, argv[0]);
+      if(js_arg_uint32(ctx, argc, argv, 0, &samples))
+        return JS_EXCEPTION;
       rubberband_set_expected_input_duration(w->state, samples);
       break;
     }
 
     case METHOD_SET_MAX_PROCESS_SIZE: {
       uint32_t samples = 0;
-      if(argc > 0)
-        JS_ToUint32(ctx, &samples, argv[0]);
+      if(js_arg_uint32(ctx, argc, argv, 0, &samples))
+        return JS_EXCEPTION;
       rubberband_set_max_process_size(w->state, samples);
       break;
     }
@@ -285,8 +286,8 @@ js_rubberband_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
     case METHOD_SET_PITCH_OPTION: {
       int32_t options = 0;
 
-      if(argc > 0)
-        JS_ToInt32(ctx, &options, argv[0]);
+      if(js_arg_int32(ctx, argc, argv, 0, &options))
+        return JS_EXCEPTION;
 
       switch(magic) {
         case METHOD_SET_TRANSIENTS_OPTION: rubberband_set_transients_option(w->state, options); break;

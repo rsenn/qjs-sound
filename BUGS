@@ -163,20 +163,6 @@
   (stk) use the default configure command without CMAKE_INSTALL_PREFIX; CMake 4.5 warns (policy
   CMP0225) on every configure. Pass CMAKE_INSTALL_PREFIX or set the policy. Found 2026-11-15 on Termux.
 
-- unchecked-js-to-number-leaves-exception-pending (quickjs-sndobj.cpp:394, same pattern in
-  quickjs-stk.cpp:612 and in the setters and methods of all three bindings): the result of
-  JS_ToFloat64, JS_ToInt32 and JS_ToUint32 is ignored, so a value that does not convert (a Symbol)
-  leaves the TypeError pending while the function returns normally. The call does not throw, a
-  surrounding try/catch sees nothing, and the error surfaces later as an uncaught exception at the
-  end of the script. Confirmed for sndobj Oscili.setFreq and stk NRev; stk Echo and Chorus crash
-  instead (core dump), likely from the pending exception meeting a following throw.
-
-    import * as so from 'sndobj';
-    const o = new so.Oscili(new so.HarmTable());
-    try { o.setFreq(Symbol('x')); } catch(e) { console.log('caught'); } // expected: caught - actual: nothing
-    // after the script: uncaught TypeError: cannot convert symbol to number
-
-
 - stk-tostringtag-array-out-of-enum-order (quickjs-stk.cpp:698 and :1133): the name arrays indexed by
   magic in the generator and effect constructors list Blit before BlitSaw and BlitSquare, and PRCRev
   before PitShift, while the INSTANCE enums put BlitSaw, BlitSquare, Blit and PitShift, PRCRev in the other
@@ -185,3 +171,24 @@
 
     import * as stk from 'stk';
     console.log(Object.prototype.toString.call(new stk.BlitSaw())); // expected: [object BlitSaw] - actual: [object Blit]
+
+- labsound-waveshapernode-offline-silent (third_party/LabSound/src/extended/WaveShaperNode.cpp:31): on an
+  offline context a WaveShaperNode -> GainNode -> destination graph renders silence while an
+  OscillatorNode -> GainNode -> destination graph renders correctly. The FunctionNode in the same
+  directory has the same symptom (labsound-functionnode-offline-silent). The curve is a valid Float32Array,
+  the node is connected and started, and the graph structure is identical to the working case - only the
+  node type differs. Not root-caused; the offline scheduler also starts sources one quantum late. Found
+  while running labsound-graph-test.js which creates both a WaveShaperNode and OscillatorNode in the same
+  graph; the OscillatorNode path produces audio but the WaveShaperNode path does not. This is a LabSound
+  engine bug, not a binding bug - confirmed by reverting all binding changes and the test still fails.
+
+    const ctx = new OfflineAudioContext(1, 2048, 44100);
+    const curve = new Float32Array(44100);
+    for(let i = 0; i < 44100; i++) { const x = (i / 22050) * 4 - 2; curve[i] = Math.tanh(x); }
+    const shaper = ctx.createWaveShaper({ curve });
+    const gain = ctx.createGain();
+    gain.gain.value = 0.5;
+    shaper.connect(gain); gain.connect(ctx.destination);
+    const osc = ctx.createOscillator(); osc.connect(gain); osc.start();
+    const rendered = await ctx.startRendering();
+    // peak is 0 with WaveShaperNode, nonzero with OscillatorNode

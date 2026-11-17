@@ -3,6 +3,7 @@
 #include <string.h>
 #include "defines.h"
 #include "js-utils.h"
+#include "js-utils-c.h"
 #include <portmidi.h>
 #include <porttime.h>
 
@@ -101,8 +102,8 @@ js_portmidi_function(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
       int32_t id = -1;
       const PmDeviceInfo* info;
 
-      if(argc > 0)
-        JS_ToInt32(ctx, &id, argv[0]);
+      if(js_arg_int32(ctx, argc, argv, 0, &id))
+        return JS_EXCEPTION;
 
       if(!(info = Pm_GetDeviceInfo(id)))
         return JS_NULL;
@@ -117,8 +118,8 @@ js_portmidi_function(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
     case FUNC_GETERRORTEXT: {
       int32_t code = 0;
 
-      if(argc > 0)
-        JS_ToInt32(ctx, &code, argv[0]);
+      if(js_arg_int32(ctx, argc, argv, 0, &code))
+        return JS_EXCEPTION;
 
       ret = JS_NewString(ctx, Pm_GetErrorText((PmError)code));
       break;
@@ -126,8 +127,8 @@ js_portmidi_function(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
     case FUNC_CHANNEL: {
       int32_t n = 0;
 
-      if(argc > 0)
-        JS_ToInt32(ctx, &n, argv[0]);
+      if(js_arg_int32(ctx, argc, argv, 0, &n))
+        return JS_EXCEPTION;
 
       ret = JS_NewInt32(ctx, Pm_Channel(n));
       break;
@@ -344,12 +345,12 @@ js_portmidistream_open(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
   JSPortMidiStream* s;
   JSValue obj;
 
-  if(argc > 0)
-    JS_ToInt32(ctx, &deviceId, argv[0]);
-  if(argc > 1)
-    JS_ToInt32(ctx, &bufferSize, argv[1]);
-  if(magic == STATIC_OPENOUTPUT && argc > 2)
-    JS_ToInt32(ctx, &latency, argv[2]);
+  if(js_arg_int32(ctx, argc, argv, 0, &deviceId))
+    return JS_EXCEPTION;
+  if(js_arg_int32(ctx, argc, argv, 1, &bufferSize))
+    return JS_EXCEPTION;
+  if(magic == STATIC_OPENOUTPUT && js_arg_int32(ctx, argc, argv, 2, &latency))
+    return JS_EXCEPTION;
 
   if(magic == STATIC_OPENOUTPUT)
     err = Pm_OpenOutput(&stream, deviceId, NULL, bufferSize, NULL, NULL, latency);
@@ -398,24 +399,16 @@ js_pmevent_wrap(JSContext* ctx, const PmEvent* ev) {
 
 static int
 js_pmevent_unwrap(JSContext* ctx, PmEvent* ev, JSValueConst val) {
-  JSValue v;
   int32_t status = 0, data1 = 0, data2 = 0, timestamp = 0;
 
-  v = JS_GetPropertyStr(ctx, val, "status");
-  JS_ToInt32(ctx, &status, v);
-  JS_FreeValue(ctx, v);
-
-  v = JS_GetPropertyStr(ctx, val, "data1");
-  JS_ToInt32(ctx, &data1, v);
-  JS_FreeValue(ctx, v);
-
-  v = JS_GetPropertyStr(ctx, val, "data2");
-  JS_ToInt32(ctx, &data2, v);
-  JS_FreeValue(ctx, v);
-
-  v = JS_GetPropertyStr(ctx, val, "timestamp");
-  JS_ToInt32(ctx, &timestamp, v);
-  JS_FreeValue(ctx, v);
+  if(js_prop_int32(ctx, val, "status", &status))
+    return -1;
+  if(js_prop_int32(ctx, val, "data1", &data1))
+    return -1;
+  if(js_prop_int32(ctx, val, "data2", &data2))
+    return -1;
+  if(js_prop_int32(ctx, val, "timestamp", &timestamp))
+    return -1;
 
   ev->message = Pm_Message(status, data1, data2);
   ev->timestamp = timestamp;
@@ -452,8 +445,8 @@ js_portmidistream_method(JSContext* ctx, JSValueConst this_val, int argc, JSValu
       PmEvent* buf;
       int n;
 
-      if(argc > 0)
-        JS_ToInt32(ctx, &maxEvents, argv[0]);
+      if(js_arg_int32(ctx, argc, argv, 0, &maxEvents))
+        return JS_EXCEPTION;
       if(maxEvents <= 0)
         maxEvents = 1;
 
@@ -505,14 +498,14 @@ js_portmidistream_method(JSContext* ctx, JSValueConst this_val, int argc, JSValu
       int32_t status = 0, data1 = 0, data2 = 0, when = 0;
       PmError err;
 
-      if(argc > 0)
-        JS_ToInt32(ctx, &status, argv[0]);
-      if(argc > 1)
-        JS_ToInt32(ctx, &data1, argv[1]);
-      if(argc > 2)
-        JS_ToInt32(ctx, &data2, argv[2]);
-      if(argc > 3)
-        JS_ToInt32(ctx, &when, argv[3]);
+      if(js_arg_int32(ctx, argc, argv, 0, &status))
+        return JS_EXCEPTION;
+      if(js_arg_int32(ctx, argc, argv, 1, &data1))
+        return JS_EXCEPTION;
+      if(js_arg_int32(ctx, argc, argv, 2, &data2))
+        return JS_EXCEPTION;
+      if(js_arg_int32(ctx, argc, argv, 3, &when))
+        return JS_EXCEPTION;
 
       err = Pm_WriteShort(s->stream, when, Pm_Message(status, data1, data2));
 
@@ -527,8 +520,8 @@ js_portmidistream_method(JSContext* ctx, JSValueConst this_val, int argc, JSValu
       uint8_t* ptr;
       PmError err;
 
-      if(argc > 0)
-        JS_ToInt32(ctx, &when, argv[0]);
+      if(js_arg_int32(ctx, argc, argv, 0, &when))
+        return JS_EXCEPTION;
 
       if(argc < 2 || !(ptr = js_portmidi_get_buffer(ctx, argv[1], &len)))
         return JS_ThrowTypeError(ctx, "argument 2 must be a Uint8Array/DataView or ArrayBuffer");
@@ -575,8 +568,8 @@ js_portmidistream_method(JSContext* ctx, JSValueConst this_val, int argc, JSValu
       int32_t mask = 0;
       PmError err;
 
-      if(argc > 0)
-        JS_ToInt32(ctx, &mask, argv[0]);
+      if(js_arg_int32(ctx, argc, argv, 0, &mask))
+        return JS_EXCEPTION;
 
       err = Pm_SetFilter(s->stream, mask);
 
@@ -589,8 +582,8 @@ js_portmidistream_method(JSContext* ctx, JSValueConst this_val, int argc, JSValu
       int32_t mask = 0;
       PmError err;
 
-      if(argc > 0)
-        JS_ToInt32(ctx, &mask, argv[0]);
+      if(js_arg_int32(ctx, argc, argv, 0, &mask))
+        return JS_EXCEPTION;
 
       err = Pm_SetChannelMask(s->stream, mask);
 

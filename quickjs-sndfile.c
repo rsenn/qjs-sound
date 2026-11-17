@@ -3,6 +3,7 @@
 #include <string.h>
 #include "defines.h"
 #include "js-typedarray.h"
+#include "js-utils-c.h"
 #include <sndfile.h>
 
 static JSClassID js_sndfile_class_id;
@@ -18,28 +19,21 @@ js_sndfile_throw(JSContext* ctx, SNDFILE* file) {
   return JS_ThrowInternalError(ctx, "libsndfile error: %s", sf_strerror(file));
 }
 
-static BOOL
+static int
 js_sndfile_info_fromobj(JSContext* ctx, JSValueConst obj, SF_INFO* out) {
-  JSValue v;
-
   if(!JS_IsObject(obj))
-    return FALSE;
+    return 0;
 
   memset(out, 0, sizeof(*out));
 
-  if(!JS_IsUndefined(v = JS_GetPropertyStr(ctx, obj, "samplerate")))
-    JS_ToInt32(ctx, &out->samplerate, v);
-  JS_FreeValue(ctx, v);
+  if(js_prop_int32(ctx, obj, "samplerate", &out->samplerate))
+    return -1;
+  if(js_prop_int32(ctx, obj, "channels", &out->channels))
+    return -1;
+  if(js_prop_int32(ctx, obj, "format", &out->format))
+    return -1;
 
-  if(!JS_IsUndefined(v = JS_GetPropertyStr(ctx, obj, "channels")))
-    JS_ToInt32(ctx, &out->channels, v);
-  JS_FreeValue(ctx, v);
-
-  if(!JS_IsUndefined(v = JS_GetPropertyStr(ctx, obj, "format")))
-    JS_ToInt32(ctx, &out->format, v);
-  JS_FreeValue(ctx, v);
-
-  return TRUE;
+  return 1;
 }
 
 static JSValue
@@ -56,11 +50,12 @@ js_sndfile_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValu
   if(argc < 1 || !(path = JS_ToCString(ctx, argv[0])))
     return JS_ThrowTypeError(ctx, "argument 1 must be a path string");
 
-  if(argc > 1)
-    JS_ToInt32(ctx, &mode, argv[1]);
+  if(js_arg_int32(ctx, argc, argv, 1, &mode))
+    return JS_EXCEPTION;
 
   if((mode & SFM_WRITE) && argc > 2)
-    js_sndfile_info_fromobj(ctx, argv[2], &info);
+    if(js_sndfile_info_fromobj(ctx, argv[2], &info))
+      return JS_EXCEPTION;
 
   file = sf_open(path, mode, &info);
 
@@ -202,8 +197,8 @@ js_sndfile_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst 
       if(view.kind == TYPEDARRAY_NONE)
         return JS_ThrowTypeError(ctx, "argument 1 must be an Int16Array, Int32Array, Float32Array, or Float64Array");
 
-      if(argc > 1)
-        JS_ToInt64(ctx, &frames, argv[1]);
+      if(js_arg_int64(ctx, argc, argv, 1, &frames))
+        return JS_EXCEPTION;
       else
         frames = typedarray_size(view) / channels;
 
@@ -220,10 +215,10 @@ js_sndfile_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst 
       int32_t whence = SEEK_SET;
       sf_count_t pos;
 
-      if(argc > 0)
-        JS_ToInt64(ctx, &frames, argv[0]);
-      if(argc > 1)
-        JS_ToInt32(ctx, &whence, argv[1]);
+      if(js_arg_int64(ctx, argc, argv, 0, &frames))
+        return JS_EXCEPTION;
+      if(js_arg_int32(ctx, argc, argv, 1, &whence))
+        return JS_EXCEPTION;
 
       if((pos = sf_seek(w->file, frames, whence)) < 0)
         return js_sndfile_throw(ctx, w->file);

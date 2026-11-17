@@ -3,6 +3,7 @@
 #include <string.h>
 #include "defines.h"
 #include "js-typedarray.h"
+#include "js-utils-c.h"
 #include <aubio.h>
 
 /* ---------- shared helpers ---------- */
@@ -59,12 +60,12 @@ js_aubionotes_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSV
 
   js_aubio_get_method(ctx, argc, argv, method, sizeof(method));
 
-  if(argc > 1)
-    JS_ToUint32(ctx, &buf_size, argv[1]);
-  if(argc > 2)
-    JS_ToUint32(ctx, &hop_size, argv[2]);
-  if(argc > 3)
-    JS_ToUint32(ctx, &samplerate, argv[3]);
+  if(js_arg_uint32(ctx, argc, argv, 1, &buf_size))
+    return JS_EXCEPTION;
+  if(js_arg_uint32(ctx, argc, argv, 2, &hop_size))
+    return JS_EXCEPTION;
+  if(js_arg_uint32(ctx, argc, argv, 3, &samplerate))
+    return JS_EXCEPTION;
 
   aubio_notes_t* notes = new_aubio_notes(method, buf_size, hop_size, samplerate);
 
@@ -228,12 +229,12 @@ js_aubioonset_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSV
 
   js_aubio_get_method(ctx, argc, argv, method, sizeof(method));
 
-  if(argc > 1)
-    JS_ToUint32(ctx, &buf_size, argv[1]);
-  if(argc > 2)
-    JS_ToUint32(ctx, &hop_size, argv[2]);
-  if(argc > 3)
-    JS_ToUint32(ctx, &samplerate, argv[3]);
+  if(js_arg_uint32(ctx, argc, argv, 1, &buf_size))
+    return JS_EXCEPTION;
+  if(js_arg_uint32(ctx, argc, argv, 2, &hop_size))
+    return JS_EXCEPTION;
+  if(js_arg_uint32(ctx, argc, argv, 3, &samplerate))
+    return JS_EXCEPTION;
 
   aubio_onset_t* onset = new_aubio_onset(method, buf_size, hop_size, samplerate);
 
@@ -459,12 +460,12 @@ js_aubiopitch_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSV
 
   js_aubio_get_method(ctx, argc, argv, method, sizeof(method));
 
-  if(argc > 1)
-    JS_ToUint32(ctx, &buf_size, argv[1]);
-  if(argc > 2)
-    JS_ToUint32(ctx, &hop_size, argv[2]);
-  if(argc > 3)
-    JS_ToUint32(ctx, &samplerate, argv[3]);
+  if(js_arg_uint32(ctx, argc, argv, 1, &buf_size))
+    return JS_EXCEPTION;
+  if(js_arg_uint32(ctx, argc, argv, 2, &hop_size))
+    return JS_EXCEPTION;
+  if(js_arg_uint32(ctx, argc, argv, 3, &samplerate))
+    return JS_EXCEPTION;
 
   aubio_pitch_t* pitch = new_aubio_pitch(method, buf_size, hop_size, samplerate);
 

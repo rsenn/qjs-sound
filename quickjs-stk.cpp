@@ -1381,10 +1381,9 @@ js_stkguitar_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
   uint32_t nStrings = 6;
   const char* bodyfile = "";
 
-  if(argc > 0) {
-    if(JS_ToUint32(ctx, &nStrings, argv[0]))
+  if(argc > 0 && qjsx::present(argc, argv, 0))
+    if(qjsx::args_from(ctx, 0, argc, argv, nStrings))
       return JS_EXCEPTION;
-  }
   if(argc > 1) {
     bodyfile = JS_ToCString(ctx, argv[1]);
     if(!bodyfile)
@@ -1495,8 +1494,9 @@ static JSValue
 js_stktwang_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {
   StkTwangPtr t;
   double arg = 50.0;
-  if(argc > 0)
-    JS_ToFloat64(ctx, &arg, argv[0]);
+  if(argc > 0 && qjsx::present(argc, argv, 0))
+    if(qjsx::args_from(ctx, 0, argc, argv, arg))
+      return JS_EXCEPTION;
 
   try {
     t = std::make_shared<stk::Twang>(arg);
@@ -1530,27 +1530,31 @@ js_stktwang_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
   switch(magic) {
     case METHOD_TWANG_TICK: {
       double input = 0;
-      if(argc > 0)
-        JS_ToFloat64(ctx, &input, argv[0]);
+      if(argc > 0 && qjsx::present(argc, argv, 0))
+        if(qjsx::args_from(ctx, 0, argc, argv, input))
+          return JS_EXCEPTION;
 
       ret = JS_NewFloat64(ctx, (*t)->tick(input));
       break;
     }
     case METHOD_TWANG_SET_FREQUENCY: {
       double frequency = 0;
-      JS_ToFloat64(ctx, &frequency, argv[0]);
+      if(qjsx::args(ctx, argc, argv, frequency))
+        return JS_EXCEPTION;
       (*t)->setFrequency(frequency);
       break;
     }
     case METHOD_TWANG_SET_PLUCK_POSITION: {
       double position = 0;
-      JS_ToFloat64(ctx, &position, argv[0]);
+      if(qjsx::args(ctx, argc, argv, position))
+        return JS_EXCEPTION;
       (*t)->setPluckPosition(position);
       break;
     }
     case METHOD_TWANG_SET_LOOP_GAIN: {
       double loopGain = 0;
-      JS_ToFloat64(ctx, &loopGain, argv[0]);
+      if(qjsx::args(ctx, argc, argv, loopGain))
+        return JS_EXCEPTION;
       (*t)->setLoopGain(loopGain);
       break;
     }

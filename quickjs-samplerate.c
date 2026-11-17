@@ -4,6 +4,7 @@
 #include <math.h>
 #include "defines.h"
 #include "js-typedarray.h"
+#include "js-utils-c.h"
 #include <samplerate.h>
 
 /* Extra frames of headroom on top of ceil(input_frames * ratio) when
@@ -41,10 +42,10 @@ js_srcstate_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVal
   int error = 0;
   SRC_STATE* state;
 
-  if(argc > 0)
-    JS_ToInt32(ctx, &converterType, argv[0]);
-  if(argc > 1)
-    JS_ToInt32(ctx, &channels, argv[1]);
+  if(js_arg_int32(ctx, argc, argv, 0, &converterType))
+    return JS_EXCEPTION;
+  if(js_arg_int32(ctx, argc, argv, 1, &channels))
+    return JS_EXCEPTION;
 
   if(!(state = src_new(converterType, channels, &error))) {
     js_samplerate_throw(ctx, error);
@@ -138,8 +139,8 @@ js_srcstate_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
       if(argc < 1 || js_typedarray_kind(ctx, argv[0], TYPEDARRAY_FLOAT32, &in))
         return JS_EXCEPTION;
 
-      if(argc > 1)
-        JS_ToFloat64(ctx, &ratio, argv[1]);
+      if(argc > 1 && js_arg_float64(ctx, argc, argv, 1, &ratio))
+        return JS_EXCEPTION;
       if(argc > 2)
         endOfInput = JS_ToBool(ctx, argv[2]);
 
@@ -232,9 +233,12 @@ js_srcstate_simple(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
   if(js_typedarray_kind(ctx, argv[0], TYPEDARRAY_FLOAT32, &in))
     return JS_EXCEPTION;
 
-  JS_ToFloat64(ctx, &ratio, argv[1]);
-  JS_ToInt32(ctx, &converterType, argv[2]);
-  JS_ToInt32(ctx, &channels, argv[3]);
+  if(js_arg_float64(ctx, argc, argv, 1, &ratio))
+    return JS_EXCEPTION;
+  if(js_arg_int32(ctx, argc, argv, 2, &converterType))
+    return JS_EXCEPTION;
+  if(js_arg_int32(ctx, argc, argv, 3, &channels))
+    return JS_EXCEPTION;
 
   input_frames = typedarray_size(in) / channels;
   out_capacity = (long)ceil(input_frames * ratio) + SRC_OUTPUT_HEADROOM_FRAMES;
@@ -263,8 +267,8 @@ js_srcstate_getname(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
   int32_t converterType = 0;
   const char* name;
 
-  if(argc > 0)
-    JS_ToInt32(ctx, &converterType, argv[0]);
+  if(js_arg_int32(ctx, argc, argv, 0, &converterType))
+    return JS_EXCEPTION;
 
   return (name = src_get_name(converterType)) ? JS_NewString(ctx, name) : JS_NULL;
 }

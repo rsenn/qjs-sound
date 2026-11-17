@@ -268,8 +268,110 @@ as the main program. A plain script run without `-m` already supports
 path, and using it to run a script is a category error, not just a
 stylistic difference.
 
-## Git commits
+## Patches for vendored libraries
 
-Do not add the `Co-Authored-By:` or `Claude-Session:` trailers (or any other
-attribution lines) to commit messages in this project, even when Claude Code's
-attribution guidance asks for them. This project's own rule overrides it.
+When fixing a bug in a vendored library (LabSound, stk, aubio, libsndfile,
+libsamplerate, soundtouch, rubberband, portaudio, portmidi, miniaudio, dsp,
+marsyas, sndobj, Soundpipe), never edit the submodule directly — it is
+someone else's repository. Instead write a patch file in `patches/` and wire
+it into the build.
+
+Patch file format:
+
+- A `.patch` file: a normal `diff --git` patch.
+- A comment header on top (C-style `/* ... */` or `# ...` lines) with the bug
+  description and a repro. `git apply` skips comment lines, so the header does
+  not affect application and `git apply --reverse --check` still validates
+  cleanly — verified.
+- The patch must apply to a copy of the submodule in the build tree, never to
+  the submodule itself.
+
+Two build paths exist, and which one a library uses decides how the patch is
+wired:
+
+- `vendored_build_static_subdirectory()` in `cmake/VendoredLibrary.cmake`
+  (aubio, and any future library that follows the `Find<Lib>`/`Build<Lib>`
+  pattern): pass `PATCH <path>` to the function. It copies the submodule to
+  `<build>/third_party/<lib>-patched/`, applies the patch there, stamps the
+  submodule commit + patch hash, and re-runs are a no-op.
+- `ExternalProject_Add()` (LabSound at `CMakeLists.txt:43`, stk at `:66`):
+  use `PATCH_COMMAND` on the ExternalProject. `ExternalProject_Add` does not
+  have the same copy+stamp logic, so the patch applies to the real source
+  tree — make sure the patch is idempotent and that a clean checkout still
+  applies.
+
+Note: the one existing patch, `cmake/patches/aubio-static-lib.patch`, lives in
+`cmake/patches/`, not `patches/`. New vendored-library bug fixes go in
+`patches/`.
+
+On LabSound specifically: LabSound is the Web Audio implementation in this
+project, and its engine bugs (deferred disconnect, scheduler epoch, offline
+silence) are real and tracked in `BUGS`. Any engine patch must not break Web
+Audio compatibility — the binding's own workarounds (e.g.
+`quickjs-labsound.cpp`'s `disconnect_now`) stay in place until the engine fix
+is verified against the Web Audio test suite, not just against the qjs-sound
+tests.
+
+If a bug in a vendored library can be worked around in the C/C++ binding,
+work around it there instead of patching the vendored library. Only patch
+the vendored library when the workaround is not possible or not sufficient
+— e.g. the bug is in engine code the binding cannot intercept, or the
+workaround would change observable behavior consumers depend on.
+
+## Tests
+
+A bug fix is not done until a regression test exists. Regression tests live
+in `tests/` (not `tests/unittest/`), separate from the feature/smoke scripts
+in `examples/` (e.g. `examples/portaudio-test.js`). Every test in `tests/`
+is wired into the cmake build and runs under `ctest` — no hand-run-only
+tests in that directory.
+
+- **Vendored-library bugs** (LabSound, stk, aubio, ...) get a **C/C++ test**:
+  one executable, linked directly against the library, no QuickJS, no binding
+  in between. Proves the fix is in the library, not in a binding workaround.
+  File: `tests/vendor/<bug-name>.cpp` (matching the `BUGS` canonical name,
+  e.g. `tests/vendor/labsound-disconnect-deferred.cpp`).
+- **Binding bugs** (the `quickjs-<lib>.c`/`.cpp` code) get a **JS test**: run
+  with `qjsm` and `QUICKJS_MODULE_PATH` pointing at the build dir; one
+  process per test (like `examples/errors-test.js`) so a crash fails only
+  that test.
+  File: `tests/bindings/<lib>-<bug-name>.js` (e.g.
+  `tests/bindings/portaudio-pastream-getters.js`).
+
+Naming: the `BUGS` canonical name, e.g.
+`tests/vendor/labsound-scheduler-epoch.cpp` or
+`tests/bindings/portaudio-pastream-getters.js`.
+
+Wiring (top-level `CMakeLists.txt`):
+
+```cmake
+enable_testing()                      # once, near the top
+find_program(QJSM qjsm)               # system install; qjs-sound does not build qjsm
+
+add_executable(test-labsound-epoch tests/vendor/labsound-scheduler-epoch.cpp)
+target_link_libraries(test-labsound-epoch PRIVATE ${labsound_LIBRARIES})
+add_test(NAME labsound-scheduler-epoch COMMAND test-labsound-epoch)
+
+if(QJSM)
+  add_test(NAME portaudio-pastream-getters
+           COMMAND ${QJSM} ${CMAKE_CURRENT_SOURCE_DIR}/tests/bindings/portaudio-pastream-getters.js
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(portaudio-pastream-getters PROPERTIES
+    ENVIRONMENT "QUICKJS_MODULE_PATH=${CMAKE_CURRENT_BINARY_DIR}")
+else()
+  message(WARNING "qjsm not found; binding tests will be skipped")
+endif()
+```
+
+Notes:
+
+- Tests needing a real audio device fail in the sandbox; such tests must
+  detect no-device and exit 0 with a printed skip note (or be gated with
+  a `LABSOUND_TEST_DEVICE` env var) instead of hard-failing.
+- Precedent: `test-labsound.cpp` (repo root, built at `CMakeLists.txt:265`)
+  was an unwired C++ LabSound smoke test — deleted. New C++ tests go in
+  `tests/vendor/` and get wired with `add_test`.
+- A test for a binding workaround (a bug in `BUGS` that is worked around in
+  the binding, not fixed in the library) still goes in `tests/` — it pins
+  the workaround's observable behavior so a library fix can be checked
+  against it.

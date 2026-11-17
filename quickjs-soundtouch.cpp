@@ -29,10 +29,12 @@ js_soundtouch_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSV
   double sampleRate = 44100;
   int32_t channels = 2;
 
-  if(argc > 0)
-    JS_ToFloat64(ctx, &sampleRate, argv[0]);
-  if(argc > 1)
-    JS_ToInt32(ctx, &channels, argv[1]);
+  if(argc > 0 && qjsx::present(argc, argv, 0))
+    if(qjsx::args_from(ctx, 0, argc, argv, sampleRate))
+      return JS_EXCEPTION;
+  if(argc > 1 && qjsx::present(argc, argv, 1))
+    if(qjsx::args_from(ctx, 1, argc, argv, channels))
+      return JS_EXCEPTION;
 
   if(!(w = (JSSoundTouch*)js_mallocz(ctx, sizeof(JSSoundTouch))))
     return JS_EXCEPTION;
@@ -122,36 +124,29 @@ js_soundtouch_set(JSContext* ctx, JSValueConst this_val, JSValueConst value, int
   if(!(w = (JSSoundTouch*)JS_GetOpaque2(ctx, this_val, js_soundtouch_class_id)))
     return JS_EXCEPTION;
 
+  if(qjsx::value(ctx, value, d))
+    return JS_EXCEPTION;
+
   switch(magic) {
     case PROP_TEMPO:
-      if(!JS_ToFloat64(ctx, &d, value)) {
-        w->st->setTempo(d);
-        w->cachedTempo = d;
-      }
+      w->st->setTempo(d);
+      w->cachedTempo = d;
       break;
     case PROP_PITCH:
-      if(!JS_ToFloat64(ctx, &d, value)) {
-        w->st->setPitch(d);
-        w->cachedPitch = d;
-      }
+      w->st->setPitch(d);
+      w->cachedPitch = d;
       break;
     case PROP_PITCH_SEMITONES:
-      if(!JS_ToFloat64(ctx, &d, value)) {
-        w->st->setPitchSemiTones(d);
-        w->cachedPitch = pow(2.0, d / 12.0);
-      }
+      w->st->setPitchSemiTones(d);
+      w->cachedPitch = pow(2.0, d / 12.0);
       break;
     case PROP_PITCH_OCTAVES:
-      if(!JS_ToFloat64(ctx, &d, value)) {
-        w->st->setPitchOctaves(d);
-        w->cachedPitch = pow(2.0, d);
-      }
+      w->st->setPitchOctaves(d);
+      w->cachedPitch = pow(2.0, d);
       break;
     case PROP_RATE:
-      if(!JS_ToFloat64(ctx, &d, value)) {
-        w->st->setRate(d);
-        w->cachedRate = d;
-      }
+      w->st->setRate(d);
+      w->cachedRate = d;
       break;
   }
 
@@ -215,10 +210,12 @@ js_soundtouch_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
     case METHOD_SETSETTING: {
       int32_t id = 0, value = 0;
 
-      if(argc > 0)
-        JS_ToInt32(ctx, &id, argv[0]);
-      if(argc > 1)
-        JS_ToInt32(ctx, &value, argv[1]);
+      if(argc > 0 && qjsx::present(argc, argv, 0))
+        if(qjsx::args_from(ctx, 0, argc, argv, id))
+          return JS_EXCEPTION;
+      if(argc > 1 && qjsx::present(argc, argv, 1))
+        if(qjsx::args_from(ctx, 1, argc, argv, value))
+          return JS_EXCEPTION;
 
       ret = JS_NewBool(ctx, w->st->setSetting(id, value));
       break;
@@ -227,8 +224,9 @@ js_soundtouch_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCon
     case METHOD_GETSETTING: {
       int32_t id = 0;
 
-      if(argc > 0)
-        JS_ToInt32(ctx, &id, argv[0]);
+      if(argc > 0 && qjsx::present(argc, argv, 0))
+        if(qjsx::args_from(ctx, 0, argc, argv, id))
+          return JS_EXCEPTION;
 
       ret = JS_NewInt32(ctx, w->st->getSetting(id));
       break;
