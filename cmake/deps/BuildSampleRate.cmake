@@ -2,10 +2,9 @@
 # -fPIC archive via add_subdirectory() (BUILD_SHARED_LIBS already
 # defaults OFF upstream; forced OFF regardless by
 # vendored_build_static_subdirectory() for consistency with the other
-# libraries here). Included only from FindSampleRate.cmake when
-# BUILD_SAMPLERATE is ON - never included directly.
+# libraries here). Run by the BUILD command of the samplerate dependency
+# (SoundLibs.cmake).
 
-include("${CMAKE_CURRENT_LIST_DIR}/VendoredLibrary.cmake")
 
 vendored_build_static_subdirectory(
   SAMPLERATE SUBMODULE_DIR third_party/libsamplerate TARGETS samplerate OPTIONS

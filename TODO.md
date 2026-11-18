@@ -492,7 +492,7 @@ samples, unwindowed, and sums `|X[k]|^2 / nfft^2` for bins 0..127. 254 is
 4. [ ] `USE_FFTW` backend (system FFTW3) behind the same class.
 5. [ ] aubio `fft` (second moodbar backend): `AubioFFT` (`do`, `rdo`,
        `norm`, `phas`) in `quickjs-aubio.c`; `RangeError` for a size the
-       backend rejects. Build side is done: `cmake/FindAubio.cmake` accepts
+       backend rejects. Build side is done: `cmake/deps/SoundLibs.cmake` accepts
        a system aubio only if `new_aubio_fft(254)` succeeds, else
        `BuildAubio.cmake` builds `third_party/aubio` with float FFTW3
        (`cmake/{Find,Build}FFTW3.cmake`: system `fftw3f`, or download
@@ -579,7 +579,7 @@ caller's arrays). `power` is not wrapped: the moodbar step is
 7. [ ] `doc/native/aubio.md`: new `AubioFFT` section with the block above,
        the size rule, the scaling and the cvec / half-complex layouts;
        drop `fft` from "Not yet bound"; build note that FFTW3 is always
-       on (`cmake/FindAubio.cmake`).
+       on (`cmake/deps/SoundLibs.cmake`).
 8. [ ] Moodbar: in `tests/fft-test.js` use `AubioFFT(NFFT)` for
        `makeSpectrum()` when available; compare its colours with the DFT
        path (`--dft`) and record the largest byte difference (float vs the

@@ -2,10 +2,9 @@
 # archive via add_subdirectory() (confirmed safe: only calls subdirs()
 # for its own tests/examples, both gated behind PA_BUILD_TESTS/
 # PA_BUILD_EXAMPLES, off by default and turned off explicitly below
-# anyway). Included only from FindPortAudio.cmake when
-# BUILD_PORTAUDIO is ON - never included directly.
+# anyway). Run by the BUILD command of the portaudio dependency
+# (SoundLibs.cmake).
 
-include("${CMAKE_CURRENT_LIST_DIR}/VendoredLibrary.cmake")
 
 # A static libportaudio.a still calls directly into ALSA/JACK/pthread at
 # runtime (its host-API backends, selected by cmake_dependent_option()

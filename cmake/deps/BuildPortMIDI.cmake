@@ -2,10 +2,16 @@
 # archive via add_subdirectory() (confirmed safe: portmidi's top-level
 # CMakeLists.txt doesn't call enable_testing() unconditionally and gates
 # its own test/doc/Java subdirectories behind options, all turned off
-# below). Included only from FindPortMIDI.cmake when
-# BUILD_PORTMIDI is ON - never included directly.
+# below). Run by the BUILD command of the portmidi dependency
+# (SoundLibs.cmake).
 
-include("${CMAKE_CURRENT_LIST_DIR}/VendoredLibrary.cmake")
+# a static libportmidi.a does not embed ALSA, link it into the consumer
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  find_package(ALSA REQUIRED)
+  set(PORTMIDI_SYSTEM_DEPS ${ALSA_LIBRARIES})
+else()
+  set(PORTMIDI_SYSTEM_DEPS "")
+endif()
 
 vendored_build_static_subdirectory(
   PORTMIDI

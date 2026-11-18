@@ -81,14 +81,25 @@ vendored libraries as submodules; the system copy is used unless `BUILD_<LIB>` i
 ## Build
 
 ```sh
-cmake -B build/$(cc -dumpmachine) -S .      # USE_<LIB>=OFF skips a binding
+cmake -B build/$(cc -dumpmachine) -S .      # MODULE_<NAME>=OFF skips a binding
 cmake --build build/$(cc -dumpmachine)
 cmake -B /tmp/b -S . -DBUILD_STATIC=ON -DBUILD_SHARED=OFF   # quickjs-<name>.a + .module.cmake
+cmake -B /tmp/b -S . -DBUILD_AUBIO=ON -DBUILD_STK=OFF       # aubio vendored, stk installed only
 ```
 
-- The shared cmake layer (`cmake/{FindQuickJS,BuildQuickJS,QuickJSModule}.cmake`) is synced from the
-  `quickjs-native-bindings` skill (`scripts/cmake-sync.sh`); do not edit those three files here, change
-  the canonical copy and sync. `Find<Lib>`/`Build<Lib>` are specific to this project.
+- Each library comes from the system or from `third_party/`, per library: `BUILD_<LIB>` is `AUTO`
+  (installed, else vendored; the default), `ON` (always vendored) or `OFF` (installed only), for
+  `PORTAUDIO PORTMIDI SNDFILE SAMPLERATE SOUNDTOUCH RUBBERBAND AUBIO (FFTW3) STK LABSOUND`. An
+  installed copy is pinned with `-D<LIB>_PREFIX=/usr` (or `_INCLUDE_DIR` + `_LIBRARY_DIR`).
+  `MODULE_<NAME>` (`AUTO`/`ON`/`OFF`, the old `USE_<NAME>=OFF` still works) switches a module.
+  A library neither installed nor built disables its module with a warning; `DEPS_MISSING=FAIL`
+  makes that an error, `DEPS_BUILD=NONE` forbids all vendored builds. The configure ends with a
+  table of where each library came from.
+
+- The shared cmake layer (`cmake/{FindQuickJS,BuildQuickJS,QuickJSModule,Deps}.cmake`) is synced from
+  the `quickjs-native-bindings` skill (`scripts/cmake-sync.sh`); do not edit those files here, change
+  the canonical copy and sync. `cmake/deps/` (`SoundLibs.cmake`, `Build<Lib>.cmake`,
+  `VendoredLibrary.cmake`) is specific to this project.
 - `make_module(<name> [sources])` takes sources, not a language: `make_module(stk quickjs-stk.cpp)`.
 - A module is built as `qjs-<name>` (shared) and `qjs-<name>-static`; code that configures a target
   after `make_module` must handle both (`module_*` helpers in `CMakeLists.txt`).
@@ -289,21 +300,29 @@ Patch file format:
 - The patch must apply to a copy of the submodule in the build tree, never to
   the submodule itself.
 
-Two build paths exist, and which one a library uses decides how the patch is
-wired:
+Every bound library is a dependency of `cmake/Deps.cmake` (synced from the
+`quickjs-native-bindings` skill), registered in `cmake/deps/SoundLibs.cmake`:
+an installed copy, or a vendored build from `third_party/`, picked per library
+by `BUILD_<LIB>` (`AUTO` installed else vendored, `ON` always vendored, `OFF`
+installed only) and per module by `MODULE_<NAME>` (`AUTO`, `ON`, `OFF`). The
+`BUILD` script of a library is `cmake/deps/Build<Lib>.cmake`, and how a patch
+is wired depends on how that script builds:
 
-- `vendored_build_static_subdirectory()` in `cmake/VendoredLibrary.cmake`
-  (aubio, and any future library that follows the `Find<Lib>`/`Build<Lib>`
-  pattern): pass `PATCH <path>` to the function. It copies the submodule to
-  `<build>/third_party/<lib>-patched/`, applies the patch there, stamps the
-  submodule commit + patch hash, and re-runs are a no-op.
-- `ExternalProject_Add()` (LabSound at `CMakeLists.txt:43`, stk at `:66`):
-  use `PATCH_COMMAND` on the ExternalProject. `ExternalProject_Add` does not
-  have the same copy+stamp logic, so the patch applies to the real source
-  tree — make sure the patch is idempotent and that a clean checkout still
-  applies. LabSound does this with `cmake/ApplyPatches.cmake`, which applies
-  every `patches/labsound-*.patch` in name order and skips the ones whose
-  reverse already applies cleanly.
+- `vendored_build_static_subdirectory()` in `cmake/deps/VendoredLibrary.cmake`
+  (aubio, and any library that follows the same pattern): pass `PATCH <path>...`
+  to the function. It copies the submodule to
+  `<build>/third_party/<lib>-patched/`, applies the patches there, stamps the
+  submodule commit + patch hashes, and re-runs are a no-op.
+- `ExternalProject_Add()` (LabSound in `BuildLabSound.cmake`, stk in
+  `BuildStk.cmake`): use `PATCH_COMMAND` on the ExternalProject. It applies the
+  patch to the real source tree, so the patch must be idempotent and a clean
+  checkout must still apply. LabSound does this with
+  `cmake/ApplyPatches.cmake`, which applies every `patches/labsound-*.patch`
+  in name order and skips the ones whose reverse already applies cleanly.
+
+A patched library only exists when it is the vendored copy, so the C++ tests in
+`tests/vendor/` that prove a patch are wired only when the library was built
+(`dep_get(<lib> main SOURCE out)` is `built`).
 
 Note: the one existing patch, `cmake/patches/aubio-static-lib.patch`, lives in
 `cmake/patches/`, not `patches/`. New vendored-library bug fixes go in

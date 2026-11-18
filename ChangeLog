@@ -1,3 +1,39 @@
+2026-11-18  Roman Senn  <roman.l.senn@gmail.com>
+
+	Project-tree cleanup: every bound library is now a Deps.cmake
+	dependency, installed or vendored, chosen per library.
+
+	* cmake/Deps.cmake (new): synced from the quickjs-native-bindings
+	skill (its MANIFEST scope now lists qjs-sound).
+	* cmake/deps/SoundLibs.cmake (new): registers portaudio, portmidi,
+	sndfile, samplerate, soundtouch, rubberband, fftw3, aubio, stk and
+	labsound with dep_declare(). BUILD_<LIB> is AUTO (installed, else
+	vendored), ON (always vendored) or OFF (installed only); the old
+	two-state BUILD_<LIB> options are the ON/OFF cases. An installed
+	copy is still pinned with <LIB>_PREFIX, <LIB>_INCLUDE_DIR and
+	<LIB>_LIBRARY_DIR. aubio keeps its "installed copy needs FFTW3"
+	probe and depends on fftw3; stk is now also found as an installed
+	library (it was always built before).
+	* cmake/deps/Build{LabSound,Stk}.cmake (new): the LabSound (patched in
+	place) and stk ExternalProjects, moved out of CMakeLists.txt.
+	* cmake/deps/{BuildAubio,BuildFFTW3,BuildPortAudio,BuildPortMIDI,
+	BuildRubberBand,BuildSampleRate,BuildSndFile,BuildSoundTouch,
+	VendoredLibrary}.cmake: moved from cmake/; the Find<Lib>.cmake
+	files are gone (their lookup is SoundLibs.cmake's generic find).
+	* CMakeLists.txt: MODULE_<NAME> (AUTO, ON, OFF) replaces USE_<NAME>,
+	which still switches a module off; a module whose library is neither
+	installed nor built is skipped with a warning (DEPS_MISSING=FAIL
+	stops instead); a table of where each library came from is printed
+	when the configure ends. The vendored-library tests (LabSound,
+	aubio) are wired only when that library was built, since only the
+	vendored copy carries the patches.
+	* CLAUDE.md: build options and the patch wiring rules describe the
+	new layout.
+	* not synced: FindQuickJS.cmake, BuildQuickJS.cmake and
+	QuickJSModule.cmake. The skill's canonical copies are older than
+	this project's (they lack the CMAKE_CROSSCOMPILING guard and
+	hide_static_symbols), so apply would undo fixes.
+
 2026-11-17  Roman Senn  <roman.l.senn@gmail.com>
 
 	Fix the bugs listed in BUGS; every fixed bug got a regression test.

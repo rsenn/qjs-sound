@@ -1,6 +1,6 @@
 # Builds the vendored third_party/rubberband submodule as a static,
-# -fPIC archive. Included only from FindRubberBand.cmake when
-# BUILD_RUBBERBAND is ON - never included directly.
+# -fPIC archive. Run by the BUILD command of the rubberband dependency
+# (SoundLibs.cmake).
 #
 # Unlike every other Build<Lib>.cmake in this directory, this does NOT
 # call vendored_build_static_subdirectory() - Rubber Band's upstream

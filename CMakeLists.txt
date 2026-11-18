@@ -8,16 +8,20 @@ add_test(NAME check-cflag-result-cached
   COMMAND ${CMAKE_COMMAND} -S ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check-cflag-result-cached
           -B ${CMAKE_CURRENT_BINARY_DIR}/tests/check-cflag-result-cached)
 
-option(USE_LABSOUND "Use LabSound library" ON)
-option(USE_STK "Use Stk library" ON)
-option(USE_PORTAUDIO "Use PortAudio library" ON)
-option(USE_AUBIO "Use aubio library" ON)
-option(USE_PORTMIDI "Use PortMidi library" ON)
-option(USE_SNDFILE "Use libsndfile library" ON)
-option(USE_SAMPLERATE "Use libsamplerate library" ON)
-option(USE_SOUNDTOUCH "Use SoundTouch library" ON)
-option(USE_RUBBERBAND "Use Rubber Band library" ON)
-option(USE_SNDOBJ "Use SndObj library" ON)
+# MODULE_<name> turns a module on or off: AUTO (default) builds it when its library is
+# installed or can be built, ON asks for it, OFF drops it. BUILD_<lib> says where the library
+# comes from: AUTO (installed, else the vendored copy in third_party/), ON (always vendored),
+# OFF (installed only); see cmake/deps/SoundLibs.cmake.
+foreach(_m labsound stk portaudio aubio portmidi sndfile samplerate soundtouch rubberband sndobj)
+  string(TOUPPER "${_m}" _u)
+  set(MODULE_${_u} AUTO CACHE STRING "Build the '${_m}' module: AUTO, ON or OFF")
+  set_property(CACHE MODULE_${_u} PROPERTY STRINGS AUTO ON OFF)
+
+  # USE_<NAME>=OFF, the old switch, still drops a module
+  if(DEFINED USE_${_u} AND NOT USE_${_u})
+    set(MODULE_${_u} OFF)
+  endif()
+endforeach(_m)
 
 include(FindPkgConfig)
 include(CheckLibraryExists)
@@ -44,73 +48,45 @@ check_flag("-fvisibility=hidden" VISIBILITY_HIDDEN MODULE_COMPILE_FLAGS)
 message("MODULE_COMPILE_FLAGS: ${MODULE_COMPILE_FLAGS}")
 
 include(ExternalProject)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/deps/SoundLibs.cmake)
 
-if(USE_LABSOUND)
-  # applied in order, in place; each one is skipped when already in the tree
-  file(GLOB LABSOUND_PATCHES "${CMAKE_CURRENT_SOURCE_DIR}/patches/labsound-*.patch")
-  list(SORT LABSOUND_PATCHES)
+# sound_module(<name>)
+#
+# Decides whether the module <name> is built: SOUND_<NAME> is TRUE unless MODULE_<NAME> is OFF
+# or its library is neither installed nor built. Resolves the library of the same name through
+# Deps.cmake and leaves <NAME>_INCLUDE_DIRS, <NAME>_LIBRARIES and <name>_DEPS behind.
+macro(sound_module MODULE)
+  string(TOUPPER "${MODULE}" _SM_U)
+  dep_module_mode(${MODULE} _SM_MODE)
+  get_property(_SM_DECLARED GLOBAL PROPERTY "DEP:${MODULE}:DECLARED")
+  set(SOUND_${_SM_U} FALSE)
 
-  ExternalProject_Add(
-    LabSound
-    SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound"
-    BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/third_party/LabSound"
-    PREFIX LabSound
-    PATCH_COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound
-      "-DPATCHES=${LABSOUND_PATCHES}" -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ApplyPatches.cmake
-    CMAKE_ARGS
-      "-DBUILD_SHARED_LIBS:BOOL=OFF"
-      #"-DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}"
-      "-DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo"
-      "-DCMAKE_VERBOSE_MAKEFILE:BOOL=OFF"
-      "-DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/third_party/LabSound/install"
-      "-DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON"
-      "-DCMAKE_C_COMPILER:STRING=${CMAKE_C_COMPILER}"
-      "-DCMAKE_CXX_COMPILER:STRING=${CMAKE_CXX_COMPILER}"
-      "-DCMAKE_C_FLAGS:STRING=${CMAKE_C_FLAGS} ${MODULE_COMPILE_FLAGS}"
-      "-DCMAKE_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS} ${MODULE_COMPILE_FLAGS}"
-    INSTALL_COMMAND "")
+  if(NOT "${_SM_MODE}" STREQUAL "OFF")
+    set(SOUND_${_SM_U} TRUE)
 
-  ExternalProject_Get_Property(LabSound BINARY_DIR)
-  set(LABSOUND_BINARY_DIR "${BINARY_DIR}")
-  message("Binary dir of LabSound = ${LABSOUND_BINARY_DIR}")
-endif(USE_LABSOUND)
+    if(_SM_DECLARED)
+      dep_resolve(${MODULE} SUFFIX main PIC ON)
+      dep_get(${MODULE} main SOURCE _SM_SOURCE)
 
-if(USE_STK)
-  ExternalProject_Add(
-    stk
-    SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk"
-    BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/third_party/stk"
-    PREFIX stk
-    CMAKE_ARGS
-      "-DBUILD_SHARED_LIBS:BOOL=OFF"
-      #"-DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}"
-      "-DCMAKE_BUILD_TYPE:STRING=RelWithDebInfo"
-      "-DCMAKE_VERBOSE_MAKEFILE:BOOL=OFF"
-      "-DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON"
-      "-DCMAKE_C_COMPILER:STRING=${CMAKE_C_COMPILER}"
-      "-DCMAKE_CXX_COMPILER:STRING=${CMAKE_CXX_COMPILER}"
-      "-DCMAKE_C_FLAGS:STRING=${CMAKE_C_FLAGS} ${MODULE_COMPILE_FLAGS}"
-      "-DCMAKE_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS} ${MODULE_COMPILE_FLAGS}"
-      "-DCOMPILE_PROJECTS:BOOL=OFF"
-    INSTALL_COMMAND "")
+      if("${_SM_SOURCE}" STREQUAL "missing")
+        set(SOUND_${_SM_U} FALSE)
+        message(WARNING "Module '${MODULE}' skipped: its library is neither installed nor built")
+      else()
+        dep_include_dirs(${MODULE} main ${_SM_U}_INCLUDE_DIRS)
+        dep_libraries(${MODULE} main ${_SM_U}_LIBRARIES)
+        dep_link_flags(${MODULE} main _SM_FLAGS)
+        dep_targets(${MODULE} main ${MODULE}_DEPS)
+        list(APPEND ${_SM_U}_LIBRARIES ${_SM_FLAGS})
+      endif()
+    endif()
+  endif()
+endmacro(sound_module)
 
-  ExternalProject_Get_Property(stk BINARY_DIR)
-  set(STK_LIBRARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/third_party/stk")
-  set(STK_LIBRARY stk)
-  set(STK_BINARY_DIR "${BINARY_DIR}")
-  add_library(libstk STATIC IMPORTED)
-  file(GLOB STK_LIBRARY_PATH "${STK_LIBRARY_DIR}/*.a")
-  if(NOT STK_LIBRARY_PATH)
-    set(STK_LIBRARY_PATH "${STK_LIBRARY_DIR}/libstk.a")
-  endif(NOT STK_LIBRARY_PATH)
-  #dump(STK_LIBRARY_PATH)
-  set_target_properties(libstk PROPERTIES IMPORTED_LOCATION
-                                          "${STK_LIBRARY_PATH}")
+foreach(_m labsound stk portaudio aubio portmidi sndfile samplerate soundtouch rubberband sndobj)
+  sound_module(${_m})
+endforeach(_m)
 
-  link_directories("${STK_LIBRARY_DIR}")
-
-  message("Binary dir of stk = ${STK_BINARY_DIR}")
-endif(USE_STK)
+dep_summary(DEFER)
 
 include(CheckCCompilerFlag)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/UseMultiArch.cmake)
@@ -158,47 +134,8 @@ function(module_compile_definitions NAME)
   endforeach(T)
 endfunction(module_compile_definitions)
 
-set(labsound_LINK_DIRECTORIES ${LABSOUND_BINARY_DIR}/bin
-                              ${LABSOUND_BINARY_DIR}/third_party/libnyquist/lib)
-
-if(CMAKE_BUILD_TYPE MATCHES "Rel")
-  #set(DEBUG_SUFFIX _d)
-else(CMAKE_BUILD_TYPE MATCHES "Rel")
-  set(DEBUG_SUFFIX "")
-endif(CMAKE_BUILD_TYPE MATCHES "Rel")
-
-add_library(libLabSound STATIC IMPORTED GLOBAL)
-set_target_properties(
-  libLabSound
-  PROPERTIES IMPORTED_LOCATION
-             "${LABSOUND_BINARY_DIR}/bin/libLabSound${DEBUG_SUFFIX}.a"
-             IMPORTED_LOCATION_DEBUG
-             "${LABSOUND_BINARY_DIR}/bin/libLabSound${DEBUG_SUFFIX}.a"
-             IMPORTED_CONFIGURATIONS "RELEASE;DEBUG")
-add_library(libLabSoundRtAudio STATIC IMPORTED GLOBAL)
-set_target_properties(
-  libLabSoundRtAudio
-  PROPERTIES IMPORTED_LOCATION
-             "${LABSOUND_BINARY_DIR}/bin/libLabSoundRtAudio${DEBUG_SUFFIX}.a"
-             IMPORTED_LOCATION_DEBUG
-             "${LABSOUND_BINARY_DIR}/bin/libLabSoundRtAudio${DEBUG_SUFFIX}.a"
-             IMPORTED_CONFIGURATIONS "RELEASE;DEBUG")
-
-link_directories(${LABSOUND_BINARY_DIR}/bin
-                 ${LABSOUND_BINARY_DIR}/third_party/libnyquist/lib)
-set(labsound_LIBRARIES
-    #  ${LABSOUND_BINARY_DIR}/bin/libLabSound${DEBUG_SUFFIX}.a
-    #A ${LABSOUND_BINARY_DIR}/bin/libLabSoundRtAudio${DEBUG_SUFFIX}.a
-    libLabSound
-    libLabSoundRtAudio
-    ${LABSOUND_BINARY_DIR}/third_party/libnyquist/lib/liblibnyquist.a
-    #LabSound_d libnyquist_d
-    pulse
-    pulse-simple
-    samplerate
-    pthread)
-
-link_directories(${labsound_LINK_DIRECTORIES})
+set(labsound_LINK_DIRECTORIES ${CMAKE_CURRENT_BINARY_DIR}/third_party/LabSound/bin
+                              ${CMAKE_CURRENT_BINARY_DIR}/third_party/LabSound/third_party/libnyquist/lib)
 
 find_quickjs()
 configure_quickjs()
@@ -210,22 +147,14 @@ link_directories(${QUICKJS_LIBRARY_DIR})
 
 file(GLOB JS_HELPER_SOURCES js-utils.[ch] js-typedarray.[ch])
 
-if(USE_STK)
+if(SOUND_STK)
   if(LINUX OR ANDROID)
     add_definitions(-D__LINUX_ALSA__ #-D__LINUX_PULSE__
     )
   endif()
 
-  #link_directories(${STK_LIBRARY_DIR})
-
-  set(stk_LIBRARIES libstk ${ALSA_LIBRARY})
-  if(LINUX OR ANDROID)
-    # RtAudio/RtMidi (ALSA + JACK backends) and Thread/Mutex are compiled
-    # into libstk.a; the JS bindings now call into them, so their runtime
-    # deps must be linked into qjs-stk too.
-    list(APPEND stk_LIBRARIES pthread asound jack)
-  endif()
-  set(stk_LINK_DIRECTORIES "${STK_LIBRARY_DIR}")
+  set(stk_LIBRARIES ${STK_LIBRARIES})
+  set(stk_LINK_DIRECTORIES "${CMAKE_CURRENT_BINARY_DIR}/third_party/stk")
 
   #dump(stk_LIBRARIES stk_LINK_DIRECTORIES)
 
@@ -240,9 +169,8 @@ if(USE_STK)
 
   make_module(stk quickjs-stk.cpp ${JS_HELPER_SOURCES})
 
-  include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/include"
-                      "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/src/include")
-  module_include_directories(stk "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/include" "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk/src/include")
+  include_directories(${STK_INCLUDE_DIRS})
+  module_include_directories(stk ${STK_INCLUDE_DIRS})
 
   find_program(QJSM qjsm)
   if(QJSM)
@@ -254,11 +182,9 @@ if(USE_STK)
   else()
     message(WARNING "qjsm not found; stk binding tests will be skipped")
   endif()
-endif(USE_STK)
+endif(SOUND_STK)
 
-if(USE_AUBIO)
-  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindAubio.cmake")
-
+if(SOUND_AUBIO)
   set(aubio_LIBRARIES ${AUBIO_LIBRARIES})
 
   make_module(aubio quickjs-aubio.c ${JS_HELPER_SOURCES})
@@ -267,15 +193,16 @@ if(USE_AUBIO)
   module_include_directories(aubio ${AUBIO_INCLUDE_DIRS})
 
   # only the vendored copy carries the patch
-  if(BUILD_AUBIO)
+  dep_get(aubio main SOURCE _aubio_source)
+  if("${_aubio_source}" STREQUAL "built")
     add_executable(test-aubio-pitch-confidence tests/vendor/aubio-pitch-confidence-reads-zero.cpp)
     target_include_directories(test-aubio-pitch-confidence PRIVATE ${AUBIO_INCLUDE_DIRS})
     target_link_libraries(test-aubio-pitch-confidence PRIVATE ${AUBIO_LIBRARIES})
     add_test(NAME aubio-pitch-confidence-reads-zero COMMAND test-aubio-pitch-confidence)
   endif()
-endif(USE_AUBIO)
+endif(SOUND_AUBIO)
 
-if(USE_LABSOUND)
+if(SOUND_LABSOUND)
   #[[file(
     GLOB
     labsound_SOURCES
@@ -286,63 +213,66 @@ if(USE_LABSOUND)
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/src/internal/src/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/src/core/*.cpp)]]
 
+  set(labsound_LIBRARIES ${LABSOUND_LIBRARIES})
+
   make_module(labsound quickjs-labsound.cpp ${JS_HELPER_SOURCES})
 
-  include_directories(
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include"
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/third_party/libnyquist/include"
-  )
-  module_include_directories(labsound "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include" "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/third_party/libnyquist/include")
+  include_directories(${LABSOUND_INCLUDE_DIRS})
+  module_include_directories(labsound ${LABSOUND_INCLUDE_DIRS})
 
-  add_executable(test-labsound-disconnect-deferred
-    tests/vendor/labsound-disconnect-deferred.cpp)
-  target_link_libraries(test-labsound-disconnect-deferred PRIVATE ${labsound_LIBRARIES})
-  target_include_directories(test-labsound-disconnect-deferred PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include"
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/third_party/libnyquist/include")
-  add_dependencies(test-labsound-disconnect-deferred LabSound)
-  add_test(NAME labsound-disconnect-deferred
-           COMMAND test-labsound-disconnect-deferred)
+  # the engine tests run against the patched vendored tree only
+  dep_get(labsound main SOURCE _labsound_source)
+  if("${_labsound_source}" STREQUAL "built")
+    add_executable(test-labsound-disconnect-deferred
+      tests/vendor/labsound-disconnect-deferred.cpp)
+    target_link_libraries(test-labsound-disconnect-deferred PRIVATE ${labsound_LIBRARIES})
+    target_include_directories(test-labsound-disconnect-deferred PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include"
+      "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/third_party/libnyquist/include")
+    add_dependencies(test-labsound-disconnect-deferred LabSound)
+    add_test(NAME labsound-disconnect-deferred
+             COMMAND test-labsound-disconnect-deferred)
 
-  add_executable(test-labsound-scheduler-epoch
-    tests/vendor/labsound-scheduler-epoch.cpp)
-  target_link_libraries(test-labsound-scheduler-epoch PRIVATE ${labsound_LIBRARIES})
-  target_include_directories(test-labsound-scheduler-epoch PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include"
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/third_party/libnyquist/include")
-  add_dependencies(test-labsound-scheduler-epoch LabSound)
-  add_test(NAME labsound-scheduler-epoch
-           COMMAND test-labsound-scheduler-epoch)
+    add_executable(test-labsound-scheduler-epoch
+      tests/vendor/labsound-scheduler-epoch.cpp)
+    target_link_libraries(test-labsound-scheduler-epoch PRIVATE ${labsound_LIBRARIES})
+    target_include_directories(test-labsound-scheduler-epoch PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include"
+      "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/third_party/libnyquist/include")
+    add_dependencies(test-labsound-scheduler-epoch LabSound)
+    add_test(NAME labsound-scheduler-epoch
+             COMMAND test-labsound-scheduler-epoch)
 
-  add_executable(test-labsound-compressor-channel-assert
-    tests/vendor/labsound-compressor-channel-assert.cpp)
-  target_link_libraries(test-labsound-compressor-channel-assert PRIVATE ${labsound_LIBRARIES})
-  target_include_directories(test-labsound-compressor-channel-assert PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include"
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/third_party/libnyquist/include")
-  add_dependencies(test-labsound-compressor-channel-assert LabSound)
-  add_test(NAME labsound-compressor-channel-assert
-           COMMAND test-labsound-compressor-channel-assert)
+    add_executable(test-labsound-compressor-channel-assert
+      tests/vendor/labsound-compressor-channel-assert.cpp)
+    target_link_libraries(test-labsound-compressor-channel-assert PRIVATE ${labsound_LIBRARIES})
+    target_include_directories(test-labsound-compressor-channel-assert PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include"
+      "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/third_party/libnyquist/include")
+    add_dependencies(test-labsound-compressor-channel-assert LabSound)
+    add_test(NAME labsound-compressor-channel-assert
+             COMMAND test-labsound-compressor-channel-assert)
 
-  add_executable(test-labsound-stopped-source-stuck-stopping
-    tests/vendor/labsound-stopped-source-stuck-stopping.cpp)
-  target_link_libraries(test-labsound-stopped-source-stuck-stopping PRIVATE ${labsound_LIBRARIES})
-  target_include_directories(test-labsound-stopped-source-stuck-stopping PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include"
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/third_party/libnyquist/include")
-  add_dependencies(test-labsound-stopped-source-stuck-stopping LabSound)
-  add_test(NAME labsound-stopped-source-stuck-stopping
-           COMMAND test-labsound-stopped-source-stuck-stopping)
+    add_executable(test-labsound-stopped-source-stuck-stopping
+      tests/vendor/labsound-stopped-source-stuck-stopping.cpp)
+    target_link_libraries(test-labsound-stopped-source-stuck-stopping PRIVATE ${labsound_LIBRARIES})
+    target_include_directories(test-labsound-stopped-source-stuck-stopping PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include"
+      "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/third_party/libnyquist/include")
+    add_dependencies(test-labsound-stopped-source-stuck-stopping LabSound)
+    add_test(NAME labsound-stopped-source-stuck-stopping
+             COMMAND test-labsound-stopped-source-stuck-stopping)
 
-  add_executable(test-labsound-functionnode-offline-silent
-    tests/vendor/labsound-functionnode-offline-silent.cpp)
-  target_link_libraries(test-labsound-functionnode-offline-silent PRIVATE ${labsound_LIBRARIES})
-  target_include_directories(test-labsound-functionnode-offline-silent PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include"
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/third_party/libnyquist/include")
-  add_dependencies(test-labsound-functionnode-offline-silent LabSound)
-  add_test(NAME labsound-functionnode-offline-silent
-           COMMAND test-labsound-functionnode-offline-silent)
+    add_executable(test-labsound-functionnode-offline-silent
+      tests/vendor/labsound-functionnode-offline-silent.cpp)
+    target_link_libraries(test-labsound-functionnode-offline-silent PRIVATE ${labsound_LIBRARIES})
+    target_include_directories(test-labsound-functionnode-offline-silent PRIVATE
+      "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/include"
+      "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LabSound/third_party/libnyquist/include")
+    add_dependencies(test-labsound-functionnode-offline-silent LabSound)
+    add_test(NAME labsound-functionnode-offline-silent
+             COMMAND test-labsound-functionnode-offline-silent)
+  endif()
 
   find_program(QJSM qjsm)
   if(QJSM)
@@ -369,11 +299,9 @@ if(USE_LABSOUND)
   else()
     message(WARNING "qjsm not found; binding tests will be skipped")
   endif()
-endif(USE_LABSOUND)
+endif(SOUND_LABSOUND)
 
-if(USE_PORTAUDIO)
-  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindPortAudio.cmake")
-
+if(SOUND_PORTAUDIO)
   make_module(portaudio quickjs-portaudio.c ${JS_HELPER_SOURCES})
 
   # check_symbol_exists (a header check) rather than check_library_exists
@@ -395,20 +323,16 @@ if(USE_PORTAUDIO)
 
   module_include_directories(portaudio ${PORTAUDIO_INCLUDE_DIRS})
   module_link_libraries(portaudio ${PORTAUDIO_LIBRARIES})
-endif(USE_PORTAUDIO)
+endif(SOUND_PORTAUDIO)
 
-if(USE_PORTMIDI)
-  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindPortMIDI.cmake")
-
+if(SOUND_PORTMIDI)
   make_module(portmidi quickjs-portmidi.c ${JS_HELPER_SOURCES})
 
   module_include_directories(portmidi ${PORTMIDI_INCLUDE_DIRS})
   module_link_libraries(portmidi ${PORTMIDI_LIBRARIES})
-endif(USE_PORTMIDI)
+endif(SOUND_PORTMIDI)
 
-if(USE_SNDFILE)
-  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindSndFile.cmake")
-
+if(SOUND_SNDFILE)
   set(sndfile_LIBRARIES ${SNDFILE_LIBRARIES})
   # js-typedarray.c is shared TypedArray/ArrayBuffer marshalling
   # code, not part of libsndfile itself - see doc/native/sndfile.md's "Shared
@@ -418,42 +342,36 @@ if(USE_SNDFILE)
 
   include_directories(${SNDFILE_INCLUDE_DIRS})
   module_include_directories(sndfile ${SNDFILE_INCLUDE_DIRS})
-endif(USE_SNDFILE)
+endif(SOUND_SNDFILE)
 
-if(USE_SAMPLERATE)
-  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindSampleRate.cmake")
-
+if(SOUND_SAMPLERATE)
   set(samplerate_LIBRARIES ${SAMPLERATE_LIBRARIES})
 
   make_module(samplerate quickjs-samplerate.c ${JS_HELPER_SOURCES})
 
   include_directories(${SAMPLERATE_INCLUDE_DIRS})
   module_include_directories(samplerate ${SAMPLERATE_INCLUDE_DIRS})
-endif(USE_SAMPLERATE)
+endif(SOUND_SAMPLERATE)
 
-if(USE_SOUNDTOUCH)
-  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindSoundTouch.cmake")
-
+if(SOUND_SOUNDTOUCH)
   set(soundtouch_LIBRARIES ${SOUNDTOUCH_LIBRARIES})
 
   make_module(soundtouch quickjs-soundtouch.cpp ${JS_HELPER_SOURCES})
 
   include_directories(${SOUNDTOUCH_INCLUDE_DIRS})
   module_include_directories(soundtouch ${SOUNDTOUCH_INCLUDE_DIRS})
-endif(USE_SOUNDTOUCH)
+endif(SOUND_SOUNDTOUCH)
 
-if(USE_RUBBERBAND)
-  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindRubberBand.cmake")
-
+if(SOUND_RUBBERBAND)
   set(rubberband_LIBRARIES ${RUBBERBAND_LIBRARIES})
 
   make_module(rubberband quickjs-rubberband.c ${JS_HELPER_SOURCES})
 
   include_directories(${RUBBERBAND_INCLUDE_DIRS})
   module_include_directories(rubberband ${RUBBERBAND_INCLUDE_DIRS})
-endif(USE_RUBBERBAND)
+endif(SOUND_RUBBERBAND)
 
-if(USE_SNDOBJ)
+if(SOUND_SNDOBJ)
   # Only the sources needed by the 11 classes this module binds (see
   # doc/native/sndobj.md) - not a glob, since most of third_party/sndobj/src
   # (file/realtime/MIDI IO, the FFT/phase-vocoder family) is out of scope
@@ -483,4 +401,4 @@ if(USE_SNDOBJ)
 
   include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src")
   module_include_directories(sndobj "${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src")
-endif(USE_SNDOBJ)
+endif(SOUND_SNDOBJ)

@@ -1,6 +1,6 @@
 # Downloads FFTW3 into third_party/fftw3 and builds the float library
-# (libfftw3f.a, -fPIC) with ExternalProject_Add. Included only from
-# FindFFTW3.cmake - never directly.
+# (libfftw3f.a, -fPIC) with ExternalProject_Add. Run by the BUILD command of the fftw3 dependency
+# (SoundLibs.cmake).
 #
 # The archive is installed into <build>/third_party/fftw3-install, which is
 # what FFTW3_INCLUDE_DIRS / FFTW3_LIBRARIES point at. Anything linking
@@ -38,4 +38,4 @@ set(FFTW3_INCLUDE_DIRS "${FFTW3_INSTALL_DIR}/include")
 set(FFTW3_LIBRARY_DIRS "${FFTW3_INSTALL_DIR}/lib")
 set(FFTW3_LIBRARIES "${FFTW3_INSTALL_DIR}/lib/libfftw3f.a" m)
 set(FFTW3_FOUND TRUE)
-set(FFTW3_BUILT_IN_TREE TRUE)
+set(FFTW3_TARGETS fftw3_external)

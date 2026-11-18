@@ -1,12 +1,13 @@
 # Builds the vendored third_party/aubio submodule as a static, -fPIC
 # archive via add_subdirectory(), always with FFTW3 (float): aubio's own
 # CMake build never enables it, and its fallback FFT is power-of-2 only.
-# Included only from FindAubio.cmake - never directly.
+# Run by the BUILD command of the aubio dependency (SoundLibs.cmake).
 
-include("${CMAKE_CURRENT_LIST_DIR}/VendoredLibrary.cmake")
-
-# FFTW3 first: system fftw3f, or downloaded and built into the build tree.
-include("${CMAKE_CURRENT_LIST_DIR}/FindFFTW3.cmake")
+# FFTW3 is a dependency of aubio: Deps.cmake resolved it (installed, or
+# built into the build tree) before this runs.
+dep_include_dirs(fftw3 main FFTW3_INCLUDE_DIRS)
+dep_libraries(fftw3 main FFTW3_LIBRARIES)
+dep_targets(fftw3 main FFTW3_TARGETS)
 
 # Upstream third_party/aubio/src/CMakeLists.txt hardcodes
 # `add_library(aubio SHARED)`, ignoring BUILD_SHARED_LIBS, so it can't
@@ -27,6 +28,6 @@ vendored_build_static_subdirectory(
 target_compile_definitions(aubio PRIVATE HAVE_FFTW3 HAVE_FFTW3F)
 target_include_directories(aubio PRIVATE ${FFTW3_INCLUDE_DIRS})
 target_link_libraries(aubio PRIVATE ${FFTW3_LIBRARIES})
-if(FFTW3_BUILT_IN_TREE)
-  add_dependencies(aubio fftw3_external)
+if(FFTW3_TARGETS)
+  add_dependencies(aubio ${FFTW3_TARGETS})
 endif()
