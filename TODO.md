@@ -911,11 +911,11 @@ items below are what the sweep left open.
       bug already documented in qjs-modules/BUGS; fix in the shared cmake
       layer (Checks.cmake), not this project.
 
-- [ ] stk: the tests no longer call setters the binding lacks; bind them if
-      wanted: SineWave get/setFrequency and get/setAmplitude, BiQuad
-      setBiquad, OnePole setPole, OneZero setZero, TwoPole setResonance,
-      TwoZero setNotch, PoleZero setPoleZero (filters only expose tick()
-      today), and stk.Stk.sampleRate (Stk only has setRawwavePath/rawwavePath).
+- [ ] doc/native/stk.md: only stk-io.md exists; document the generators, filters, effects, instruments and
+      the setters bound on 2026-11-20 (Generator setFrequency/setHarmonics/reset/setRate/addTime/addPhase/
+      addPhaseOffset, Filter setGain/getGain/clear/setCoefficients/setPole/setZero/setAllpass/setBlockZero/
+      setResonance/setNotch/setLowPass/setHighPass/setBandPass/setBandReject/setAllPass/setEqualGainZeroes,
+      Stk.sampleRate()/setSampleRate()); each throws TypeError on a class that lacks it.
 - [ ] portaudio: PaStream has no `info` getter (only active, stopped,
       sampleRate, inputLatency, outputLatency, time, cpuLoad, read/writeAvailable,
       hostApiType); add one if a device-info object is wanted.

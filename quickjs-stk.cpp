@@ -315,7 +315,34 @@ js_stk_get_rawwave_path(JSContext* ctx, JSValueConst this_val, int argc, JSValue
   return JS_NewString(ctx, stk::Stk::rawwavePath().c_str());
 }
 
+/* Stk.sampleRate() / Stk.setSampleRate(rate): the rate every STK object created afterwards uses.
+ *
+ * ```js
+ * Stk.setSampleRate(48000);
+ * Stk.sampleRate(); // 48000
+ * ```
+ */
+static JSValue
+js_stk_static_sample_rate(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
+  return JS_NewFloat64(ctx, stk::Stk::sampleRate());
+}
+
+static JSValue
+js_stk_static_set_sample_rate(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst argv[]) {
+  double rate;
+
+  if(argc < 1 || JS_ToFloat64(ctx, &rate, argv[0]))
+    return argc < 1 ? JS_ThrowTypeError(ctx, "setSampleRate requires a rate") : JS_EXCEPTION;
+  if(!(rate > 0))
+    return JS_ThrowRangeError(ctx, "sample rate must be positive");
+
+  stk::Stk::setSampleRate(rate);
+  return JS_UNDEFINED;
+}
+
 static const JSCFunctionListEntry js_stk_static_funcs[] = {
+  JS_CFUNC_DEF("sampleRate", 0, js_stk_static_sample_rate),
+  JS_CFUNC_DEF("setSampleRate", 1, js_stk_static_set_sample_rate),
   JS_CFUNC_DEF("setRawwavePath", 1, js_stk_set_rawwave_path),
   JS_CFUNC_DEF("rawwavePath", 0, js_stk_get_rawwave_path),
 };
@@ -715,6 +742,17 @@ js_stkgenerator_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
 
 enum {
   METHOD_TICK = 0,
+  METHOD_GEN_SET_FREQUENCY,
+  METHOD_GEN_SET_HARMONICS,
+  METHOD_GEN_RESET,
+  METHOD_GEN_SET_RATE,
+  METHOD_GEN_ADD_TIME,
+  METHOD_GEN_ADD_PHASE,
+  METHOD_GEN_ADD_PHASE_OFFSET,
+};
+
+static const char* const stkgenerator_method_names[] = {
+  "tick", "setFrequency", "setHarmonics", "reset", "setRate", "addTime", "addPhase", "addPhaseOffset",
 };
 
 static JSValue
@@ -764,6 +802,48 @@ js_stkgenerator_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       ret = JS_NewFloat64(ctx, sample);
       break;
     }
+    default: {
+      /* setters shared by the oscillators: they exist on some leaf classes only, so each
+       * is dispatched by type and any other generator throws a TypeError */
+      stk::Generator* g = f->get();
+      double v = 0;
+      bool matched = false;
+
+      if(magic != METHOD_GEN_RESET) {
+        if(argc < 1)
+          return JS_ThrowTypeError(ctx, "%s requires an argument", stkgenerator_method_names[magic]);
+        if(qjsx::args(ctx, argc, argv, v))
+          return JS_EXCEPTION;
+      }
+
+      switch(magic) {
+        case METHOD_GEN_SET_FREQUENCY:
+          matched = qjsx::dispatch<stk::SineWave, stk::Blit, stk::BlitSaw, stk::BlitSquare>(g, [&](auto* p) { p->setFrequency(v); });
+          break;
+        case METHOD_GEN_SET_HARMONICS:
+          matched = qjsx::dispatch<stk::Blit, stk::BlitSaw, stk::BlitSquare>(g, [&](auto* p) { p->setHarmonics(static_cast<unsigned>(v)); });
+          break;
+        case METHOD_GEN_RESET:
+          matched = qjsx::dispatch<stk::SineWave, stk::Blit, stk::BlitSaw, stk::BlitSquare>(g, [&](auto* p) { p->reset(); });
+          break;
+        case METHOD_GEN_SET_RATE:
+          matched = qjsx::dispatch<stk::SineWave>(g, [&](auto* p) { p->setRate(v); });
+          break;
+        case METHOD_GEN_ADD_TIME:
+          matched = qjsx::dispatch<stk::SineWave>(g, [&](auto* p) { p->addTime(v); });
+          break;
+        case METHOD_GEN_ADD_PHASE:
+          matched = qjsx::dispatch<stk::SineWave>(g, [&](auto* p) { p->addPhase(v); });
+          break;
+        case METHOD_GEN_ADD_PHASE_OFFSET:
+          matched = qjsx::dispatch<stk::SineWave>(g, [&](auto* p) { p->addPhaseOffset(v); });
+          break;
+      }
+
+      if(!matched)
+        return JS_ThrowTypeError(ctx, "%s is not supported by this generator", stkgenerator_method_names[magic]);
+      break;
+    }
   }
 
   return ret;
@@ -811,6 +891,13 @@ static JSClassDef js_stkgenerator_class = {
 
 static const JSCFunctionListEntry js_stkgenerator_funcs[] = {
   JS_CFUNC_MAGIC_DEF("tick", 1, guarded<js_stkgenerator_method>, METHOD_TICK),
+  JS_CFUNC_MAGIC_DEF("setFrequency", 1, guarded<js_stkgenerator_method>, METHOD_GEN_SET_FREQUENCY),
+  JS_CFUNC_MAGIC_DEF("setHarmonics", 1, guarded<js_stkgenerator_method>, METHOD_GEN_SET_HARMONICS),
+  JS_CFUNC_MAGIC_DEF("reset", 0, guarded<js_stkgenerator_method>, METHOD_GEN_RESET),
+  JS_CFUNC_MAGIC_DEF("setRate", 1, guarded<js_stkgenerator_method>, METHOD_GEN_SET_RATE),
+  JS_CFUNC_MAGIC_DEF("addTime", 1, guarded<js_stkgenerator_method>, METHOD_GEN_ADD_TIME),
+  JS_CFUNC_MAGIC_DEF("addPhase", 1, guarded<js_stkgenerator_method>, METHOD_GEN_ADD_PHASE),
+  JS_CFUNC_MAGIC_DEF("addPhaseOffset", 1, guarded<js_stkgenerator_method>, METHOD_GEN_ADD_PHASE_OFFSET),
   JS_CGETSET_MAGIC_DEF("channelsOut", js_stkgenerator_get, js_stkgenerator_set, PROP_SAMPLERATE),
   JS_PROP_STRING_DEF("[Symbol.toStringTag]", "Generator", JS_PROP_CONFIGURABLE),
 };
@@ -982,6 +1069,34 @@ js_stkfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
 
 enum {
   METHOD_FILTER_TICK = 0,
+  METHOD_FILTER_SET_GAIN,
+  METHOD_FILTER_GET_GAIN,
+  METHOD_FILTER_CLEAR,
+  METHOD_FILTER_SET_COEFFICIENTS,
+  METHOD_FILTER_SET_POLE,
+  METHOD_FILTER_SET_ZERO,
+  METHOD_FILTER_SET_ALLPASS,
+  METHOD_FILTER_SET_BLOCK_ZERO,
+  METHOD_FILTER_SET_RESONANCE,
+  METHOD_FILTER_SET_NOTCH,
+  METHOD_FILTER_SET_LOWPASS,
+  METHOD_FILTER_SET_HIGHPASS,
+  METHOD_FILTER_SET_BANDPASS,
+  METHOD_FILTER_SET_BANDREJECT,
+  METHOD_FILTER_SET_BIQUAD_ALLPASS,
+  METHOD_FILTER_SET_EQUAL_GAIN_ZEROES,
+};
+
+static const char* const stkfilter_method_names[] = {
+  "tick", "setGain", "getGain", "clear", "setCoefficients", "setPole", "setZero", "setAllpass", "setBlockZero",
+  "setResonance", "setNotch", "setLowPass", "setHighPass", "setBandPass", "setBandReject", "setAllPass",
+  "setEqualGainZeroes",
+};
+
+/* number of numeric arguments each setter takes before its optional ones; -1 for setCoefficients,
+ * whose count depends on the filter */
+static const int stkfilter_method_args[] = {
+  1, 1, 0, 0, -1, 1, 1, 1, 0, 2, 2, 1, 1, 2, 2, 2, 0,
 };
 
 static JSValue
@@ -1020,6 +1135,108 @@ js_stkfilter_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
       ret = JS_NewFloat64(ctx, frame[0]);
       break;
     }
+    case METHOD_FILTER_GET_GAIN: {
+      ret = JS_NewFloat64(ctx, (*f)->getGain());
+      break;
+    }
+    case METHOD_FILTER_CLEAR: {
+      (*f)->clear();
+      break;
+    }
+    default: {
+      /* the other setters exist on some filter types only: each is dispatched by type and any
+       * other filter throws a TypeError; trailing arguments are the optional ones of the C++ call */
+      stk::Filter* flt = f->get();
+      const char* name = stkfilter_method_names[magic];
+      double v[5] = {0, 0, 0, 0, 0};
+      int need = stkfilter_method_args[magic];
+      bool matched = false, flag = false;
+
+      if(magic == METHOD_FILTER_SET_COEFFICIENTS) {
+        need = dynamic_cast<stk::BiQuad*>(flt)                                   ? 5
+               : dynamic_cast<stk::TwoPole*>(flt) || dynamic_cast<stk::TwoZero*>(flt) || dynamic_cast<stk::PoleZero*>(flt) ? 3
+               : dynamic_cast<stk::OnePole*>(flt) || dynamic_cast<stk::OneZero*>(flt) ? 2
+                                                                                  : 0;
+        if(!need)
+          return JS_ThrowTypeError(ctx, "%s is not supported by this filter", name);
+      }
+
+      if(argc < need)
+        return JS_ThrowTypeError(ctx, "%s requires %d arguments", name, need);
+
+      for(int i = 0; i < need; i++)
+        if(JS_ToFloat64(ctx, &v[i], argv[i]))
+          return JS_EXCEPTION;
+
+      /* optional last argument: radius normalisation, clearState, or a default pole/Q */
+      double opt = 0;
+      bool has_opt = argc > need && !JS_IsUndefined(argv[need]);
+      if(has_opt) {
+        flag = JS_ToBool(ctx, argv[need]) > 0;
+        if(magic == METHOD_FILTER_SET_BLOCK_ZERO || magic == METHOD_FILTER_SET_LOWPASS || magic == METHOD_FILTER_SET_HIGHPASS) {
+          if(JS_ToFloat64(ctx, &opt, argv[need]))
+            return JS_EXCEPTION;
+        }
+      }
+
+      switch(magic) {
+        case METHOD_FILTER_SET_GAIN:
+          (*f)->setGain(v[0]);
+          matched = true;
+          break;
+        case METHOD_FILTER_SET_COEFFICIENTS:
+          if(need == 5)
+            matched = qjsx::dispatch<stk::BiQuad>(flt, [&](auto* p) { p->setCoefficients(v[0], v[1], v[2], v[3], v[4], flag); });
+          else if(need == 3)
+            matched = qjsx::dispatch<stk::TwoPole>(flt, [&](auto* p) { p->setCoefficients(v[0], v[1], v[2], flag); }) ||
+                      qjsx::dispatch<stk::TwoZero>(flt, [&](auto* p) { p->setCoefficients(v[0], v[1], v[2], flag); }) ||
+                      qjsx::dispatch<stk::PoleZero>(flt, [&](auto* p) { p->setCoefficients(v[0], v[1], v[2], flag); });
+          else
+            matched = qjsx::dispatch<stk::OnePole>(flt, [&](auto* p) { p->setCoefficients(v[0], v[1], flag); }) ||
+                      qjsx::dispatch<stk::OneZero>(flt, [&](auto* p) { p->setCoefficients(v[0], v[1], flag); });
+          break;
+        case METHOD_FILTER_SET_POLE:
+          matched = qjsx::dispatch<stk::OnePole>(flt, [&](auto* p) { p->setPole(v[0]); });
+          break;
+        case METHOD_FILTER_SET_ZERO:
+          matched = qjsx::dispatch<stk::OneZero>(flt, [&](auto* p) { p->setZero(v[0]); });
+          break;
+        case METHOD_FILTER_SET_ALLPASS:
+          matched = qjsx::dispatch<stk::PoleZero>(flt, [&](auto* p) { p->setAllpass(v[0]); });
+          break;
+        case METHOD_FILTER_SET_BLOCK_ZERO:
+          matched = qjsx::dispatch<stk::PoleZero>(flt, [&](auto* p) { p->setBlockZero(has_opt ? opt : 0.99); });
+          break;
+        case METHOD_FILTER_SET_RESONANCE:
+          matched = qjsx::dispatch<stk::TwoPole, stk::BiQuad>(flt, [&](auto* p) { p->setResonance(v[0], v[1], flag); });
+          break;
+        case METHOD_FILTER_SET_NOTCH:
+          matched = qjsx::dispatch<stk::TwoZero, stk::BiQuad>(flt, [&](auto* p) { p->setNotch(v[0], v[1]); });
+          break;
+        case METHOD_FILTER_SET_LOWPASS:
+          matched = qjsx::dispatch<stk::BiQuad>(flt, [&](auto* p) { has_opt ? p->setLowPass(v[0], opt) : p->setLowPass(v[0]); });
+          break;
+        case METHOD_FILTER_SET_HIGHPASS:
+          matched = qjsx::dispatch<stk::BiQuad>(flt, [&](auto* p) { has_opt ? p->setHighPass(v[0], opt) : p->setHighPass(v[0]); });
+          break;
+        case METHOD_FILTER_SET_BANDPASS:
+          matched = qjsx::dispatch<stk::BiQuad>(flt, [&](auto* p) { p->setBandPass(v[0], v[1]); });
+          break;
+        case METHOD_FILTER_SET_BANDREJECT:
+          matched = qjsx::dispatch<stk::BiQuad>(flt, [&](auto* p) { p->setBandReject(v[0], v[1]); });
+          break;
+        case METHOD_FILTER_SET_BIQUAD_ALLPASS:
+          matched = qjsx::dispatch<stk::BiQuad>(flt, [&](auto* p) { p->setAllPass(v[0], v[1]); });
+          break;
+        case METHOD_FILTER_SET_EQUAL_GAIN_ZEROES:
+          matched = qjsx::dispatch<stk::BiQuad>(flt, [&](auto* p) { p->setEqualGainZeroes(); });
+          break;
+      }
+
+      if(!matched)
+        return JS_ThrowTypeError(ctx, "%s is not supported by this filter", name);
+      break;
+    }
   }
 
   return ret;
@@ -1032,6 +1249,22 @@ static JSClassDef js_stkfilter_class = {
 
 static const JSCFunctionListEntry js_stkfilter_funcs[] = {
   JS_CFUNC_MAGIC_DEF("tick", 1, guarded<js_stkfilter_method>, METHOD_FILTER_TICK),
+  JS_CFUNC_MAGIC_DEF("setGain", 1, guarded<js_stkfilter_method>, METHOD_FILTER_SET_GAIN),
+  JS_CFUNC_MAGIC_DEF("getGain", 0, guarded<js_stkfilter_method>, METHOD_FILTER_GET_GAIN),
+  JS_CFUNC_MAGIC_DEF("clear", 0, guarded<js_stkfilter_method>, METHOD_FILTER_CLEAR),
+  JS_CFUNC_MAGIC_DEF("setCoefficients", 2, guarded<js_stkfilter_method>, METHOD_FILTER_SET_COEFFICIENTS),
+  JS_CFUNC_MAGIC_DEF("setPole", 1, guarded<js_stkfilter_method>, METHOD_FILTER_SET_POLE),
+  JS_CFUNC_MAGIC_DEF("setZero", 1, guarded<js_stkfilter_method>, METHOD_FILTER_SET_ZERO),
+  JS_CFUNC_MAGIC_DEF("setAllpass", 1, guarded<js_stkfilter_method>, METHOD_FILTER_SET_ALLPASS),
+  JS_CFUNC_MAGIC_DEF("setBlockZero", 0, guarded<js_stkfilter_method>, METHOD_FILTER_SET_BLOCK_ZERO),
+  JS_CFUNC_MAGIC_DEF("setResonance", 2, guarded<js_stkfilter_method>, METHOD_FILTER_SET_RESONANCE),
+  JS_CFUNC_MAGIC_DEF("setNotch", 2, guarded<js_stkfilter_method>, METHOD_FILTER_SET_NOTCH),
+  JS_CFUNC_MAGIC_DEF("setLowPass", 1, guarded<js_stkfilter_method>, METHOD_FILTER_SET_LOWPASS),
+  JS_CFUNC_MAGIC_DEF("setHighPass", 1, guarded<js_stkfilter_method>, METHOD_FILTER_SET_HIGHPASS),
+  JS_CFUNC_MAGIC_DEF("setBandPass", 2, guarded<js_stkfilter_method>, METHOD_FILTER_SET_BANDPASS),
+  JS_CFUNC_MAGIC_DEF("setBandReject", 2, guarded<js_stkfilter_method>, METHOD_FILTER_SET_BANDREJECT),
+  JS_CFUNC_MAGIC_DEF("setAllPass", 2, guarded<js_stkfilter_method>, METHOD_FILTER_SET_BIQUAD_ALLPASS),
+  JS_CFUNC_MAGIC_DEF("setEqualGainZeroes", 0, guarded<js_stkfilter_method>, METHOD_FILTER_SET_EQUAL_GAIN_ZEROES),
   JS_PROP_STRING_DEF("[Symbol.toStringTag]", "Filter", JS_PROP_CONFIGURABLE),
 };
 

@@ -1,5 +1,18 @@
 2026-11-20  Roman Senn  <roman.l.senn@gmail.com>
 
+	Bind the missing stk setters.
+
+	* quickjs-stk.cpp: Generator gets setFrequency, setHarmonics, reset,
+	setRate, addTime, addPhase, addPhaseOffset (SineWave, Blit, BlitSaw,
+	BlitSquare); Filter gets setGain, getGain, clear, setCoefficients,
+	setPole, setZero, setAllpass, setBlockZero, setResonance, setNotch,
+	setLowPass, setHighPass, setBandPass, setBandReject, setAllPass,
+	setEqualGainZeroes; Stk gets sampleRate() and setSampleRate(). A setter
+	on a class that lacks it throws TypeError.
+	* tests/bindings/stk-test.js: tests for each.
+
+2026-11-20  Roman Senn  <roman.l.senn@gmail.com>
+
 	MODULE_<NAME> is a boolean: ON (default) or OFF, never AUTO, so a
 	module is not chosen by which libraries are installed.
 

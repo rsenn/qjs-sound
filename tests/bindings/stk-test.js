@@ -113,6 +113,45 @@ tests({
     eq(Object.prototype.toString.call(b), '[object BiQuad]');
   },
 
+  'SineWave.setFrequency changes the period and reset restarts the phase'() {
+    const s = new stk.SineWave();
+    s.setFrequency(stk.Stk.sampleRate() / 4); // one cycle every 4 samples: 0, 1, 0, -1
+    s.reset();
+    const run = [s.tick(), s.tick(), s.tick(), s.tick()];
+    close(run[0], 0); close(run[1], 1); close(run[2], 0); close(run[3], -1);
+    s.reset();
+    s.addPhaseOffset(0.25); // a quarter cycle ahead: starts at the peak
+    close(s.tick(), 1);
+  },
+
+  'Blit.setFrequency/setHarmonics/reset are accepted'() {
+    const b = new stk.Blit();
+    b.setFrequency(220);
+    b.setHarmonics(8);
+    b.reset();
+    assert(typeof b.tick() === 'number');
+  },
+
+  'generator setters throw TypeError on a generator that lacks them'() {
+    let err;
+    try { new stk.Noise().setFrequency(100); } catch(e) { err = e; }
+    assert(err instanceof TypeError);
+  },
+
+  'Stk.sampleRate/setSampleRate round-trip'() {
+    const old = stk.Stk.sampleRate();
+    stk.Stk.setSampleRate(22050);
+    eq(stk.Stk.sampleRate(), 22050);
+    stk.Stk.setSampleRate(old);
+    eq(stk.Stk.sampleRate(), old);
+  },
+
+  'Stk.setSampleRate rejects a non-positive rate'() {
+    let err;
+    try { stk.Stk.setSampleRate(0); } catch(e) { err = e; }
+    assert(err instanceof RangeError);
+  },
+
   'BiQuad.tick passes a sample through'() {
     const b = new stk.BiQuad();
     assert(typeof b.tick(0.1) === 'number');
@@ -452,6 +491,52 @@ tests({
   'Saxofony construction and toStringTag'() {
     const s = new stk.Saxofony(44100);
     eq(Object.prototype.toString.call(s), '[object Saxofony]');
+  },
+
+  'OnePole.setPole and setGain change the output'() {
+    const o = new stk.OnePole();
+    o.setPole(0.5);
+    o.setGain(2);
+    close(o.getGain(), 2);
+    const a = o.tick(1);
+    o.clear();
+    o.setGain(1);
+    assert(Math.abs(o.tick(1) - a) > 1e-9);
+  },
+
+  'OneZero.setZero, TwoPole.setResonance, TwoZero.setNotch, PoleZero.setAllpass/setBlockZero tick'() {
+    const o = new stk.OneZero(); o.setZero(-0.5); assert(typeof o.tick(0.1) === 'number');
+    const t = new stk.TwoPole(); t.setResonance(440, 0.9, true); assert(typeof t.tick(0.1) === 'number');
+    const z = new stk.TwoZero(); z.setNotch(440, 0.9); assert(typeof z.tick(0.1) === 'number');
+    const p = new stk.PoleZero(); p.setAllpass(0.5); p.setBlockZero(); p.setBlockZero(0.9);
+    assert(typeof p.tick(0.1) === 'number');
+  },
+
+  'setCoefficients takes the coefficient count of its filter'() {
+    const o = new stk.OnePole(); o.setCoefficients(1, -0.5); o.setCoefficients(1, -0.5, true);
+    const z = new stk.OneZero(); z.setCoefficients(0.5, 0.5);
+    const tp = new stk.TwoPole(); tp.setCoefficients(1, -0.2, 0.1);
+    const tz = new stk.TwoZero(); tz.setCoefficients(1, 0.5, 0.25);
+    const pz = new stk.PoleZero(); pz.setCoefficients(1, 0.5, -0.2);
+    const b = new stk.BiQuad(); b.setCoefficients(1, 0, 0, 0, 0);
+    close(b.tick(0.5), 0.5);
+    let err;
+    try { o.setCoefficients(1); } catch(e) { err = e; }
+    assert(err instanceof TypeError);
+  },
+
+  'BiQuad filter designs and setEqualGainZeroes'() {
+    const b = new stk.BiQuad();
+    b.setLowPass(1000); b.setLowPass(1000, 0.5); b.setHighPass(1000); b.setBandPass(1000, 1);
+    b.setBandReject(1000, 1); b.setAllPass(1000, 1); b.setResonance(440, 0.9); b.setNotch(440, 0.9);
+    b.setEqualGainZeroes();
+    assert(typeof b.tick(0.1) === 'number');
+  },
+
+  'filter setters throw TypeError on a filter that lacks them'() {
+    let err;
+    try { new stk.Delay().setPole(0.5); } catch(e) { err = e; }
+    assert(err instanceof TypeError);
   },
 
   'OnePole tick returns a number'() {
