@@ -918,13 +918,6 @@ items below are what the sweep left open.
       classes and their prototypes; the two bugs found there are fixed). Missing, most useful first:
   - Noise.setSeed; Modulate set{Vibrato,Random}{Rate,Gain}; Blit/BlitSquare get/setPhase; SingWave and
     Granulate setters. (ADSR, Envelope and Asymp controls are bound.)
-  - Instruments have only tick, noteOn, noteOff, controlChange: no setFrequency or clear on any of them;
-    class specific control is missing (pluck on Plucked/Sitar/StifKarp/BandedWG; startBlowing/stopBlowing
-    on Clarinet/Flute-like; startBowing/stopBowing, setVibrato on Bowed; setLip on Brass; strike, damp,
-    setPreset, setStickHardness on ModalBar; speak, quiet, setPhoneme, setVoiced on VoicForm; the
-    Mesh2D setters; BlowHole/Saxofony/Mandolin/Flute need a lowest frequency, Clarinet defaults to 8).
-  - FM family (BeeThree, FMVoices, HevyMetl, PercFlut, Rhodey, TubeBell, Wurley): keyOn, keyOff,
-    setFrequency, setControl1, setControl2, setGain, setRatio, setModulationDepth/Speed.
   - Effects: setT60 (JCRev, NRev, PRCRev), setShift (PitShift, LentPitShift), Chorus
     setModDepth/setModFrequency, FreeVerb setRoomSize/setDamping/setWidth/setMode and getters.
   - Filters: low-level setB0/setB1/setB2/setA1/setA2, phaseDelay, Iir setNumerator/setDenominator,

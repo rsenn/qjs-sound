@@ -14,6 +14,8 @@ stk.Stk.setRawwavePath(RAWWAVES);
 const same = (a, b) => eq(JSON.stringify(a), JSON.stringify(b));
 
 // samples of channel 0 of an StkFrames, as plain numbers
+// loud(x, n): sum of |tick()| over n samples of an instrument
+const loud = (x, n) => { let sum = 0; for(let i = 0; i < n; i++) sum += Math.abs(x.tick()); return sum; };
 const channel0 = f => Array.from(f.toFloat32());
 const close = (a, b) => assert(Math.abs(a - b) < 1e-6, a + ' != ' + b);
 
@@ -621,6 +623,149 @@ tests({
     }
     let err;
     try { new stk.OnePole().tapOut(1); } catch(e) { err = e; }
+    assert(err instanceof TypeError);
+  },
+
+  'wind instruments: setFrequency, startBlowing/stopBlowing, clear produce sound'() {
+    for(const C of [stk.Clarinet, stk.Brass, stk.Whistle]) {
+      const w = new C(C === stk.Brass || C === stk.Clarinet ? 20 : undefined);
+      w.setFrequency(440);
+      w.startBlowing(0.8, 0.05);
+      assert(loud(w, 4000) > 0, 'no sound from ' + Object.prototype.toString.call(w));
+      w.stopBlowing(0.05);
+      w.clear();
+    }
+    // BlowBotl and Flute only sound after noteOn, which starts the breath with the right pressure
+    const bottle = new stk.BlowBotl(); bottle.setFrequency(440); bottle.noteOn(440, 0.8);
+    assert(loud(bottle, 4000) > 0);
+    bottle.stopBlowing(0.05); bottle.startBlowing(0.5, 0.01); bottle.clear();
+    const rec = new stk.Recorder(); rec.setFrequency(440); rec.setBlowPressure(0.5); rec.setVibratoGain(0.1); rec.setVibratoFrequency(5);
+    rec.setNoiseGain(0.1); rec.setBreathCutoff(5000); rec.setSoftness(0.5); rec.noteOn(440, 0.8);
+    assert(loud(rec, 4000) > 0);
+    rec.stopBlowing(0.05); rec.startBlowing(0.5, 0.01);
+  },
+
+  'Flute, BlowHole and Saxofony take their own controls'() {
+    const f = new stk.Flute(100); f.setJetReflection(0.5); f.setEndReflection(0.5); f.setJetDelay(0.5); f.setFrequency(440);
+    f.noteOn(440, 0.8); assert(loud(f, 4000) > 0); f.stopBlowing(0.05); f.startBlowing(0.8, 0.05);
+    const h = new stk.BlowHole(100); h.setTonehole(0.5); h.setVent(0.5); h.setFrequency(440); h.startBlowing(0.8, 0.05);
+    const s = new stk.Saxofony(100); s.setBlowPosition(0.3); s.setFrequency(440); s.startBlowing(0.8, 0.05);
+    const b = new stk.Brass(100); b.setLip(440);
+  },
+
+  'plucked strings: pluck produces sound'() {
+    for(const C of [stk.Plucked, stk.StifKarp]) {
+      const p = new C(100);
+      p.setFrequency(220);
+      p.pluck(0.8);
+      assert(loud(p, 2000) > 0, 'no sound from ' + Object.prototype.toString.call(p));
+    }
+    const sitar = new stk.Sitar(100); // its output gain is set by noteOn, pluck alone is silent
+    sitar.setFrequency(220); sitar.noteOn(220, 0.8); sitar.pluck(0.8);
+    assert(loud(sitar, 2000) > 0);
+    const m = new stk.Mandolin(100);
+    m.setFrequency(220); m.setDetune(0.99); m.setBodySize(1); m.setPluckPosition(0.4);
+    m.pluck(0.8); m.pluck(0.8, 0.3);
+    assert(loud(m, 2000) > 0);
+    const k = new stk.StifKarp(100); k.setStretch(0.5); k.setPickupPosition(0.2); k.setBaseLoopGain(0.995);
+  },
+
+  'bowed instruments: startBowing/stopBowing, setVibrato, setPreset'() {
+    const b = new stk.Bowed(100);
+    b.setFrequency(220); b.setVibrato(0.1); b.startBowing(0.8, 0.05);
+    assert(loud(b, 4000) > 0);
+    b.stopBowing(0.05);
+    const w = new stk.BandedWG();
+    w.setPreset(1); w.setStrikePosition(0.5); w.setFrequency(220); w.startBowing(0.8, 0.05); w.pluck(0.5); w.stopBowing(0.05);
+  },
+
+  'ModalBar strike/damp and the Modal controls'() {
+    const m = new stk.ModalBar();
+    m.setPreset(2); m.setStickHardness(0.5); m.setStrikePosition(0.5); m.setModulationDepth(0.1);
+    m.setMasterGain(1); m.setDirectGain(0.5); m.setModeGain(0, 0.5); m.setRatioAndRadius(0, 1, 0.99);
+    m.setFrequency(440);
+    m.strike(0.8);
+    assert(loud(m, 2000) > 0);
+    m.damp(0.5);
+    m.clear();
+  },
+
+  'Resonate and Simple keyOn/keyOff'() {
+    const r = new stk.Resonate();
+    r.setResonance(440, 0.9); r.setNotch(1000, 0.9); r.setEqualGainZeroes();
+    r.keyOn();
+    assert(loud(r, 2000) > 0);
+    r.keyOff();
+    const s = new stk.Simple(); s.setFrequency(440); s.keyOn(); s.keyOff();
+  },
+
+  'Moog modulation controls'() {
+    const m = new stk.Moog();
+    m.setFrequency(220); m.setModulationSpeed(5); m.setModulationDepth(0.1);
+    m.noteOn(220, 0.8);
+    assert(loud(m, 2000) > 0);
+  },
+
+  'Mesh2D setters, inputTick and energy'() {
+    const m = new stk.Mesh2D(4, 4);
+    m.setNX(5); m.setNY(5); m.setInputPosition(0.3, 0.3); m.setDecay(0.99);
+    assert(typeof m.inputTick(1) === 'number');
+    assert(m.energy() >= 0);
+    m.clear();
+  },
+
+  'VoicForm setPhoneme returns whether the phoneme exists'() {
+    const v = new stk.VoicForm();
+    eq(v.setPhoneme('eee'), true);
+    eq(v.setPhoneme('no such phoneme'), false);
+    v.setVoiced(1); v.setUnVoiced(0.1); v.setFilterSweepRate(0, 0.01); v.setPitchSweepRate(0.01); v.setFrequency(220);
+    v.quiet();
+  },
+
+  'instrument controls throw TypeError on instruments that lack them'() {
+    for(const f of [() => new stk.Drummer().setFrequency(440), () => new stk.Shakers().pluck(1), () => new stk.Clarinet(20).setPhoneme('eee'),
+                    () => new stk.Moog().strike(1)]) {
+      let err;
+      try { f(); } catch(e) { err = e; }
+      assert(err instanceof TypeError);
+    }
+    let err;
+    try { new stk.Clarinet(20).startBlowing(1); } catch(e) { err = e; }
+    assert(err instanceof TypeError); // needs amplitude and rate
+  },
+
+  'FM instruments: keyOn/keyOff, setFrequency, setRatio, setGain, controls, clear'() {
+    for(const C of [stk.Rhodey, stk.Wurley, stk.BeeThree, stk.TubeBell, stk.HevyMetl, stk.PercFlut, stk.FMVoices]) {
+      const f = new C();
+      f.setFrequency(220); f.setRatio(1, 2); f.setGain(0, 0.5); f.setModulationSpeed(5); f.setModulationDepth(0.1);
+      f.setControl1(0.5); f.setControl2(0.5);
+      f.keyOn();
+      assert(loud(f, 2000) > 0, 'no sound from ' + Object.prototype.toString.call(f));
+      f.keyOff();
+      f.clear();
+    }
+    let err;
+    try { new stk.Rhodey().setRatio(4, 1); } catch(e) { err = e; }
+    assert(err instanceof RangeError);
+  },
+
+  'Guitar controls and the string argument'() {
+    const g = new stk.Guitar(6);
+    g.setPluckPosition(0.5); g.setPluckPosition(0.5, 1); g.setLoopGain(0.995); g.setLoopGain(0.995, 2);
+    g.setFrequency(110, 0); g.setFrequency(147, 1);
+    g.noteOn(110, 0.8, 0);
+    assert(loud(g, 2000) > 0);
+    g.noteOff(0.5, 0);
+    g.controlChange(2, 64, 1);
+    g.clear();
+  },
+
+  'Twang setLowestFrequency, setLoopFilter and clear'() {
+    const t = new stk.Twang(100);
+    t.setLowestFrequency(50); t.setLoopFilter([0.5, 0.5]); t.setFrequency(220);
+    t.clear();
+    let err;
+    try { t.setLoopFilter(5); } catch(e) { err = e; }
     assert(err instanceof TypeError);
   },
 

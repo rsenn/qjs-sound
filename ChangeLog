@@ -13,6 +13,20 @@
 	* doc/native/stk.md (new): the stk DSP classes; stk-io.md: StkFrames
 	buffer is an ArrayBuffer, not a typed array.
 
+	Bind the instrument and FM controls of stk.
+
+	* quickjs-stk.cpp: Instrument gets setFrequency, clear, pluck,
+	startBlowing/stopBlowing, startBowing/stopBowing, keyOn/keyOff, the
+	ModalBar/Modal controls, setPreset, the Bowed, Brass, BlowHole, Flute,
+	Mandolin, Mesh2D, Recorder, Saxofony, StifKarp, Resonate, Moog and
+	VoicForm setters and setPhoneme; FM gets setFrequency, keyOn, keyOff,
+	setRatio, setGain, setModulationSpeed/Depth, setControl1/2, clear;
+	Guitar gets the string argument on noteOn/noteOff/controlChange and
+	setBodyFile, setPluckPosition, setLoopGain, setFrequency, clear; Twang
+	gets setLowestFrequency, setLoopFilter, clear. A control on a class that
+	lacks it throws TypeError.
+	* tests/bindings/stk-test.js, doc/native/stk.md: tests and docs.
+
 	Bind the envelope and delay controls of stk.
 
 	* quickjs-stk.cpp: Generator gets keyOn, keyOff, setTarget, setValue,

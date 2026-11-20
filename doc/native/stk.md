@@ -48,7 +48,7 @@ throws `TypeError` (`setPole is not supported by this filter`) on the others.
 | Filter | `BiQuad Delay DelayA DelayL Fir FormSwep Iir OnePole OneZero PoleZero TapDelay TwoPole TwoZero` | `tick`, `setGain`, `getGain`, `clear`, per-type setters |
 | Effect | `Chorus Echo FreeVerb JCRev LentPitShift NRev PitShift PRCRev` | `tick`, `setEffectMix`, `clear` |
 | Instrument | `BandedWG BlowBotl BlowHole Bowed Brass Clarinet Drummer Flute Mandolin Mesh2D ModalBar Moog Plucked Recorder Resonate Saxofony Shakers Simple Sitar StifKarp VoicForm Whistle TwinTDrum Tr909BassDrum Tr909Percussion` | `tick`, `noteOn`, `noteOff`, `controlChange` |
-| FM | `BeeThree FMVoices HevyMetl PercFlut Rhodey TubeBell Wurley` | `tick`, `noteOn`, `noteOff`, `controlChange` |
+| FM | `BeeThree FMVoices HevyMetl PercFlut Rhodey TubeBell Wurley` | `tick`, `noteOn`, `noteOff`, `controlChange`, FM controls |
 | other | `Guitar`, `Twang`, `Cubic` | see below |
 
 `Generator`, `Filter`, `Effect` and `FM` are also exported as (empty) namespace objects.
@@ -184,22 +184,68 @@ Constructors: `new Chorus(baseDelay = 6000)`, `new Echo(maxDelay)`, `new FreeVer
 | `clear()` | Clears the internal delay lines. |
 | `setDelay(n)`, `setMaximumDelay(n)` | `Echo` only, in samples. |
 
-## Instruments and FM
+## Instruments
 
-`noteOn(frequency, amplitude)`, `noteOff(amplitude)`, `controlChange(number, value)`, `tick(channel?)`.
-Constructors take what STK takes: `new Clarinet(lowestFrequency = 8)`, `new Plucked(lowestFrequency = 10)`,
-`new Mesh2D(nx, ny)` (both non-zero, else `RangeError`), `new TwinTDrum(frequency = 200)`; the FM family and most
-others take none.
+`noteOn(frequency, amplitude)`, `noteOff(amplitude)`, `controlChange(number, value)`, `tick(channel?)`, plus the
+controls below. Constructors take what STK takes: `new Clarinet(lowestFrequency = 8)`, `new Plucked(lowestFrequency = 10)`,
+`new Mesh2D(nx, ny)` (both non-zero, else `RangeError`), `new TwinTDrum(frequency = 200)`; `BlowHole`, `Flute`,
+`Mandolin` and `Saxofony` need a lowest frequency; the others take none.
+
+All controls are on one shared prototype and dispatch by type: an instrument without a control throws `TypeError`
+(`new Drummer().setFrequency(440)`), and so does a missing argument.
+
+| Method | On | Description |
+|---|---|---|
+| `setFrequency(hz)` | most (not `Drummer`, `Shakers`, `Mesh2D`, `Resonate`) | Pitch. |
+| `clear()` | all | Clears the internal state (a no-op where STK has none). |
+| `pluck(amp)`, `pluck(amp, position)` | `Plucked Sitar StifKarp BandedWG`, `Mandolin` (with position) | Excites the string. |
+| `startBlowing(amp, rate)`, `stopBlowing(rate)` | `BlowBotl BlowHole Brass Clarinet Flute Recorder Saxofony Whistle` | Breath envelope; `rate` is per sample. |
+| `startBowing(amp, rate)`, `stopBowing(rate)` | `Bowed BandedWG` | Bow envelope. |
+| `keyOn()`, `keyOff()` | `Resonate Simple` | Gate. |
+| `strike(amp)`, `damp(amp)`, `setModeGain(i, g)`, `setRatioAndRadius(i, ratio, radius)`, `setMasterGain(g)`, `setDirectGain(g)` | `ModalBar` | Modal controls. |
+| `setPreset(n)`, `setStrikePosition(p)` | `ModalBar BandedWG` | |
+| `setStickHardness(h)` | `ModalBar` | |
+| `setModulationDepth(d)` | `ModalBar Moog` | |
+| `setModulationSpeed(s)` | `Moog` | |
+| `setVibrato(g)` | `Bowed` | |
+| `setLip(hz)` | `Brass` | |
+| `setTonehole(v)`, `setVent(v)` | `BlowHole` | |
+| `setJetReflection(c)`, `setEndReflection(c)`, `setJetDelay(r)` | `Flute` | |
+| `setDetune(d)`, `setBodySize(s)`, `setPluckPosition(p)` | `Mandolin` | |
+| `setBlowPosition(p)` | `Saxofony` | |
+| `setStretch(s)`, `setPickupPosition(p)`, `setBaseLoopGain(g)` | `StifKarp` | |
+| `setBlowPressure`, `setVibratoGain`, `setVibratoFrequency`, `setNoiseGain`, `setBreathCutoff`, `setSoftness` (value) | `Recorder` | |
+| `setNX(n)`, `setNY(n)`, `setInputPosition(x, y)`, `setDecay(d)`, `inputTick(v)`, `energy()` | `Mesh2D` | `inputTick` and `energy` return numbers. |
+| `setResonance(hz, radius)`, `setNotch(hz, radius)`, `setEqualGainZeroes()` | `Resonate` | |
+| `setPhoneme(name)` | `VoicForm` | Returns `false` for an unknown phoneme. |
+| `setVoiced(g)`, `setUnVoiced(g)`, `setFilterSweepRate(i, r)`, `setPitchSweepRate(r)`, `quiet()` | `VoicForm` | |
+
+Some instruments are only audible after `noteOn`, which also sets their output gain and breath pressure:
+`Sitar` (`pluck` alone is silent), `BlowBotl`, `Flute`, `Recorder`. A fast breath rate can drive `BlowBotl`
+to `NaN` (a STK behavior).
 
 `Tr909BassDrum` and `Tr909Percussion` are drum synths with their own setters (`setPitchEnvelope`,
 `setTune`, `trigger`, `render`, ...); `TwinTDrum` has `setFrequency`, `setDecay`, `setDrive`, `strike`, `render`.
+
+## FM instruments
+
+`BeeThree FMVoices HevyMetl PercFlut Rhodey TubeBell Wurley`: `tick`, `noteOn`, `noteOff`, `controlChange` and
+
+| Method | Description |
+|---|---|
+| `setFrequency(hz)` | Pitch. |
+| `keyOn()`, `keyOff()` | Gate. |
+| `setRatio(i, ratio)`, `setGain(i, gain)` | Frequency ratio and gain of operator `i`, 0 to 3; `RangeError` above 3. |
+| `setModulationSpeed(s)`, `setModulationDepth(d)` | Vibrato. |
+| `setControl1(v)`, `setControl2(v)` | The two instrument-specific controls. |
+| `clear()` | Clears the state. |
 
 ## Guitar, Twang, Cubic
 
 | Class | Description |
 |---|---|
-| `new Guitar(nStrings = 6, bodyFile?)` | `tick`, `noteOn`, `noteOff`, `controlChange`. |
-| `new Twang(lowestFrequency)` | Plucked string: `tick(input)`, `setFrequency`, `setPluckPosition`, `setLoopGain`. |
+| `new Guitar(nStrings = 6, bodyFile?)` | `tick`, `noteOn(hz, amp, string = 0)`, `noteOff(amp, string = 0)`, `controlChange(number, value, string = -1)`, `setPluckPosition(p, string = -1)`, `setLoopGain(g, string = -1)`, `setFrequency(hz, string = 0)`, `setBodyFile(file = "")`, `clear()`. |
+| `new Twang(lowestFrequency)` | Plucked string: `tick(input)`, `setFrequency`, `setLowestFrequency`, `setPluckPosition`, `setLoopGain`, `setLoopFilter(coefficients)`, `clear()`. |
 | `new Cubic()` | Waveshaper: `tick(input)`, `setA1`, `setA2`, `setA3`, `setGain`, `setThreshold`. |
 
 ## Errors

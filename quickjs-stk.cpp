@@ -1733,6 +1733,16 @@ enum {
   METHOD_FM_NOTE_ON,
   METHOD_FM_NOTE_OFF,
   METHOD_FM_CONTROL_CHANGE,
+  METHOD_FM_SET_FREQUENCY,
+  METHOD_FM_KEY_ON,
+  METHOD_FM_KEY_OFF,
+  METHOD_FM_SET_RATIO,
+  METHOD_FM_SET_GAIN,
+  METHOD_FM_SET_MODULATION_SPEED,
+  METHOD_FM_SET_MODULATION_DEPTH,
+  METHOD_FM_SET_CONTROL1,
+  METHOD_FM_SET_CONTROL2,
+  METHOD_FM_CLEAR,
 };
 
 /* stk::FM extends stk::Instrmnt(FM.h), so tick/noteOn/noteOff/
@@ -1797,6 +1807,49 @@ js_stkfm_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst ar
       (*fm)->controlChange(number, value);
       break;
     }
+    case METHOD_FM_KEY_ON:
+      (*fm)->keyOn();
+      break;
+    case METHOD_FM_KEY_OFF:
+      (*fm)->keyOff();
+      break;
+    case METHOD_FM_CLEAR:
+      (*fm)->clear();
+      break;
+    case METHOD_FM_SET_RATIO:
+    case METHOD_FM_SET_GAIN: {
+      /* setRatio(waveIndex, ratio), setGain(waveIndex, gain): waveIndex 0 to 3 */
+      uint32_t index = 0;
+      double value = 0;
+      if(argc < 2)
+        return JS_ThrowTypeError(ctx, "%s requires an operator index and a value", magic == METHOD_FM_SET_RATIO ? "setRatio" : "setGain");
+      if(qjsx::args(ctx, argc, argv, index, value))
+        return JS_EXCEPTION;
+      if(index > 3)
+        return JS_ThrowRangeError(ctx, "operator index must be 0 to 3");
+
+      if(magic == METHOD_FM_SET_RATIO)
+        (*fm)->setRatio(index, value);
+      else
+        (*fm)->setGain(index, value);
+      break;
+    }
+    default: {
+      double v = 0;
+      if(argc < 1)
+        return JS_ThrowTypeError(ctx, "argument required");
+      if(qjsx::args(ctx, argc, argv, v))
+        return JS_EXCEPTION;
+
+      switch(magic) {
+        case METHOD_FM_SET_FREQUENCY: (*fm)->setFrequency(v); break;
+        case METHOD_FM_SET_MODULATION_SPEED: (*fm)->setModulationSpeed(v); break;
+        case METHOD_FM_SET_MODULATION_DEPTH: (*fm)->setModulationDepth(v); break;
+        case METHOD_FM_SET_CONTROL1: (*fm)->setControl1(v); break;
+        case METHOD_FM_SET_CONTROL2: (*fm)->setControl2(v); break;
+      }
+      break;
+    }
   }
 
   return ret;
@@ -1812,6 +1865,16 @@ static const JSCFunctionListEntry js_stkfm_funcs[] = {
   JS_CFUNC_MAGIC_DEF("noteOn", 2, guarded<js_stkfm_method>, METHOD_FM_NOTE_ON),
   JS_CFUNC_MAGIC_DEF("noteOff", 1, guarded<js_stkfm_method>, METHOD_FM_NOTE_OFF),
   JS_CFUNC_MAGIC_DEF("controlChange", 2, guarded<js_stkfm_method>, METHOD_FM_CONTROL_CHANGE),
+  JS_CFUNC_MAGIC_DEF("setFrequency", 1, guarded<js_stkfm_method>, METHOD_FM_SET_FREQUENCY),
+  JS_CFUNC_MAGIC_DEF("keyOn", 0, guarded<js_stkfm_method>, METHOD_FM_KEY_ON),
+  JS_CFUNC_MAGIC_DEF("keyOff", 0, guarded<js_stkfm_method>, METHOD_FM_KEY_OFF),
+  JS_CFUNC_MAGIC_DEF("setRatio", 2, guarded<js_stkfm_method>, METHOD_FM_SET_RATIO),
+  JS_CFUNC_MAGIC_DEF("setGain", 2, guarded<js_stkfm_method>, METHOD_FM_SET_GAIN),
+  JS_CFUNC_MAGIC_DEF("setModulationSpeed", 1, guarded<js_stkfm_method>, METHOD_FM_SET_MODULATION_SPEED),
+  JS_CFUNC_MAGIC_DEF("setModulationDepth", 1, guarded<js_stkfm_method>, METHOD_FM_SET_MODULATION_DEPTH),
+  JS_CFUNC_MAGIC_DEF("setControl1", 1, guarded<js_stkfm_method>, METHOD_FM_SET_CONTROL1),
+  JS_CFUNC_MAGIC_DEF("setControl2", 1, guarded<js_stkfm_method>, METHOD_FM_SET_CONTROL2),
+  JS_CFUNC_MAGIC_DEF("clear", 0, guarded<js_stkfm_method>, METHOD_FM_CLEAR),
   JS_PROP_STRING_DEF("[Symbol.toStringTag]", "StkFM", JS_PROP_CONFIGURABLE),
 };
 
@@ -1863,6 +1926,11 @@ enum {
   METHOD_GUITAR_NOTE_ON,
   METHOD_GUITAR_NOTE_OFF,
   METHOD_GUITAR_CONTROL_CHANGE,
+  METHOD_GUITAR_SET_BODY_FILE,
+  METHOD_GUITAR_SET_PLUCK_POSITION,
+  METHOD_GUITAR_SET_LOOP_GAIN,
+  METHOD_GUITAR_SET_FREQUENCY,
+  METHOD_GUITAR_CLEAR,
 };
 
 static JSValue
@@ -1889,7 +1957,12 @@ js_stkguitar_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
       if(argc > 1 && qjsx::args_from(ctx, 1, argc, argv, amplitude))
         return JS_EXCEPTION;
 
-      (*g)->noteOn(frequency, amplitude);
+      /* optional third argument: the string, 0 to nStrings - 1 */
+      uint32_t string = 0;
+      if(argc > 2 && qjsx::args_from(ctx, 2, argc, argv, string))
+        return JS_EXCEPTION;
+
+      (*g)->noteOn(frequency, amplitude, string);
       break;
     }
     case METHOD_GUITAR_NOTE_OFF: {
@@ -1897,7 +1970,11 @@ js_stkguitar_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
       if(argc > 0 && qjsx::args_from(ctx, 0, argc, argv, amplitude))
         return JS_EXCEPTION;
 
-      (*g)->noteOff(amplitude);
+      uint32_t string = 0;
+      if(argc > 1 && qjsx::args_from(ctx, 1, argc, argv, string))
+        return JS_EXCEPTION;
+
+      (*g)->noteOff(amplitude, string);
       break;
     }
     case METHOD_GUITAR_CONTROL_CHANGE: {
@@ -1908,7 +1985,42 @@ js_stkguitar_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
       if(argc > 1 && qjsx::args_from(ctx, 1, argc, argv, value))
         return JS_EXCEPTION;
 
-      (*g)->controlChange(number, value);
+      int32_t string = -1;
+      if(argc > 2 && qjsx::args_from(ctx, 2, argc, argv, string))
+        return JS_EXCEPTION;
+
+      (*g)->controlChange(number, value, string);
+      break;
+    }
+    case METHOD_GUITAR_CLEAR:
+      (*g)->clear();
+      break;
+    case METHOD_GUITAR_SET_BODY_FILE: {
+      const char* file = argc > 0 ? JS_ToCString(ctx, argv[0]) : "";
+      if(!file)
+        return JS_EXCEPTION;
+      std::string name(file);
+      if(argc > 0)
+        JS_FreeCString(ctx, file);
+      (*g)->setBodyFile(name);
+      break;
+    }
+    default: {
+      /* setPluckPosition(position, string = -1), setLoopGain(gain, string = -1), setFrequency(hz, string = 0) */
+      double v = 0;
+      int32_t string = magic == METHOD_GUITAR_SET_FREQUENCY ? 0 : -1;
+      if(argc < 1)
+        return JS_ThrowTypeError(ctx, "argument required");
+      if(qjsx::args(ctx, argc, argv, v))
+        return JS_EXCEPTION;
+      if(argc > 1 && qjsx::args_from(ctx, 1, argc, argv, string))
+        return JS_EXCEPTION;
+
+      switch(magic) {
+        case METHOD_GUITAR_SET_PLUCK_POSITION: (*g)->setPluckPosition(v, string); break;
+        case METHOD_GUITAR_SET_LOOP_GAIN: (*g)->setLoopGain(v, string); break;
+        case METHOD_GUITAR_SET_FREQUENCY: (*g)->setFrequency(v, string < 0 ? 0 : string); break;
+      }
       break;
     }
   }
@@ -1926,6 +2038,11 @@ static const JSCFunctionListEntry js_stkguitar_funcs[] = {
   JS_CFUNC_MAGIC_DEF("noteOn", 2, guarded<js_stkguitar_method>, METHOD_GUITAR_NOTE_ON),
   JS_CFUNC_MAGIC_DEF("noteOff", 1, guarded<js_stkguitar_method>, METHOD_GUITAR_NOTE_OFF),
   JS_CFUNC_MAGIC_DEF("controlChange", 2, guarded<js_stkguitar_method>, METHOD_GUITAR_CONTROL_CHANGE),
+  JS_CFUNC_MAGIC_DEF("setBodyFile", 0, guarded<js_stkguitar_method>, METHOD_GUITAR_SET_BODY_FILE),
+  JS_CFUNC_MAGIC_DEF("setPluckPosition", 1, guarded<js_stkguitar_method>, METHOD_GUITAR_SET_PLUCK_POSITION),
+  JS_CFUNC_MAGIC_DEF("setLoopGain", 1, guarded<js_stkguitar_method>, METHOD_GUITAR_SET_LOOP_GAIN),
+  JS_CFUNC_MAGIC_DEF("setFrequency", 1, guarded<js_stkguitar_method>, METHOD_GUITAR_SET_FREQUENCY),
+  JS_CFUNC_MAGIC_DEF("clear", 0, guarded<js_stkguitar_method>, METHOD_GUITAR_CLEAR),
   JS_PROP_STRING_DEF("[Symbol.toStringTag]", "Guitar", JS_PROP_CONFIGURABLE),
 };
 
@@ -1967,6 +2084,9 @@ enum {
   METHOD_TWANG_SET_FREQUENCY,
   METHOD_TWANG_SET_PLUCK_POSITION,
   METHOD_TWANG_SET_LOOP_GAIN,
+  METHOD_TWANG_SET_LOWEST_FREQUENCY,
+  METHOD_TWANG_SET_LOOP_FILTER,
+  METHOD_TWANG_CLEAR,
 };
 
 static JSValue
@@ -2008,6 +2128,26 @@ js_stktwang_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst
       (*t)->setLoopGain(loopGain);
       break;
     }
+    case METHOD_TWANG_SET_LOWEST_FREQUENCY: {
+      double frequency = 0;
+      if(argc < 1)
+        return JS_ThrowTypeError(ctx, "setLowestFrequency requires a frequency");
+      if(qjsx::args(ctx, argc, argv, frequency))
+        return JS_EXCEPTION;
+      (*t)->setLowestFrequency(frequency);
+      break;
+    }
+    case METHOD_TWANG_SET_LOOP_FILTER: {
+      /* setLoopFilter(coefficients): FIR coefficients of the loop filter, an array of numbers */
+      std::vector<double> coeffs;
+      if(argc < 1 || qjsx::copy_array(ctx, argv[0], coeffs))
+        return argc < 1 ? JS_ThrowTypeError(ctx, "setLoopFilter requires an array") : JS_EXCEPTION;
+      (*t)->setLoopFilter(std::vector<stk::StkFloat>(coeffs.begin(), coeffs.end()));
+      break;
+    }
+    case METHOD_TWANG_CLEAR:
+      (*t)->clear();
+      break;
   }
 
   return ret;
@@ -2033,6 +2173,9 @@ static const JSCFunctionListEntry js_stktwang_funcs[] = {
   JS_CFUNC_MAGIC_DEF("setFrequency", 1, guarded<js_stktwang_method>, METHOD_TWANG_SET_FREQUENCY),
   JS_CFUNC_MAGIC_DEF("setPluckPosition", 1, guarded<js_stktwang_method>, METHOD_TWANG_SET_PLUCK_POSITION),
   JS_CFUNC_MAGIC_DEF("setLoopGain", 1, guarded<js_stktwang_method>, METHOD_TWANG_SET_LOOP_GAIN),
+  JS_CFUNC_MAGIC_DEF("setLowestFrequency", 1, guarded<js_stktwang_method>, METHOD_TWANG_SET_LOWEST_FREQUENCY),
+  JS_CFUNC_MAGIC_DEF("setLoopFilter", 1, guarded<js_stktwang_method>, METHOD_TWANG_SET_LOOP_FILTER),
+  JS_CFUNC_MAGIC_DEF("clear", 0, guarded<js_stktwang_method>, METHOD_TWANG_CLEAR),
   JS_PROP_STRING_DEF("[Symbol.toStringTag]", "Twang", JS_PROP_CONFIGURABLE),
 };
 
@@ -2209,6 +2352,70 @@ enum {
   METHOD_INSTRMNT_NOTE_ON,
   METHOD_INSTRMNT_NOTE_OFF,
   METHOD_INSTRMNT_CONTROL_CHANGE,
+  METHOD_INSTRMNT_SET_FREQUENCY,
+  METHOD_INSTRMNT_CLEAR,
+  METHOD_INSTRMNT_PLUCK,
+  METHOD_INSTRMNT_START_BLOWING,
+  METHOD_INSTRMNT_STOP_BLOWING,
+  METHOD_INSTRMNT_START_BOWING,
+  METHOD_INSTRMNT_STOP_BOWING,
+  METHOD_INSTRMNT_KEY_ON,
+  METHOD_INSTRMNT_KEY_OFF,
+  METHOD_INSTRMNT_STRIKE,
+  METHOD_INSTRMNT_DAMP,
+  METHOD_INSTRMNT_SET_RATIO_AND_RADIUS,
+  METHOD_INSTRMNT_SET_MASTER_GAIN,
+  METHOD_INSTRMNT_SET_DIRECT_GAIN,
+  METHOD_INSTRMNT_SET_MODE_GAIN,
+  METHOD_INSTRMNT_SET_PRESET,
+  METHOD_INSTRMNT_SET_STRIKE_POSITION,
+  METHOD_INSTRMNT_SET_STICK_HARDNESS,
+  METHOD_INSTRMNT_SET_MODULATION_DEPTH,
+  METHOD_INSTRMNT_SET_MODULATION_SPEED,
+  METHOD_INSTRMNT_SET_VIBRATO,
+  METHOD_INSTRMNT_SET_LIP,
+  METHOD_INSTRMNT_SET_TONEHOLE,
+  METHOD_INSTRMNT_SET_VENT,
+  METHOD_INSTRMNT_SET_JET_REFLECTION,
+  METHOD_INSTRMNT_SET_END_REFLECTION,
+  METHOD_INSTRMNT_SET_JET_DELAY,
+  METHOD_INSTRMNT_SET_DETUNE,
+  METHOD_INSTRMNT_SET_BODY_SIZE,
+  METHOD_INSTRMNT_SET_PLUCK_POSITION,
+  METHOD_INSTRMNT_SET_NX,
+  METHOD_INSTRMNT_SET_NY,
+  METHOD_INSTRMNT_SET_INPUT_POSITION,
+  METHOD_INSTRMNT_SET_DECAY,
+  METHOD_INSTRMNT_ENERGY,
+  METHOD_INSTRMNT_INPUT_TICK,
+  METHOD_INSTRMNT_SET_BLOW_PRESSURE,
+  METHOD_INSTRMNT_SET_VIBRATO_GAIN,
+  METHOD_INSTRMNT_SET_VIBRATO_FREQUENCY,
+  METHOD_INSTRMNT_SET_NOISE_GAIN,
+  METHOD_INSTRMNT_SET_BREATH_CUTOFF,
+  METHOD_INSTRMNT_SET_SOFTNESS,
+  METHOD_INSTRMNT_SET_BLOW_POSITION,
+  METHOD_INSTRMNT_SET_STRETCH,
+  METHOD_INSTRMNT_SET_PICKUP_POSITION,
+  METHOD_INSTRMNT_SET_BASE_LOOP_GAIN,
+  METHOD_INSTRMNT_SET_RESONANCE,
+  METHOD_INSTRMNT_SET_NOTCH,
+  METHOD_INSTRMNT_SET_EQUAL_GAIN_ZEROES,
+  METHOD_INSTRMNT_SET_VOICED,
+  METHOD_INSTRMNT_SET_UN_VOICED,
+  METHOD_INSTRMNT_SET_FILTER_SWEEP_RATE,
+  METHOD_INSTRMNT_SET_PITCH_SWEEP_RATE,
+  METHOD_INSTRMNT_QUIET,
+  METHOD_INSTRMNT_SET_PHONEME,
+};
+
+static const char* const stkinstrmnt_method_names[] = {
+  "tick", "noteOn", "noteOff", "controlChange", "setFrequency", "clear", "pluck", "startBlowing", "stopBlowing", "startBowing", "stopBowing", "keyOn", "keyOff", "strike", "damp", "setRatioAndRadius", "setMasterGain", "setDirectGain", "setModeGain", "setPreset", "setStrikePosition", "setStickHardness", "setModulationDepth", "setModulationSpeed", "setVibrato", "setLip", "setTonehole", "setVent", "setJetReflection", "setEndReflection", "setJetDelay", "setDetune", "setBodySize", "setPluckPosition", "setNX", "setNY", "setInputPosition", "setDecay", "energy", "inputTick", "setBlowPressure", "setVibratoGain", "setVibratoFrequency", "setNoiseGain", "setBreathCutoff", "setSoftness", "setBlowPosition", "setStretch", "setPickupPosition", "setBaseLoopGain", "setResonance", "setNotch", "setEqualGainZeroes", "setVoiced", "setUnVoiced", "setFilterSweepRate", "setPitchSweepRate", "quiet", "setPhoneme",
+};
+
+/* numeric arguments each method requires (pluck takes an optional second one) */
+static const int stkinstrmnt_method_args[] = {
+  0, 2, 1, 2, 1, 0, 1, 2, 1, 2, 1, 0, 0, 1, 1, 3, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 0, 1, 1, 2, 1, 0, 1,
 };
 
 static JSValue
@@ -2269,6 +2476,207 @@ js_stkinstrmnt_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
       (*i)->controlChange(number, value);
       break;
     }
+    case METHOD_INSTRMNT_SET_PHONEME: {
+      /* setPhoneme(name): VoicForm vowel or consonant; returns false for an unknown name */
+      const char* name = argc > 0 ? JS_ToCString(ctx, argv[0]) : nullptr;
+      if(!name)
+        return argc > 0 ? JS_EXCEPTION : JS_ThrowTypeError(ctx, "setPhoneme requires a name");
+
+      bool ok = false;
+      bool matched = qjsx::dispatch<stk::VoicForm>(i->get(), [&](auto* p) { ok = p->setPhoneme(name); });
+      JS_FreeCString(ctx, name);
+
+      if(!matched)
+        return JS_ThrowTypeError(ctx, "setPhoneme is not supported by this instrument");
+      ret = JS_NewBool(ctx, ok);
+      break;
+    }
+    default: {
+      /* control methods of the leaf classes: each is dispatched by type and an instrument
+       * that lacks it throws a TypeError */
+      stk::Instrmnt* ins = i->get();
+      const int need = stkinstrmnt_method_args[magic];
+      double v[3] = {0, 0, 0};
+      bool matched = false, has2 = argc > 1 && magic == METHOD_INSTRMNT_PLUCK;
+
+      if(argc < need)
+        return JS_ThrowTypeError(ctx, "%s requires %d argument%s", stkinstrmnt_method_names[magic], need, need == 1 ? "" : "s");
+
+      for(int k = 0; k < need + (has2 ? 1 : 0); k++)
+        if(JS_ToFloat64(ctx, &v[k], argv[k]))
+          return JS_EXCEPTION;
+
+      switch(magic) {
+        case METHOD_INSTRMNT_SET_FREQUENCY:
+          matched = qjsx::dispatch<stk::BandedWG, stk::BlowBotl, stk::BlowHole, stk::Bowed, stk::Brass, stk::Clarinet, stk::Flute, stk::Mandolin, stk::Modal, stk::Moog, stk::Plucked, stk::Recorder, stk::Saxofony, stk::Simple, stk::Sitar, stk::StifKarp, stk::VoicForm, stk::Whistle>(ins, [&](auto* p) { p->setFrequency(v[0]); });
+          break;
+        case METHOD_INSTRMNT_CLEAR:
+          (*i)->clear();
+          matched = true;
+          break;
+        case METHOD_INSTRMNT_PLUCK:
+          matched = qjsx::dispatch<stk::Mandolin>(ins, [&](auto* p) { has2 ? p->pluck(v[0], v[1]) : p->pluck(v[0]); }) ||
+                    qjsx::dispatch<stk::BandedWG, stk::Plucked, stk::Sitar, stk::StifKarp>(ins, [&](auto* p) { p->pluck(v[0]); });
+          break;
+        case METHOD_INSTRMNT_START_BLOWING:
+          matched = qjsx::dispatch<stk::BlowBotl, stk::BlowHole, stk::Brass, stk::Clarinet, stk::Flute, stk::Recorder, stk::Saxofony, stk::Whistle>(ins, [&](auto* p) { p->startBlowing(v[0], v[1]); });
+          break;
+        case METHOD_INSTRMNT_STOP_BLOWING:
+          matched = qjsx::dispatch<stk::BlowBotl, stk::BlowHole, stk::Brass, stk::Clarinet, stk::Flute, stk::Recorder, stk::Saxofony, stk::Whistle>(ins, [&](auto* p) { p->stopBlowing(v[0]); });
+          break;
+        case METHOD_INSTRMNT_START_BOWING:
+          matched = qjsx::dispatch<stk::BandedWG, stk::Bowed>(ins, [&](auto* p) { p->startBowing(v[0], v[1]); });
+          break;
+        case METHOD_INSTRMNT_STOP_BOWING:
+          matched = qjsx::dispatch<stk::BandedWG, stk::Bowed>(ins, [&](auto* p) { p->stopBowing(v[0]); });
+          break;
+        case METHOD_INSTRMNT_KEY_ON:
+          matched = qjsx::dispatch<stk::Resonate, stk::Simple>(ins, [&](auto* p) { p->keyOn(); });
+          break;
+        case METHOD_INSTRMNT_KEY_OFF:
+          matched = qjsx::dispatch<stk::Resonate, stk::Simple>(ins, [&](auto* p) { p->keyOff(); });
+          break;
+        case METHOD_INSTRMNT_STRIKE:
+          matched = qjsx::dispatch<stk::Modal>(ins, [&](auto* p) { p->strike(v[0]); });
+          break;
+        case METHOD_INSTRMNT_DAMP:
+          matched = qjsx::dispatch<stk::Modal>(ins, [&](auto* p) { p->damp(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_RATIO_AND_RADIUS:
+          matched = qjsx::dispatch<stk::Modal>(ins, [&](auto* p) { p->setRatioAndRadius(static_cast<unsigned>(v[0]), v[1], v[2]); });
+          break;
+        case METHOD_INSTRMNT_SET_MASTER_GAIN:
+          matched = qjsx::dispatch<stk::Modal>(ins, [&](auto* p) { p->setMasterGain(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_DIRECT_GAIN:
+          matched = qjsx::dispatch<stk::Modal>(ins, [&](auto* p) { p->setDirectGain(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_MODE_GAIN:
+          matched = qjsx::dispatch<stk::Modal>(ins, [&](auto* p) { p->setModeGain(static_cast<unsigned>(v[0]), v[1]); });
+          break;
+        case METHOD_INSTRMNT_SET_PRESET:
+          matched = qjsx::dispatch<stk::BandedWG, stk::ModalBar>(ins, [&](auto* p) { p->setPreset(static_cast<int>(v[0])); });
+          break;
+        case METHOD_INSTRMNT_SET_STRIKE_POSITION:
+          matched = qjsx::dispatch<stk::BandedWG, stk::ModalBar>(ins, [&](auto* p) { p->setStrikePosition(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_STICK_HARDNESS:
+          matched = qjsx::dispatch<stk::ModalBar>(ins, [&](auto* p) { p->setStickHardness(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_MODULATION_DEPTH:
+          matched = qjsx::dispatch<stk::ModalBar, stk::Moog>(ins, [&](auto* p) { p->setModulationDepth(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_MODULATION_SPEED:
+          matched = qjsx::dispatch<stk::Moog>(ins, [&](auto* p) { p->setModulationSpeed(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_VIBRATO:
+          matched = qjsx::dispatch<stk::Bowed>(ins, [&](auto* p) { p->setVibrato(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_LIP:
+          matched = qjsx::dispatch<stk::Brass>(ins, [&](auto* p) { p->setLip(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_TONEHOLE:
+          matched = qjsx::dispatch<stk::BlowHole>(ins, [&](auto* p) { p->setTonehole(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_VENT:
+          matched = qjsx::dispatch<stk::BlowHole>(ins, [&](auto* p) { p->setVent(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_JET_REFLECTION:
+          matched = qjsx::dispatch<stk::Flute>(ins, [&](auto* p) { p->setJetReflection(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_END_REFLECTION:
+          matched = qjsx::dispatch<stk::Flute>(ins, [&](auto* p) { p->setEndReflection(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_JET_DELAY:
+          matched = qjsx::dispatch<stk::Flute>(ins, [&](auto* p) { p->setJetDelay(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_DETUNE:
+          matched = qjsx::dispatch<stk::Mandolin>(ins, [&](auto* p) { p->setDetune(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_BODY_SIZE:
+          matched = qjsx::dispatch<stk::Mandolin>(ins, [&](auto* p) { p->setBodySize(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_PLUCK_POSITION:
+          matched = qjsx::dispatch<stk::Mandolin>(ins, [&](auto* p) { p->setPluckPosition(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_NX:
+          matched = qjsx::dispatch<stk::Mesh2D>(ins, [&](auto* p) { p->setNX(static_cast<unsigned short>(v[0])); });
+          break;
+        case METHOD_INSTRMNT_SET_NY:
+          matched = qjsx::dispatch<stk::Mesh2D>(ins, [&](auto* p) { p->setNY(static_cast<unsigned short>(v[0])); });
+          break;
+        case METHOD_INSTRMNT_SET_INPUT_POSITION:
+          matched = qjsx::dispatch<stk::Mesh2D>(ins, [&](auto* p) { p->setInputPosition(v[0], v[1]); });
+          break;
+        case METHOD_INSTRMNT_SET_DECAY:
+          matched = qjsx::dispatch<stk::Mesh2D>(ins, [&](auto* p) { p->setDecay(v[0]); });
+          break;
+        case METHOD_INSTRMNT_ENERGY:
+          matched = qjsx::dispatch<stk::Mesh2D>(ins, [&](auto* p) { ret = JS_NewFloat64(ctx, p->energy()); });
+          break;
+        case METHOD_INSTRMNT_INPUT_TICK:
+          matched = qjsx::dispatch<stk::Mesh2D>(ins, [&](auto* p) { ret = JS_NewFloat64(ctx, p->inputTick(v[0])); });
+          break;
+        case METHOD_INSTRMNT_SET_BLOW_PRESSURE:
+          matched = qjsx::dispatch<stk::Recorder>(ins, [&](auto* p) { p->setBlowPressure(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_VIBRATO_GAIN:
+          matched = qjsx::dispatch<stk::Recorder>(ins, [&](auto* p) { p->setVibratoGain(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_VIBRATO_FREQUENCY:
+          matched = qjsx::dispatch<stk::Recorder>(ins, [&](auto* p) { p->setVibratoFrequency(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_NOISE_GAIN:
+          matched = qjsx::dispatch<stk::Recorder>(ins, [&](auto* p) { p->setNoiseGain(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_BREATH_CUTOFF:
+          matched = qjsx::dispatch<stk::Recorder>(ins, [&](auto* p) { p->setBreathCutoff(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_SOFTNESS:
+          matched = qjsx::dispatch<stk::Recorder>(ins, [&](auto* p) { p->setSoftness(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_BLOW_POSITION:
+          matched = qjsx::dispatch<stk::Saxofony>(ins, [&](auto* p) { p->setBlowPosition(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_STRETCH:
+          matched = qjsx::dispatch<stk::StifKarp>(ins, [&](auto* p) { p->setStretch(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_PICKUP_POSITION:
+          matched = qjsx::dispatch<stk::StifKarp>(ins, [&](auto* p) { p->setPickupPosition(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_BASE_LOOP_GAIN:
+          matched = qjsx::dispatch<stk::StifKarp>(ins, [&](auto* p) { p->setBaseLoopGain(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_RESONANCE:
+          matched = qjsx::dispatch<stk::Resonate>(ins, [&](auto* p) { p->setResonance(v[0], v[1]); });
+          break;
+        case METHOD_INSTRMNT_SET_NOTCH:
+          matched = qjsx::dispatch<stk::Resonate>(ins, [&](auto* p) { p->setNotch(v[0], v[1]); });
+          break;
+        case METHOD_INSTRMNT_SET_EQUAL_GAIN_ZEROES:
+          matched = qjsx::dispatch<stk::Resonate>(ins, [&](auto* p) { p->setEqualGainZeroes(); });
+          break;
+        case METHOD_INSTRMNT_SET_VOICED:
+          matched = qjsx::dispatch<stk::VoicForm>(ins, [&](auto* p) { p->setVoiced(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_UN_VOICED:
+          matched = qjsx::dispatch<stk::VoicForm>(ins, [&](auto* p) { p->setUnVoiced(v[0]); });
+          break;
+        case METHOD_INSTRMNT_SET_FILTER_SWEEP_RATE:
+          matched = qjsx::dispatch<stk::VoicForm>(ins, [&](auto* p) { p->setFilterSweepRate(static_cast<unsigned>(v[0]), v[1]); });
+          break;
+        case METHOD_INSTRMNT_SET_PITCH_SWEEP_RATE:
+          matched = qjsx::dispatch<stk::VoicForm>(ins, [&](auto* p) { p->setPitchSweepRate(v[0]); });
+          break;
+        case METHOD_INSTRMNT_QUIET:
+          matched = qjsx::dispatch<stk::VoicForm>(ins, [&](auto* p) { p->quiet(); });
+          break;
+      }
+
+      if(!matched)
+        return JS_ThrowTypeError(ctx, "%s is not supported by this instrument", stkinstrmnt_method_names[magic]);
+      break;
+    }
   }
 
   return ret;
@@ -2284,6 +2692,61 @@ static const JSCFunctionListEntry js_stkinstrmnt_funcs[] = {
   JS_CFUNC_MAGIC_DEF("noteOn", 2, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_NOTE_ON),
   JS_CFUNC_MAGIC_DEF("noteOff", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_NOTE_OFF),
   JS_CFUNC_MAGIC_DEF("controlChange", 2, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_CONTROL_CHANGE),
+  JS_CFUNC_MAGIC_DEF("setFrequency", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_FREQUENCY),
+  JS_CFUNC_MAGIC_DEF("clear", 0, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_CLEAR),
+  JS_CFUNC_MAGIC_DEF("pluck", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_PLUCK),
+  JS_CFUNC_MAGIC_DEF("startBlowing", 2, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_START_BLOWING),
+  JS_CFUNC_MAGIC_DEF("stopBlowing", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_STOP_BLOWING),
+  JS_CFUNC_MAGIC_DEF("startBowing", 2, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_START_BOWING),
+  JS_CFUNC_MAGIC_DEF("stopBowing", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_STOP_BOWING),
+  JS_CFUNC_MAGIC_DEF("keyOn", 0, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_KEY_ON),
+  JS_CFUNC_MAGIC_DEF("keyOff", 0, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_KEY_OFF),
+  JS_CFUNC_MAGIC_DEF("strike", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_STRIKE),
+  JS_CFUNC_MAGIC_DEF("damp", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_DAMP),
+  JS_CFUNC_MAGIC_DEF("setRatioAndRadius", 3, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_RATIO_AND_RADIUS),
+  JS_CFUNC_MAGIC_DEF("setMasterGain", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_MASTER_GAIN),
+  JS_CFUNC_MAGIC_DEF("setDirectGain", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_DIRECT_GAIN),
+  JS_CFUNC_MAGIC_DEF("setModeGain", 2, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_MODE_GAIN),
+  JS_CFUNC_MAGIC_DEF("setPreset", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_PRESET),
+  JS_CFUNC_MAGIC_DEF("setStrikePosition", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_STRIKE_POSITION),
+  JS_CFUNC_MAGIC_DEF("setStickHardness", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_STICK_HARDNESS),
+  JS_CFUNC_MAGIC_DEF("setModulationDepth", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_MODULATION_DEPTH),
+  JS_CFUNC_MAGIC_DEF("setModulationSpeed", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_MODULATION_SPEED),
+  JS_CFUNC_MAGIC_DEF("setVibrato", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_VIBRATO),
+  JS_CFUNC_MAGIC_DEF("setLip", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_LIP),
+  JS_CFUNC_MAGIC_DEF("setTonehole", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_TONEHOLE),
+  JS_CFUNC_MAGIC_DEF("setVent", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_VENT),
+  JS_CFUNC_MAGIC_DEF("setJetReflection", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_JET_REFLECTION),
+  JS_CFUNC_MAGIC_DEF("setEndReflection", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_END_REFLECTION),
+  JS_CFUNC_MAGIC_DEF("setJetDelay", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_JET_DELAY),
+  JS_CFUNC_MAGIC_DEF("setDetune", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_DETUNE),
+  JS_CFUNC_MAGIC_DEF("setBodySize", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_BODY_SIZE),
+  JS_CFUNC_MAGIC_DEF("setPluckPosition", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_PLUCK_POSITION),
+  JS_CFUNC_MAGIC_DEF("setNX", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_NX),
+  JS_CFUNC_MAGIC_DEF("setNY", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_NY),
+  JS_CFUNC_MAGIC_DEF("setInputPosition", 2, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_INPUT_POSITION),
+  JS_CFUNC_MAGIC_DEF("setDecay", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_DECAY),
+  JS_CFUNC_MAGIC_DEF("energy", 0, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_ENERGY),
+  JS_CFUNC_MAGIC_DEF("inputTick", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_INPUT_TICK),
+  JS_CFUNC_MAGIC_DEF("setBlowPressure", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_BLOW_PRESSURE),
+  JS_CFUNC_MAGIC_DEF("setVibratoGain", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_VIBRATO_GAIN),
+  JS_CFUNC_MAGIC_DEF("setVibratoFrequency", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_VIBRATO_FREQUENCY),
+  JS_CFUNC_MAGIC_DEF("setNoiseGain", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_NOISE_GAIN),
+  JS_CFUNC_MAGIC_DEF("setBreathCutoff", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_BREATH_CUTOFF),
+  JS_CFUNC_MAGIC_DEF("setSoftness", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_SOFTNESS),
+  JS_CFUNC_MAGIC_DEF("setBlowPosition", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_BLOW_POSITION),
+  JS_CFUNC_MAGIC_DEF("setStretch", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_STRETCH),
+  JS_CFUNC_MAGIC_DEF("setPickupPosition", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_PICKUP_POSITION),
+  JS_CFUNC_MAGIC_DEF("setBaseLoopGain", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_BASE_LOOP_GAIN),
+  JS_CFUNC_MAGIC_DEF("setResonance", 2, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_RESONANCE),
+  JS_CFUNC_MAGIC_DEF("setNotch", 2, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_NOTCH),
+  JS_CFUNC_MAGIC_DEF("setEqualGainZeroes", 0, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_EQUAL_GAIN_ZEROES),
+  JS_CFUNC_MAGIC_DEF("setVoiced", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_VOICED),
+  JS_CFUNC_MAGIC_DEF("setUnVoiced", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_UN_VOICED),
+  JS_CFUNC_MAGIC_DEF("setFilterSweepRate", 2, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_FILTER_SWEEP_RATE),
+  JS_CFUNC_MAGIC_DEF("setPitchSweepRate", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_PITCH_SWEEP_RATE),
+  JS_CFUNC_MAGIC_DEF("quiet", 0, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_QUIET),
+  JS_CFUNC_MAGIC_DEF("setPhoneme", 1, guarded<js_stkinstrmnt_method>, METHOD_INSTRMNT_SET_PHONEME),
   JS_PROP_STRING_DEF("[Symbol.toStringTag]", "StkInstrmnt", JS_PROP_CONFIGURABLE),
 };
 
