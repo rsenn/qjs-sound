@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>qjs-sound in the browser</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; }
+  label { display: block; margin: .6rem 0; }
+  button, select, input { font: inherit; }
+</style>
+</head>
+<body>
+<h1>STK and SndObj in a Web Audio graph</h1>
+<p>A sawtooth oscillator runs through one of three DSP units compiled to WebAssembly
+(<code>qjs-sound-web.wasm</code>, in an AudioWorklet) into a gain node and the speakers.</p>
+
+<label>Unit
+  <select id="kind">
+    <option value="biquad">STK BiQuad resonator (filter)</option>
+    <option value="reson">SndObj Reson (filter)</option>
+    <option value="plucked">STK Plucked (instrument, no input)</option>
+  </select>
+</label>
+<label>Frequency <output id="freqOut"></output>
+  <input id="freq" type="range" min="100" max="4000" value="800" step="1">
+</label>
+<p><button id="start">Start</button> <button id="pluck" hidden>Pluck</button></p>
+<p id="status"></p>
+
+<script type="module">
+const $ = id => document.getElementById(id);
+let ctx, node, osc;
+
+async function build() {
+  const kind = $('kind').value;
+  node?.disconnect(); osc?.stop();
+
+  if(!ctx) {
+    ctx = new AudioContext();
+    await ctx.audioWorklet.addModule('worklet.js');
+  }
+
+  const wasm = await WebAssembly.compileStreaming(fetch('qjs-sound-web.wasm'));
+  const freq = +$('freq').value;
+
+  node = new AudioWorkletNode(ctx, 'qjs-sound', {
+    outputChannelCount: [1],
+    processorOptions: { wasm, kind, freq, q: kind == 'reson' ? 0.05 : 0.98 }
+  });
+
+  const gain = new GainNode(ctx, { gain: 0.3 });
+  node.connect(gain).connect(ctx.destination);
+
+  if(kind != 'plucked') {
+    osc = new OscillatorNode(ctx, { type: 'sawtooth', frequency: 110 });
+    osc.connect(node);
+    osc.start();
+  }
+  $('pluck').hidden = kind != 'plucked';
+  $('status').textContent = `${kind} running at ${ctx.sampleRate} Hz`;
+}
+
+$('start').onclick = async () => { await build(); await ctx.resume(); };
+$('kind').onchange = () => ctx && build();
+$('freq').oninput = e => {
+  $('freqOut').textContent = e.target.value + ' Hz';
+  node?.port.postMessage({ set: { freq: +e.target.value, q: $('kind').value == 'reson' ? 0.05 : 0.98 } });
+};
+$('pluck').onclick = () => node.port.postMessage({ noteOn: { freq: +$('freq').value / 4, amp: 0.8 } });
+$('freqOut').textContent = $('freq').value + ' Hz';
+</script>
+</body>
+</html>
