@@ -8,14 +8,16 @@ add_test(NAME check-cflag-result-cached
   COMMAND ${CMAKE_COMMAND} -S ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/check-cflag-result-cached
           -B ${CMAKE_CURRENT_BINARY_DIR}/tests/check-cflag-result-cached)
 
-# MODULE_<name> turns a module on or off: AUTO (default) builds it when its library is
-# installed or can be built, ON asks for it, OFF drops it. BUILD_<lib> says where the library
-# comes from: AUTO (installed, else the vendored copy in third_party/), ON (always vendored),
-# OFF (installed only); see cmake/deps/SoundLibs.cmake.
+# MODULE_<name> turns a module on or off, ON (default) or OFF; it is never chosen by which
+# libraries are installed. ON with a library that is neither installed nor buildable is an error.
+# BUILD_<lib> says where the library comes from: AUTO (installed, else the vendored copy in
+# third_party/), ON (always vendored), OFF (installed only); see cmake/deps/SoundLibs.cmake.
 foreach(_m labsound stk portaudio aubio portmidi sndfile samplerate soundtouch rubberband sndobj)
   string(TOUPPER "${_m}" _u)
-  set(MODULE_${_u} AUTO CACHE STRING "Build the '${_m}' module: AUTO, ON or OFF")
-  set_property(CACHE MODULE_${_u} PROPERTY STRINGS AUTO ON OFF)
+  option(MODULE_${_u} "Build the '${_m}' module" ON)
+  if(NOT MODULE_${_u} MATCHES "^(ON|OFF|TRUE|FALSE|YES|NO|1|0)$")
+    message(FATAL_ERROR "MODULE_${_u}='${MODULE_${_u}}': a module is ON or OFF, AUTO does not exist")
+  endif()
 
   # USE_<NAME>=OFF, the old switch, still drops a module
   if(DEFINED USE_${_u} AND NOT USE_${_u})

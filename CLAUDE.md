@@ -91,9 +91,10 @@ cmake -B /tmp/b -S . -DBUILD_AUBIO=ON -DBUILD_STK=OFF       # aubio vendored, st
   (installed, else vendored; the default), `ON` (always vendored) or `OFF` (installed only), for
   `PORTAUDIO PORTMIDI SNDFILE SAMPLERATE SOUNDTOUCH RUBBERBAND AUBIO (FFTW3) STK LABSOUND`. An
   installed copy is pinned with `-D<LIB>_PREFIX=/usr` (or `_INCLUDE_DIR` + `_LIBRARY_DIR`).
-  `MODULE_<NAME>` (`AUTO`/`ON`/`OFF`, the old `USE_<NAME>=OFF` still works) switches a module.
-  A library neither installed nor built disables its module with a warning; `DEPS_MISSING=FAIL`
-  makes that an error, `DEPS_BUILD=NONE` forbids all vendored builds. The configure ends with a
+  `MODULE_<NAME>` (`ON` default, or `OFF`; `AUTO` is an error, the old `USE_<NAME>=OFF` still
+  works) switches a module; it is never chosen by which libraries are installed. A library
+  neither installed nor built stops the configure (`DEPS_MISSING=DISABLE` switches the module
+  off with a warning instead), `DEPS_BUILD=NONE` forbids all vendored builds. The configure ends with a
   table of where each library came from.
 
 - The shared cmake layer (`cmake/{FindQuickJS,BuildQuickJS,QuickJSModule,Deps}.cmake`) is synced from
@@ -304,7 +305,7 @@ Every bound library is a dependency of `cmake/Deps.cmake` (synced from the
 `quickjs-native-bindings` skill), registered in `cmake/deps/SoundLibs.cmake`:
 an installed copy, or a vendored build from `third_party/`, picked per library
 by `BUILD_<LIB>` (`AUTO` installed else vendored, `ON` always vendored, `OFF`
-installed only) and per module by `MODULE_<NAME>` (`AUTO`, `ON`, `OFF`). The
+installed only) and per module by `MODULE_<NAME>` (`ON`, `OFF`). The
 `BUILD` script of a library is `cmake/deps/Build<Lib>.cmake`, and how a patch
 is wired depends on how that script builds:
 

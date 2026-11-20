@@ -1,3 +1,14 @@
+2026-11-20  Roman Senn  <roman.l.senn@gmail.com>
+
+	MODULE_<NAME> is a boolean: ON (default) or OFF, never AUTO, so a
+	module is not chosen by which libraries are installed.
+
+	* CMakeLists.txt: option(MODULE_<NAME> ... ON); a value other than a
+	boolean (the old AUTO) stops the configure.
+	* cmake/Deps.cmake: synced; dep_module_mode() rejects AUTO, DEPS_MISSING
+	defaults to FAIL (DISABLE is an explicit opt-in).
+	* cmake/{FindQuickJS,BuildQuickJS,QuickJSModule}.cmake: synced.
+
 2026-11-18  Roman Senn  <roman.l.senn@gmail.com>
 
 	Project-tree cleanup: every bound library is now a Deps.cmake
