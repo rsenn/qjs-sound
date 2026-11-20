@@ -1,5 +1,20 @@
 # WebAudio binding TODO
 
+## Browser build (web/)
+
+Proof of concept done (see ChangeLog 2026-11-18); open:
+
+1. [ ] Run web/index.html in a real browser (AudioWorklet needs a secure
+       context: localhost or https) and listen to all three units.
+2. [ ] More STK units behind the same block API (80 of 90 sources compile);
+       a table-driven export instead of one hand-written function set.
+3. [ ] SndObj's FFT family needs a vendored rfftw (not in the tree).
+4. [ ] Float32 end to end: STK works on double frames, so every block is
+       converted (see doc/api-interoperability.md, StkFloat).
+5. [ ] The labsound module in the browser is the browser's own Web Audio;
+       nothing to build, but examples/webaudio-test.js should be checked
+       there.
+
 Ordered by leverage: cheapest/most-unlocking first. Each item lists the LabSound
 type to wrap and the specific WebAudio-spec quirks/deviations to handle given
 how `quickjs-labsound.cpp` is currently built.
@@ -896,3 +911,24 @@ items below are what the sweep left open.
       bug already documented in qjs-modules/BUGS; fix in the shared cmake
       layer (Checks.cmake), not this project.
 
+- [ ] fix the failing binding tests (ctest: stk-test, labsound-test,
+      portaudio-test; they are the untracked tests/bindings/*-test.js, the
+      failures come from tests assuming APIs the bindings lack, not from the
+      cmake sync). Per test:
+  - stk-test: StkFrames.setChannel(channel, srcFrames, srcChannel) takes an
+    StkFrames as argument 2, the tests pass an array (setChannel,
+    interpolate, toFloat32/fromFloat32); SineWave has no
+    get/setFrequency/get/setAmplitude and BiQuad no setBiquad; the flat
+    exports have no stk.Generator / stk.Filter namespaces (3 tests).
+    Decide per item: fix the test, or add the method to the binding.
+  - labsound-test: compare floats with a tolerance (AudioBuffer
+    copyToChannel, DelayNode delayTime); OfflineAudioContext has no
+    numberOfChannels in the spec, drop that assertion; StereoPannerNode pan
+    expects 0 but is 0.5 (BUGS labsound-stereopanner-pan-default);
+    ConvolverNode buffer identity (BUGS labsound-convolver-buffer-identity).
+  - portaudio-test: 'PaStream.info and hostApiType getters' fails without an
+    audio device (info is not an object); skip with a printed note when no
+    device, per the tests rules in CLAUDE.md.
+  - tinytest.js eq/assertEquals compares with `!=`, so two equal objects fail
+    ("'[object AudioBuffer]' != '[object AudioBuffer]'"); use a same() helper
+    or JSON.stringify in tests.

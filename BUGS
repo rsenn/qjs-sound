@@ -1,0 +1,28 @@
+- sndfile-write-throws-non-error (quickjs-sndfile.c:63): opening an SndFile in SFM_WRITE mode throws an uncaught, non-Error value whose String() is "[unsupported type]" instead of a proper InternalError, so every write-mode open fails.
+
+    new SndFile('/tmp/out.wav', SFM_WRITE, { samplerate: 44100, channels: 1, format: SF_FORMAT_WAV | SF_FORMAT_PCM_16 })
+
+    Confirmed: the thrown value has typeof=unknown, instanceof Error=false, name/message=undefined, Object.keys throws "cannot convert to object" and Object.getPrototypeOf returns null. The same call from C (sf_open with an identical SF_INFO) succeeds and writes a valid WAV. The read path throws a normal InternalError, so the throw site itself is fine - the write path's failure mode is the problem.
+
+- sndobj-buzz-process-segfault (quickjs-sndobj.cpp:531): Buzz.process() segfaults (SIGSEGV, exit 139).
+
+    const ht = new HarmTable(4096, 1, HarmTable.SINE);
+    const b = new Buzz(ht, 440);
+    b.process(); // segfault
+
+    Confirmed: the constructor succeeds, but the first process() crashes the interpreter. Oscili.process() on the same kind of graph works, so the crash is specific to Buzz.
+
+- rubberband-planar-no-channel-count-check (quickjs-rubberband.c:29): RubberBandStretcher.process()/study()/retrieve() do not check that the input array's length matches the stretcher's channel count, so a 1-channel stretcher silently accepts a 2-channel array (reads the extra channel pointer, ignoring it).
+
+    const r = new RubberBandStretcher(44100, 1, RubberBandOptionProcessRealTime);
+    r.process([new Float32Array([0.1, 0.2]), new Float32Array([0.3, 0.4])]); // should throw, does not
+
+    Confirmed: js_rubberband_planar_get loops `for(i = 0; i < channels; i++)` and never compares the array's length to `channels`, so a longer array is silently truncated and a shorter one would read past the array (undefined behavior).
+
+- labsound-stereopanner-pan-default (quickjs-labsound.cpp:2327): StereoPannerNode.pan starts at 0.5 (value and defaultValue) where the Web Audio spec says 0 (centre); confirmed by reading both on a fresh node.
+
+    const p = new OfflineAudioContext(1, 1024, 44100); new StereoPannerNode(p).pan.value; // 0.5, expected 0
+
+- labsound-convolver-buffer-identity (quickjs-labsound.cpp:2403): ConvolverNode.buffer returns a new wrapper on every read, so after c.buffer = ab, c.buffer === ab is false where the spec returns the same object; confirmed with a 1-channel AudioBuffer.
+
+    const c = new ConvolverNode(ctx); c.buffer = ab; c.buffer === ab; // false

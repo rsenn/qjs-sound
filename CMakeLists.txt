@@ -179,6 +179,11 @@ if(SOUND_STK)
              WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
     set_tests_properties(stk-tostringtag-order PROPERTIES
       ENVIRONMENT "QUICKJS_MODULE_PATH=${CMAKE_CURRENT_BINARY_DIR}")
+    add_test(NAME stk-test
+             COMMAND ${QJSM} ${CMAKE_CURRENT_SOURCE_DIR}/tests/bindings/stk-test.js
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    set_tests_properties(stk-test PROPERTIES
+      ENVIRONMENT "QUICKJS_MODULE_PATH=${CMAKE_CURRENT_BINARY_DIR}")
   else()
     message(WARNING "qjsm not found; stk binding tests will be skipped")
   endif()
@@ -199,6 +204,17 @@ if(SOUND_AUBIO)
     target_include_directories(test-aubio-pitch-confidence PRIVATE ${AUBIO_INCLUDE_DIRS})
     target_link_libraries(test-aubio-pitch-confidence PRIVATE ${AUBIO_LIBRARIES})
     add_test(NAME aubio-pitch-confidence-reads-zero COMMAND test-aubio-pitch-confidence)
+  endif()
+
+  find_program(QJSM qjsm)
+  if(QJSM)
+    add_test(NAME aubio-test
+             COMMAND ${QJSM} ${CMAKE_CURRENT_SOURCE_DIR}/tests/bindings/aubio-test.js
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    set_tests_properties(aubio-test PROPERTIES
+      ENVIRONMENT "QUICKJS_MODULE_PATH=${CMAKE_CURRENT_BINARY_DIR}")
+  else()
+    message(WARNING "qjsm not found; aubio binding tests will be skipped")
   endif()
 endif(SOUND_AUBIO)
 
@@ -276,6 +292,11 @@ if(SOUND_LABSOUND)
 
   find_program(QJSM qjsm)
   if(QJSM)
+    add_test(NAME labsound-test
+             COMMAND ${QJSM} ${CMAKE_CURRENT_SOURCE_DIR}/tests/bindings/labsound-test.js
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    set_tests_properties(labsound-test PROPERTIES
+      ENVIRONMENT "QUICKJS_MODULE_PATH=${CMAKE_CURRENT_BINARY_DIR}")
     add_test(NAME labsound-waveshapernode-offline-silent
              COMMAND ${QJSM} ${CMAKE_CURRENT_SOURCE_DIR}/tests/bindings/labsound-waveshapernode-offline-silent.js
              WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
@@ -323,6 +344,17 @@ if(SOUND_PORTAUDIO)
 
   module_include_directories(portaudio ${PORTAUDIO_INCLUDE_DIRS})
   module_link_libraries(portaudio ${PORTAUDIO_LIBRARIES})
+
+  find_program(QJSM qjsm)
+  if(QJSM)
+    add_test(NAME portaudio-test
+             COMMAND ${QJSM} ${CMAKE_CURRENT_SOURCE_DIR}/tests/bindings/portaudio-test.js
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    set_tests_properties(portaudio-test PROPERTIES
+      ENVIRONMENT "QUICKJS_MODULE_PATH=${CMAKE_CURRENT_BINARY_DIR}")
+  else()
+    message(WARNING "qjsm not found; portaudio binding tests will be skipped")
+  endif()
 endif(SOUND_PORTAUDIO)
 
 if(SOUND_PORTMIDI)
@@ -330,6 +362,17 @@ if(SOUND_PORTMIDI)
 
   module_include_directories(portmidi ${PORTMIDI_INCLUDE_DIRS})
   module_link_libraries(portmidi ${PORTMIDI_LIBRARIES})
+
+  find_program(QJSM qjsm)
+  if(QJSM)
+    add_test(NAME portmidi-test
+             COMMAND ${QJSM} ${CMAKE_CURRENT_SOURCE_DIR}/tests/bindings/portmidi-test.js
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    set_tests_properties(portmidi-test PROPERTIES
+      ENVIRONMENT "QUICKJS_MODULE_PATH=${CMAKE_CURRENT_BINARY_DIR}")
+  else()
+    message(WARNING "qjsm not found; portmidi binding tests will be skipped")
+  endif()
 endif(SOUND_PORTMIDI)
 
 if(SOUND_SNDFILE)
@@ -342,6 +385,17 @@ if(SOUND_SNDFILE)
 
   include_directories(${SNDFILE_INCLUDE_DIRS})
   module_include_directories(sndfile ${SNDFILE_INCLUDE_DIRS})
+
+  find_program(QJSM qjsm)
+  if(QJSM)
+    add_test(NAME sndfile-test
+             COMMAND ${QJSM} ${CMAKE_CURRENT_SOURCE_DIR}/tests/bindings/sndfile-test.js
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    set_tests_properties(sndfile-test PROPERTIES
+      ENVIRONMENT "QUICKJS_MODULE_PATH=${CMAKE_CURRENT_BINARY_DIR}")
+  else()
+    message(WARNING "qjsm not found; sndfile binding tests will be skipped")
+  endif()
 endif(SOUND_SNDFILE)
 
 if(SOUND_SAMPLERATE)
@@ -351,6 +405,17 @@ if(SOUND_SAMPLERATE)
 
   include_directories(${SAMPLERATE_INCLUDE_DIRS})
   module_include_directories(samplerate ${SAMPLERATE_INCLUDE_DIRS})
+
+  find_program(QJSM qjsm)
+  if(QJSM)
+    add_test(NAME samplerate-test
+             COMMAND ${QJSM} ${CMAKE_CURRENT_SOURCE_DIR}/tests/bindings/samplerate-test.js
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    set_tests_properties(samplerate-test PROPERTIES
+      ENVIRONMENT "QUICKJS_MODULE_PATH=${CMAKE_CURRENT_BINARY_DIR}")
+  else()
+    message(WARNING "qjsm not found; samplerate binding tests will be skipped")
+  endif()
 endif(SOUND_SAMPLERATE)
 
 if(SOUND_SOUNDTOUCH)
@@ -360,6 +425,17 @@ if(SOUND_SOUNDTOUCH)
 
   include_directories(${SOUNDTOUCH_INCLUDE_DIRS})
   module_include_directories(soundtouch ${SOUNDTOUCH_INCLUDE_DIRS})
+
+  find_program(QJSM qjsm)
+  if(QJSM)
+    add_test(NAME soundtouch-test
+             COMMAND ${QJSM} ${CMAKE_CURRENT_SOURCE_DIR}/tests/bindings/soundtouch-test.js
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    set_tests_properties(soundtouch-test PROPERTIES
+      ENVIRONMENT "QUICKJS_MODULE_PATH=${CMAKE_CURRENT_BINARY_DIR}")
+  else()
+    message(WARNING "qjsm not found; soundtouch binding tests will be skipped")
+  endif()
 endif(SOUND_SOUNDTOUCH)
 
 if(SOUND_RUBBERBAND)
@@ -369,6 +445,17 @@ if(SOUND_RUBBERBAND)
 
   include_directories(${RUBBERBAND_INCLUDE_DIRS})
   module_include_directories(rubberband ${RUBBERBAND_INCLUDE_DIRS})
+
+  find_program(QJSM qjsm)
+  if(QJSM)
+    add_test(NAME rubberband-test
+             COMMAND ${QJSM} ${CMAKE_CURRENT_SOURCE_DIR}/tests/bindings/rubberband-test.js
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    set_tests_properties(rubberband-test PROPERTIES
+      ENVIRONMENT "QUICKJS_MODULE_PATH=${CMAKE_CURRENT_BINARY_DIR}")
+  else()
+    message(WARNING "qjsm not found; rubberband binding tests will be skipped")
+  endif()
 endif(SOUND_RUBBERBAND)
 
 if(SOUND_SNDOBJ)
@@ -401,4 +488,15 @@ if(SOUND_SNDOBJ)
 
   include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src")
   module_include_directories(sndobj "${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src")
+
+  find_program(QJSM qjsm)
+  if(QJSM)
+    add_test(NAME sndobj-test
+             COMMAND ${QJSM} ${CMAKE_CURRENT_SOURCE_DIR}/tests/bindings/sndobj-test.js
+             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    set_tests_properties(sndobj-test PROPERTIES
+      ENVIRONMENT "QUICKJS_MODULE_PATH=${CMAKE_CURRENT_BINARY_DIR}")
+  else()
+    message(WARNING "qjsm not found; sndobj binding tests will be skipped")
+  endif()
 endif(SOUND_SNDOBJ)

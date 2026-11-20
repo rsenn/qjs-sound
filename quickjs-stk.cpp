@@ -3689,8 +3689,8 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
 
     JS_SetModuleExport(ctx, m, "Stk", stk_ctor);
     JS_SetModuleExport(ctx, m, "StkFrames", stkframes_ctor);
-    JS_SetModuleExport(ctx, m, "Generator", stkfilter_ctor);
-    JS_SetModuleExport(ctx, m, "Filter", stkgenerator_ctor);
+    JS_SetModuleExport(ctx, m, "Generator", stkgenerator_ctor);
+    JS_SetModuleExport(ctx, m, "Filter", stkfilter_ctor);
   }
 
   /* TwinTDrum, Tr909BassDrum and Tr909Percussion are ordinary stk::Instrmnt

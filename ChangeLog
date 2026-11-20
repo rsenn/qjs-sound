@@ -33,6 +33,22 @@
 	QuickJSModule.cmake. The skill's canonical copies are older than
 	this project's (they lack the CMAKE_CROSSCOMPILING guard and
 	hide_static_symbols), so apply would undo fixes.
+	* web/ (new, proof of concept, not published): STK and SndObj DSP
+	built to one standalone wasm (qjs-sound-web.wasm, 162 KB, em++ 6.0.10)
+	and wrapped in an AudioWorkletProcessor (worklet.js), with a demo page
+	(index.html: oscillator -> worklet -> gain -> destination). One wasm
+	call per 128-frame block: STK BiQuad (filter), STK Plucked
+	(instrument), SndObj Reson (filter). web/test.mjs drives the processor
+	under node (resonance passes its frequency, a plucked string decays);
+	2-11 us per block against a 2902 us budget at 44.1 kHz. Not yet run
+	in a browser. Compiles for wasm: 80 of 90 STK sources (all but the
+	Inet/Tcp/Udp/Socket/Thread/Mutex/RtWv* I/O files; RtAudio.cpp and
+	RtMidi.cpp only compile, they are device I/O and are left out) and 94
+	of 113 SndObj sources (not: the FFT/phase-vocoder family, AdSyn,
+	ReSyn, SinAnal, SinSyn, Convol, IFAdd, IFGram, PVA/PVS/PVRead,
+	PVTable, ImpulseTable, SndPVOCEX, SndRTThread, SndSinIO; they need
+	rfftw, which the tree does not ship). emsdk's cache dir is read-only
+	here, so build with EM_CACHE=<writable dir>.
 
 2026-11-17  Roman Senn  <roman.l.senn@gmail.com>
 
