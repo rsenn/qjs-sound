@@ -116,6 +116,22 @@ An effect that has two outputs returns an array of two numbers; `FreeVerb` takes
 | `setRate(r)` | `SineWave` | Phase step per sample, in table entries. |
 | `addTime(t)`, `addPhase(p)`, `addPhaseOffset(p)` | `SineWave` | Shift the phase (`p` in cycles, `t` in samples). |
 | `channelsOut` | all | Number of output channels (getter). |
+| `keyOn(target?)`, `keyOff(target?)` | `ADSR Asymp Envelope` | Start / release the envelope. Only `Envelope` takes a target (defaults 1 and 0). |
+| `setTarget(v)`, `setValue(v)` | `ADSR Asymp Envelope` | Target level; jump straight to a value. |
+| `setRate(r)` | `Envelope` too | Per-sample step of the ramp. |
+| `setTime(t)` | `Asymp Envelope` | Seconds to the target. `Envelope.setTime` is relative to the current target and value (`rate = abs(target - value) / (t * sampleRate)`), so call `setTarget` first. |
+| `setTau(t)`, `setT60(t)` | `Asymp` | Time constant, or time to fall by 60 dB. |
+| `setAttackTime/DecayTime/ReleaseTime(t)`, `setAttackRate/DecayRate/ReleaseRate(r)`, `setAttackTarget(v)`, `setSustainLevel(v)` | `ADSR` | Segment times (seconds) or rates, attack peak, sustain level. |
+| `setAllTimes(attack, decay, sustain, release)` | `ADSR` | All four at once (needs all four arguments). |
+| `getState()` | `ADSR Asymp Envelope` | `ADSR`: 0 attack, 1 decay, 2 sustain, 3 release, 4 idle. |
+
+```js
+const env = new ADSR();
+env.setAllTimes(0.01, 0.01, 0.5, 0.01);
+env.keyOn();
+for(let i = 0; i < 1500; i++) env.tick();   // 0.5, getState() is 2 (sustain)
+env.keyOff();                               // falls to 0, getState() is 4 (idle)
+```
 
 STK's `SineWave` has no amplitude and no frequency getter; it always has unit amplitude, so scale
 the output or follow it with an `ADSR`.
@@ -130,7 +146,7 @@ s.reset();
 ## Filters
 
 Constructors: `new BiQuad()`, `new OnePole(pole)`, `new OneZero(zero)`, `new TwoPole()`, `new TwoZero()`,
-`new PoleZero()`, `new FormSwep()`, `new Delay()`, `new DelayA(delay, maxDelay)`, `new DelayL(delay, maxDelay)`,
+`new PoleZero()`, `new FormSwep()`, `new Delay(delay = 0, maxDelay = 4095)`, `new DelayA(delay, maxDelay)`, `new DelayL(delay, maxDelay)`,
 `new Fir(coefficients)`, `new Iir(bCoefficients, aCoefficients)`, `new TapDelay(taps, maxDelay)`.
 
 | Method | On | Description |
@@ -145,6 +161,12 @@ Constructors: `new BiQuad()`, `new OnePole(pole)`, `new OneZero(zero)`, `new Two
 | `setLowPass(fc, q?)`, `setHighPass(fc, q?)` | `BiQuad` | `q` defaults to 1/sqrt(2). |
 | `setBandPass(fc, q)`, `setBandReject(fc, q)`, `setAllPass(fc, q)` | `BiQuad` | |
 | `setEqualGainZeroes()` | `BiQuad` | Zeros at DC and Nyquist. |
+| `setDelay(n)`, `getDelay()` | `Delay DelayA DelayL` | Delay in samples; `Delay` takes an integer, `DelayA` and `DelayL` a fraction. `RangeError` below 0 or above the maximum. |
+| `setMaximumDelay(n)`, `getMaximumDelay()` | `Delay DelayA DelayL` (`TapDelay` set only) | Length of the line. |
+| `tapIn(value, tap)`, `tapOut(tap)` | `Delay DelayA DelayL` | Write to / read from a position `tap` samples back, without ticking. |
+| `addTo(value, tap)`, `energy()` | `Delay` | Adds to a tap and returns the sum; sum of squares over the current delay length. |
+| `nextOut()` | `Delay DelayA DelayL` | The sample the next `tick` will output. |
+| `setTapDelays(array)`, `getTapDelays()` | `TapDelay` | Tap positions as an array of integers. |
 
 ```js
 const o = new OnePole(); o.setPole(0.5); o.setGain(2);
@@ -160,6 +182,7 @@ Constructors: `new Chorus(baseDelay = 6000)`, `new Echo(maxDelay)`, `new FreeVer
 |---|---|
 | `setEffectMix(m)` | Dry/wet, 0 to 1. |
 | `clear()` | Clears the internal delay lines. |
+| `setDelay(n)`, `setMaximumDelay(n)` | `Echo` only, in samples. |
 
 ## Instruments and FM
 

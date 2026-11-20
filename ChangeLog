@@ -13,6 +13,18 @@
 	* doc/native/stk.md (new): the stk DSP classes; stk-io.md: StkFrames
 	buffer is an ArrayBuffer, not a typed array.
 
+	Bind the envelope and delay controls of stk.
+
+	* quickjs-stk.cpp: Generator gets keyOn, keyOff, setTarget, setValue,
+	setTime, setTau, setT60, setAttackRate/Target/Time, setDecayRate/Time,
+	setSustainLevel, setReleaseRate/Time, setAllTimes, getState (ADSR,
+	Asymp, Envelope; setRate also for Envelope); Filter gets setDelay,
+	getDelay, setMaximumDelay, getMaximumDelay, tapIn, tapOut, addTo,
+	nextOut, energy (Delay, DelayA, DelayL), setTapDelays, getTapDelays
+	(TapDelay); Effect gets setDelay and setMaximumDelay (Echo). new
+	Delay(delay, maxDelay) ignored its arguments and now honours them.
+	* tests/bindings/stk-test.js, doc/native/stk.md: tests and docs.
+
 	Fix two stk bugs found by comparing the binding with the headers.
 
 	* quickjs-stk.cpp: RtWvIn, InetWvIn, RtWvOut and InetWvOut were never

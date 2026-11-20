@@ -752,10 +752,34 @@ enum {
   METHOD_GEN_ADD_TIME,
   METHOD_GEN_ADD_PHASE,
   METHOD_GEN_ADD_PHASE_OFFSET,
+  METHOD_GEN_KEY_ON,
+  METHOD_GEN_KEY_OFF,
+  METHOD_GEN_SET_TARGET,
+  METHOD_GEN_SET_VALUE,
+  METHOD_GEN_SET_TIME,
+  METHOD_GEN_SET_TAU,
+  METHOD_GEN_SET_T60,
+  METHOD_GEN_SET_ATTACK_RATE,
+  METHOD_GEN_SET_ATTACK_TARGET,
+  METHOD_GEN_SET_DECAY_RATE,
+  METHOD_GEN_SET_SUSTAIN_LEVEL,
+  METHOD_GEN_SET_RELEASE_RATE,
+  METHOD_GEN_SET_ATTACK_TIME,
+  METHOD_GEN_SET_DECAY_TIME,
+  METHOD_GEN_SET_RELEASE_TIME,
+  METHOD_GEN_SET_ALL_TIMES,
+  METHOD_GEN_GET_STATE,
 };
 
 static const char* const stkgenerator_method_names[] = {
-  "tick", "setFrequency", "setHarmonics", "reset", "setRate", "addTime", "addPhase", "addPhaseOffset",
+  "tick", "setFrequency", "setHarmonics", "reset", "setRate", "addTime", "addPhase", "addPhaseOffset", "keyOn", "keyOff",
+  "setTarget", "setValue", "setTime", "setTau", "setT60", "setAttackRate", "setAttackTarget", "setDecayRate",
+  "setSustainLevel", "setReleaseRate", "setAttackTime", "setDecayTime", "setReleaseTime", "setAllTimes", "getState",
+};
+
+/* number of numeric arguments each generator method requires; keyOn/keyOff take an optional one */
+static const int stkgenerator_method_args[] = {
+  0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 4, 0,
 };
 
 static JSValue
@@ -806,40 +830,101 @@ js_stkgenerator_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       break;
     }
     default: {
-      /* setters shared by the oscillators: they exist on some leaf classes only, so each
+      /* setters of the oscillators and envelopes: they exist on some leaf classes only, so each
        * is dispatched by type and any other generator throws a TypeError */
       stk::Generator* g = f->get();
-      double v = 0;
-      bool matched = false;
+      const int need = stkgenerator_method_args[magic];
+      double v[4] = {0, 0, 0, 0};
+      bool matched = false, has_opt = false;
 
-      if(magic != METHOD_GEN_RESET) {
-        if(argc < 1)
-          return JS_ThrowTypeError(ctx, "%s requires an argument", stkgenerator_method_names[magic]);
-        if(qjsx::args(ctx, argc, argv, v))
+      if(argc < need)
+        return JS_ThrowTypeError(ctx, "%s requires %d argument%s", stkgenerator_method_names[magic], need, need == 1 ? "" : "s");
+
+      for(int i = 0; i < need; i++)
+        if(JS_ToFloat64(ctx, &v[i], argv[i]))
+          return JS_EXCEPTION;
+
+      /* keyOn(target) / keyOff(target) of an Envelope */
+      if((magic == METHOD_GEN_KEY_ON || magic == METHOD_GEN_KEY_OFF) && argc > 0 && !JS_IsUndefined(argv[0])) {
+        has_opt = true;
+        if(JS_ToFloat64(ctx, &v[0], argv[0]))
           return JS_EXCEPTION;
       }
 
       switch(magic) {
         case METHOD_GEN_SET_FREQUENCY:
-          matched = qjsx::dispatch<stk::SineWave, stk::Blit, stk::BlitSaw, stk::BlitSquare>(g, [&](auto* p) { p->setFrequency(v); });
+          matched = qjsx::dispatch<stk::SineWave, stk::Blit, stk::BlitSaw, stk::BlitSquare>(g, [&](auto* p) { p->setFrequency(v[0]); });
           break;
         case METHOD_GEN_SET_HARMONICS:
-          matched = qjsx::dispatch<stk::Blit, stk::BlitSaw, stk::BlitSquare>(g, [&](auto* p) { p->setHarmonics(static_cast<unsigned>(v)); });
+          matched = qjsx::dispatch<stk::Blit, stk::BlitSaw, stk::BlitSquare>(g, [&](auto* p) { p->setHarmonics(static_cast<unsigned>(v[0])); });
           break;
         case METHOD_GEN_RESET:
           matched = qjsx::dispatch<stk::SineWave, stk::Blit, stk::BlitSaw, stk::BlitSquare>(g, [&](auto* p) { p->reset(); });
           break;
         case METHOD_GEN_SET_RATE:
-          matched = qjsx::dispatch<stk::SineWave>(g, [&](auto* p) { p->setRate(v); });
+          matched = qjsx::dispatch<stk::SineWave, stk::Envelope>(g, [&](auto* p) { p->setRate(v[0]); });
           break;
         case METHOD_GEN_ADD_TIME:
-          matched = qjsx::dispatch<stk::SineWave>(g, [&](auto* p) { p->addTime(v); });
+          matched = qjsx::dispatch<stk::SineWave>(g, [&](auto* p) { p->addTime(v[0]); });
           break;
         case METHOD_GEN_ADD_PHASE:
-          matched = qjsx::dispatch<stk::SineWave>(g, [&](auto* p) { p->addPhase(v); });
+          matched = qjsx::dispatch<stk::SineWave>(g, [&](auto* p) { p->addPhase(v[0]); });
           break;
         case METHOD_GEN_ADD_PHASE_OFFSET:
-          matched = qjsx::dispatch<stk::SineWave>(g, [&](auto* p) { p->addPhaseOffset(v); });
+          matched = qjsx::dispatch<stk::SineWave>(g, [&](auto* p) { p->addPhaseOffset(v[0]); });
+          break;
+        case METHOD_GEN_KEY_ON:
+          matched = qjsx::dispatch<stk::Envelope>(g, [&](auto* p) { p->keyOn(has_opt ? v[0] : 1.0); }) ||
+                    qjsx::dispatch<stk::ADSR, stk::Asymp>(g, [&](auto* p) { p->keyOn(); });
+          break;
+        case METHOD_GEN_KEY_OFF:
+          matched = qjsx::dispatch<stk::Envelope>(g, [&](auto* p) { p->keyOff(has_opt ? v[0] : 0.0); }) ||
+                    qjsx::dispatch<stk::ADSR, stk::Asymp>(g, [&](auto* p) { p->keyOff(); });
+          break;
+        case METHOD_GEN_SET_TARGET:
+          matched = qjsx::dispatch<stk::ADSR, stk::Asymp, stk::Envelope>(g, [&](auto* p) { p->setTarget(v[0]); });
+          break;
+        case METHOD_GEN_SET_VALUE:
+          matched = qjsx::dispatch<stk::ADSR, stk::Asymp, stk::Envelope>(g, [&](auto* p) { p->setValue(v[0]); });
+          break;
+        case METHOD_GEN_SET_TIME:
+          matched = qjsx::dispatch<stk::Asymp, stk::Envelope>(g, [&](auto* p) { p->setTime(v[0]); });
+          break;
+        case METHOD_GEN_SET_TAU:
+          matched = qjsx::dispatch<stk::Asymp>(g, [&](auto* p) { p->setTau(v[0]); });
+          break;
+        case METHOD_GEN_SET_T60:
+          matched = qjsx::dispatch<stk::Asymp>(g, [&](auto* p) { p->setT60(v[0]); });
+          break;
+        case METHOD_GEN_SET_ATTACK_RATE:
+          matched = qjsx::dispatch<stk::ADSR>(g, [&](auto* p) { p->setAttackRate(v[0]); });
+          break;
+        case METHOD_GEN_SET_ATTACK_TARGET:
+          matched = qjsx::dispatch<stk::ADSR>(g, [&](auto* p) { p->setAttackTarget(v[0]); });
+          break;
+        case METHOD_GEN_SET_DECAY_RATE:
+          matched = qjsx::dispatch<stk::ADSR>(g, [&](auto* p) { p->setDecayRate(v[0]); });
+          break;
+        case METHOD_GEN_SET_SUSTAIN_LEVEL:
+          matched = qjsx::dispatch<stk::ADSR>(g, [&](auto* p) { p->setSustainLevel(v[0]); });
+          break;
+        case METHOD_GEN_SET_RELEASE_RATE:
+          matched = qjsx::dispatch<stk::ADSR>(g, [&](auto* p) { p->setReleaseRate(v[0]); });
+          break;
+        case METHOD_GEN_SET_ATTACK_TIME:
+          matched = qjsx::dispatch<stk::ADSR>(g, [&](auto* p) { p->setAttackTime(v[0]); });
+          break;
+        case METHOD_GEN_SET_DECAY_TIME:
+          matched = qjsx::dispatch<stk::ADSR>(g, [&](auto* p) { p->setDecayTime(v[0]); });
+          break;
+        case METHOD_GEN_SET_RELEASE_TIME:
+          matched = qjsx::dispatch<stk::ADSR>(g, [&](auto* p) { p->setReleaseTime(v[0]); });
+          break;
+        case METHOD_GEN_SET_ALL_TIMES:
+          matched = qjsx::dispatch<stk::ADSR>(g, [&](auto* p) { p->setAllTimes(v[0], v[1], v[2], v[3]); });
+          break;
+        case METHOD_GEN_GET_STATE:
+          matched = qjsx::dispatch<stk::ADSR, stk::Asymp, stk::Envelope>(g, [&](auto* p) { ret = JS_NewInt32(ctx, p->getState()); });
           break;
       }
 
@@ -901,6 +986,23 @@ static const JSCFunctionListEntry js_stkgenerator_funcs[] = {
   JS_CFUNC_MAGIC_DEF("addTime", 1, guarded<js_stkgenerator_method>, METHOD_GEN_ADD_TIME),
   JS_CFUNC_MAGIC_DEF("addPhase", 1, guarded<js_stkgenerator_method>, METHOD_GEN_ADD_PHASE),
   JS_CFUNC_MAGIC_DEF("addPhaseOffset", 1, guarded<js_stkgenerator_method>, METHOD_GEN_ADD_PHASE_OFFSET),
+  JS_CFUNC_MAGIC_DEF("keyOn", 0, guarded<js_stkgenerator_method>, METHOD_GEN_KEY_ON),
+  JS_CFUNC_MAGIC_DEF("keyOff", 0, guarded<js_stkgenerator_method>, METHOD_GEN_KEY_OFF),
+  JS_CFUNC_MAGIC_DEF("setTarget", 1, guarded<js_stkgenerator_method>, METHOD_GEN_SET_TARGET),
+  JS_CFUNC_MAGIC_DEF("setValue", 1, guarded<js_stkgenerator_method>, METHOD_GEN_SET_VALUE),
+  JS_CFUNC_MAGIC_DEF("setTime", 1, guarded<js_stkgenerator_method>, METHOD_GEN_SET_TIME),
+  JS_CFUNC_MAGIC_DEF("setTau", 1, guarded<js_stkgenerator_method>, METHOD_GEN_SET_TAU),
+  JS_CFUNC_MAGIC_DEF("setT60", 1, guarded<js_stkgenerator_method>, METHOD_GEN_SET_T60),
+  JS_CFUNC_MAGIC_DEF("setAttackRate", 1, guarded<js_stkgenerator_method>, METHOD_GEN_SET_ATTACK_RATE),
+  JS_CFUNC_MAGIC_DEF("setAttackTarget", 1, guarded<js_stkgenerator_method>, METHOD_GEN_SET_ATTACK_TARGET),
+  JS_CFUNC_MAGIC_DEF("setDecayRate", 1, guarded<js_stkgenerator_method>, METHOD_GEN_SET_DECAY_RATE),
+  JS_CFUNC_MAGIC_DEF("setSustainLevel", 1, guarded<js_stkgenerator_method>, METHOD_GEN_SET_SUSTAIN_LEVEL),
+  JS_CFUNC_MAGIC_DEF("setReleaseRate", 1, guarded<js_stkgenerator_method>, METHOD_GEN_SET_RELEASE_RATE),
+  JS_CFUNC_MAGIC_DEF("setAttackTime", 1, guarded<js_stkgenerator_method>, METHOD_GEN_SET_ATTACK_TIME),
+  JS_CFUNC_MAGIC_DEF("setDecayTime", 1, guarded<js_stkgenerator_method>, METHOD_GEN_SET_DECAY_TIME),
+  JS_CFUNC_MAGIC_DEF("setReleaseTime", 1, guarded<js_stkgenerator_method>, METHOD_GEN_SET_RELEASE_TIME),
+  JS_CFUNC_MAGIC_DEF("setAllTimes", 4, guarded<js_stkgenerator_method>, METHOD_GEN_SET_ALL_TIMES),
+  JS_CFUNC_MAGIC_DEF("getState", 0, guarded<js_stkgenerator_method>, METHOD_GEN_GET_STATE),
   JS_CGETSET_MAGIC_DEF("channelsOut", js_stkgenerator_get, js_stkgenerator_set, PROP_SAMPLERATE),
   JS_PROP_STRING_DEF("[Symbol.toStringTag]", "Generator", JS_PROP_CONFIGURABLE),
 };
@@ -952,9 +1054,12 @@ js_stkfilter_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSVa
         if(argc > 1 && qjsx::args_from(ctx, 1, argc, argv, maxDelay))
           return JS_EXCEPTION;
 
+        if(delay < 0 || maxDelay < 0)
+          return JS_ThrowRangeError(ctx, "delay and maximum delay must not be negative");
+
         switch(magic) {
           case INSTANCE_DELAY: {
-            f = std::make_shared<stk::Delay>();
+            f = std::make_shared<stk::Delay>(static_cast<unsigned long>(delay), static_cast<unsigned long>(maxDelay));
             break;
           }
           case INSTANCE_DELAY_A: {
@@ -1088,18 +1193,30 @@ enum {
   METHOD_FILTER_SET_BANDREJECT,
   METHOD_FILTER_SET_BIQUAD_ALLPASS,
   METHOD_FILTER_SET_EQUAL_GAIN_ZEROES,
+  METHOD_FILTER_SET_DELAY,
+  METHOD_FILTER_GET_DELAY,
+  METHOD_FILTER_SET_MAX_DELAY,
+  METHOD_FILTER_GET_MAX_DELAY,
+  METHOD_FILTER_TAP_IN,
+  METHOD_FILTER_TAP_OUT,
+  METHOD_FILTER_ADD_TO,
+  METHOD_FILTER_NEXT_OUT,
+  METHOD_FILTER_ENERGY,
+  METHOD_FILTER_SET_TAP_DELAYS,
+  METHOD_FILTER_GET_TAP_DELAYS,
 };
 
 static const char* const stkfilter_method_names[] = {
   "tick", "setGain", "getGain", "clear", "setCoefficients", "setPole", "setZero", "setAllpass", "setBlockZero",
   "setResonance", "setNotch", "setLowPass", "setHighPass", "setBandPass", "setBandReject", "setAllPass",
-  "setEqualGainZeroes",
+  "setEqualGainZeroes", "setDelay", "getDelay", "setMaximumDelay", "getMaximumDelay", "tapIn", "tapOut", "addTo",
+  "nextOut", "energy", "setTapDelays", "getTapDelays",
 };
 
 /* number of numeric arguments each setter takes before its optional ones; -1 for setCoefficients,
  * whose count depends on the filter */
 static const int stkfilter_method_args[] = {
-  1, 1, 0, 0, -1, 1, 1, 1, 0, 2, 2, 1, 1, 2, 2, 2, 0,
+  1, 1, 0, 0, -1, 1, 1, 1, 0, 2, 2, 1, 1, 2, 2, 2, 0, 1, 0, 1, 0, 2, 1, 2, 0, 0, 0, 0,
 };
 
 static JSValue
@@ -1144,6 +1261,27 @@ js_stkfilter_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
     }
     case METHOD_FILTER_CLEAR: {
       (*f)->clear();
+      break;
+    }
+    case METHOD_FILTER_SET_TAP_DELAYS: {
+      std::vector<uint32_t> taps;
+
+      if(argc < 1 || qjsx::read_array(ctx, argv[0], taps))
+        return argc < 1 ? JS_ThrowTypeError(ctx, "setTapDelays requires an array") : JS_EXCEPTION;
+
+      if(!qjsx::dispatch<stk::TapDelay>(f->get(), [&](auto* p) { p->setTapDelays(std::vector<unsigned long>(taps.begin(), taps.end())); }))
+        return JS_ThrowTypeError(ctx, "setTapDelays is not supported by this filter");
+      break;
+    }
+    case METHOD_FILTER_GET_TAP_DELAYS: {
+      std::vector<unsigned long> taps;
+
+      if(!qjsx::dispatch<stk::TapDelay>(f->get(), [&](auto* p) { taps = p->getTapDelays(); }))
+        return JS_ThrowTypeError(ctx, "getTapDelays is not supported by this filter");
+
+      ret = JS_NewArray(ctx);
+      for(size_t i = 0; i < taps.size(); i++)
+        JS_SetPropertyUint32(ctx, ret, i, JS_NewFloat64(ctx, static_cast<double>(taps[i])));
       break;
     }
     default: {
@@ -1234,6 +1372,44 @@ js_stkfilter_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
         case METHOD_FILTER_SET_EQUAL_GAIN_ZEROES:
           matched = qjsx::dispatch<stk::BiQuad>(flt, [&](auto* p) { p->setEqualGainZeroes(); });
           break;
+        case METHOD_FILTER_SET_DELAY:
+          if(v[0] < 0)
+            return JS_ThrowRangeError(ctx, "delay must not be negative");
+          matched = qjsx::dispatch<stk::Delay>(flt, [&](auto* p) { p->setDelay(static_cast<unsigned long>(v[0])); }) ||
+                    qjsx::dispatch<stk::DelayA, stk::DelayL>(flt, [&](auto* p) { p->setDelay(v[0]); });
+          break;
+        case METHOD_FILTER_GET_DELAY:
+          matched = qjsx::dispatch<stk::Delay, stk::DelayA, stk::DelayL>(flt, [&](auto* p) { ret = JS_NewFloat64(ctx, static_cast<double>(p->getDelay())); });
+          break;
+        case METHOD_FILTER_SET_MAX_DELAY:
+          if(v[0] < 0)
+            return JS_ThrowRangeError(ctx, "maximum delay must not be negative");
+          matched = qjsx::dispatch<stk::Delay, stk::DelayA, stk::DelayL, stk::TapDelay>(flt, [&](auto* p) { p->setMaximumDelay(static_cast<unsigned long>(v[0])); });
+          break;
+        case METHOD_FILTER_GET_MAX_DELAY:
+          matched = qjsx::dispatch<stk::Delay, stk::DelayA, stk::DelayL>(flt, [&](auto* p) { ret = JS_NewFloat64(ctx, static_cast<double>(p->getMaximumDelay())); });
+          break;
+        case METHOD_FILTER_TAP_IN:
+          if(v[1] < 0)
+            return JS_ThrowRangeError(ctx, "tap delay must not be negative");
+          matched = qjsx::dispatch<stk::Delay, stk::DelayA, stk::DelayL>(flt, [&](auto* p) { p->tapIn(v[0], static_cast<unsigned long>(v[1])); });
+          break;
+        case METHOD_FILTER_TAP_OUT:
+          if(v[0] < 0)
+            return JS_ThrowRangeError(ctx, "tap delay must not be negative");
+          matched = qjsx::dispatch<stk::Delay, stk::DelayA, stk::DelayL>(flt, [&](auto* p) { ret = JS_NewFloat64(ctx, p->tapOut(static_cast<unsigned long>(v[0]))); });
+          break;
+        case METHOD_FILTER_ADD_TO:
+          if(v[1] < 0)
+            return JS_ThrowRangeError(ctx, "tap delay must not be negative");
+          matched = qjsx::dispatch<stk::Delay>(flt, [&](auto* p) { ret = JS_NewFloat64(ctx, p->addTo(v[0], static_cast<unsigned long>(v[1]))); });
+          break;
+        case METHOD_FILTER_NEXT_OUT:
+          matched = qjsx::dispatch<stk::Delay, stk::DelayA, stk::DelayL>(flt, [&](auto* p) { ret = JS_NewFloat64(ctx, p->nextOut()); });
+          break;
+        case METHOD_FILTER_ENERGY:
+          matched = qjsx::dispatch<stk::Delay>(flt, [&](auto* p) { ret = JS_NewFloat64(ctx, p->energy()); });
+          break;
       }
 
       if(!matched)
@@ -1268,6 +1444,17 @@ static const JSCFunctionListEntry js_stkfilter_funcs[] = {
   JS_CFUNC_MAGIC_DEF("setBandReject", 2, guarded<js_stkfilter_method>, METHOD_FILTER_SET_BANDREJECT),
   JS_CFUNC_MAGIC_DEF("setAllPass", 2, guarded<js_stkfilter_method>, METHOD_FILTER_SET_BIQUAD_ALLPASS),
   JS_CFUNC_MAGIC_DEF("setEqualGainZeroes", 0, guarded<js_stkfilter_method>, METHOD_FILTER_SET_EQUAL_GAIN_ZEROES),
+  JS_CFUNC_MAGIC_DEF("setDelay", 1, guarded<js_stkfilter_method>, METHOD_FILTER_SET_DELAY),
+  JS_CFUNC_MAGIC_DEF("getDelay", 0, guarded<js_stkfilter_method>, METHOD_FILTER_GET_DELAY),
+  JS_CFUNC_MAGIC_DEF("setMaximumDelay", 1, guarded<js_stkfilter_method>, METHOD_FILTER_SET_MAX_DELAY),
+  JS_CFUNC_MAGIC_DEF("getMaximumDelay", 0, guarded<js_stkfilter_method>, METHOD_FILTER_GET_MAX_DELAY),
+  JS_CFUNC_MAGIC_DEF("tapIn", 2, guarded<js_stkfilter_method>, METHOD_FILTER_TAP_IN),
+  JS_CFUNC_MAGIC_DEF("tapOut", 1, guarded<js_stkfilter_method>, METHOD_FILTER_TAP_OUT),
+  JS_CFUNC_MAGIC_DEF("addTo", 2, guarded<js_stkfilter_method>, METHOD_FILTER_ADD_TO),
+  JS_CFUNC_MAGIC_DEF("nextOut", 0, guarded<js_stkfilter_method>, METHOD_FILTER_NEXT_OUT),
+  JS_CFUNC_MAGIC_DEF("energy", 0, guarded<js_stkfilter_method>, METHOD_FILTER_ENERGY),
+  JS_CFUNC_MAGIC_DEF("setTapDelays", 1, guarded<js_stkfilter_method>, METHOD_FILTER_SET_TAP_DELAYS),
+  JS_CFUNC_MAGIC_DEF("getTapDelays", 0, guarded<js_stkfilter_method>, METHOD_FILTER_GET_TAP_DELAYS),
   JS_PROP_STRING_DEF("[Symbol.toStringTag]", "Filter", JS_PROP_CONFIGURABLE),
 };
 
@@ -1361,6 +1548,8 @@ enum {
   METHOD_EFFECT_TICK = 0,
   METHOD_EFFECT_SET_MIX,
   METHOD_EFFECT_CLEAR,
+  METHOD_EFFECT_SET_DELAY,
+  METHOD_EFFECT_SET_MAX_DELAY,
 };
 
 static JSValue
@@ -1433,6 +1622,25 @@ js_stkeffect_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCons
       eff->clear();
       break;
     }
+    case METHOD_EFFECT_SET_DELAY:
+    case METHOD_EFFECT_SET_MAX_DELAY: {
+      double n = 0;
+      if(argc < 1)
+        return JS_ThrowTypeError(ctx, "%s requires an argument", magic == METHOD_EFFECT_SET_DELAY ? "setDelay" : "setMaximumDelay");
+      if(qjsx::args(ctx, argc, argv, n))
+        return JS_EXCEPTION;
+      if(n < 0)
+        return JS_ThrowRangeError(ctx, "delay must not be negative");
+
+      if(!qjsx::dispatch<stk::Echo>(eff, [&](auto* p) {
+           if(magic == METHOD_EFFECT_SET_DELAY)
+             p->setDelay(static_cast<unsigned long>(n));
+           else
+             p->setMaximumDelay(static_cast<unsigned long>(n));
+         }))
+        return JS_ThrowTypeError(ctx, "%s is not supported by this effect", magic == METHOD_EFFECT_SET_DELAY ? "setDelay" : "setMaximumDelay");
+      break;
+    }
   }
 
   return ret;
@@ -1447,6 +1655,8 @@ static const JSCFunctionListEntry js_stkeffect_funcs[] = {
   JS_CFUNC_MAGIC_DEF("tick", 1, guarded<js_stkeffect_method>, METHOD_EFFECT_TICK),
   JS_CFUNC_MAGIC_DEF("setEffectMix", 1, guarded<js_stkeffect_method>, METHOD_EFFECT_SET_MIX),
   JS_CFUNC_MAGIC_DEF("clear", 0, guarded<js_stkeffect_method>, METHOD_EFFECT_CLEAR),
+  JS_CFUNC_MAGIC_DEF("setDelay", 1, guarded<js_stkeffect_method>, METHOD_EFFECT_SET_DELAY),
+  JS_CFUNC_MAGIC_DEF("setMaximumDelay", 1, guarded<js_stkeffect_method>, METHOD_EFFECT_SET_MAX_DELAY),
   JS_PROP_STRING_DEF("[Symbol.toStringTag]", "Effect", JS_PROP_CONFIGURABLE),
 };
 

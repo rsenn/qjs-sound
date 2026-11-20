@@ -493,6 +493,137 @@ tests({
     eq(Object.prototype.toString.call(s), '[object Saxofony]');
   },
 
+  'ADSR keyOn/keyOff drive attack, sustain and release; getState follows'() {
+    const a = new stk.ADSR();
+    a.setAllTimes(0.01, 0.01, 0.5, 0.01);
+    eq(a.getState(), 4); // idle
+    a.keyOn();
+    eq(a.getState(), 0); // attack
+    let v = 0;
+    for(let i = 0; i < 1500; i++) v = a.tick();
+    close(v, 0.5);
+    eq(a.getState(), 2); // sustain
+    a.keyOff();
+    for(let i = 0; i < 1500; i++) v = a.tick();
+    close(v, 0);
+    eq(a.getState(), 4);
+  },
+
+  'ADSR setters are accepted and the other generators reject them'() {
+    const a = new stk.ADSR();
+    a.setAttackTime(0.1); a.setDecayTime(0.1); a.setReleaseTime(0.1); a.setSustainLevel(0.7);
+    a.setAttackRate(0.01); a.setDecayRate(0.01); a.setReleaseRate(0.01); a.setAttackTarget(1);
+    a.setTarget(0.5); a.setValue(0.25);
+    close(a.tick(), 0.25);
+    let err;
+    try { new stk.SineWave().keyOn(); } catch(e) { err = e; }
+    assert(err instanceof TypeError);
+    err = undefined;
+    try { a.setAllTimes(1, 2); } catch(e) { err = e; }
+    assert(err instanceof TypeError);
+  },
+
+  'Envelope ramps to its target in setTime seconds (setTime is relative to the current target)'() {
+    const e = new stk.Envelope();
+    e.setTarget(1);       // before setTime: the rate is |target - value| / (time * sampleRate)
+    e.setTime(0.01);
+    let v = 0;
+    for(let i = 0; i < 600; i++) v = e.tick();
+    close(v, 1);
+    eq(e.getState(), 0);
+    e.keyOff(0.25);
+    e.setTime(0.01);
+    for(let i = 0; i < 600; i++) v = e.tick();
+    close(v, 0.25);
+    e.setValue(0.5);
+    close(e.tick(), 0.5);
+  },
+
+  'Envelope keyOn with the default target and setRate'() {
+    const e = new stk.Envelope();
+    e.setRate(0.01);
+    e.keyOn();
+    let v = 0;
+    for(let i = 0; i < 50; i++) v = e.tick();
+    close(v, 0.5);
+  },
+
+  'Asymp keyOn approaches its target; setTau/setT60/setTime are accepted'() {
+    const a = new stk.Asymp();
+    a.setTau(0.001); a.setTime(0.01); a.setT60(0.01);
+    a.setTarget(1);
+    a.keyOn();
+    let v = 0;
+    for(let i = 0; i < 2000; i++) v = a.tick();
+    close(v, 1);
+    a.keyOff();
+    for(let i = 0; i < 2000; i++) v = a.tick();
+    close(v, 0);
+    assert(typeof a.getState() === 'number');
+  },
+
+  'Delay delays by its length; setDelay/getDelay/getMaximumDelay'() {
+    const d = new stk.Delay(3, 10);
+    eq(d.getDelay(), 3);
+    eq(d.getMaximumDelay(), 10);
+    same([1, 0, 0, 0, 0, 0].map(x => d.tick(x)), [0, 0, 0, 1, 0, 0]);
+    d.setDelay(5);
+    eq(d.getDelay(), 5);
+    d.setMaximumDelay(20);
+    eq(d.getMaximumDelay(), 20);
+  },
+
+  'Delay tapIn/tapOut/addTo/nextOut/energy'() {
+    const d = new stk.Delay(8, 10); // energy() sums the squares over the current delay length
+    d.tapIn(2, 4);
+    close(d.tapOut(4), 2);
+    close(d.addTo(1, 4), 3);
+    close(d.energy(), 9);
+    close(d.nextOut(), 0);
+  },
+
+  'DelayA and DelayL take fractional delays'() {
+    for(const C of [stk.DelayA, stk.DelayL]) {
+      const d = new C(2.5, 10);
+      close(d.getDelay(), 2.5);
+      d.setDelay(4.5);
+      close(d.getDelay(), 4.5);
+      eq(d.getMaximumDelay(), 10);
+      d.tapIn(1, 3);
+      close(d.tapOut(3), 1);
+      assert(typeof d.nextOut() === 'number');
+    }
+  },
+
+  'TapDelay.setTapDelays/getTapDelays/setMaximumDelay'() {
+    const t = new stk.TapDelay([1, 2], 10);
+    same(t.getTapDelays(), [1, 2]);
+    t.setTapDelays([3, 4, 5]);
+    same(t.getTapDelays(), [3, 4, 5]);
+    t.setMaximumDelay(20);
+  },
+
+  'Echo.setDelay and setMaximumDelay'() {
+    const e = new stk.Echo(100);
+    e.setMaximumDelay(200);
+    e.setDelay(50);
+    assert(typeof e.tick(1) === 'number');
+    let err;
+    try { new stk.Chorus().setDelay(1); } catch(x) { err = x; }
+    assert(err instanceof TypeError);
+  },
+
+  'delay setters reject negative values and filters without them throw TypeError'() {
+    for(const f of [() => new stk.Delay(-1), () => new stk.Delay(1, 10).setDelay(-1), () => new stk.Delay(1, 10).tapIn(1, -1)]) {
+      let err;
+      try { f(); } catch(e) { err = e; }
+      assert(err instanceof RangeError);
+    }
+    let err;
+    try { new stk.OnePole().tapOut(1); } catch(e) { err = e; }
+    assert(err instanceof TypeError);
+  },
+
   'OnePole.setPole and setGain change the output'() {
     const o = new stk.OnePole();
     o.setPole(0.5);
