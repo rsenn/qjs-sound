@@ -181,6 +181,13 @@ if(SOUND_STK)
              WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
     set_tests_properties(stk-tostringtag-order PROPERTIES
       ENVIRONMENT "QUICKJS_MODULE_PATH=${CMAKE_CURRENT_BINARY_DIR}")
+    foreach(_t stk-wvin-wvout-not-exported stk-throw-leaves-error-text)
+      add_test(NAME ${_t}
+               COMMAND ${QJSM} ${CMAKE_CURRENT_SOURCE_DIR}/tests/bindings/${_t}.js
+               WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+      set_tests_properties(${_t} PROPERTIES
+        ENVIRONMENT "QUICKJS_MODULE_PATH=${CMAKE_CURRENT_BINARY_DIR}")
+    endforeach(_t)
     add_test(NAME stk-test
              COMMAND ${QJSM} ${CMAKE_CURRENT_SOURCE_DIR}/tests/bindings/stk-test.js
              WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})

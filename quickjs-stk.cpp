@@ -140,16 +140,6 @@ typedef std::shared_ptr<stk::WvOut> StkWvOutPtr;
 typedef std::shared_ptr<stk::Guitar> StkGuitarPtr;
 typedef std::shared_ptr<stk::Twang> StkTwangPtr;
 
-/* stk::StkError and RtMidiError both derive from std::exception; the
- * realtime/streaming I/O constructors below are far more likely to fail in
- * ordinary use(missing device, bad host, no MIDI ports) than the DSP
- * classes bound elsewhere in this file, so their exceptions are translated
- * into JS exceptions instead of being left to propagate as C++ exceptions. */
-static JSValue
-js_stk_throw(JSContext* ctx, const std::exception& e) {
-  return JS_ThrowTypeError(ctx, "%s", e.what());
-}
-
 /* Stk::oStream_ is a protected static buffer that handleError() fills but
  * does not clear when it throws, so the next error message would start
  * with the text of every earlier one. */
@@ -159,6 +149,19 @@ struct StkBuffer : stk::Stk {
     oStream_.str(std::string());
   }
 };
+
+/* stk::StkError and RtMidiError both derive from std::exception; the
+ * realtime/streaming I/O constructors below are far more likely to fail in
+ * ordinary use(missing device, bad host, no MIDI ports) than the DSP
+ * classes bound elsewhere in this file, so their exceptions are translated
+ * into JS exceptions instead of being left to propagate as C++ exceptions. */
+static JSValue
+js_stk_throw(JSContext* ctx, const std::exception& e) {
+  JSValue ret = JS_ThrowTypeError(ctx, "%s", e.what());
+
+  StkBuffer::clear();
+  return ret;
+}
 
 /* js_throw_stkerror: throws an stk::StkError as a JS exception.
  *
@@ -2682,6 +2685,23 @@ static const qjsx::ctor_def stkwvin_ctors[] = {
   { "InetWvIn", 0, INSTANCE_WVIN_INETWVIN },
 };
 
+/* js_stk_bind_ctor: binds one constructor of a table to its own prototype.
+ *
+ * qjsx::bind_ctors gives every constructor of a table the same prototype; the I/O classes
+ * (RtWvIn, InetWvIn, ...) each have a prototype of their own.
+ *
+ *   JSCFunctionMagic*  fn     the C function shared by the family
+ *   JSValueConst       proto  prototype of this class
+ *   ctor_def&          def    its row of the constructor table
+ */
+static void
+js_stk_bind_ctor(JSContext* ctx, JSModuleDef* m, JSCFunctionMagic* fn, JSValueConst proto, const qjsx::ctor_def& def) {
+  JSValue ctor = JS_NewCFunctionMagic(ctx, fn, def.name, def.length, JS_CFUNC_constructor_magic, def.magic);
+
+  JS_DefinePropertyValueStr(ctx, ctor, "prototype", JS_DupValue(ctx, proto), 0);
+  JS_SetModuleExport(ctx, m, def.export_name ? def.export_name : def.name, ctor);
+}
+
 static JSValue
 js_stkwvin_constructor(JSContext* ctx, JSValueConst new_target, int argc, JSValueConst argv[], int magic) {
   StkWvInPtr w;
@@ -3989,9 +4009,8 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
   JS_SetPropertyFunctionList(ctx, inetwvin_proto, js_inetwvin_funcs, countof(js_inetwvin_funcs));
 
   if(m) {
-    qjsx::bind_ctors(ctx, m, js_stkwvin_constructor, rtwvin_proto, stkwvin_ctors);
-    JS_SetModuleExport(ctx, m, "RtWvIn", JS_NewString(ctx, qjsx::ctor_name(stkwvin_ctors, INSTANCE_WVIN_RTWVIN)));
-    JS_SetModuleExport(ctx, m, "InetWvIn", JS_NewString(ctx, qjsx::ctor_name(stkwvin_ctors, INSTANCE_WVIN_INETWVIN)));
+    js_stk_bind_ctor(ctx, m, js_stkwvin_constructor, rtwvin_proto, stkwvin_ctors[INSTANCE_WVIN_RTWVIN]);
+    js_stk_bind_ctor(ctx, m, js_stkwvin_constructor, inetwvin_proto, stkwvin_ctors[INSTANCE_WVIN_INETWVIN]);
   }
 
   /* stk::WvOut(RtWvOut, InetWvOut) */
@@ -4011,9 +4030,8 @@ js_stk_init(JSContext* ctx, JSModuleDef* m) {
   JS_SetPropertyFunctionList(ctx, inetwvout_proto, js_inetwvout_funcs, countof(js_inetwvout_funcs));
 
   if(m) {
-    qjsx::bind_ctors(ctx, m, js_stkwvout_constructor, rtwvout_proto, stkwvout_ctors);
-    JS_SetModuleExport(ctx, m, "RtWvOut", JS_NewString(ctx, qjsx::ctor_name(stkwvout_ctors, INSTANCE_WVOUT_RTWVOUT)));
-    JS_SetModuleExport(ctx, m, "InetWvOut", JS_NewString(ctx, qjsx::ctor_name(stkwvout_ctors, INSTANCE_WVOUT_INETWVOUT)));
+    js_stk_bind_ctor(ctx, m, js_stkwvout_constructor, rtwvout_proto, stkwvout_ctors[INSTANCE_WVOUT_RTWVOUT]);
+    js_stk_bind_ctor(ctx, m, js_stkwvout_constructor, inetwvout_proto, stkwvout_ctors[INSTANCE_WVOUT_INETWVOUT]);
   }
 
   /* stk::MidiFileIn */
@@ -4080,6 +4098,8 @@ js_stk_add_exports(JSContext* ctx, JSModuleDef* m) {
   qjsx::declare_ctors(ctx, m, stkinstrmnt_ctors);
   qjsx::declare_ctors(ctx, m, stkeffect_ctors);
   qjsx::declare_ctors(ctx, m, stkfm_ctors);
+  qjsx::declare_ctors(ctx, m, stkwvin_ctors);
+  qjsx::declare_ctors(ctx, m, stkwvout_ctors);
 
   JS_AddModuleExport(ctx, m, "Effect");
   JS_AddModuleExport(ctx, m, "Guitar");

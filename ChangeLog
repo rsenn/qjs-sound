@@ -13,6 +13,15 @@
 	* doc/native/stk.md (new): the stk DSP classes; stk-io.md: StkFrames
 	buffer is an ArrayBuffer, not a typed array.
 
+	Fix two stk bugs found by comparing the binding with the headers.
+
+	* quickjs-stk.cpp: RtWvIn, InetWvIn, RtWvOut and InetWvOut were never
+	declared as exports and read undefined; each is now bound to its own
+	prototype (js_stk_bind_ctor). js_stk_throw clears the STK message
+	buffer, so a TypeError no longer prefixes later error messages.
+	* tests/bindings/stk-wvin-wvout-not-exported.js,
+	stk-throw-leaves-error-text.js: regression tests, wired in CMakeLists.txt.
+
 2026-11-20  Roman Senn  <roman.l.senn@gmail.com>
 
 	MODULE_<NAME> is a boolean: ON (default) or OFF, never AUTO, so a
