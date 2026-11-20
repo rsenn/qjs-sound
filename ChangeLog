@@ -10,6 +10,8 @@
 	setEqualGainZeroes; Stk gets sampleRate() and setSampleRate(). A setter
 	on a class that lacks it throws TypeError.
 	* tests/bindings/stk-test.js: tests for each.
+	* doc/native/stk.md (new): the stk DSP classes; stk-io.md: StkFrames
+	buffer is an ArrayBuffer, not a typed array.
 
 2026-11-20  Roman Senn  <roman.l.senn@gmail.com>
 

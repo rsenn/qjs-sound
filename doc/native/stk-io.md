@@ -23,7 +23,7 @@ built:
 
 | Member | Description |
 |---|---|
-| `sampleType` | `'f64'` (`buffer` is a `Float64Array`) or `'f32'` (`Float32Array`), from `sizeof(StkFloat)`. Use it instead of hard-coding `new Float64Array(frames.buffer)`. |
+| `sampleType` | `'f64'` (view `buffer` as a `Float64Array`) or `'f32'` (`Float32Array`), from `sizeof(StkFloat)`. Use it instead of hard-coding `new Float64Array(frames.buffer)`. |
 | `toFloat32(out?)` | Copy every sample, narrowed, into a `Float32Array`. Allocates one when `out` is omitted; with `out`, returns it. Throws `RangeError` if `out` has fewer than `size` elements and `TypeError` if it is not a `Float32Array`. |
 | `fromFloat32(src)` | Copy a `Float32Array` into the first `src.length` samples, widened; returns the same `StkFrames`. Throws `RangeError` if `src` is longer than `size`. |
 
