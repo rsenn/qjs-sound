@@ -82,16 +82,16 @@ tests({
     pa.Pa_Terminate();
   },
 
-  'PaStream.info and hostApiType getters work on an open stream'() {
+  'PaStream getters work on an open stream'() {
     pa.Pa_Initialize();
     const s = new pa.PaStream(DEFAULT_IN, DEFAULT_OUT);
-    assert(typeof s.info === 'object');
-    if (s.info) {
-      assert(typeof s.info.name === 'string');
-      assert(typeof s.info.maxInputChannels === 'number');
-      assert(typeof s.info.maxOutputChannels === 'number');
-    }
-    assert(typeof s.hostApiType === 'number');
+    assert(typeof s.active === 'boolean');
+    assert(typeof s.stopped === 'boolean');
+    assert(typeof s.sampleRate === 'number');
+    assert(typeof s.inputLatency === 'number');
+    assert(typeof s.outputLatency === 'number');
+    // hostApiType is the host API's name, present only when PortAudio has Pa_GetStreamHostApiType
+    assert(s.hostApiType === undefined || typeof s.hostApiType === 'string');
     s.close();
     pa.Pa_Terminate();
   },

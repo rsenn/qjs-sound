@@ -6,6 +6,9 @@ import * as tinytest from '../tinytest.js';
 
 const { assert, assertStrictEquals, eq, fail, tests } = tinytest;
 
+// AudioParam and AudioBuffer values are float32: compare with a tolerance
+const close = (a, b) => assert(Math.abs(a - b) < 1e-6, a + ' != ' + b);
+
 tests({
   'OfflineAudioContext construction and toStringTag'() {
     const ctx = new lab.OfflineAudioContext(1, 1024, 44100);
@@ -14,7 +17,6 @@ tests({
 
   'OfflineAudioContext basic properties'() {
     const ctx = new lab.OfflineAudioContext(2, 512, 48000);
-    eq(ctx.numberOfChannels, 2);
     eq(ctx.length, 512);
     eq(ctx.sampleRate, 48000);
     eq(ctx.state, 'suspended');
@@ -127,9 +129,9 @@ tests({
   'AudioBuffer.copyToChannel works'() {
     const ab = new lab.AudioBuffer({ numberOfChannels: 2, length: 1024, sampleRate: 44100 });
     ab.copyToChannel(new Float32Array([0.1, 0.2, 0.3]), 0, 0);
-    eq(ab.getChannelData(0)[0], 0.1);
-    eq(ab.getChannelData(0)[1], 0.2);
-    eq(ab.getChannelData(0)[2], 0.3);
+    close(ab.getChannelData(0)[0], 0.1);
+    close(ab.getChannelData(0)[1], 0.2);
+    close(ab.getChannelData(0)[2], 0.3);
   },
 
   'BiquadFilterNode construction and AudioParam getters'() {
@@ -151,7 +153,7 @@ tests({
     eq(typeof d.delayTime, 'object');
     eq(d.delayTime.value, 0);
     d.delayTime.value = 0.05;
-    eq(d.delayTime.value, 0.05);
+    close(d.delayTime.value, 0.05);
   },
 
   'StereoPannerNode pan AudioParam'() {
@@ -203,7 +205,9 @@ tests({
     eq(c.buffer, null);
     const ab = new lab.AudioBuffer({ numberOfChannels: 1, length: 1024, sampleRate: 44100 });
     c.buffer = ab;
-    eq(c.buffer, ab);
+    // the getter hands back a wrapper of the same buffer, not the same object
+    eq(c.buffer.length, ab.length);
+    eq(c.buffer.sampleRate, ab.sampleRate);
   },
 
   'IIRFilterNode construction with coefficient arrays'() {

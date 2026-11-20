@@ -2326,6 +2326,9 @@ js_stereopanner_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
   AudioContextPtr ac = *acptr;
   auto sp = std::make_shared<lab::StereoPannerNode>(*ac);
 
+  /* LabSound starts pan at 0.5; Web Audio starts it at 0 (centre) */
+  sp->pan()->setValue(0.f);
+
   if(argc > 1 && JS_IsObject(argv[1])) {
     double d = 0;
     int r = qjsx::option(ctx, argv[1], "pan", d);

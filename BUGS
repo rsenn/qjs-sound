@@ -19,9 +19,9 @@
 
     Confirmed: js_rubberband_planar_get loops `for(i = 0; i < channels; i++)` and never compares the array's length to `channels`, so a longer array is silently truncated and a shorter one would read past the array (undefined behavior).
 
-- labsound-stereopanner-pan-default (quickjs-labsound.cpp:2327): StereoPannerNode.pan starts at 0.5 (value and defaultValue) where the Web Audio spec says 0 (centre); confirmed by reading both on a fresh node.
+- labsound-stereopanner-pan-default (quickjs-labsound.cpp:2327): StereoPannerNode.pan.defaultValue is 0.5 where the Web Audio spec says 0 (the constructor now sets the initial value to 0, defaultValue is still LabSound's).
 
-    const p = new OfflineAudioContext(1, 1024, 44100); new StereoPannerNode(p).pan.value; // 0.5, expected 0
+    new StereoPannerNode(new OfflineAudioContext(1, 1024, 44100)).pan.defaultValue; // 0.5, expected 0
 
 - labsound-convolver-buffer-identity (quickjs-labsound.cpp:2403): ConvolverNode.buffer returns a new wrapper on every read, so after c.buffer = ab, c.buffer === ab is false where the spec returns the same object; confirmed with a 1-channel AudioBuffer.
 

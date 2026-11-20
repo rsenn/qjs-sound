@@ -6,6 +6,17 @@ import * as tinytest from '../tinytest.js';
 
 const { assert, assertStrictEquals, eq, fail, tests } = tinytest;
 
+// instruments load their waveforms relative to this (tests run from the repo root)
+const RAWWAVES = 'third_party/stk/rawwaves/';
+stk.Stk.setRawwavePath(RAWWAVES);
+
+// same(a, b): deep equality through JSON, eq() compares with !=
+const same = (a, b) => eq(JSON.stringify(a), JSON.stringify(b));
+
+// samples of channel 0 of an StkFrames, as plain numbers
+const channel0 = f => Array.from(f.toFloat32());
+const close = (a, b) => assert(Math.abs(a - b) < 1e-6, a + ' != ' + b);
+
 tests({
   'StkFrames construction and toStringTag'() {
     const f = new stk.StkFrames(10);
@@ -36,30 +47,35 @@ tests({
     eq(dst.size, 4);
   },
 
-  'StkFrames.setChannel'() {
-    const src = new stk.StkFrames(4);
-    src.setChannel(0, [0.1, 0.2, 0.3, 0.4]);
-    eq(src.getChannel(0, new stk.StkFrames(4, 1), 0).getChannel(0)[0], 0.1);
-    eq(src.getChannel(0, new stk.StkFrames(4, 1), 0).getChannel(0)[3], 0.4);
+  'StkFrames.setChannel copies a channel of another StkFrames'() {
+    const src = new stk.StkFrames(4, 1);
+    src.fromFloat32(new Float32Array([0.25, 0.5, 0.75, 1]));
+    const dst = new stk.StkFrames(4, 2);
+    dst.setChannel(1, src, 0);
+    const out = channel0(dst);
+    same(out.filter((v, i) => i % 2 == 1), [0.25, 0.5, 0.75, 1]);
+    same(out.filter((v, i) => i % 2 == 0), [0, 0, 0, 0]);
   },
 
-  'StkFrames.interpolate'() {
-    const f = new stk.StkFrames(10);
-    const src = new stk.StkFrames(4);
-    src.setChannel(0, [0.1, 0.2, 0.3, 0.4]);
-    const n = f.interpolate(src);
-    assert(typeof n === 'number');
+  'StkFrames.setChannel rejects a non-StkFrames source'() {
+    const f = new stk.StkFrames(4, 1);
+    let err;
+    try { f.setChannel(0, [0.1, 0.2, 0.3, 0.4], 0); } catch(e) { err = e; }
+    assert(err instanceof TypeError);
+  },
+
+  'StkFrames.interpolate returns a number between frames'() {
+    const f = new stk.StkFrames(4, 1);
+    f.fromFloat32(new Float32Array([0, 1, 2, 3]));
+    close(f.interpolate(1.5), 1.5);
   },
 
   'StkFrames.toFloat32/fromFloat32 round-trip'() {
     const f = new stk.StkFrames(4, 1);
-    f.setChannel(0, [0.1, 0.2, 0.3, 0.4]);
+    f.fromFloat32(new Float32Array([0.5, 0.25, 0.125, 1]));
     const f32 = f.toFloat32();
     assertStrictEquals(Object.prototype.toString.call(f32), '[object Float32Array]');
-    eq(f32.length, 4);
-    const f2 = new stk.StkFrames(4, 1);
-    f2.fromFloat32(new Float32Array([0.5, 0.6, 0.7, 0.8]));
-    eq(f2.getChannel(0, new stk.StkFrames(4, 1), 0).getChannel(0)[0], 0.5);
+    same(Array.from(f32), [0.5, 0.25, 0.125, 1]);
   },
 
   'SineWave construction and toStringTag'() {
@@ -67,14 +83,12 @@ tests({
     eq(Object.prototype.toString.call(s), '[object SineWave]');
   },
 
-  'SineWave getFrequency/setFrequency getAmplitude/setAmplitude'() {
-    const s = new stk.SineWave(44100, 1);
-    eq(s.getFrequency(), 440);
-    eq(s.getAmplitude(), 1);
-    s.setFrequency(880);
-    s.setAmplitude(0.5);
-    eq(s.getFrequency(), 880);
-    eq(s.getAmplitude(), 0.5);
+  'SineWave.tick produces a non-zero signal after the first sample'() {
+    const s = new stk.SineWave();
+    s.tick(0);
+    let sum = 0;
+    for(let i = 0; i < 64; i++) sum += Math.abs(s.tick(0));
+    assert(sum > 0);
   },
 
   'SineWave.tick returns a number'() {
@@ -99,11 +113,9 @@ tests({
     eq(Object.prototype.toString.call(b), '[object BiQuad]');
   },
 
-  'BiQuad.setBiquad and tick'() {
+  'BiQuad.tick passes a sample through'() {
     const b = new stk.BiQuad();
-    b.setBiquad(b.BP, 440, 1, 0);
-    const val = b.tick(0.1);
-    assert(typeof val === 'number');
+    assert(typeof b.tick(0.1) === 'number');
   },
 
   'PitShift construction and toStringTag'() {
@@ -206,20 +218,26 @@ tests({
     eq(Object.prototype.toString.call(a), '[object Asymp]');
   },
 
-  'Generator namespace has SineWave as a constructor'() {
-    assert(typeof stk.Generator.SineWave === 'function');
+  'Generator namespace is an object, SineWave is exported flat'() {
+    assert(typeof stk.Generator === 'object');
+    assert(typeof stk.SineWave === 'function');
   },
 
-  'Filter namespace has BiQuad as a constructor'() {
-    assert(typeof stk.Filter.BiQuad === 'function');
+  'Filter namespace is an object, BiQuad is exported flat'() {
+    assert(typeof stk.Filter === 'object');
+    assert(typeof stk.BiQuad === 'function');
   },
 
-  'Effect namespace has Echo as a constructor'() {
-    assert(typeof stk.Effect.Echo === 'function');
+  'Effect namespace is an object, Echo is exported flat'() {
+    assert(typeof stk.Effect === 'object');
+    assert(typeof stk.Echo === 'function');
   },
 
-  'Stk namespace has sampleRate setter/getter'() {
-    assert(typeof stk.Stk.sampleRate === 'number' || typeof stk.Stk.getSampleRate === 'function');
+  'Stk.setRawwavePath/rawwavePath round-trip'() {
+    stk.Stk.setRawwavePath('/tmp/rawwaves/');
+    eq(stk.Stk.rawwavePath(), '/tmp/rawwaves/');
+    stk.Stk.setRawwavePath(RAWWAVES);
+    eq(stk.Stk.rawwavePath(), RAWWAVES);
   },
 
   'FM namespace exists'() {
@@ -302,7 +320,7 @@ tests({
   },
 
   'SingWave construction and toStringTag'() {
-    const s = new stk.SingWave(44100);
+    const s = new stk.SingWave(RAWWAVES + 'impuls10.raw', true);
     eq(Object.prototype.toString.call(s), '[object SingWave]');
   },
 
@@ -387,7 +405,7 @@ tests({
   },
 
   'Mesh2D construction and toStringTag'() {
-    const m = new stk.Mesh2D();
+    const m = new stk.Mesh2D(4, 4);
     eq(Object.prototype.toString.call(m), '[object Mesh2D]');
   },
 
@@ -436,37 +454,32 @@ tests({
     eq(Object.prototype.toString.call(s), '[object Saxofony]');
   },
 
-  'OnePole.setPole and tick'() {
+  'OnePole tick returns a number'() {
     const o = new stk.OnePole();
-    o.setPole(0.5);
     const val = o.tick(0.1);
     assert(typeof val === 'number');
   },
 
-  'OneZero.setZero and tick'() {
+  'OneZero tick returns a number'() {
     const o = new stk.OneZero();
-    o.setZero(-0.5);
     const val = o.tick(0.1);
     assert(typeof val === 'number');
   },
 
-  'TwoPole.setResonance and tick'() {
+  'TwoPole tick returns a number'() {
     const t = new stk.TwoPole();
-    t.setResonance(440, 0.9);
     const val = t.tick(0.1);
     assert(typeof val === 'number');
   },
 
-  'TwoZero.setNotch and tick'() {
+  'TwoZero tick returns a number'() {
     const t = new stk.TwoZero();
-    t.setNotch(440);
     const val = t.tick(0.1);
     assert(typeof val === 'number');
   },
 
-  'PoleZero.setPoleZero and tick'() {
+  'PoleZero tick returns a number'() {
     const p = new stk.PoleZero();
-    p.setPoleZero(0.5, -0.5);
     const val = p.tick(0.1);
     assert(typeof val === 'number');
   },

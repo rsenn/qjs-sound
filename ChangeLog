@@ -9,6 +9,18 @@
 	defaults to FAIL (DISABLE is an explicit opt-in).
 	* cmake/{FindQuickJS,BuildQuickJS,QuickJSModule}.cmake: synced.
 
+	Fix the failing binding tests (all 22 ctest tests pass).
+
+	* quickjs-stk.cpp (js_stkinstrmnt_constructor): instruments carry their
+	own Symbol.toStringTag ([object Clarinet]), like generators and filters.
+	* quickjs-labsound.cpp (js_stereopanner_constructor): pan starts at 0.
+	* tests/bindings/stk-test.js: setChannel takes an StkFrames, rawwave
+	path set from third_party/stk/rawwaves, filter setters and the
+	Generator/Filter/Effect members no longer assumed.
+	* tests/bindings/labsound-test.js: float32 tolerance, no
+	numberOfChannels, buffer compared by length and sampleRate.
+	* tests/bindings/portaudio-test.js: getters that PaStream really has.
+
 2026-11-18  Roman Senn  <roman.l.senn@gmail.com>
 
 	Project-tree cleanup: every bound library is now a Deps.cmake

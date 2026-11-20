@@ -1754,6 +1754,7 @@ js_stkinstrmnt_constructor(JSContext* ctx, JSValueConst new_target, int argc, JS
 
   if(JS_IsException(obj))
     return obj;
+  js_set_tostringtag(ctx, obj, qjsx::ctor_name(stkinstrmnt_ctors, magic));
   return obj;
 }
 
