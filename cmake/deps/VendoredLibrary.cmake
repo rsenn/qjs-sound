@@ -251,3 +251,48 @@ function(vendored_build_static_subdirectory NAME)
   set(${NAME}_LIBRARIES ${VBSS_TARGETS} ${VBSS_EXTRA_LIBRARIES} PARENT_SCOPE)
   set(${NAME}_FOUND TRUE PARENT_SCOPE)
 endfunction()
+
+# vendored_reset_stale_external(<NAME> <BINARY_DIR> <RECIPE>)
+#
+# Wipes the nested build of an ExternalProject when it no longer matches
+# what the parent passes down, so the next build reconfigures it:
+#
+#   - its CMakeCache.txt lacks CMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
+#   - the recipe string differs from the one stored beside the build
+#
+# Without it an old nested cache keeps a non-PIC libstk.a that the shared
+# module cannot link ("recompile with -fPIC").
+#
+#   string  NAME        ExternalProject name, e.g. stk
+#   path    BINARY_DIR  its nested build directory
+#   string  RECIPE      compilers, flags and build type given to it
+function(vendored_reset_stale_external NAME BINARY_DIR RECIPE)
+  set(STAMP "${BINARY_DIR}.recipe")
+  set(STALE FALSE)
+
+  if(EXISTS "${BINARY_DIR}/CMakeCache.txt")
+    file(STRINGS "${BINARY_DIR}/CMakeCache.txt" PIC_LINE
+         REGEX "^CMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON$")
+    if(NOT PIC_LINE)
+      set(STALE TRUE)
+    endif(NOT PIC_LINE)
+
+    set(OLD "")
+    if(EXISTS "${STAMP}")
+      file(READ "${STAMP}" OLD)
+    endif(EXISTS "${STAMP}")
+    if(NOT "${OLD}" STREQUAL "${RECIPE}")
+      set(STALE TRUE)
+    endif(NOT "${OLD}" STREQUAL "${RECIPE}")
+  endif(EXISTS "${BINARY_DIR}/CMakeCache.txt")
+
+  if(STALE)
+    message(STATUS "${NAME}: nested build is stale, reconfiguring it")
+    file(REMOVE_RECURSE "${BINARY_DIR}")
+    foreach(STEP configure build install done)
+      file(REMOVE "${CMAKE_CURRENT_BINARY_DIR}/${NAME}/src/${NAME}-stamp/${NAME}-${STEP}")
+    endforeach(STEP)
+  endif(STALE)
+
+  file(WRITE "${STAMP}" "${RECIPE}")
+endfunction()

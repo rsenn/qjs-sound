@@ -14,6 +14,9 @@ set(LABSOUND_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/third_party/LabSound")
 file(GLOB LABSOUND_PATCHES "${CMAKE_CURRENT_SOURCE_DIR}/patches/labsound-*.patch")
 list(SORT LABSOUND_PATCHES)
 
+vendored_reset_stale_external(LabSound "${LABSOUND_BINARY_DIR}"
+  "${CMAKE_C_COMPILER}|${CMAKE_CXX_COMPILER}|${CMAKE_C_FLAGS}|${CMAKE_CXX_FLAGS}|${MODULE_COMPILE_FLAGS}")
+
 ExternalProject_Add(
   LabSound
   SOURCE_DIR "${LABSOUND_SOURCE_DIR}"

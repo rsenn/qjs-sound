@@ -1,3 +1,15 @@
+2026-11-21  Roman Senn  <roman.l.senn@gmail.com>
+
+	Reconfigure a stale vendored stk/LabSound build.
+
+	* cmake/deps/VendoredLibrary.cmake (vendored_reset_stale_external):
+	wipes an ExternalProject build whose cache lacks
+	CMAKE_POSITION_INDEPENDENT_CODE=ON or whose recipe changed, so a
+	non-PIC libstk.a or liblibnyquist.a no longer reaches the shared
+	modules ("recompile with -fPIC").
+	* cmake/deps/BuildStk.cmake, BuildLabSound.cmake: call it before
+	ExternalProject_Add.
+
 2026-11-20  Roman Senn  <roman.l.senn@gmail.com>
 
 	Bind the missing stk setters.

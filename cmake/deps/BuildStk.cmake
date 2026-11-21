@@ -9,6 +9,9 @@ include(ExternalProject)
 set(STK_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stk")
 set(STK_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/third_party/stk")
 
+vendored_reset_stale_external(stk "${STK_BINARY_DIR}"
+  "${CMAKE_C_COMPILER}|${CMAKE_CXX_COMPILER}|${CMAKE_C_FLAGS}|${CMAKE_CXX_FLAGS}|${MODULE_COMPILE_FLAGS}")
+
 ExternalProject_Add(
   stk
   SOURCE_DIR "${STK_SOURCE_DIR}"
