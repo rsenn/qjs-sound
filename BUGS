@@ -26,3 +26,34 @@
 - labsound-convolver-buffer-identity (quickjs-labsound.cpp:2403): ConvolverNode.buffer returns a new wrapper on every read, so after c.buffer = ab, c.buffer === ab is false where the spec returns the same object; confirmed with a 1-channel AudioBuffer.
 
     const c = new ConvolverNode(ctx); c.buffer = ab; c.buffer === ab; // false
+
+- sndobj-pvmask-ignores-mask-input (third_party/sndobj/src/PVMask.cpp:36): the
+  PVMask constructor taking a mask SndObj never stores it, passing the gain
+  modulator as second input instead, so process() fails with error 3 unless a
+  modulator is given; worked around in quickjs-sndobj.cpp by calling
+  SetMaskInput after construction, pinned by tests/bindings/sndobj-test.js
+
+      new PVMask(1, spec, maskSpec).process();  // error 3 without the workaround
+
+- aubio-tempo-not-exported (quickjs-aubio.c:660): doc/native/aubio.md documents
+  AubioTempo with a full section but the module exports only AubioNotes,
+  AubioOnset and AubioPitch, so importing AubioTempo fails at link time;
+  found writing examples/audio-report.js
+
+      import { AubioTempo } from 'aubio';  // SyntaxError: Could not find export 'AubioTempo'
+
+- stk-guitar-tick-nan (quickjs-stk.cpp:1907): a Guitar created with 6 strings
+  and played through noteOn(220, 0.8) and the scalar tick() returned NaN
+  samples in the Morph instrument (examples/morph-instrument.js), where the
+  frames form tick(frames) is not available on this class; cause not found
+  (the body file or the rawwaves path are the first suspects)
+
+      const g = new Guitar(6); g.noteOn(220, 0.8); g.tick();  // NaN
+
+- stk-bandedwg-nearly-silent (quickjs-stk.cpp:2246): a BandedWG voice played
+  with noteOn after setPreset(2) (glass harmonica) or setPreset(3) (Tibetan
+  bowl) peaks at about 0.09 after the instrument raised its level 40 times,
+  so it is nearly silent; STK's BandedWG needs startBowing or pluck after
+  noteOn and the binding may not send what the preset needs; not confirmed
+
+      const b = new BandedWG(); b.setPreset(2); b.noteOn(220, 0.8);  // almost silent

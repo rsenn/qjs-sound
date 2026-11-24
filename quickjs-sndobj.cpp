@@ -11,6 +11,7 @@
 #include "SndObj.h"
 #include "Table.h"
 #include "HarmTable.h"
+#include "HammingTable.h"
 
 /* generators */
 #include "Oscil.h"
@@ -30,6 +31,18 @@
 #include "VDelay.h"
 #include "Gain.h"
 #include "Mix.h"
+
+/* spectral(phase vocoder) */
+#include "FFT.h"
+#include "IFFT.h"
+#include "PVA.h"
+#include "PVS.h"
+#include "PVMorph.h"
+#include "PVMix.h"
+#include "PVBlur.h"
+#include "PVTransp.h"
+#include "PVFilter.h"
+#include "PVMask.h"
 
 static JSClassID js_sndobjtable_class_id, js_sndobjgenerator_class_id, js_sndobjeffect_class_id;
 static JSValue sndobjtable_proto, sndobjgenerator_proto, sndobjeffect_proto;
@@ -179,6 +192,7 @@ enum {
   TMETHOD_SET_HARM,
   TMETHOD_SET_PHASE,
   TMETHOD_MAKE_TABLE,
+  TMETHOD_SET_PARAM,
 };
 
 enum {
@@ -255,6 +269,22 @@ js_sndobjtable_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueCo
     case TMETHOD_MAKE_TABLE: {
       return JS_NewBool(ctx, table->MakeTable() != 0);
     }
+
+    case TMETHOD_SET_PARAM: {
+      int64_t len = 1024;
+      float alpha = .54f;
+
+      if(qjsx::args(ctx, argc, argv, len, alpha))
+        return JS_EXCEPTION;
+
+      HammingTable* p = qjsx::require<HammingTable>(ctx, table, "setParam needs a HammingTable");
+      if(!p)
+        return JS_EXCEPTION;
+
+      p->SetParam((long)len, alpha);
+
+      return JS_UNDEFINED;
+    }
   }
 
   return JS_UNDEFINED;
@@ -272,6 +302,7 @@ static const JSCFunctionListEntry js_sndobjtable_funcs[] = {
   JS_CFUNC_MAGIC_DEF("setHarm", 2, js_sndobjtable_method, TMETHOD_SET_HARM),
   JS_CFUNC_MAGIC_DEF("setPhase", 1, js_sndobjtable_method, TMETHOD_SET_PHASE),
   JS_CFUNC_MAGIC_DEF("makeTable", 0, js_sndobjtable_method, TMETHOD_MAKE_TABLE),
+  JS_CFUNC_MAGIC_DEF("setParam", 2, js_sndobjtable_method, TMETHOD_SET_PARAM),
   JS_PROP_INT32_DEF("SINE", SINE, JS_PROP_CONFIGURABLE),
   JS_PROP_INT32_DEF("SAW", SAW, JS_PROP_CONFIGURABLE),
   JS_PROP_INT32_DEF("SQUARE", SQUARE, JS_PROP_CONFIGURABLE),
@@ -280,10 +311,12 @@ static const JSCFunctionListEntry js_sndobjtable_funcs[] = {
 
 enum {
   INSTANCE_HARM_TABLE = 0,
+  INSTANCE_HAMMING_TABLE,
 };
 
 static const qjsx::ctor_def sndobjtable_ctors[] = {
   { "HarmTable", 4, INSTANCE_HARM_TABLE },
+  { "HammingTable", 2, INSTANCE_HAMMING_TABLE },
 };
 
 static JSValue
@@ -307,6 +340,17 @@ js_sndobjtable_constructor(JSContext* ctx, JSValueConst new_target, int argc, JS
 
       break;
     }
+
+    case INSTANCE_HAMMING_TABLE: {
+      int64_t len = 1024;
+      float alpha = .54f;
+
+      if(qjsx::args(ctx, argc, argv, len, alpha))
+        return JS_EXCEPTION;
+
+      t.reset(new HammingTable((long)len, alpha));
+      break;
+    }
   }
 
   JSValue obj = qjsx::wrap(ctx, new_target, js_sndobjtable_class_id, std::move(t));
@@ -326,6 +370,7 @@ enum {
   GMETHOD_SET_TABLE,
   GMETHOD_SET_PHASE,
   GMETHOD_SET_HARM,
+  GMETHOD_PUSH_IN,
 };
 
 static JSValue
@@ -429,6 +474,15 @@ js_sndobjgenerator_method(JSContext* ctx, JSValueConst this_val, int argc, JSVal
       return JS_UNDEFINED;
     }
 
+    case GMETHOD_PUSH_IN: {
+      std::vector<float> buf;
+
+      if(qjsx::copy_array<float>(ctx, argc > 0 ? argv[0] : JS_UNDEFINED, buf))
+        return JS_EXCEPTION;
+
+      return JS_NewInt32(ctx, obj->PushIn(buf.data(), (int)buf.size()));
+    }
+
     case GMETHOD_SET_HARM: {
       int32_t harm = 1;
 
@@ -467,18 +521,21 @@ static const JSCFunctionListEntry js_sndobjgenerator_funcs[] = {
   JS_CFUNC_MAGIC_DEF("setTable", 1, js_sndobjgenerator_method, GMETHOD_SET_TABLE),
   JS_CFUNC_MAGIC_DEF("setPhase", 1, js_sndobjgenerator_method, GMETHOD_SET_PHASE),
   JS_CFUNC_MAGIC_DEF("setHarm", 1, js_sndobjgenerator_method, GMETHOD_SET_HARM),
+  JS_CFUNC_MAGIC_DEF("pushIn", 1, js_sndobjgenerator_method, GMETHOD_PUSH_IN),
 };
 
 enum {
   INSTANCE_OSCILI = 0,
   INSTANCE_BUZZ,
   INSTANCE_RANDI,
+  INSTANCE_SNDOBJ,
 };
 
 static const qjsx::ctor_def sndobjgenerator_ctors[] = {
   { "Oscili", 7, INSTANCE_OSCILI },
   { "Buzz", 7, INSTANCE_BUZZ },
   { "Randi", 6, INSTANCE_RANDI },
+  { "SndObj", 3, INSTANCE_SNDOBJ },
 };
 
 static JSValue
@@ -552,6 +609,21 @@ js_sndobjgenerator_constructor(JSContext* ctx, JSValueConst new_target, int argc
       g.reset(new Randi(fr, amp, freqMod, ampMod, vecsize, sr));
       break;
     }
+
+    case INSTANCE_SNDOBJ: {
+      float sr = DEF_SR;
+      int32_t vecsize = DEF_VECSIZE;
+      SndObj* input = nullptr;
+
+      if(qjsx::present(argc, argv, 0) && !(input = js_sndobj_arg(ctx, argv[0])))
+        return JS_EXCEPTION;
+
+      if(qjsx::args_from(ctx, 1, argc, argv, vecsize, sr))
+        return JS_EXCEPTION;
+
+      g.reset(new SndObj(input, vecsize, sr));
+      break;
+    }
   }
 
   JSValue obj = qjsx::wrap(ctx, new_target, js_sndobjgenerator_class_id, std::move(g));
@@ -582,6 +654,10 @@ js_sndobjgenerator_constructor(JSContext* ctx, JSValueConst new_target, int argc
       if(qjsx::present(argc, argv, 3))
         js_sndobj_retain(ctx, obj, "__ampMod", argv[3]);
       break;
+    case INSTANCE_SNDOBJ:
+      if(qjsx::present(argc, argv, 0))
+        js_sndobj_retain(ctx, obj, "__input", argv[0]);
+      break;
   }
 
   return obj;
@@ -608,10 +684,24 @@ enum {
   EMETHOD_SET_DIRGAIN,
   EMETHOD_ADD_OBJ,
   EMETHOD_DELETE_OBJ,
+  EMETHOD_SET_FFT_SIZE,
+  EMETHOD_SET_HOP_SIZE,
+  EMETHOD_SET_WINDOW,
+  EMETHOD_SET_SCALE,
+  EMETHOD_SET_FREQ_MORPH,
+  EMETHOD_SET_AMP_MORPH,
+  EMETHOD_SET_BLUR_TIME,
+  EMETHOD_SET_PITCH,
+  EMETHOD_SET_MODE,
+  EMETHOD_SET_AMOUNT,
+  EMETHOD_SET_MASK_GAIN,
+  EMETHOD_SET_SPEC_INPUT,
 };
 
 enum {
   EPROP_OBJ_NO = PROP_LEAF_BASE,
+  EPROP_FFT_SIZE,
+  EPROP_HOP_SIZE,
 };
 
 static JSValue
@@ -624,6 +714,15 @@ js_sndobjeffect_get(JSContext* ctx, JSValueConst this_val, int magic) {
   if(magic == EPROP_OBJ_NO) {
     Mixer* m = dynamic_cast<Mixer*>(e->get());
     return JS_NewInt32(ctx, m ? m->GetObjNo() : 0);
+  }
+
+  if(magic == EPROP_FFT_SIZE || magic == EPROP_HOP_SIZE) {
+    int v = 0;
+
+    if(!qjsx::dispatch<PVA, PVS>(e->get(), [&](auto* p) { v = magic == EPROP_FFT_SIZE ? p->GetFFTSize() : p->GetHopSize(); }))
+      return JS_ThrowTypeError(ctx, "fftSize/hopSize need a PVA or PVS");
+
+    return JS_NewInt32(ctx, v);
   }
 
   return js_sndobj_common_get(ctx, e->get(), magic);
@@ -986,6 +1085,177 @@ js_sndobjeffect_method(JSContext* ctx, JSValueConst this_val, int argc, JSValueC
       js_sndobjmixer_inputs_remove(ctx, this_val, dep);
       return JS_UNDEFINED;
     }
+
+    case EMETHOD_SET_FFT_SIZE:
+    case EMETHOD_SET_HOP_SIZE: {
+      int32_t v = 0;
+
+      if(qjsx::args(ctx, argc, argv, v))
+        return JS_EXCEPTION;
+
+      if(v <= 0)
+        return JS_ThrowRangeError(ctx, "size must be positive");
+
+      if(!qjsx::dispatch<PVA, PVS>(obj, [&](auto* p) {
+           if(magic == EMETHOD_SET_FFT_SIZE)
+             p->SetFFTSize(v);
+           else
+             p->SetHopSize(v);
+         }))
+        return JS_ThrowTypeError(ctx, "setFFTSize/setHopSize need a PVA or PVS");
+
+      return JS_UNDEFINED;
+    }
+
+    case EMETHOD_SET_WINDOW: {
+      Table* table = js_sndobjtable_arg(ctx, argc > 0 ? argv[0] : JS_UNDEFINED);
+
+      if(!table)
+        return JS_EXCEPTION;
+
+      if(!qjsx::dispatch<PVA, PVS>(obj, [&](auto* p) { p->SetWindow(table); }))
+        return JS_ThrowTypeError(ctx, "setWindow needs a PVA or PVS");
+
+      js_sndobj_retain(ctx, this_val, "__table", argv[0]);
+      return JS_UNDEFINED;
+    }
+
+    case EMETHOD_SET_SCALE: {
+      float v = 1;
+
+      if(qjsx::args(ctx, argc, argv, v))
+        return JS_EXCEPTION;
+
+      PVA* p = qjsx::require<PVA>(ctx, obj, "setScale needs a PVA");
+      if(!p)
+        return JS_EXCEPTION;
+
+      p->SetScale(v);
+
+      return JS_UNDEFINED;
+    }
+
+    case EMETHOD_SET_FREQ_MORPH:
+    case EMETHOD_SET_AMP_MORPH: {
+      float v = 0;
+      SndObj* mod = nullptr;
+
+      if(qjsx::args(ctx, argc, argv, v))
+        return JS_EXCEPTION;
+
+      bool hasMod = qjsx::present(argc, argv, 1);
+
+      if(hasMod && !(mod = js_sndobj_arg(ctx, argv[1])))
+        return JS_EXCEPTION;
+
+      PVMorph* p = qjsx::require<PVMorph>(ctx, obj, "setFreqMorph/setAmpMorph need a PVMorph");
+      if(!p)
+        return JS_EXCEPTION;
+
+      if(magic == EMETHOD_SET_FREQ_MORPH)
+        p->SetFreqMorph(v, mod);
+      else
+        p->SetAmpMorph(v, mod);
+
+      js_sndobj_retain(ctx, this_val, magic == EMETHOD_SET_FREQ_MORPH ? "__freqMorphMod" : "__ampMorphMod", hasMod ? argv[1] : JS_UNDEFINED);
+      return JS_UNDEFINED;
+    }
+
+    case EMETHOD_SET_BLUR_TIME: {
+      float v = 0;
+
+      if(qjsx::args(ctx, argc, argv, v))
+        return JS_EXCEPTION;
+
+      PVBlur* p = qjsx::require<PVBlur>(ctx, obj, "setBlurTime needs a PVBlur");
+      if(!p)
+        return JS_EXCEPTION;
+
+      p->SetBlurTime(v);
+
+      return JS_UNDEFINED;
+    }
+
+    case EMETHOD_SET_PITCH: {
+      float v = 1;
+      SndObj* mod = nullptr;
+
+      if(qjsx::args(ctx, argc, argv, v))
+        return JS_EXCEPTION;
+
+      bool hasMod = qjsx::present(argc, argv, 1);
+
+      if(hasMod && !(mod = js_sndobj_arg(ctx, argv[1])))
+        return JS_EXCEPTION;
+
+      PVTransp* p = qjsx::require<PVTransp>(ctx, obj, "setPitch needs a PVTransp");
+      if(!p)
+        return JS_EXCEPTION;
+
+      p->SetPitch(v, mod);
+
+      js_sndobj_retain(ctx, this_val, "__pitchMod", hasMod ? argv[1] : JS_UNDEFINED);
+      return JS_UNDEFINED;
+    }
+
+    case EMETHOD_SET_MODE: {
+      int32_t v = 0;
+
+      if(qjsx::args(ctx, argc, argv, v))
+        return JS_EXCEPTION;
+
+      PVTransp* p = qjsx::require<PVTransp>(ctx, obj, "setMode needs a PVTransp");
+      if(!p)
+        return JS_EXCEPTION;
+
+      p->SetMode(v);
+
+      return JS_UNDEFINED;
+    }
+
+    case EMETHOD_SET_AMOUNT:
+    case EMETHOD_SET_MASK_GAIN: {
+      float v = 0;
+      SndObj* mod = nullptr;
+
+      if(qjsx::args(ctx, argc, argv, v))
+        return JS_EXCEPTION;
+
+      bool hasMod = qjsx::present(argc, argv, 1);
+
+      if(hasMod && !(mod = js_sndobj_arg(ctx, argv[1])))
+        return JS_EXCEPTION;
+
+      if(magic == EMETHOD_SET_AMOUNT) {
+        PVFilter* p = qjsx::require<PVFilter>(ctx, obj, "setAmount needs a PVFilter");
+        if(!p)
+          return JS_EXCEPTION;
+
+        p->SetAmount(v, mod);
+      } else {
+        PVMask* p = qjsx::require<PVMask>(ctx, obj, "setMaskGain needs a PVMask");
+        if(!p)
+          return JS_EXCEPTION;
+
+        p->SetMaskGain(v, mod);
+      }
+
+      js_sndobj_retain(ctx, this_val, "__amountMod", hasMod ? argv[1] : JS_UNDEFINED);
+      return JS_UNDEFINED;
+    }
+
+    case EMETHOD_SET_SPEC_INPUT: {
+      SndObj* dep = js_sndobj_arg(ctx, argc > 0 ? argv[0] : JS_UNDEFINED);
+
+      if(!dep)
+        return JS_EXCEPTION;
+
+      if(!qjsx::dispatch<PVFilter, PVMask>(obj, [&](auto* p) { p->SetInput2(dep); }))
+        return JS_ThrowTypeError(ctx, "setFilterInput/setMaskInput need a PVFilter or PVMask");
+
+      js_sndobj_retain(ctx, this_val, "__input2", argv[0]);
+      return JS_UNDEFINED;
+    }
   }
 
   return JS_UNDEFINED;
@@ -1024,6 +1294,21 @@ static const JSCFunctionListEntry js_sndobjeffect_funcs[] = {
   JS_CFUNC_MAGIC_DEF("addObj", 1, js_sndobjeffect_method, EMETHOD_ADD_OBJ),
   JS_CFUNC_MAGIC_DEF("deleteObj", 1, js_sndobjeffect_method, EMETHOD_DELETE_OBJ),
   JS_CGETSET_MAGIC_DEF("objNo", js_sndobjeffect_get, 0, EPROP_OBJ_NO),
+  JS_CGETSET_MAGIC_DEF("fftSize", js_sndobjeffect_get, 0, EPROP_FFT_SIZE),
+  JS_CGETSET_MAGIC_DEF("hopSize", js_sndobjeffect_get, 0, EPROP_HOP_SIZE),
+  JS_CFUNC_MAGIC_DEF("setFFTSize", 1, js_sndobjeffect_method, EMETHOD_SET_FFT_SIZE),
+  JS_CFUNC_MAGIC_DEF("setHopSize", 1, js_sndobjeffect_method, EMETHOD_SET_HOP_SIZE),
+  JS_CFUNC_MAGIC_DEF("setWindow", 1, js_sndobjeffect_method, EMETHOD_SET_WINDOW),
+  JS_CFUNC_MAGIC_DEF("setScale", 1, js_sndobjeffect_method, EMETHOD_SET_SCALE),
+  JS_CFUNC_MAGIC_DEF("setFreqMorph", 1, js_sndobjeffect_method, EMETHOD_SET_FREQ_MORPH),
+  JS_CFUNC_MAGIC_DEF("setAmpMorph", 1, js_sndobjeffect_method, EMETHOD_SET_AMP_MORPH),
+  JS_CFUNC_MAGIC_DEF("setBlurTime", 1, js_sndobjeffect_method, EMETHOD_SET_BLUR_TIME),
+  JS_CFUNC_MAGIC_DEF("setPitch", 1, js_sndobjeffect_method, EMETHOD_SET_PITCH),
+  JS_CFUNC_MAGIC_DEF("setMode", 1, js_sndobjeffect_method, EMETHOD_SET_MODE),
+  JS_CFUNC_MAGIC_DEF("setAmount", 1, js_sndobjeffect_method, EMETHOD_SET_AMOUNT),
+  JS_CFUNC_MAGIC_DEF("setMaskGain", 1, js_sndobjeffect_method, EMETHOD_SET_MASK_GAIN),
+  JS_CFUNC_MAGIC_DEF("setFilterInput", 1, js_sndobjeffect_method, EMETHOD_SET_SPEC_INPUT),
+  JS_CFUNC_MAGIC_DEF("setMaskInput", 1, js_sndobjeffect_method, EMETHOD_SET_SPEC_INPUT),
 };
 
 enum {
@@ -1034,6 +1319,14 @@ enum {
   INSTANCE_VDELAY,
   INSTANCE_GAIN,
   INSTANCE_MIXER,
+  INSTANCE_PVA,
+  INSTANCE_PVS,
+  INSTANCE_PVMORPH,
+  INSTANCE_PVMIX,
+  INSTANCE_PVBLUR,
+  INSTANCE_PVTRANSP,
+  INSTANCE_PVFILTER,
+  INSTANCE_PVMASK,
 };
 
 static const qjsx::ctor_def sndobjeffect_ctors[] = {
@@ -1044,6 +1337,14 @@ static const qjsx::ctor_def sndobjeffect_ctors[] = {
   { "VDelay", 12, INSTANCE_VDELAY },
   { "Gain", 4, INSTANCE_GAIN },
   { "Mixer", 2, INSTANCE_MIXER },
+  { "PVA", 6, INSTANCE_PVA },
+  { "PVS", 5, INSTANCE_PVS },
+  { "PVMorph", 8, INSTANCE_PVMORPH },
+  { "PVMix", 4, INSTANCE_PVMIX },
+  { "PVBlur", 5, INSTANCE_PVBLUR },
+  { "PVTransp", 7, INSTANCE_PVTRANSP },
+  { "PVFilter", 6, INSTANCE_PVFILTER },
+  { "PVMask", 6, INSTANCE_PVMASK },
 };
 
 static JSValue
@@ -1182,6 +1483,192 @@ js_sndobjeffect_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
       e.reset(new Mixer(0, nullptr, vecsize, sr));
       break;
     }
+
+    case INSTANCE_PVA: {
+      Table* window = nullptr;
+      SndObj* input = nullptr;
+      float scale = 1, sr = DEF_SR;
+      int32_t fftsize = DEF_FFTSIZE, hopsize = DEF_VECSIZE;
+
+      if(!(window = js_sndobjtable_arg(ctx, argc > 0 ? argv[0] : JS_UNDEFINED)))
+        return JS_EXCEPTION;
+
+      if(argc < 2)
+        return JS_ThrowTypeError(ctx, "PVA requires an input SndObj");
+
+      if(!(input = js_sndobj_arg(ctx, argv[1])))
+        return JS_EXCEPTION;
+
+      if(qjsx::args_from(ctx, 2, argc, argv, scale, fftsize, hopsize, sr))
+        return JS_EXCEPTION;
+
+      e.reset(new PVA(window, input, scale, fftsize, hopsize, sr));
+      break;
+    }
+
+    case INSTANCE_PVS: {
+      Table* window = nullptr;
+      SndObj* input = nullptr;
+      float sr = DEF_SR;
+      int32_t fftsize = DEF_FFTSIZE, hopsize = DEF_VECSIZE;
+
+      if(!(window = js_sndobjtable_arg(ctx, argc > 0 ? argv[0] : JS_UNDEFINED)))
+        return JS_EXCEPTION;
+
+      if(argc < 2)
+        return JS_ThrowTypeError(ctx, "PVS requires an input SndObj");
+
+      if(!(input = js_sndobj_arg(ctx, argv[1])))
+        return JS_EXCEPTION;
+
+      if(qjsx::args_from(ctx, 2, argc, argv, fftsize, hopsize, sr))
+        return JS_EXCEPTION;
+
+      e.reset(new PVS(window, input, fftsize, hopsize, sr));
+      break;
+    }
+
+    case INSTANCE_PVMORPH: {
+      float freqMorph = 0, ampMorph = 0, sr = DEF_SR;
+      int32_t vecsize = DEF_FFTSIZE;
+      SndObj *in1 = nullptr, *in2 = nullptr, *freqMod = nullptr, *ampMod = nullptr;
+
+      if(qjsx::args(ctx, argc, argv, freqMorph, ampMorph))
+        return JS_EXCEPTION;
+
+      if(argc < 4)
+        return JS_ThrowTypeError(ctx, "PVMorph requires two input SndObj");
+
+      if(!(in1 = js_sndobj_arg(ctx, argv[2])) || !(in2 = js_sndobj_arg(ctx, argv[3])))
+        return JS_EXCEPTION;
+
+      if(qjsx::present(argc, argv, 4) && !(freqMod = js_sndobj_arg(ctx, argv[4])))
+        return JS_EXCEPTION;
+
+      if(qjsx::present(argc, argv, 5) && !(ampMod = js_sndobj_arg(ctx, argv[5])))
+        return JS_EXCEPTION;
+
+      if(qjsx::args_from(ctx, 6, argc, argv, vecsize, sr))
+        return JS_EXCEPTION;
+
+      e.reset(new PVMorph(freqMorph, ampMorph, in1, in2, freqMod, ampMod, vecsize, sr));
+      break;
+    }
+
+    case INSTANCE_PVMIX: {
+      float sr = DEF_SR;
+      int32_t vecsize = DEF_FFTSIZE;
+      SndObj *in1 = nullptr, *in2 = nullptr;
+
+      if(argc < 1)
+        return JS_ThrowTypeError(ctx, "PVMix requires an input SndObj");
+
+      if(!(in1 = js_sndobj_arg(ctx, argv[0])))
+        return JS_EXCEPTION;
+
+      if(qjsx::present(argc, argv, 1) && !(in2 = js_sndobj_arg(ctx, argv[1])))
+        return JS_EXCEPTION;
+
+      if(qjsx::args_from(ctx, 2, argc, argv, vecsize, sr))
+        return JS_EXCEPTION;
+
+      e.reset(new PVMix(in1, in2, vecsize, sr));
+      break;
+    }
+
+    case INSTANCE_PVBLUR: {
+      float blurtime = 0, sr = DEF_SR;
+      int32_t hopsize = DEF_VECSIZE, vecsize = DEF_FFTSIZE;
+      SndObj* input = nullptr;
+
+      if(argc < 1)
+        return JS_ThrowTypeError(ctx, "PVBlur requires an input SndObj");
+
+      if(!(input = js_sndobj_arg(ctx, argv[0])))
+        return JS_EXCEPTION;
+
+      if(qjsx::args_from(ctx, 1, argc, argv, blurtime, hopsize, vecsize, sr))
+        return JS_EXCEPTION;
+
+      e.reset(new PVBlur(input, blurtime, hopsize, vecsize, sr));
+      break;
+    }
+
+    case INSTANCE_PVTRANSP: {
+      float pitch = 1, sr = DEF_SR;
+      int32_t mode = NORMAL_TRANSP, vecsize = DEF_FFTSIZE;
+      SndObj *input = nullptr, *pitchMod = nullptr;
+
+      if(argc < 1)
+        return JS_ThrowTypeError(ctx, "PVTransp requires an input SndObj");
+
+      if(!(input = js_sndobj_arg(ctx, argv[0])))
+        return JS_EXCEPTION;
+
+      if(qjsx::args_from(ctx, 1, argc, argv, pitch, mode))
+        return JS_EXCEPTION;
+
+      if(qjsx::present(argc, argv, 3) && !(pitchMod = js_sndobj_arg(ctx, argv[3])))
+        return JS_EXCEPTION;
+
+      if(qjsx::args_from(ctx, 4, argc, argv, vecsize, sr))
+        return JS_EXCEPTION;
+
+      e.reset(new PVTransp(input, pitch, mode, pitchMod, vecsize, sr));
+      break;
+    }
+
+    case INSTANCE_PVFILTER: {
+      float amnt = 1, sr = DEF_SR;
+      int32_t vecsize = DEF_FFTSIZE;
+      SndObj *input = nullptr, *filspec = nullptr, *amntMod = nullptr;
+
+      if(argc < 2)
+        return JS_ThrowTypeError(ctx, "PVFilter requires an input and a filter spectrum SndObj");
+
+      if(!(input = js_sndobj_arg(ctx, argv[0])) || !(filspec = js_sndobj_arg(ctx, argv[1])))
+        return JS_EXCEPTION;
+
+      if(qjsx::args_from(ctx, 2, argc, argv, amnt))
+        return JS_EXCEPTION;
+
+      if(qjsx::present(argc, argv, 3) && !(amntMod = js_sndobj_arg(ctx, argv[3])))
+        return JS_EXCEPTION;
+
+      if(qjsx::args_from(ctx, 4, argc, argv, vecsize, sr))
+        return JS_EXCEPTION;
+
+      e.reset(new PVFilter(input, filspec, amnt, amntMod, vecsize, sr));
+      break;
+    }
+
+    case INSTANCE_PVMASK: {
+      float maskgain = 1, sr = DEF_SR;
+      int32_t vecsize = DEF_FFTSIZE;
+      SndObj *input = nullptr, *mask = nullptr, *gainMod = nullptr;
+
+      if(qjsx::args(ctx, argc, argv, maskgain))
+        return JS_EXCEPTION;
+
+      if(argc < 3)
+        return JS_ThrowTypeError(ctx, "PVMask requires an input and a mask spectrum SndObj");
+
+      if(!(input = js_sndobj_arg(ctx, argv[1])) || !(mask = js_sndobj_arg(ctx, argv[2])))
+        return JS_EXCEPTION;
+
+      if(qjsx::present(argc, argv, 3) && !(gainMod = js_sndobj_arg(ctx, argv[3])))
+        return JS_EXCEPTION;
+
+      if(qjsx::args_from(ctx, 4, argc, argv, vecsize, sr))
+        return JS_EXCEPTION;
+
+      /* the SndObj constructor of PVMask drops `mask`(it passes the gain
+       * modulator as second input), so connect the mask input explicitly */
+      PVMask* pm = new PVMask(maskgain, input, mask, gainMod, vecsize, sr);
+      pm->SetMaskInput(mask);
+      e.reset(pm);
+      break;
+    }
   }
 
   JSValue obj = qjsx::wrap(ctx, new_target, js_sndobjeffect_class_id, std::move(e));
@@ -1220,6 +1707,44 @@ js_sndobjeffect_constructor(JSContext* ctx, JSValueConst new_target, int argc, J
       break;
     case INSTANCE_GAIN:
       js_sndobj_retain(ctx, obj, "__input", argv[1]);
+      break;
+    case INSTANCE_PVA:
+    case INSTANCE_PVS:
+      js_sndobj_retain(ctx, obj, "__table", argv[0]);
+      js_sndobj_retain(ctx, obj, "__input", argv[1]);
+      break;
+    case INSTANCE_PVMORPH:
+      js_sndobj_retain(ctx, obj, "__input", argv[2]);
+      js_sndobj_retain(ctx, obj, "__input2", argv[3]);
+      if(qjsx::present(argc, argv, 4))
+        js_sndobj_retain(ctx, obj, "__freqMorphMod", argv[4]);
+      if(qjsx::present(argc, argv, 5))
+        js_sndobj_retain(ctx, obj, "__ampMorphMod", argv[5]);
+      break;
+    case INSTANCE_PVMIX:
+      js_sndobj_retain(ctx, obj, "__input", argv[0]);
+      if(qjsx::present(argc, argv, 1))
+        js_sndobj_retain(ctx, obj, "__input2", argv[1]);
+      break;
+    case INSTANCE_PVBLUR:
+      js_sndobj_retain(ctx, obj, "__input", argv[0]);
+      break;
+    case INSTANCE_PVTRANSP:
+      js_sndobj_retain(ctx, obj, "__input", argv[0]);
+      if(qjsx::present(argc, argv, 3))
+        js_sndobj_retain(ctx, obj, "__pitchMod", argv[3]);
+      break;
+    case INSTANCE_PVFILTER:
+      js_sndobj_retain(ctx, obj, "__input", argv[0]);
+      js_sndobj_retain(ctx, obj, "__input2", argv[1]);
+      if(qjsx::present(argc, argv, 3))
+        js_sndobj_retain(ctx, obj, "__amountMod", argv[3]);
+      break;
+    case INSTANCE_PVMASK:
+      js_sndobj_retain(ctx, obj, "__input", argv[1]);
+      js_sndobj_retain(ctx, obj, "__input2", argv[2]);
+      if(qjsx::present(argc, argv, 3))
+        js_sndobj_retain(ctx, obj, "__amountMod", argv[3]);
       break;
   }
 

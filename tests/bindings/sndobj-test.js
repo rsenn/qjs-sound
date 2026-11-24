@@ -242,4 +242,64 @@ tests({
     assertStrictEquals(Object.prototype.toString.call(block), '[object Float32Array]');
     eq(block.length, 256);
   },
+
+  'HammingTable len, setParam and toStringTag'() {
+    const w = new so.HammingTable(1024, 0.5);
+    eq(Object.prototype.toString.call(w), '[object HammingTable]');
+    eq(w.len, 1024);
+    w.setParam(512, 0.54);
+    eq(w.len, 512);
+  },
+
+  'SndObj pushIn fills the output block'() {
+    const s = new so.SndObj(null, 8, 44100);
+    eq(s.pushIn(new Float32Array(8).fill(0.25)), 8);
+    eq(s.output(3), 0.25);
+  },
+
+  'PVA -> PVMorph -> PVS chain produces audio'() {
+    const win = new so.HammingTable(1024, 0.5);
+    const a = new so.Oscili(new so.HarmTable(4096, 1, so.HarmTable.SINE), 440, 0.5);
+    const b = new so.Oscili(new so.HarmTable(4096, 12, so.HarmTable.SAW), 440, 0.5);
+    const pa = new so.PVA(win, a, 1, 1024, 256), pb = new so.PVA(win, b, 1, 1024, 256);
+    const m = new so.PVMorph(0.5, 0.5, pa, pb);
+    const s = new so.PVS(win, m, 1024, 256);
+    eq(pa.fftSize, 1024);
+    eq(pa.hopSize, 256);
+    let e = 0;
+    for(let i = 0; i < 20; i++) {
+      for(const x of [a, b, pa, pb, m, s]) x.process();
+      for(const v of s.block()) e += v * v;
+    }
+    assert(e > 1, 'no energy through the spectral chain: ' + e);
+    eq(s.error, 0);
+    m.setFreqMorph(1);
+    m.setAmpMorph(0);
+  },
+
+  'PVTransp, PVBlur, PVMix, PVFilter, PVMask construct and process'() {
+    const win = new so.HammingTable(1024, 0.5);
+    const a = new so.Oscili(new so.HarmTable(4096, 1, so.HarmTable.SINE), 440, 0.5);
+    const pa = new so.PVA(win, a, 1, 1024, 256), pb = new so.PVA(win, a, 1, 1024, 256);
+    const tr = new so.PVTransp(pa, 2), bl = new so.PVBlur(pb, 0.05), mx = new so.PVMix(tr, bl);
+    const fl = new so.PVFilter(mx, pb), mk = new so.PVMask(1, fl, pb);
+    tr.setPitch(1.5);
+    tr.setMode(1);
+    bl.setBlurTime(0.02);
+    fl.setAmount(0.5);
+    mk.setMaskGain(0.5);
+    for(const x of [a, pa, pb, tr, bl, mx, fl, mk]) x.process();
+    eq(mk.block().length, 1024);
+  },
+
+  'spectral setters on the wrong class throw TypeError'() {
+    const win = new so.HammingTable(1024, 0.5);
+    const g = new so.Gain(1, new so.SndObj(null, 256, 44100));
+    let threw = '';
+    try { g.setFreqMorph(0.5); } catch(e) { threw = e.name; }
+    eq(threw, 'TypeError');
+    try { g.setFFTSize(512); } catch(e) { threw = e.name; }
+    eq(threw, 'TypeError');
+    eq(!!win, true);
+  },
 });

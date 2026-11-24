@@ -186,6 +186,48 @@ new Mixer(vecsize, sr) // always starts empty; populate with addObj()
 - **`.addObj(obj)`**, **`.deleteObj(obj)`**, **`.objNo`** (get) - number of
   currently mixed inputs.
 
+## Spectral processing (phase vocoder)
+
+The phase-vocoder classes need the in-tree `rfftw` (FFTW 2.1.3,
+`third_party/sndobj/src/rfftw`), compiled into the module with hidden
+symbols. A spectral frame is `fftsize` floats (`block()` of a `PVA` has that
+length); `PVS` turns it back into `hopsize` samples.
+
+```js
+const win = new HammingTable(1024, 0.5);          // 0.5 = Hann, 0.54 = Hamming
+const src = new SndObj(null, 256, 44100);         // a plain input, fed by pushIn
+const a = new PVA(win, src, 1, 1024, 256, 44100); // window, input, scale, fftsize, hopsize, sr
+const b = new PVA(win, other, 1, 1024, 256, 44100);
+const m = new PVMorph(0.5, 0.5, a, b);            // freq morph, amp morph, in1, in2
+const out = new PVS(win, m, 1024, 256, 44100);    // window, input, fftsize, hopsize, sr
+
+src.pushIn(samples);                              // Float32Array or Array, one hop
+for(const x of [a, b, m, out]) x.process();       // in signal order
+const block = out.block();
+```
+
+Argument order follows the C++ headers: `PVA(window, input, scale, fftsize,
+hopsize, sr)`, not `(.., vecsize, fftsize)`.
+
+| Class | Constructor | Methods |
+|---|---|---|
+| `HammingTable` | `(len = 1024, alpha = 0.54)` | `setParam(len, alpha)`, `len`, `lookup`, `toArray` |
+| `SndObj` | `(input = null, vecsize = 256, sr = 44100)` | `pushIn(floats)` returns the write position; copies `input` when set |
+| `PVA` | `(window, input, scale = 1, fftsize = 1024, hopsize = 256, sr)` | `fftSize`, `hopSize` (get), `setFFTSize`, `setHopSize`, `setWindow`, `setScale` |
+| `PVS` | `(window, input, fftsize = 1024, hopsize = 256, sr)` | `fftSize`, `hopSize`, `setFFTSize`, `setHopSize`, `setWindow` |
+| `PVMorph` | `(freqMorph, ampMorph, in1, in2, freqMod?, ampMod?, vecsize = 1024, sr)` | `setFreqMorph(v, mod?)`, `setAmpMorph(v, mod?)`; 0 is `in1`, 1 is `in2` |
+| `PVMix` | `(in1, in2?, vecsize = 1024, sr)` | |
+| `PVBlur` | `(input, blurTime, hopsize = 256, vecsize = 1024, sr)` | `setBlurTime(s)` |
+| `PVTransp` | `(input, pitch = 1, mode = 0, pitchMod?, vecsize = 1024, sr)` | `setPitch(ratio, mod?)`, `setMode(0 normal, 1 keep formants)` |
+| `PVFilter` | `(input, filterSpec, amount = 1, amountMod?, vecsize, sr)` | `setAmount(v, mod?)`, `setFilterInput(obj)` |
+| `PVMask` | `(gain, input, maskSpec, gainMod?, vecsize, sr)` | `setMaskGain(v, mod?)`, `setMaskInput(obj)` |
+
+Setters on the wrong class throw `TypeError`. A window table, input or modulator
+given to a constructor or setter is kept alive by the object that uses it.
+`SndObj` is the base class: with no `input`, `process()` returns `false` and the
+output holds what `pushIn` wrote. `examples/morph-instrument.js` uses it to feed
+two STK instruments into `PVA`.
+
 ## Not bound (possible future work)
 
 - **`Pan`** - constant-power stereo pan. Its constructor manufactures two
@@ -195,5 +237,6 @@ new Mixer(vecsize, sr) // always starts empty; populate with addObj()
   chains for stereo placement in the meantime.
 - File/realtime-device/MIDI I/O (`SndWave`, `SndRTIO`, `SndMidi*`, ...) -
   use the `sndfile` module for file I/O instead.
-- The FFT/phase-vocoder family (`PVA`, `SinAnal`, `Convol`, ...) - needs a
-  vendored `rfftw` header this tree doesn't ship on its own include path.
+- The rest of the FFT family (`SinAnal`, `SinSyn`, `Convol`, `IFGram`, `PVRead`, `PVTable`, ...).
+- `PVFilter`/`PVMask` with a `Table` instead of a spectrum `SndObj`.
+- `SndRTIO`, `SndMidiIn`: see "Not bound" above; the OSS-only MIDI backend has nothing to read on this kernel.

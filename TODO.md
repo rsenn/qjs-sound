@@ -928,3 +928,79 @@ items below are what the sweep left open.
     TcpServer, UdpSocket, Vector (JS has them).
   - tests: stk-test.js only checks construction and toStringTag for most instruments and effects; none
     calls noteOn/noteOff or checks the sound.
+
+## Morph instrument and music model
+
+Docs: doc/morph-instrument.md (the instrument), doc/music-model.md (the
+architecture and plans). Files: examples/morph-instrument.js,
+examples/audio-report.js, examples/snn-player.js. [~] marks work in progress.
+
+Architecture agreed with the user: no model makes sound. An LLM conductor
+sets parameters, GRU and SNN players output MIDI only, the instruments
+(STK, SndObj, glassloom) make all sound, and analysis (aubio, FFT) feeds the
+LLM as text (doc/music-model.md, section 10). Rules the user stated: SNN
+spikes are quantized to a rhythm grid and restricted to note keys; paired
+audio (a person who plays ragtime versions of known songs) would be
+transcribed for style transfer, after asking her; the user's GPU is an RTX
+2070 SUPER (8 GB).
+
+Instrument:
+
+1. [~] Restart the instrument with the current code: program change (channel 1 = voice A,
+       channel 2 = voice B), wheel default space, MAKEUP gain, smoothed wheel. A restart makes
+       glassloom create a new Morph object and the drawn lanes are lost: do it when the user says.
+       (Running now: the build before program change.)
+2. [ ] The top of the space wheel is about 13 dB louder (rms 0.2 to 0.29, peak 1.0): a gain
+       that falls as the wheel rises (about -6 dB at the top).
+3. [ ] Drift: a slow free-running wobble on the wheel and the morph with its own period and a
+       depth CC (glassloom lane lengths are powers of 2, so lanes never drift apart).
+4. [ ] Frozen smear (hold the last spectrum while a CC is up), for drones.
+5. [ ] A single startup underrun (RtWvOut) remains in every run.
+6. [ ] Bowed-side pitch below the fold (MIDI 55) is unconfirmed; B is louder than A with some
+       pairs (CC 79 and 80 trim).
+7. [ ] No regression test: examples are not in ctest; the two live bugs (silent struck voices,
+       wheel clicks) are covered only by --replay of a log.
+
+glassloom (the other session built the Morph device, in /dev, not yet verified in a browser
+by that session; the user ran it with lanes on CC 1, 3, 14 and 16):
+
+8. [ ] A program selector for voice A and B on the Morph object.
+9. [ ] Keep the object and its lanes when the port disappears and returns (today a restart of
+       the instrument creates a new Morph object and the lanes are gone).
+10. [ ] "Copy as text" and "paste from text" for tracks and lanes (format idea in
+        doc/music-model.md, section 8; the glassloom `.mid` import and export exist).
+11. [ ] Sustain, pitch bend and channel pressure are not rings or lanes.
+
+Tools:
+
+12. [ ] Text to .mid and .mid to text command line converter (Ardour imports .mid; pasting
+        patterns into a chat as text). DAWs do not take MIDI from the clipboard.
+13. [ ] audio-report.js: add a brightness (spectral centroid) column, key, form; AubioTempo is
+        documented in doc/native/aubio.md as planned but quickjs-aubio.c does not export it,
+        so the tempo is a guess from onset gaps.
+14. [ ] Conductor tool loop (play a MIDI pattern, record, report) that Claude can use now and a
+        local model later: the first step of the architecture.
+
+Music model (doc/music-model.md, order of work in section 8):
+
+15. [~] SNN player (examples/snn-player.js, section 11): built, dry runs only. Tune so weak
+        steps fire (off-beat hats, odd 16ths), run live on the vibes/marimba instrument, then a
+        melodic version with the Tonnetz chord set, notes in from MIDI, parameters as CCs.
+16. [ ] Tonnetz skeleton script (no model): a harmonic path (P, L, R moves) with chords and a
+        pentatonic melody on the Morph port, adventurousness as a CC. Uses tonnetz/lib.
+17. [ ] Choose the conductor model (doc section 12): ollama has devstral-small-2:24b,
+        gpt-oss:20b, gemma4:e4b, qwen3.5:9b, qwen3:4b-instruct, qwen3-coder:30b; test the
+        three that fit 8 GB on ten phrases and ten control tasks, then gpt-oss:20b with offload.
+18. [ ] Permission and data: ask the ragtime player for audio files; transcribe a first batch
+        of 5 songs with a piano transcription model (not Gemini for the notes); check them with
+        aubio; skeletons of the originals; align by bars.
+19. [ ] GRU (sections 2 to 7): venv with PyTorch (CUDA build for driver 595.99), pretty_midi,
+        mido; tokenizer; pretrain on a small clean set (Nottingham, JSB), then a large piano
+        set, then fine-tune on ragtime and own data; JSON weights; JavaScript inference.
+    [ ] Language-model branch (section 9): QLoRA of qwen3:4b on text-encoded music, after the
+        converter and the paired data exist.
+    [ ] Style transfer blues to ragtime (section 6): rules first (straight timing, stride left
+        hand from the chords), then the style token, then fill-in.
+20. [ ] SndMidiIn ALSA backend and SndRTIO binding (offered, not requested).
+21. [ ] js-engines: SpiderMonkey shim is not to be started until the user says; the 53 quickjs
+        API imports of stk and sndobj are listed in the session scratchpad.

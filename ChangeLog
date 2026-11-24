@@ -1,3 +1,103 @@
+2026-11-24  Roman Senn  <roman.l.senn@gmail.com>
+
+	A spiking-network MIDI player, the Morph instrument documented, the
+	music-model plans recorded.
+
+	* examples/snn-player.js (new): a spiking network (leaky
+	integrate-and-fire, 1 ms steps) that plays MIDI; spikes are quantized
+	to the 16th grid and notes come only from a drum set or a chosen scale
+	(--mode drums|melody, --scale, --root, --tempo, --density, --noise,
+	--seed, --dry BARS for statistics without MIDI, --port). First dry
+	runs: scale and grid hold, but weak steps never fire (off-beat hats,
+	odd 16ths), see doc/music-model.md section 11; not yet run live.
+	* doc/morph-instrument.md (new): the instrument, its options, the
+	sixteen voices and program change, every controller, the space macro,
+	the facts learned (level, low notes, load, debugging with --replay),
+	and the glassloom Morph device.
+	* doc/music-model.md: status, the SNN prototype and its first results
+	(section 11), the local ollama models and how to choose the conductor
+	(section 12).
+	* examples/morph-instrument.js: header text brought in line (CC 3 is
+	the morph, CC 1 the space macro, voices by program change).
+	* TODO.md: the Morph instrument and music model section rewritten as
+	one ordered list (instrument, glassloom, tools, music model).
+	* BUGS: aubio-tempo-not-exported, stk-guitar-tick-nan,
+	stk-bandedwg-nearly-silent (found while building the instrument and the
+	report; left unfixed).
+
+2026-11-23  Roman Senn  <roman.l.senn@gmail.com>
+
+	Bind the SndObj phase vocoder; a morphing instrument built on it.
+
+	* CMakeLists.txt (SOUND_SNDOBJ): compiles the in-tree rfftw
+	(third_party/sndobj/src/rfftw/*.c, hidden symbols) and the FFT, IFFT,
+	PV*, SpecMult, SpecInterp and HammingTable sources into the module;
+	adds third_party/sndobj/include and include/rfftw to its include path.
+	* quickjs-sndobj.cpp: HammingTable (+ setParam); SndObj base class
+	with pushIn, to feed samples from another module; PVA, PVS, PVMorph,
+	PVMix, PVBlur, PVTransp, PVFilter, PVMask, with setFFTSize,
+	setHopSize, setWindow, setScale, setFreqMorph, setAmpMorph,
+	setBlurTime, setPitch, setMode, setAmount, setMaskGain,
+	setFilterInput/setMaskInput and the fftSize/hopSize getters. Windows,
+	inputs and modulators are retained by the owner. The PVMask SndObj
+	constructor drops its mask argument, so the binding calls
+	SetMaskInput after it (see BUGS).
+	* tests/bindings/sndobj-test.js: tests for each, 34 in all.
+	* doc/native/sndobj.md: the spectral classes and the argument order
+	(window, input, scale, fftsize, hopsize), which differs from the
+	order sometimes quoted for PVA/PVS. HannTable and BlackmanTable do not
+	exist in SndObj: HammingTable(len, 0.5) is a Hann window.
+	* examples/morph-instrument.js (new): two voices (STK Bowed, Clarinet,
+	Flute, BlowBotl, Brass, Saxofony, or glassloom's Winds flute and
+	bottle) through PVA, PVMorph, PVTransp, PVBlur, PVS and a VDelay
+	echo. MIDI comes in on a virtual ALSA port "Morph" (STK RtMidiIn), so
+	glassloom's WebMIDI can play it; 24 controllers, the mod wheel being
+	the A/B morph. `--test` checks the chain offline.
+	* BUGS: sndobj-pvmask-ignores-mask-input.
+	* examples/morph-instrument.js, found by recording a live session
+	(--debug or --record BASE writes BASE.wav and the two dry voices as wav
+	files, --test --record the offline renders): the output level grew with
+	the FFT size (PVA scale now 826 / FFT, unity gain) and clipped, so there
+	is a soft limiter; the models are wrong or silent below about MIDI 55,
+	so lower notes are played octaves up and shifted back by PVTransp
+	(--low); a tap of 80 ms never let a model speak, so a note lasts at least
+	300 ms (--hold); voices are level matched by calibrating each on a note,
+	by loudness and by peak. More voices: ModalBar marimba, vibes, agogo,
+	Plucked, Mandolin, StifKarp, and glassloom's Strings as glass:guitar and
+	glass:harp (ringing after the key is up). The pairs it was made for:
+	--a glass:guitar --b glass:harp, --a vibes --b marimba,
+	--a vibes --b glass:bottle. Not usable: STK Guitar (NaN) and BandedWG
+	(nearly silent through noteOn).
+	* examples/morph-instrument.js: a note played over a held one only
+	retuned the voices, so struck and plucked voices (vibes, marimba, harp)
+	fell silent for minutes after a few overlapping notes (found by replaying
+	a --debug log with the new --replay FILE); they are now struck on every
+	note and no longer held for the minimum length. Non-finite voice output
+	is reset and logged.
+	* examples/morph-instrument.js: the wheel clicked, found by replaying a
+	live log and counting jumps at block boundaries (1172 with the wheel
+	messages, 0 without): every CC 1 step set the echo time, the echo gains
+	and the smear at once. The wheel now sets a target and the macro glides
+	to it a little each block, and the echo time is no longer tied to the
+	wheel (CC 92). Output level raised 12 dB (MAKEUP): it peaked at 0.1.
+	* examples/morph-instrument.js: program change picks the voices live,
+	channel 1 for voice A and channel 2 for voice B, program n being the nth
+	model (listed at startup); the new model is calibrated and the controller
+	values kept. The glassloom voices are always loaded for this. The wheel
+	mode now defaults to space (CC 1), the morph is CC 3.
+	* examples/audio-report.js: text report of a 16-bit mono wav from aubio
+	(level, onsets, pitch per time slice, pitch classes, a tempo guess from
+	onset intervals; AubioTempo is documented but not exported yet), so a
+	recording of the instrument can be read as text.
+	* doc/music-model.md, TODO.md: plan for a self-made music model (pretrained
+	GRU, Tonnetz harmony, inpainting, blues to ragtime transfer) and the open
+	Morph instrument items.
+
+	Not done: SndRTIO and SndMidiIn are not bound. SndMidiIn has only
+	OSS, SGI and Windows backends and this kernel has no OSS sequencer or
+	/dev/midi, so it cannot read a MIDI port; an ALSA backend would have
+	to be added to it first.
+
 2026-11-21  Roman Senn  <roman.l.senn@gmail.com>
 
 	Reconfigure a stale vendored stk/LabSound build.

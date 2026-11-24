@@ -468,35 +468,32 @@ if(SOUND_RUBBERBAND)
 endif(SOUND_RUBBERBAND)
 
 if(SOUND_SNDOBJ)
-  # Only the sources needed by the 11 classes this module binds (see
-  # doc/native/sndobj.md) - not a glob, since most of third_party/sndobj/src
-  # (file/realtime/MIDI IO, the FFT/phase-vocoder family) is out of scope
-  # and the FFT family additionally needs a vendored rfftw/rfftw.h this
-  # tree doesn't ship in its include path.
-  set(sndobj_SOURCES
-      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/SndObj.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/HarmTable.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Oscil.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Oscili.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Buzz.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Rand.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Randh.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Randi.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/ADSR.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Filter.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Reson.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/DelayLine.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Comb.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Allpass.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/VDelay.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Gain.cpp
-      ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src/Mix.cpp)
+  # Only the sources of the classes this module binds (see doc/native/sndobj.md),
+  # not a glob: most of third_party/sndobj/src is file/realtime/MIDI IO.
+  # The phase-vocoder family (FFT, IFFT, PVA, PVS, PV*) needs the in-tree
+  # rfftw (FFTW 2.1.3, third_party/sndobj/src/rfftw), compiled in below.
+  set(SNDOBJ_SRC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src)
+  set(SNDOBJ_INC ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/include)
+  set(sndobj_SOURCES)
 
+  foreach(_c SndObj HarmTable HammingTable Oscil Oscili Buzz Rand Randh Randi
+             ADSR Filter Reson DelayLine Comb Allpass VDelay Gain Mix
+             FFT IFFT PVA PVS SpecMult SpecInterp PVMorph PVMix PVBlur PVTransp
+             PVFilter PVMask)
+    list(APPEND sndobj_SOURCES ${SNDOBJ_SRC}/${_c}.cpp)
+  endforeach(_c)
+
+  # rfftw: plain C, symbols kept out of the module's exports so they cannot
+  # interpose the fftw3 other modules (aubio) link
+  file(GLOB SNDOBJ_RFFTW_SOURCES ${SNDOBJ_SRC}/rfftw/*.c)
+  set_source_files_properties(${SNDOBJ_RFFTW_SOURCES} PROPERTIES
+    COMPILE_FLAGS "-fvisibility=hidden -w")
+  list(APPEND sndobj_SOURCES ${SNDOBJ_RFFTW_SOURCES})
 
   make_module(sndobj quickjs-sndobj.cpp ${JS_HELPER_SOURCES})
 
-  include_directories("${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src")
-  module_include_directories(sndobj "${CMAKE_CURRENT_SOURCE_DIR}/third_party/sndobj/src")
+  include_directories("${SNDOBJ_SRC}")
+  module_include_directories(sndobj "${SNDOBJ_SRC}" "${SNDOBJ_INC}" "${SNDOBJ_INC}/rfftw")
 
   find_program(QJSM qjsm)
   if(QJSM)
