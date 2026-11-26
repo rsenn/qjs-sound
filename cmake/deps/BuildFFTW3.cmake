@@ -15,6 +15,12 @@ set(FFTW3_INSTALL_DIR "${CMAKE_CURRENT_BINARY_DIR}/third_party/fftw3-install")
 
 # FFTW's CMakeLists.txt declares an old cmake_minimum_required(); newer
 # CMake refuses that without the policy floor below.
+# a cross build: the nested project needs the same toolchain file (target, sysroot, find roots)
+set(FFTW3_TOOLCHAIN_ARGS)
+if(CMAKE_TOOLCHAIN_FILE)
+  list(APPEND FFTW3_TOOLCHAIN_ARGS "-DCMAKE_TOOLCHAIN_FILE:FILEPATH=${CMAKE_TOOLCHAIN_FILE}")
+endif()
+
 ExternalProject_Add(
   fftw3_external
   URL "https://www.fftw.org/fftw-${FFTW3_VERSION}.tar.gz"
@@ -23,7 +29,8 @@ ExternalProject_Add(
   DOWNLOAD_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party"
   SOURCE_DIR "${FFTW3_SOURCE_DIR}"
   BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/third_party/fftw3"
-  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${FFTW3_INSTALL_DIR}
+  CMAKE_ARGS ${FFTW3_TOOLCHAIN_ARGS}
+             -DCMAKE_INSTALL_PREFIX=${FFTW3_INSTALL_DIR}
              -DCMAKE_INSTALL_LIBDIR=lib
              -DCMAKE_BUILD_TYPE=Release
              -DCMAKE_POSITION_INDEPENDENT_CODE=ON
