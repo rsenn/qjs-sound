@@ -390,10 +390,19 @@ if(SOUND_SNDFILE)
   # code, not part of libsndfile itself - see doc/native/sndfile.md's "Shared
   # TypedArray/buffer interop" section.
 
+  # SF_FORMAT_MPEG* exist since libsndfile 1.1 (they are enum constants: a header check, not an #ifdef)
+  include(CheckSymbolExists)
+  set(CMAKE_REQUIRED_INCLUDES ${SNDFILE_INCLUDE_DIRS})
+  check_symbol_exists(SF_FORMAT_MPEG sndfile.h HAVE_SF_FORMAT_MPEG)
+  unset(CMAKE_REQUIRED_INCLUDES)
+
   make_module(sndfile quickjs-sndfile.c ${JS_HELPER_SOURCES})
 
   include_directories(${SNDFILE_INCLUDE_DIRS})
   module_include_directories(sndfile ${SNDFILE_INCLUDE_DIRS})
+  if(HAVE_SF_FORMAT_MPEG)
+    target_compile_definitions(qjs-sndfile PRIVATE HAVE_SF_FORMAT_MPEG=1)
+  endif()
 
   find_program(QJSM qjsm)
   if(QJSM)
